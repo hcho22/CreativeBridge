@@ -78,3 +78,7 @@ yarn-error.log
 .env
 .env.local
 .env.*.local
+
+# iOS Pods
+ios/Pods/
+Podfile.lock
