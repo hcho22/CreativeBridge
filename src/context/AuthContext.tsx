@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../services/supabase';
+import reactotron from '../services/reactotron';
 
 export interface UserProfile {
   id: string;
@@ -48,14 +49,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUserProfile = async (userId: string): Promise<UserProfile | null> => {
+  const fetchUserProfile = async (
+    userId: string,
+  ): Promise<UserProfile | null> => {
     try {
       console.log('Fetching user profile for ID:', userId);
-      
+
       // First, try to get existing profile by user ID and update it if found
       const { data: existingProfile, error } = await supabase
         .from('user_profiles')
-        .select('id, username, display_name, total_xp, current_streak, longest_streak, total_games_played, total_words_written, best_score, preferred_grade_level, speech_enabled')
+        .select(
+          'id, username, display_name, total_xp, current_streak, longest_streak, total_games_played, total_words_written, best_score, preferred_grade_level, speech_enabled',
+        )
         .eq('id', userId)
         .single();
 
@@ -63,8 +68,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (existingProfile && !error) {
         // Check if it's the old hcho22 profile that needs updating
-        if (existingProfile.username === 'hcho22' && existingProfile.total_xp === 0) {
-          
+        if (
+          existingProfile.username === 'hcho22' &&
+          existingProfile.total_xp === 0
+        ) {
           // Update the profile to match StoryQuest data
           const { data: updatedProfile, error: updateError } = await supabase
             .from('user_profiles')
@@ -79,7 +86,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               best_score: 0,
               preferred_grade_level: 'K-2',
               speech_enabled: true,
-              updated_at: new Date().toISOString()
+              updated_at: new Date().toISOString(),
             })
             .eq('id', userId)
             .select('*')
@@ -89,19 +96,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             return updatedProfile;
           }
         }
-        
+
         return existingProfile;
       }
-      
+
       // Get user email to check for potential matches
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user?.email) {
+      const {
+        data: { user: currentUser },
+      } = await supabase.auth.getUser();
+
+      if (!currentUser?.email) {
         return null;
       }
-      
-      const emailPrefix = user.email.split('@')[0];
-      
+
+      const emailPrefix = currentUser.email.split('@')[0];
+
       // Strategy 2: Look for profiles containing the email prefix
       const { data: matchingProfiles, error: searchError } = await supabase
         .from('user_profiles')
@@ -110,10 +119,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (matchingProfiles && matchingProfiles.length > 0 && !searchError) {
         // Take the profile with the highest XP (most likely to be the main profile)
-        const bestProfile = matchingProfiles.reduce((best, current) => 
-          (current.total_xp || 0) > (best.total_xp || 0) ? current : best
+        const bestProfile = matchingProfiles.reduce((best, current) =>
+          (current.total_xp || 0) > (best.total_xp || 0) ? current : best,
         );
-        
+
         // Link this profile to the current user
         const { data: linkedProfile, error: linkError } = await supabase
           .from('user_profiles')
@@ -134,13 +143,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const createUserProfile = async (user: User): Promise<UserProfile | null> => {
+  const createUserProfile = async (
+    userParam: User,
+  ): Promise<UserProfile | null> => {
     try {
-      console.log('Creating new profile for user ID:', user.id, 'Email:', user.email);
-      
-      const emailPrefix = user.email?.split('@')[0] || 'user';
-      const displayName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
-      
+      console.log(
+        'Creating new profile for user ID:',
+        userParam.id,
+        'Email:',
+        userParam.email,
+      );
+
+      const emailPrefix = userParam.email?.split('@')[0] || 'user';
+      const displayName =
+        emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
+
       const newProfile: Omit<UserProfile, 'id'> = {
         username: emailPrefix,
         display_name: displayName,
@@ -158,13 +175,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const { data, error } = await supabase
         .from('user_profiles')
-        .insert({ ...newProfile, id: user.id })
+        .insert({ ...newProfile, id: userParam.id })
         .select()
         .single();
 
       if (error) {
         console.error('Error creating user profile:', error);
-        console.error('Error details:', error.message, error.details, error.hint);
+        console.error(
+          'Error details:',
+          error.message,
+          error.details,
+          error.hint,
+        );
         return null;
       }
 
@@ -176,24 +198,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const signIn = async (email: string, password: string): Promise<{ error?: string }> => {
+  const signIn = async (
+    email: string,
+    password: string,
+  ): Promise<{ error?: string }> => {
     try {
+      reactotron.log?.('🔐 Attempting sign in', { email });
+
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
+        reactotron.error?.('❌ Sign in failed', error.message);
         return { error: error.message };
       }
 
+      reactotron.log?.('✅ Sign in successful');
       return {};
     } catch (error) {
+      reactotron.error?.('💥 Sign in exception', error);
       return { error: 'An unexpected error occurred' };
     }
   };
 
-  const signUp = async (email: string, password: string): Promise<{ error?: string }> => {
+  const signUp = async (
+    email: string,
+    password: string,
+  ): Promise<{ error?: string }> => {
     try {
       const { error } = await supabase.auth.signUp({
         email,
@@ -218,7 +251,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const updateProfile = async (profile: Partial<UserProfile>): Promise<{ error?: string }> => {
+  const updateProfile = async (
+    profile: Partial<UserProfile>,
+  ): Promise<{ error?: string }> => {
     if (!user) {
       return { error: 'No user logged in' };
     }
@@ -249,7 +284,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         await new Promise(resolve => setTimeout(resolve, 100));
 
         // Get initial session
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const {
+          data: { session: initialSession },
+          error,
+        } = await supabase.auth.getSession();
 
         if (error) {
           console.error('Error getting session:', error);
@@ -257,15 +295,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           return;
         }
 
-        setSession(session);
-        setUser(session?.user ?? null);
+        setSession(initialSession);
+        setUser(initialSession?.user ?? null);
 
-        if (session?.user) {
+        if (initialSession?.user) {
           // Fetch or create user profile
-          let profile = await fetchUserProfile(session.user.id);
+          let profile = await fetchUserProfile(initialSession.user.id);
           if (!profile) {
-            console.log('No existing profile found, creating new profile for user:', session.user.email);
-            profile = await createUserProfile(session.user);
+            console.log(
+              'No existing profile found, creating new profile for user:',
+              initialSession.user.email,
+            );
+            profile = await createUserProfile(initialSession.user);
           }
           setUserProfile(profile);
         }
@@ -285,28 +326,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         await new Promise(resolve => setTimeout(resolve, 100));
 
         // Listen for auth changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (event, session) => {
-            console.log('Auth state changed:', event, session?.user?.email);
+        const {
+          data: { subscription },
+        } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+          console.log(
+            'Auth state changed:',
+            event,
+            currentSession?.user?.email,
+          );
 
-            setSession(session);
-            setUser(session?.user ?? null);
+          setSession(currentSession);
+          setUser(currentSession?.user ?? null);
 
-            if (session?.user) {
-              // Fetch or create user profile
-              let profile = await fetchUserProfile(session.user.id);
-              if (!profile) {
-                console.log('No existing profile found, creating new profile for user:', session.user.email);
-                profile = await createUserProfile(session.user);
-              }
-              setUserProfile(profile);
-            } else {
-              setUserProfile(null);
+          if (currentSession?.user) {
+            // Fetch or create user profile
+            let profile = await fetchUserProfile(currentSession.user.id);
+            if (!profile) {
+              console.log(
+                'No existing profile found, creating new profile for user:',
+                currentSession.user.email,
+              );
+              profile = await createUserProfile(currentSession.user);
             }
-
-            setLoading(false);
+            setUserProfile(profile);
+          } else {
+            setUserProfile(null);
           }
-        );
+
+          setLoading(false);
+        });
 
         authSubscription = subscription;
       } catch (error) {
@@ -343,9 +391,5 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     refreshProfile,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
