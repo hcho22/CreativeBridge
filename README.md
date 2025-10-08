@@ -5,6 +5,7 @@ A mobile story-writing application where users create engaging narratives with A
 ## 📱 Features
 
 ### 🎮 Core Functionality
+
 - **Grade-level Story Creation** - Choose from K-2, 3-5, 6-8, or 9-12 difficulty levels
 - **AI-Assisted Writing** - Collaborative storytelling with intelligent AI support
 - **Voice Input Support** - Accessibility-focused voice-to-text functionality using ElevenLabs Voice AI
@@ -13,6 +14,7 @@ A mobile story-writing application where users create engaging narratives with A
 - **Cross-platform Support** - Native iOS and Android applications
 
 ### 👤 User Profile System
+
 - **User Authentication** - Secure login/signup with Supabase
 - **XP & Streak Tracking** - Gamified writing experience
 - **Statistics Dashboard** - Games played, words written, best scores
@@ -20,6 +22,7 @@ A mobile story-writing application where users create engaging narratives with A
 - **Story History** - Access to all previously created stories
 
 ### 📖 Story Features
+
 - **Story Import** - Load stories from your database or upload text files
 - **Collaborative Writing** - Turn-based storytelling with AI
 - **Grade-appropriate Content** - Age-appropriate challenges and prompts
@@ -47,12 +50,14 @@ A mobile story-writing application where users create engaging narratives with A
 ## 🚀 Installation
 
 ### 1. Clone the Repository
+
 ```bash
 git clone https://github.com/yourusername/CreativeBridge.git
 cd CreativeBridge
 ```
 
 ### 2. Install Dependencies
+
 ```bash
 # Install Node.js dependencies
 npm install
@@ -66,6 +71,7 @@ cd ios && pod install && cd ..
 Create a Supabase project at [supabase.com](https://supabase.com) and configure your environment:
 
 1. **Database Setup**: Run the following SQL in your Supabase SQL Editor:
+
 ```sql
 -- User profiles table
 CREATE TABLE user_profiles (
@@ -96,6 +102,7 @@ CREATE TABLE scores (
 ```
 
 2. **Configuration**: Update `src/services/supabase.ts` with your Supabase credentials:
+
 ```typescript
 const supabaseUrl = 'your-supabase-url';
 const supabaseAnonKey = 'your-supabase-anon-key';
@@ -104,6 +111,7 @@ const supabaseAnonKey = 'your-supabase-anon-key';
 ### 4. Running the Application
 
 #### iOS
+
 ```bash
 # Start Metro
 npm start
@@ -113,6 +121,7 @@ npm run ios
 ```
 
 #### Android
+
 ```bash
 # Start Metro
 npm start
@@ -143,18 +152,21 @@ CreativeBridge/
 ## 🎯 Usage
 
 ### Getting Started
+
 1. **Sign Up/Login** - Create an account or log in with existing credentials
 2. **Select Grade Level** - Choose your preferred difficulty (K-2, 3-5, 6-8, 9-12)
 3. **Configure Speech** - Enable/disable voice input features
 4. **Start Creating** - Begin a new story or continue an existing one
 
 ### Creating Stories
+
 1. **New Story** - Tap "Start Game" to begin a fresh story
 2. **Continue Story** - Import from your story library or upload a text file
 3. **AI Collaboration** - Write collaboratively with AI assistance
 4. **Save Progress** - Your stories are automatically saved to your profile
 
 ### Profile Management
+
 - **View Statistics** - Track your writing progress and achievements
 - **Manage Preferences** - Update grade level, speech settings, and display name
 - **Story Library** - Access all your previously created stories
@@ -185,18 +197,21 @@ npm test            # Run Jest tests
 ## 🌟 Key Features Deep Dive
 
 ### Grade Level System
+
 - **K-2**: Simple vocabulary, basic sentence structure
 - **3-5**: Intermediate complexity, creative prompts
 - **6-8**: Advanced storytelling, character development
 - **9-12**: Complex narratives, literary techniques
 
 ### Voice Integration
+
 - **Speech-to-Text**: Convert voice to written text
 - **AI Voice Reading**: ElevenLabs integration for story playback
 - **Accessibility**: Full voice navigation support
 - **Quick Toggle**: Alt+S keyboard shortcut for speech
 
 ### Story Management
+
 - **Database Storage**: Stories saved to Supabase
 - **File Import**: Upload .txt files from device
 - **Version Control**: Track story iterations and changes
@@ -230,18 +245,21 @@ npm test            # Run Jest tests
 ### Common Issues
 
 **Metro bundler issues:**
+
 ```bash
 # Clear Metro cache
 npm start -- --reset-cache
 ```
 
 **iOS build issues:**
+
 ```bash
 # Clean and reinstall pods
 cd ios && rm -rf Pods Podfile.lock && pod install && cd ..
 ```
 
 **Android build issues:**
+
 ```bash
 # Clean gradle cache
 cd android && ./gradlew clean && cd ..

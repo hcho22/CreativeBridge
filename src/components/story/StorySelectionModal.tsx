@@ -1,0 +1,833 @@
+// Story Selection Modal Component
+// Displays a searchable, filterable list of user stories for selection
+
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  Modal,
+  View,
+  Text,
+  FlatList,
+  TextInput,
+  TouchableOpacity,
+  RefreshControl,
+  ActivityIndicator,
+  StyleSheet,
+  Dimensions,
+  Alert,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import type { GameSession, StorySource } from '../../types/database';
+import { StoryManagementService } from '../../services/storyManagementService';
+
+const { width, height } = Dimensions.get('window');
+
+export interface StorySelectionModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onStorySelect: (story: GameSession) => void;
+  userId: string;
+  title?: string;
+  showOnlyCompleted?: boolean;
+  excludeStoryIds?: string[];
+  initialSource?: StorySource;
+}
+
+interface FilterState {
+  source: StorySource | 'All';
+  dateRange: 'all' | 'week' | 'month' | 'year';
+  completedOnly: boolean;
+}
+
+interface StoryCardProps {
+  story: GameSession;
+  onPress: () => void;
+  searchTerm?: string;
+}
+
+const StoryCard: React.FC<StoryCardProps> = ({
+  story,
+  onPress,
+  searchTerm,
+}) => {
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
+  const getSourceColor = (source: StorySource) => {
+    switch (source) {
+      case 'CreativeBridge':
+        return '#4CAF50';
+      case 'Story_Quest':
+        return '#2196F3';
+      case 'File':
+        return '#FF9800';
+      case 'New':
+        return '#9C27B0';
+      default:
+        return '#757575';
+    }
+  };
+
+  const getStoryTitle = (story: GameSession) => {
+    // Try to extract title from metadata first
+    if (story.story_metadata?.title) {
+      return story.story_metadata.title;
+    }
+
+    // Extract from content (first line if it looks like a title)
+    if (story.story_content) {
+      const firstLine = story.story_content.split('\n')[0].trim();
+      if (
+        firstLine.length > 0 &&
+        firstLine.length < 60 &&
+        !firstLine.endsWith('.')
+      ) {
+        return firstLine;
+      }
+    }
+
+    // Fallback to truncated content
+    const content = story.story_content || story.imported_story_content || '';
+    return content.length > 40 ? `${content.substring(0, 40)}...` : content;
+  };
+
+  const getStoryPreview = (story: GameSession) => {
+    const content = story.story_content || story.imported_story_content || '';
+    const lines = content.split('\n').filter(line => line.trim().length > 0);
+
+    // Skip first line if it's being used as title
+    const title = getStoryTitle(story);
+    const isFirstLineTitle = lines[0] && lines[0].trim() === title;
+    const previewLines = isFirstLineTitle ? lines.slice(1) : lines;
+
+    const preview = previewLines.join(' ').substring(0, 120);
+    return preview.length < content.length ? `${preview}...` : preview;
+  };
+
+  const highlightSearchTerm = (text: string, term?: string) => {
+    if (!term || !text) return text;
+
+    const regex = new RegExp(`(${term})`, 'gi');
+    const parts = text.split(regex);
+
+    return parts
+      .map((part, index) =>
+        regex.test(part) ? (
+          <Text key={index} style={styles.highlightedText}>
+            {part}
+          </Text>
+        ) : (
+          part
+        ),
+      )
+      .join('');
+  };
+
+  const title = getStoryTitle(story);
+  const preview = getStoryPreview(story);
+  const sourceColor = getSourceColor(story.story_source);
+
+  return (
+    <TouchableOpacity style={styles.storyCard} onPress={onPress}>
+      <View style={styles.storyHeader}>
+        <Text style={styles.storyTitle} numberOfLines={2}>
+          {highlightSearchTerm(title, searchTerm)}
+        </Text>
+        <View
+          style={[styles.sourceIndicator, { backgroundColor: sourceColor }]}
+        >
+          <Text style={styles.sourceText}>{story.story_source}</Text>
+        </View>
+      </View>
+
+      <Text style={styles.storyPreview} numberOfLines={3}>
+        {highlightSearchTerm(preview, searchTerm)}
+      </Text>
+
+      <View style={styles.storyFooter}>
+        <Text style={styles.storyDate}>{formatDate(story.created_at)}</Text>
+        <View style={styles.storyStats}>
+          <Text style={styles.wordCount}>{story.words_written || 0} words</Text>
+          {story.final_score > 0 && (
+            <Text style={styles.score}>Score: {story.final_score}</Text>
+          )}
+        </View>
+      </View>
+
+      {story.completed_at && (
+        <View style={styles.completedBadge}>
+          <Text style={styles.completedText}>✓</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+};
+
+const SkeletonCard: React.FC = () => (
+  <View style={styles.skeletonCard}>
+    <View style={styles.skeletonHeader}>
+      <View style={styles.skeletonTitle} />
+      <View style={styles.skeletonSource} />
+    </View>
+    <View style={styles.skeletonPreview1} />
+    <View style={styles.skeletonPreview2} />
+    <View style={styles.skeletonFooter}>
+      <View style={styles.skeletonDate} />
+      <View style={styles.skeletonStats} />
+    </View>
+  </View>
+);
+
+export const StorySelectionModal: React.FC<StorySelectionModalProps> = ({
+  visible,
+  onClose,
+  onStorySelect,
+  userId,
+  title = 'Select a Story',
+  showOnlyCompleted = false,
+  excludeStoryIds = [],
+  initialSource,
+}) => {
+  const [stories, setStories] = useState<GameSession[]>([]);
+  const [filteredStories, setFilteredStories] = useState<GameSession[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filters, setFilters] = useState<FilterState>({
+    source: initialSource || 'All',
+    dateRange: 'all',
+    completedOnly: showOnlyCompleted,
+  });
+  const [error, setError] = useState<string | null>(null);
+
+  // Load stories from the service
+  const loadStories = useCallback(
+    async (isRefresh = false) => {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      setError(null);
+
+      try {
+        const result = await StoryManagementService.getStoryLibrary({
+          userId,
+          limit: 100, // Load a reasonable number for mobile
+          offset: 0,
+          sortBy: 'created_at',
+          sortOrder: 'desc',
+        });
+
+        if (result.success && result.stories) {
+          let loadedStories = result.stories;
+
+          // Filter out excluded stories
+          if (excludeStoryIds.length > 0) {
+            loadedStories = loadedStories.filter(
+              story => !excludeStoryIds.includes(story.id),
+            );
+          }
+
+          // Filter only completed if required
+          if (showOnlyCompleted) {
+            loadedStories = loadedStories.filter(story => story.completed_at);
+          }
+
+          setStories(loadedStories);
+        } else {
+          setError(result.error || 'Failed to load stories');
+        }
+      } catch (err) {
+        setError('An unexpected error occurred');
+        console.error('Error loading stories:', err);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [userId, excludeStoryIds, showOnlyCompleted],
+  );
+
+  // Apply filters and search
+  const applyFiltersAndSearch = useCallback(() => {
+    let filtered = [...stories];
+
+    // Apply source filter
+    if (filters.source !== 'All') {
+      filtered = filtered.filter(
+        story => story.story_source === filters.source,
+      );
+    }
+
+    // Apply date range filter
+    if (filters.dateRange !== 'all') {
+      const now = new Date();
+      const cutoffDate = new Date();
+
+      switch (filters.dateRange) {
+        case 'week':
+          cutoffDate.setDate(now.getDate() - 7);
+          break;
+        case 'month':
+          cutoffDate.setMonth(now.getMonth() - 1);
+          break;
+        case 'year':
+          cutoffDate.setFullYear(now.getFullYear() - 1);
+          break;
+      }
+
+      filtered = filtered.filter(
+        story => new Date(story.created_at) >= cutoffDate,
+      );
+    }
+
+    // Apply completed filter
+    if (filters.completedOnly) {
+      filtered = filtered.filter(story => story.completed_at);
+    }
+
+    // Apply search term
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(story => {
+        const title = story.story_metadata?.title || '';
+        const content =
+          story.story_content || story.imported_story_content || '';
+
+        return (
+          title.toLowerCase().includes(term) ||
+          content.toLowerCase().includes(term) ||
+          story.story_source.toLowerCase().includes(term)
+        );
+      });
+    }
+
+    setFilteredStories(filtered);
+  }, [stories, filters, searchTerm]);
+
+  // Load stories when modal opens
+  useEffect(() => {
+    if (visible && userId) {
+      loadStories();
+    }
+  }, [visible, userId, loadStories]);
+
+  // Apply filters when stories or filters change
+  useEffect(() => {
+    applyFiltersAndSearch();
+  }, [applyFiltersAndSearch]);
+
+  const handleStoryPress = useCallback(
+    (story: GameSession) => {
+      onStorySelect(story);
+      onClose();
+    },
+    [onStorySelect, onClose],
+  );
+
+  const handleRefresh = useCallback(() => {
+    loadStories(true);
+  }, [loadStories]);
+
+  const clearSearch = useCallback(() => {
+    setSearchTerm('');
+  }, []);
+
+  const renderStoryCard = useCallback(
+    ({ item }: { item: GameSession }) => (
+      <StoryCard
+        story={item}
+        onPress={() => handleStoryPress(item)}
+        searchTerm={searchTerm}
+      />
+    ),
+    [handleStoryPress, searchTerm],
+  );
+
+  const renderSkeleton = useCallback(
+    () => (
+      <View>
+        {Array.from({ length: 5 }, (_, index) => (
+          <SkeletonCard key={index} />
+        ))}
+      </View>
+    ),
+    [],
+  );
+
+  const sourceOptions: Array<StorySource | 'All'> = [
+    'All',
+    'New',
+    'CreativeBridge',
+    'Story_Quest',
+    'File',
+  ];
+  const dateRangeOptions = [
+    { key: 'all', label: 'All Time' },
+    { key: 'week', label: 'This Week' },
+    { key: 'month', label: 'This Month' },
+    { key: 'year', label: 'This Year' },
+  ];
+
+  const ListEmptyComponent = useMemo(() => {
+    if (loading) return renderSkeleton();
+
+    if (error) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => loadStories()}
+          >
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>
+          {searchTerm ? 'No stories match your search' : 'No stories found'}
+        </Text>
+        {searchTerm && (
+          <TouchableOpacity style={styles.clearButton} onPress={clearSearch}>
+            <Text style={styles.clearButtonText}>Clear Search</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  }, [loading, error, searchTerm, renderSkeleton, loadStories, clearSearch]);
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
+      <SafeAreaView style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+            <Text style={styles.closeButtonText}>✕</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>{title}</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search stories..."
+            value={searchTerm}
+            onChangeText={setSearchTerm}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {searchTerm.length > 0 && (
+            <TouchableOpacity
+              style={styles.clearSearchButton}
+              onPress={clearSearch}
+            >
+              <Text style={styles.clearSearchText}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Filter Buttons */}
+        <View style={styles.filtersContainer}>
+          {/* Source Filter */}
+          <View style={styles.filterGroup}>
+            <Text style={styles.filterLabel}>Source:</Text>
+            <View style={styles.filterButtons}>
+              {sourceOptions.map(source => (
+                <TouchableOpacity
+                  key={source}
+                  style={[
+                    styles.filterButton,
+                    filters.source === source && styles.filterButtonActive,
+                  ]}
+                  onPress={() => setFilters(prev => ({ ...prev, source }))}
+                >
+                  <Text
+                    style={[
+                      styles.filterButtonText,
+                      filters.source === source &&
+                        styles.filterButtonTextActive,
+                    ]}
+                  >
+                    {source}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Date Range Filter */}
+          <View style={styles.filterGroup}>
+            <Text style={styles.filterLabel}>Date:</Text>
+            <View style={styles.filterButtons}>
+              {dateRangeOptions.map(option => (
+                <TouchableOpacity
+                  key={option.key}
+                  style={[
+                    styles.filterButton,
+                    filters.dateRange === option.key &&
+                      styles.filterButtonActive,
+                  ]}
+                  onPress={() =>
+                    setFilters(prev => ({
+                      ...prev,
+                      dateRange: option.key as any,
+                    }))
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.filterButtonText,
+                      filters.dateRange === option.key &&
+                        styles.filterButtonTextActive,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Completed Only Toggle */}
+          {!showOnlyCompleted && (
+            <TouchableOpacity
+              style={styles.toggleButton}
+              onPress={() =>
+                setFilters(prev => ({
+                  ...prev,
+                  completedOnly: !prev.completedOnly,
+                }))
+              }
+            >
+              <Text style={styles.toggleButtonText}>
+                {filters.completedOnly ? '☑' : '☐'} Completed Only
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Results Count */}
+        <Text style={styles.resultsCount}>
+          {filteredStories.length}{' '}
+          {filteredStories.length === 1 ? 'story' : 'stories'}
+        </Text>
+
+        {/* Story List */}
+        <FlatList
+          data={filteredStories}
+          keyExtractor={item => item.id}
+          renderItem={renderStoryCard}
+          ListEmptyComponent={ListEmptyComponent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
+          contentContainerStyle={styles.listContainer}
+          showsVerticalScrollIndicator={false}
+        />
+      </SafeAreaView>
+    </Modal>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  closeButton: {
+    padding: 8,
+  },
+  closeButtonText: {
+    fontSize: 18,
+    color: '#666',
+  },
+  title: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
+  headerSpacer: {
+    width: 34, // Match close button width
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    margin: 16,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  searchInput: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+  },
+  clearSearchButton: {
+    padding: 12,
+  },
+  clearSearchText: {
+    fontSize: 16,
+    color: '#666',
+  },
+  filtersContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  filterGroup: {
+    marginBottom: 8,
+  },
+  filterLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#666',
+    marginBottom: 4,
+  },
+  filterButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  filterButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  filterButtonActive: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
+  filterButtonText: {
+    fontSize: 12,
+    color: '#666',
+  },
+  filterButtonTextActive: {
+    color: '#fff',
+  },
+  toggleButton: {
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+  },
+  toggleButtonText: {
+    fontSize: 14,
+    color: '#007AFF',
+  },
+  resultsCount: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    fontSize: 12,
+    color: '#666',
+  },
+  listContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  storyCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+    position: 'relative',
+  },
+  storyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  storyTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginRight: 8,
+  },
+  sourceIndicator: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  sourceText: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#fff',
+  },
+  storyPreview: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  storyFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  storyDate: {
+    fontSize: 12,
+    color: '#999',
+  },
+  storyStats: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  wordCount: {
+    fontSize: 12,
+    color: '#666',
+  },
+  score: {
+    fontSize: 12,
+    color: '#4CAF50',
+    fontWeight: '500',
+  },
+  completedBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#4CAF50',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  completedText: {
+    fontSize: 12,
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  highlightedText: {
+    backgroundColor: '#FFEB3B',
+    fontWeight: '500',
+  },
+  skeletonCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+  },
+  skeletonHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  skeletonTitle: {
+    width: '70%',
+    height: 20,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 4,
+  },
+  skeletonSource: {
+    width: 60,
+    height: 16,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 8,
+  },
+  skeletonPreview1: {
+    width: '100%',
+    height: 14,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 4,
+    marginBottom: 4,
+  },
+  skeletonPreview2: {
+    width: '80%',
+    height: 14,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 4,
+    marginBottom: 12,
+  },
+  skeletonFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  skeletonDate: {
+    width: 60,
+    height: 12,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 4,
+  },
+  skeletonStats: {
+    width: 80,
+    height: 12,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 4,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#f44336',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  retryButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+  },
+  retryText: {
+    color: '#fff',
+    fontWeight: '500',
+  },
+  clearButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+  },
+  clearButtonText: {
+    color: '#fff',
+    fontWeight: '500',
+  },
+});
+
+export default StorySelectionModal;

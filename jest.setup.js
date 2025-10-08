@@ -49,45 +49,55 @@ jest.mock('@react-native-voice/voice', () => ({
 jest.mock('@supabase/supabase-js', () => ({
   createClient: jest.fn(() => ({
     auth: {
-      getUser: jest.fn(() => Promise.resolve({
-        data: { user: null },
-        error: null
-      })),
-      signInWithPassword: jest.fn(() => Promise.resolve({
-        data: { user: null },
-        error: null
-      })),
+      getUser: jest.fn(() =>
+        Promise.resolve({
+          data: { user: null },
+          error: null,
+        }),
+      ),
+      signInWithPassword: jest.fn(() =>
+        Promise.resolve({
+          data: { user: null },
+          error: null,
+        }),
+      ),
       signOut: jest.fn(() => Promise.resolve({ error: null })),
     },
     from: jest.fn(() => ({
       select: jest.fn(() => ({
         eq: jest.fn(() => ({
-          single: jest.fn(() => Promise.resolve({
-            data: null,
-            error: null
-          }))
-        }))
+          single: jest.fn(() =>
+            Promise.resolve({
+              data: null,
+              error: null,
+            }),
+          ),
+        })),
       })),
       insert: jest.fn(() => ({
         select: jest.fn(() => ({
-          single: jest.fn(() => Promise.resolve({
-            data: null,
-            error: null
-          }))
-        }))
+          single: jest.fn(() =>
+            Promise.resolve({
+              data: null,
+              error: null,
+            }),
+          ),
+        })),
       })),
       update: jest.fn(() => ({
         eq: jest.fn(() => ({
           select: jest.fn(() => ({
-            single: jest.fn(() => Promise.resolve({
-              data: null,
-              error: null
-            }))
-          }))
-        }))
-      }))
-    }))
-  }))
+            single: jest.fn(() =>
+              Promise.resolve({
+                data: null,
+                error: null,
+              }),
+            ),
+          })),
+        })),
+      })),
+    })),
+  })),
 }));
 
 // Mock fetch for API calls
@@ -95,20 +105,21 @@ global.fetch = jest.fn(() =>
   Promise.resolve({
     ok: true,
     status: 200,
-    json: () => Promise.resolve({
-      success: true,
-      data: {}
-    }),
-  })
+    json: () =>
+      Promise.resolve({
+        success: true,
+        data: {},
+      }),
+  }),
 );
 
 // Mock React Native modules individually
 jest.mock('react-native', () => ({
   StyleSheet: {
-    create: jest.fn((styles) => styles),
+    create: jest.fn(styles => styles),
     absoluteFill: {},
     absoluteFillObject: {},
-    flatten: jest.fn((style) => style),
+    flatten: jest.fn(style => style),
     compose: jest.fn((style1, style2) => [style1, style2]),
   },
   Dimensions: {
@@ -121,7 +132,7 @@ jest.mock('react-native', () => ({
   },
   Platform: {
     OS: 'ios',
-    select: jest.fn((config) => config.ios || config.default),
+    select: jest.fn(config => config.ios || config.default),
   },
   PermissionsAndroid: {
     check: jest.fn(() => Promise.resolve(true)),
@@ -143,6 +154,56 @@ jest.mock('react-native', () => ({
   ActivityIndicator: 'ActivityIndicator',
   Button: 'Button',
   SafeAreaView: 'SafeAreaView',
+  Animated: {
+    Value: jest.fn().mockImplementation(() => ({
+      setValue: jest.fn(),
+      stopAnimation: jest.fn(),
+      interpolate: jest.fn(() => ({
+        interpolate: jest.fn(),
+      })),
+    })),
+    View: 'Animated.View',
+    Text: 'Animated.Text',
+    ScrollView: 'Animated.ScrollView',
+    loop: jest.fn(_animation => ({
+      start: jest.fn(),
+    })),
+    timing: jest.fn(() => ({
+      start: jest.fn(),
+    })),
+    sequence: jest.fn(() => ({
+      start: jest.fn(),
+    })),
+    createAnimatedComponent: jest.fn(Component => Component),
+    decay: jest.fn(() => ({ start: jest.fn() })),
+    spring: jest.fn(() => ({ start: jest.fn() })),
+    add: jest.fn(),
+    divide: jest.fn(),
+    multiply: jest.fn(),
+    modulo: jest.fn(),
+    diffClamp: jest.fn(),
+    event: jest.fn(),
+    parallel: jest.fn(() => ({ start: jest.fn() })),
+    stagger: jest.fn(() => ({ start: jest.fn() })),
+    delay: jest.fn(() => ({ start: jest.fn() })),
+  },
+  Easing: {
+    linear: jest.fn(),
+    bezier: jest.fn(),
+    ease: jest.fn(),
+    quad: jest.fn(),
+    cubic: jest.fn(),
+    in: jest.fn(),
+    out: jest.fn(),
+    inOut: jest.fn(),
+    bounce: jest.fn(),
+    back: jest.fn(),
+    elastic: jest.fn(),
+    sin: jest.fn(),
+    circle: jest.fn(),
+    exp: jest.fn(),
+    poly: jest.fn(),
+  },
 }));
 
 // Silence console warnings in tests

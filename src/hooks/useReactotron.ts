@@ -27,19 +27,22 @@ export const useReactotron = () => {
     }
   };
 
-  const logInfo = (message: string, data?: any) => {
+  const logInfo = (message: string, data?: unknown) => {
     if (__DEV__) {
       reactotron.log?.(message, data);
     }
   };
 
-  const logWarning = (message: string, data?: any) => {
+  const logWarning = (message: string, data?: unknown) => {
     if (__DEV__) {
-      reactotron.warn?.(message, data);
+      reactotron.warn?.(message);
     }
   };
 
-  const displayObject = (name: string, object: any) => {
+  const displayObject = (
+    name: string,
+    object: string | number | boolean | object | null | undefined,
+  ) => {
     if (__DEV__) {
       reactotron.display?.({
         name,

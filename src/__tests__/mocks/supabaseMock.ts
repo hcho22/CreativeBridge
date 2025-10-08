@@ -1,0 +1,189 @@
+// Mock Supabase client for testing
+export const createMockSupabaseClient = () => {
+  const mockData = new Map();
+  const mockUsers = new Map();
+  const mockSessions = new Map();
+
+  return {
+    auth: {
+      signInWithPassword: jest
+        .fn()
+        .mockImplementation(({ email, password }) => {
+          // Simulate different auth scenarios
+          if (email === 'valid@example.com' && password === 'correctpassword') {
+            const user = {
+              id: 'user-123',
+              email,
+              email_confirmed_at: new Date().toISOString(),
+            };
+            mockUsers.set('user-123', user);
+            return Promise.resolve({
+              data: { user, session: { access_token: 'token', user } },
+              error: null,
+            });
+          }
+
+          if (email === 'unconfirmed@example.com') {
+            const user = { id: 'user-456', email, email_confirmed_at: null };
+            return Promise.resolve({
+              data: { user, session: null },
+              error: null,
+            });
+          }
+
+          return Promise.resolve({
+            data: { user: null, session: null },
+            error: { message: 'Invalid credentials' },
+          });
+        }),
+
+      signUp: jest.fn().mockImplementation(({ email, password }) => {
+        if (email === 'existing@example.com') {
+          return Promise.resolve({
+            data: { user: null, session: null },
+            error: { message: 'User already exists' },
+          });
+        }
+
+        const user = {
+          id: `user-${Date.now()}`,
+          email,
+          email_confirmed_at: null,
+        };
+        return Promise.resolve({
+          data: { user, session: null },
+          error: null,
+        });
+      }),
+
+      signOut: jest.fn().mockResolvedValue({ error: null }),
+
+      getUser: jest.fn().mockImplementation(() => {
+        const currentUser = Array.from(mockUsers.values())[0] || null;
+        return Promise.resolve({
+          data: { user: currentUser },
+          error: null,
+        });
+      }),
+
+      getSession: jest.fn().mockImplementation(() => {
+        const currentUser = Array.from(mockUsers.values())[0] || null;
+        const session = currentUser
+          ? {
+              access_token: 'token',
+              user: currentUser,
+            }
+          : null;
+        return Promise.resolve({
+          data: { session },
+          error: null,
+        });
+      }),
+
+      onAuthStateChange: jest.fn().mockImplementation(callback => {
+        return {
+          data: {
+            subscription: {
+              unsubscribe: jest.fn(),
+            },
+          },
+        };
+      }),
+
+      resetPasswordForEmail: jest.fn().mockImplementation(email => {
+        return Promise.resolve({ error: null });
+      }),
+
+      resend: jest.fn().mockImplementation(({ email }) => {
+        return Promise.resolve({ error: null });
+      }),
+    },
+
+    from: jest.fn().mockImplementation(table => ({
+      select: jest.fn().mockReturnThis(),
+      insert: jest.fn().mockImplementation(data => {
+        const id = `${table}-${Date.now()}`;
+        const record = Array.isArray(data)
+          ? data.map(item => ({ id, ...item }))
+          : { id, ...data };
+        mockData.set(`${table}-${id}`, record);
+        return Promise.resolve({ data: record, error: null });
+      }),
+      update: jest.fn().mockImplementation(data => ({
+        eq: jest.fn().mockImplementation((column, value) => {
+          const record = mockData.get(`${table}-${value}`) || {
+            id: value,
+            ...data,
+          };
+          mockData.set(`${table}-${value}`, { ...record, ...data });
+          return Promise.resolve({ data: record, error: null });
+        }),
+      })),
+      delete: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockImplementation((column, value) => {
+        const record = mockData.get(`${table}-${value}`);
+        return Promise.resolve({
+          data: record || null,
+          error: record ? null : { message: 'Record not found' },
+        });
+      }),
+      single: jest.fn().mockImplementation(() => {
+        // Return the last operation result as single
+        return Promise.resolve({
+          data: Array.from(mockData.values()).pop() || null,
+          error: null,
+        });
+      }),
+      ilike: jest.fn().mockImplementation((column, pattern) => {
+        const results = Array.from(mockData.values()).filter(record =>
+          record[column]
+            ?.toLowerCase()
+            .includes(pattern.replace(/%/g, '').toLowerCase()),
+        );
+        return Promise.resolve({ data: results, error: null });
+      }),
+    })),
+
+    rpc: jest.fn().mockImplementation((functionName, params) => {
+      // Mock database functions
+      switch (functionName) {
+        case 'register_device':
+          return Promise.resolve({ data: params.p_user_id, error: null });
+        case 'check_rate_limit':
+          return Promise.resolve({ data: true, error: null });
+        case 'log_security_event':
+          return Promise.resolve({ data: 'log-id', error: null });
+        case 'update_user_streak':
+          return Promise.resolve({ data: null, error: null });
+        case 'add_user_xp':
+          return Promise.resolve({ data: null, error: null });
+        default:
+          return Promise.resolve({
+            data: null,
+            error: { message: 'Function not found' },
+          });
+      }
+    }),
+
+    // Test utilities
+    __testUtils: {
+      clear: () => {
+        mockData.clear();
+        mockUsers.clear();
+        mockSessions.clear();
+      },
+      setUser: (user: any) => {
+        mockUsers.set(user.id, user);
+      },
+      getUser: (id: string) => mockUsers.get(id),
+      setData: (table: string, id: string, data: any) => {
+        mockData.set(`${table}-${id}`, data);
+      },
+      getData: (table: string, id: string) => mockData.get(`${table}-${id}`),
+      getAllData: () => Array.from(mockData.entries()),
+    },
+  };
+};
+
+// Mock the main supabase export
+export const mockSupabase = createMockSupabaseClient();

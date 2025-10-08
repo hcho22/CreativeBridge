@@ -55,18 +55,18 @@ if (__DEV__) {
   const originalWarn = console.warn;
   const originalError = console.error;
 
-  console.log = (...args: any[]) => {
-    reactotron.log?.(...args);
+  console.log = (...args: unknown[]) => {
+    reactotron.log?.(args.join(' '));
     originalLog(...args);
   };
 
-  console.warn = (...args: any[]) => {
-    reactotron.warn?.(...args);
+  console.warn = (...args: unknown[]) => {
+    reactotron.warn?.(args.join(' '));
     originalWarn(...args);
   };
 
-  console.error = (...args: any[]) => {
-    reactotron.error?.(...args);
+  console.error = (...args: unknown[]) => {
+    reactotron.error?.(args.join(' '), '');
     originalError(...args);
   };
 }

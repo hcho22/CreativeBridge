@@ -178,13 +178,13 @@ leaderboard_xp, leaderboard_streaks
 
 #### Deliverables:
 
-- [ ] Story creation interface with text input
-- [ ] Grade level selection and story starter system
-- [ ] OpenAI API integration for story continuation
-- [ ] Challenge validation system (adapted from Story_Quest)
-- [ ] Turn-based gameplay mechanics
-- [ ] Story saving and continuation functionality
-- [ ] Basic XP and scoring system
+- [x] Story creation interface with text input
+- [x] Grade level selection and story starter system
+- [x] OpenAI API integration for story continuation
+- [x] Challenge validation system (adapted from Story_Quest)
+- [x] Turn-based gameplay mechanics
+- [x] Story saving and continuation functionality
+- [x] Basic XP and scoring system
 
 #### Technical Requirements:
 

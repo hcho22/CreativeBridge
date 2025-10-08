@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,9 +11,20 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useAuth } from '../context/AuthContext';
+import { TabParamList } from '../navigation/AppNavigator';
 
-const ProfileScreen: React.FC = () => {
+type ProfileScreenNavigationProp = BottomTabNavigationProp<
+  TabParamList,
+  'Profile'
+>;
+
+interface ProfileScreenProps {
+  navigation: ProfileScreenNavigationProp;
+}
+
+const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const { userProfile, updateProfile, refreshProfile } = useAuth();
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editedDisplayName, setEditedDisplayName] = useState(
@@ -58,24 +69,22 @@ const ProfileScreen: React.FC = () => {
     setEditModalVisible(false);
   };
 
+  const gradeDescriptions = useMemo(
+    () => ({
+      'K-2': 'Kindergarten - 2nd Grade',
+      '3-5': '3rd - 5th Grade',
+      '6-8': '6th - 8th Grade',
+      '9-12': '9th - 12th Grade',
+    }),
+    [],
+  );
+
   const getGradeDescription = (level: string): string => {
-    switch (level) {
-      case 'K-2':
-        return 'Kindergarten - 2nd Grade';
-      case '3-5':
-        return '3rd - 5th Grade';
-      case '6-8':
-        return '6th - 8th Grade';
-      case '9-12':
-        return '9th - 12th Grade';
-      default:
-        return level;
-    }
+    return gradeDescriptions[level as keyof typeof gradeDescriptions] || level;
   };
 
-  const calculateLevel = (
-    xp: number,
-  ): { level: number; progress: number; nextLevelXP: number } => {
+  const levelData = useMemo(() => {
+    const xp = userProfile?.total_xp || 0;
     // Simple leveling system: 100 XP per level
     const level = Math.floor(xp / 100) + 1;
     const currentLevelXP = (level - 1) * 100;
@@ -83,11 +92,9 @@ const ProfileScreen: React.FC = () => {
     const progress = ((xp - currentLevelXP) / 100) * 100;
 
     return { level, progress, nextLevelXP };
-  };
+  }, [userProfile?.total_xp]);
 
-  const { level, progress, nextLevelXP } = calculateLevel(
-    userProfile?.total_xp || 0,
-  );
+  const { level, progress, nextLevelXP } = levelData;
 
   return (
     <ScrollView style={styles.container}>
@@ -488,4 +495,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ProfileScreen;
+export default React.memo(ProfileScreen);

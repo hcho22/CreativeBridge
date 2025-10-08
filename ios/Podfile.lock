@@ -10,6 +10,18 @@ PODS:
   - hermes-engine (0.81.1):
     - hermes-engine/Pre-built (= 0.81.1)
   - hermes-engine/Pre-built (0.81.1)
+  - libwebp (1.5.0):
+    - libwebp/demux (= 1.5.0)
+    - libwebp/mux (= 1.5.0)
+    - libwebp/sharpyuv (= 1.5.0)
+    - libwebp/webp (= 1.5.0)
+  - libwebp/demux (1.5.0):
+    - libwebp/webp
+  - libwebp/mux (1.5.0):
+    - libwebp/demux
+  - libwebp/sharpyuv (1.5.0)
+  - libwebp/webp (1.5.0):
+    - libwebp/sharpyuv
   - RCT-Folly (2024.11.18.00):
     - boost
     - DoubleConversion
@@ -1750,6 +1762,34 @@ PODS:
     - React-RCTFBReactNativeSpec
     - ReactCommon/turbomodule/core
     - SocketRocket
+  - react-native-document-picker (9.3.1):
+    - boost
+    - DoubleConversion
+    - fast_float
+    - fmt
+    - glog
+    - hermes-engine
+    - RCT-Folly
+    - RCT-Folly/Fabric
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - SocketRocket
+    - Yoga
   - react-native-image-picker (8.2.1):
     - boost
     - DoubleConversion
@@ -2400,6 +2440,40 @@ PODS:
     - ReactCommon/turbomodule/core
     - SocketRocket
     - Yoga
+  - RNCClipboard (1.16.3):
+    - boost
+    - DoubleConversion
+    - fast_float
+    - fmt
+    - glog
+    - hermes-engine
+    - RCT-Folly
+    - RCT-Folly/Fabric
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - SocketRocket
+    - Yoga
+  - RNDeviceInfo (14.1.1):
+    - React-Core
+  - RNFastImage (8.6.3):
+    - React-Core
+    - SDWebImage (~> 5.11.1)
+    - SDWebImageWebPCoder (~> 0.8.4)
   - RNGestureHandler (2.28.0):
     - boost
     - DoubleConversion
@@ -2515,7 +2589,15 @@ PODS:
     - ReactCommon/turbomodule/core
     - SocketRocket
     - Yoga
+  - SDWebImage (5.11.1):
+    - SDWebImage/Core (= 5.11.1)
+  - SDWebImage/Core (5.11.1)
+  - SDWebImageWebPCoder (0.8.5):
+    - libwebp (~> 1.0)
+    - SDWebImage/Core (~> 5.10)
   - SocketRocket (0.7.1)
+  - TextToSpeech (4.1.1):
+    - React-Core
   - Yoga (0.0.0)
 
 DEPENDENCIES:
@@ -2561,6 +2643,7 @@ DEPENDENCIES:
   - React-logger (from `../node_modules/react-native/ReactCommon/logger`)
   - React-Mapbuffer (from `../node_modules/react-native/ReactCommon`)
   - React-microtasksnativemodule (from `../node_modules/react-native/ReactCommon/react/nativemodule/microtasks`)
+  - react-native-document-picker (from `../node_modules/react-native-document-picker`)
   - react-native-image-picker (from `../node_modules/react-native-image-picker`)
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
   - "react-native-voice (from `../node_modules/@react-native-voice/voice`)"
@@ -2595,14 +2678,21 @@ DEPENDENCIES:
   - ReactCodegen (from `build/generated/ios`)
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
   - "RNCAsyncStorage (from `../node_modules/@react-native-async-storage/async-storage`)"
+  - "RNCClipboard (from `../node_modules/@react-native-clipboard/clipboard`)"
+  - RNDeviceInfo (from `../node_modules/react-native-device-info`)
+  - RNFastImage (from `../node_modules/react-native-fast-image`)
   - RNGestureHandler (from `../node_modules/react-native-gesture-handler`)
   - RNScreens (from `../node_modules/react-native-screens`)
   - RNVectorIcons (from `../node_modules/react-native-vector-icons`)
   - SocketRocket (~> 0.7.1)
+  - TextToSpeech (from `../node_modules/react-native-tts`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
 SPEC REPOS:
   trunk:
+    - libwebp
+    - SDWebImage
+    - SDWebImageWebPCoder
     - SocketRocket
 
 EXTERNAL SOURCES:
@@ -2689,6 +2779,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon"
   React-microtasksnativemodule:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/microtasks"
+  react-native-document-picker:
+    :path: "../node_modules/react-native-document-picker"
   react-native-image-picker:
     :path: "../node_modules/react-native-image-picker"
   react-native-safe-area-context:
@@ -2757,12 +2849,20 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon"
   RNCAsyncStorage:
     :path: "../node_modules/@react-native-async-storage/async-storage"
+  RNCClipboard:
+    :path: "../node_modules/@react-native-clipboard/clipboard"
+  RNDeviceInfo:
+    :path: "../node_modules/react-native-device-info"
+  RNFastImage:
+    :path: "../node_modules/react-native-fast-image"
   RNGestureHandler:
     :path: "../node_modules/react-native-gesture-handler"
   RNScreens:
     :path: "../node_modules/react-native-screens"
   RNVectorIcons:
     :path: "../node_modules/react-native-vector-icons"
+  TextToSpeech:
+    :path: "../node_modules/react-native-tts"
   Yoga:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
@@ -2775,6 +2875,7 @@ SPEC CHECKSUMS:
   fmt: a40bb5bd0294ea969aaaba240a927bd33d878cdd
   glog: 5683914934d5b6e4240e497e0f4a3b42d1854183
   hermes-engine: 4f8246b1f6d79f625e0d99472d1f3a71da4d28ca
+  libwebp: 02b23773aedb6ff1fd38cec7a77b81414c6842a8
   RCT-Folly: 846fda9475e61ec7bcbf8a3fe81edfcaeb090669
   RCTDeprecation: c4b9e2fd0ab200e3af72b013ed6113187c607077
   RCTRequired: e97dd5dafc1db8094e63bc5031e0371f092ae92a
@@ -2808,6 +2909,7 @@ SPEC CHECKSUMS:
   React-logger: 7aef4d74123e5e3d267e5af1fbf5135b5a0d8381
   React-Mapbuffer: 91e0eab42a6ae7f3e34091a126d70fc53bd3823e
   React-microtasksnativemodule: 1ead4fe154df3b1ba34b5a9e35ef3c4bdfa72ccb
+  react-native-document-picker: dcf5e57f3bcae61bf8384a1c6f90896f81e17941
   react-native-image-picker: 0314366753615115fa55c3cc937ac44cb7e75702
   react-native-safe-area-context: c6e2edd1c1da07bdce287fa9d9e60c5f7b514616
   react-native-voice: 908a0eba96c8c3d643e4f98b7232c6557d0a6f9c
@@ -2842,10 +2944,16 @@ SPEC CHECKSUMS:
   ReactCodegen: 4d203eddf6f977caa324640a20f92e70408d648b
   ReactCommon: ce5d4226dfaf9d5dacbef57b4528819e39d3a120
   RNCAsyncStorage: 29f0230e1a25f36c20b05f65e2eb8958d6526e82
+  RNCClipboard: 4b58c780f63676367640f23c8e114e9bd0cf86ac
+  RNDeviceInfo: bcce8752b5043a623fe3c26789679b473f705d3c
+  RNFastImage: 462a183c4b0b6b26fdfd639e1ed6ba37536c3b87
   RNGestureHandler: 3a73f098d74712952870e948b3d9cf7b6cae9961
   RNScreens: 0bbf16c074ae6bb1058a7bf2d1ae017f4306797c
   RNVectorIcons: 791f13226ec4a3fd13062eda9e892159f0981fae
+  SDWebImage: a7f831e1a65eb5e285e3fb046a23fcfbf08e696d
+  SDWebImageWebPCoder: 908b83b6adda48effe7667cd2b7f78c897e5111d
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
+  TextToSpeech: 89b239221ec378d213af422d14789a729705360b
   Yoga: 11c9686a21e2cd82a094a723649d9f4507200fb0
 
 PODFILE CHECKSUM: a9e2f5991fdf0a1539ce88c0681d5d0f9c296779

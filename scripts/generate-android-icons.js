@@ -2,12 +2,12 @@
 
 /**
  * CreativeBridge Android Icon Generator
- * 
+ *
  * This script generates placeholder app icons for Android development.
  * For production, replace with your actual app icon design.
- * 
+ *
  * Usage: node scripts/generate-android-icons.js
- * 
+ *
  * Prerequisites:
  * - Node.js installed
  * - sharp package (optional): npm install sharp
@@ -21,15 +21,25 @@ let sharp;
 try {
   sharp = require('sharp');
 } catch (error) {
-  console.log('📦 Sharp not installed. SVG files will be generated for manual conversion.');
+  console.log(
+    '📦 Sharp not installed. SVG files will be generated for manual conversion.',
+  );
 }
 
 const ANDROID_ICON_SIZES = [
   { density: 'mdpi', size: 48, description: 'Medium density (~160dpi)' },
   { density: 'hdpi', size: 72, description: 'High density (~240dpi)' },
   { density: 'xhdpi', size: 96, description: 'Extra high density (~320dpi)' },
-  { density: 'xxhdpi', size: 144, description: 'Extra extra high density (~480dpi)' },
-  { density: 'xxxhdpi', size: 192, description: 'Extra extra extra high density (~640dpi)' }
+  {
+    density: 'xxhdpi',
+    size: 144,
+    description: 'Extra extra high density (~480dpi)',
+  },
+  {
+    density: 'xxxhdpi',
+    size: 192,
+    description: 'Extra extra extra high density (~640dpi)',
+  },
 ];
 
 const BRAND_COLORS = {
@@ -37,18 +47,22 @@ const BRAND_COLORS = {
   secondary: '#6B73FF',
   accent: '#9C88FF',
   background: '#F8F9FA',
-  text: '#2D3436'
+  text: '#2D3436',
 };
 
 async function createAndroidIcon(size, outputPath, isRound = false) {
   const cornerRadius = isRound ? size / 2 : size * 0.125; // Round icons are circular
-  
+
   const svg = `
 <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:${BRAND_COLORS.primary};stop-opacity:1" />
-      <stop offset="100%" style="stop-color:${BRAND_COLORS.secondary};stop-opacity:1" />
+      <stop offset="0%" style="stop-color:${
+        BRAND_COLORS.primary
+      };stop-opacity:1" />
+      <stop offset="100%" style="stop-color:${
+        BRAND_COLORS.secondary
+      };stop-opacity:1" />
     </linearGradient>
     <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
       <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#00000020"/>
@@ -59,32 +73,48 @@ async function createAndroidIcon(size, outputPath, isRound = false) {
   <rect width="${size}" height="${size}" rx="${cornerRadius}" fill="url(#grad)" filter="url(#shadow)"/>
   
   <!-- Icon content -->
-  <g transform="translate(${size/2}, ${size/2})">
+  <g transform="translate(${size / 2}, ${size / 2})">
     <!-- Book spine -->
-    <rect x="-${size*0.15}" y="-${size*0.2}" width="${size*0.05}" height="${size*0.4}" fill="white" opacity="0.9"/>
+    <rect x="-${size * 0.15}" y="-${size * 0.2}" width="${
+    size * 0.05
+  }" height="${size * 0.4}" fill="white" opacity="0.9"/>
     
     <!-- Book pages -->
-    <rect x="-${size*0.1}" y="-${size*0.18}" width="${size*0.25}" height="${size*0.36}" fill="white" rx="${size*0.02}"/>
+    <rect x="-${size * 0.1}" y="-${size * 0.18}" width="${
+    size * 0.25
+  }" height="${size * 0.36}" fill="white" rx="${size * 0.02}"/>
     
     <!-- Bridge arch -->
-    <path d="M -${size*0.2} ${size*0.05} Q 0 -${size*0.1} ${size*0.2} ${size*0.05}" 
-          stroke="white" stroke-width="${size*0.03}" fill="none" stroke-linecap="round"/>
+    <path d="M -${size * 0.2} ${size * 0.05} Q 0 -${size * 0.1} ${size * 0.2} ${
+    size * 0.05
+  }" 
+          stroke="white" stroke-width="${
+            size * 0.03
+          }" fill="none" stroke-linecap="round"/>
     
     <!-- Bridge pillars -->
-    <rect x="-${size*0.18}" y="${size*0.05}" width="${size*0.02}" height="${size*0.08}" fill="white" rx="${size*0.01}"/>
-    <rect x="${size*0.16}" y="${size*0.05}" width="${size*0.02}" height="${size*0.08}" fill="white" rx="${size*0.01}"/>
+    <rect x="-${size * 0.18}" y="${size * 0.05}" width="${
+    size * 0.02
+  }" height="${size * 0.08}" fill="white" rx="${size * 0.01}"/>
+    <rect x="${size * 0.16}" y="${size * 0.05}" width="${
+    size * 0.02
+  }" height="${size * 0.08}" fill="white" rx="${size * 0.01}"/>
     
     <!-- Creative sparkles -->
-    <circle cx="-${size*0.05}" cy="-${size*0.25}" r="${size*0.015}" fill="white" opacity="0.8"/>
-    <circle cx="${size*0.08}" cy="-${size*0.28}" r="${size*0.01}" fill="white" opacity="0.6"/>
-    <circle cx="${size*0.15}" cy="-${size*0.15}" r="${size*0.012}" fill="white" opacity="0.7"/>
+    <circle cx="-${size * 0.05}" cy="-${size * 0.25}" r="${
+    size * 0.015
+  }" fill="white" opacity="0.8"/>
+    <circle cx="${size * 0.08}" cy="-${size * 0.28}" r="${
+    size * 0.01
+  }" fill="white" opacity="0.6"/>
+    <circle cx="${size * 0.15}" cy="-${size * 0.15}" r="${
+    size * 0.012
+  }" fill="white" opacity="0.7"/>
   </g>
 </svg>`;
-  
+
   if (sharp) {
-    await sharp(Buffer.from(svg))
-      .png()
-      .toFile(outputPath);
+    await sharp(Buffer.from(svg)).png().toFile(outputPath);
   } else {
     fs.writeFileSync(outputPath.replace('.png', '.svg'), svg);
   }
@@ -93,14 +123,18 @@ async function createAndroidIcon(size, outputPath, isRound = false) {
 async function createSplashScreen(outputPath) {
   const width = 1080;
   const height = 1920;
-  
+
   const svg = `
 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:${BRAND_COLORS.background};stop-opacity:1" />
+      <stop offset="0%" style="stop-color:${
+        BRAND_COLORS.background
+      };stop-opacity:1" />
       <stop offset="50%" style="stop-color:#E8F0FF;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:${BRAND_COLORS.primary};stop-opacity:0.1" />
+      <stop offset="100%" style="stop-color:${
+        BRAND_COLORS.primary
+      };stop-opacity:0.1" />
     </linearGradient>
     
     <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
@@ -116,7 +150,7 @@ async function createSplashScreen(outputPath) {
   <rect width="${width}" height="${height}" fill="url(#bgGrad)"/>
   
   <!-- Main content centered -->
-  <g transform="translate(${width/2}, ${height/2})">
+  <g transform="translate(${width / 2}, ${height / 2})">
     <!-- App icon -->
     <g transform="translate(0, -150)">
       <circle r="80" fill="url(#grad)" filter="url(#glow)"/>
@@ -124,15 +158,23 @@ async function createSplashScreen(outputPath) {
     </g>
     
     <!-- App name -->
-    <text font-family="Arial, sans-serif" font-size="42" font-weight="bold" fill="${BRAND_COLORS.primary}" text-anchor="middle" dy="0em">CreativeBridge</text>
+    <text font-family="Arial, sans-serif" font-size="42" font-weight="bold" fill="${
+      BRAND_COLORS.primary
+    }" text-anchor="middle" dy="0em">CreativeBridge</text>
     
     <!-- Tagline -->
-    <text font-family="Arial, sans-serif" font-size="18" fill="${BRAND_COLORS.text}" text-anchor="middle" dy="40">Where Stories Come Alive</text>
+    <text font-family="Arial, sans-serif" font-size="18" fill="${
+      BRAND_COLORS.text
+    }" text-anchor="middle" dy="40">Where Stories Come Alive</text>
     
     <!-- Loading indicator area -->
     <g transform="translate(0, 120)">
-      <rect x="-100" y="-2" width="200" height="4" rx="2" fill="${BRAND_COLORS.primary}" opacity="0.2"/>
-      <rect x="-100" y="-2" width="60" height="4" rx="2" fill="${BRAND_COLORS.primary}">
+      <rect x="-100" y="-2" width="200" height="4" rx="2" fill="${
+        BRAND_COLORS.primary
+      }" opacity="0.2"/>
+      <rect x="-100" y="-2" width="60" height="4" rx="2" fill="${
+        BRAND_COLORS.primary
+      }">
         <animateTransform 
           attributeName="transform" 
           type="translate" 
@@ -143,17 +185,23 @@ async function createSplashScreen(outputPath) {
     </g>
     
     <!-- Decorative elements -->
-    <circle cx="-200" cy="-300" r="3" fill="${BRAND_COLORS.accent}" opacity="0.6"/>
-    <circle cx="180" cy="-280" r="2" fill="${BRAND_COLORS.secondary}" opacity="0.5"/>
-    <circle cx="-150" cy="250" r="4" fill="${BRAND_COLORS.primary}" opacity="0.4"/>
-    <circle cx="220" cy="200" r="2.5" fill="${BRAND_COLORS.accent}" opacity="0.6"/>
+    <circle cx="-200" cy="-300" r="3" fill="${
+      BRAND_COLORS.accent
+    }" opacity="0.6"/>
+    <circle cx="180" cy="-280" r="2" fill="${
+      BRAND_COLORS.secondary
+    }" opacity="0.5"/>
+    <circle cx="-150" cy="250" r="4" fill="${
+      BRAND_COLORS.primary
+    }" opacity="0.4"/>
+    <circle cx="220" cy="200" r="2.5" fill="${
+      BRAND_COLORS.accent
+    }" opacity="0.6"/>
   </g>
 </svg>`;
 
   if (sharp) {
-    await sharp(Buffer.from(svg))
-      .png()
-      .toFile(outputPath);
+    await sharp(Buffer.from(svg)).png().toFile(outputPath);
   } else {
     fs.writeFileSync(outputPath.replace('.png', '.svg'), svg);
   }
@@ -161,52 +209,62 @@ async function createSplashScreen(outputPath) {
 
 async function generateAndroidAssets() {
   console.log('🤖 Generating CreativeBridge Android Assets...\n');
-  
+
   const resPath = path.join(__dirname, '../android/app/src/main/res');
-  
+
   // Generate app icons for each density
   console.log('📱 Creating Android app icons:');
-  
+
   for (const iconConfig of ANDROID_ICON_SIZES) {
     const mipmapDir = path.join(resPath, `mipmap-${iconConfig.density}`);
-    
+
     // Ensure directory exists
     fs.mkdirSync(mipmapDir, { recursive: true });
-    
+
     // Generate regular icon
     const regularIconPath = path.join(mipmapDir, 'ic_launcher.png');
     await createAndroidIcon(iconConfig.size, regularIconPath, false);
-    console.log(`✅ ic_launcher.png (${iconConfig.size}x${iconConfig.size}) - ${iconConfig.description}`);
-    
+    console.log(
+      `✅ ic_launcher.png (${iconConfig.size}x${iconConfig.size}) - ${iconConfig.description}`,
+    );
+
     // Generate round icon (Android 7.1+)
     const roundIconPath = path.join(mipmapDir, 'ic_launcher_round.png');
     await createAndroidIcon(iconConfig.size, roundIconPath, true);
-    console.log(`✅ ic_launcher_round.png (${iconConfig.size}x${iconConfig.size}) - ${iconConfig.description} [Round]`);
+    console.log(
+      `✅ ic_launcher_round.png (${iconConfig.size}x${iconConfig.size}) - ${iconConfig.description} [Round]`,
+    );
   }
-  
+
   // Create splash screen
   console.log('\n🚀 Creating splash screen:');
   const splashDir = path.join(resPath, 'drawable');
   fs.mkdirSync(splashDir, { recursive: true });
-  
+
   const splashPath = path.join(splashDir, 'splash_screen.png');
   await createSplashScreen(splashPath);
   console.log('✅ splash_screen.png (1080x1920) - Android splash screen');
-  
+
   // Create adaptive icon XML (Android 8.0+)
   const adaptiveIconXML = `<?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/ic_launcher_background"/>
     <foreground android:drawable="@drawable/ic_launcher_foreground"/>
 </adaptive-icon>`;
-  
+
   // Create adaptive icon directory and files
   const adaptiveIconDir = path.join(resPath, 'mipmap-anydpi-v26');
   fs.mkdirSync(adaptiveIconDir, { recursive: true });
-  
-  fs.writeFileSync(path.join(adaptiveIconDir, 'ic_launcher.xml'), adaptiveIconXML);
-  fs.writeFileSync(path.join(adaptiveIconDir, 'ic_launcher_round.xml'), adaptiveIconXML);
-  
+
+  fs.writeFileSync(
+    path.join(adaptiveIconDir, 'ic_launcher.xml'),
+    adaptiveIconXML,
+  );
+  fs.writeFileSync(
+    path.join(adaptiveIconDir, 'ic_launcher_round.xml'),
+    adaptiveIconXML,
+  );
+
   // Create color resources
   const colorsXML = `<?xml version="1.0" encoding="utf-8"?>
 <resources>
@@ -216,11 +274,11 @@ async function generateAndroidAssets() {
     <color name="brand_secondary">${BRAND_COLORS.secondary}</color>
     <color name="brand_accent">${BRAND_COLORS.accent}</color>
 </resources>`;
-  
+
   const colorsPath = path.join(resPath, 'values', 'colors.xml');
   fs.writeFileSync(colorsPath, colorsXML);
   console.log('✅ colors.xml - Brand colors for Android');
-  
+
   // Create splash theme
   const splashThemeXML = `<?xml version="1.0" encoding="utf-8"?>
 <resources>
@@ -231,13 +289,16 @@ async function generateAndroidAssets() {
         <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>`;
-  
+
   const stylesPath = path.join(resPath, 'values', 'splash_styles.xml');
   fs.writeFileSync(stylesPath, splashThemeXML);
   console.log('✅ splash_styles.xml - Splash screen theme');
-  
+
   // Create instructions
-  const instructionsPath = path.join(__dirname, '../ANDROID_ICON_INSTRUCTIONS.md');
+  const instructionsPath = path.join(
+    __dirname,
+    '../ANDROID_ICON_INSTRUCTIONS.md',
+  );
   const instructions = `# CreativeBridge Android Icons & Assets
 
 ## 🤖 Generated Android Assets
@@ -245,8 +306,10 @@ async function generateAndroidAssets() {
 This script has generated placeholder assets for the CreativeBridge Android app.
 
 ### App Icons Created:
-${ANDROID_ICON_SIZES.map(config => `- **mipmap-${config.density}/ic_launcher.png** (${config.size}×${config.size}px) - ${config.description}
-- **mipmap-${config.density}/ic_launcher_round.png** (${config.size}×${config.size}px) - ${config.description} [Round]`).join('\n')}
+${ANDROID_ICON_SIZES.map(
+  config => `- **mipmap-${config.density}/ic_launcher.png** (${config.size}×${config.size}px) - ${config.description}
+- **mipmap-${config.density}/ic_launcher_round.png** (${config.size}×${config.size}px) - ${config.description} [Round]`,
+).join('\n')}
 
 ### Additional Assets:
 - **drawable/splash_screen.png** (1080×1920px) - Splash screen background
@@ -314,19 +377,23 @@ ${ANDROID_ICON_SIZES.map(config => `- **mipmap-${config.density}/ic_launcher.png
 4. Optimize file sizes for app bundle
 5. Submit to Google Play Console
 
-${!sharp ? `
+${
+  !sharp
+    ? `
 ## ⚠️ Note: SVG Files Generated
 
 Since 'sharp' is not installed, SVG files were generated. Convert to PNG:
 1. Install sharp: \`npm install sharp\`
 2. Re-run: \`node scripts/generate-android-icons.js\`
 3. Or convert SVGs manually using online tools
-` : ''}
+`
+    : ''
+}
 `;
-  
+
   fs.writeFileSync(instructionsPath, instructions);
   console.log(`\n📋 Android instructions saved to: ${instructionsPath}`);
-  
+
   console.log('\n🎉 Android asset generation complete!');
 }
 

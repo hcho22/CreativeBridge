@@ -1,30 +1,107 @@
 import React from 'react';
 import { Text } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createStackNavigator } from '@react-navigation/stack';
 import { NavigationContainer } from '@react-navigation/native';
 
 // Screen imports
 import { HomeScreen, SettingsScreen, ProfileScreen } from '../screens';
+import ImportOptionsScreen from '../screens/ImportOptionsScreen';
+import StorySelectionScreen from '../screens/StorySelectionScreen';
+import StoryPreviewEditScreen from '../screens/StoryPreviewEditScreen';
 
 // Type definitions for navigation
 export type TabParamList = {
-  Home: undefined;
+  HomeStack: undefined;
   Settings: undefined;
   Profile: undefined;
 };
 
+// Stack navigation types for story continuation flow
+export type HomeStackParamList = {
+  Home: undefined;
+  ImportOptions: undefined;
+  StorySelection: undefined;
+  StoryPreviewEdit: {
+    story: {
+      id: string;
+      story_content: string;
+      story_metadata?: any;
+      story_source?: string;
+      grade_level?: string;
+      created_at?: string;
+    };
+  };
+};
+
+// Auth navigation types (for stack navigation if needed)
+export type AuthStackParamList = {
+  Auth: undefined;
+};
+
 const Tab = createBottomTabNavigator<TabParamList>();
+const HomeStack = createStackNavigator<HomeStackParamList>();
+
+// HomeStack component for story continuation flow
+const HomeStackNavigator: React.FC = () => {
+  return (
+    <HomeStack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: '#4CAF50',
+        },
+        headerTintColor: '#ffffff',
+        headerTitleStyle: {
+          fontWeight: 'bold',
+          fontSize: 18,
+        },
+      }}
+    >
+      <HomeStack.Screen
+        name="Home"
+        component={HomeScreen}
+        options={{
+          headerTitle: '🏠 Home',
+        }}
+      />
+      <HomeStack.Screen
+        name="ImportOptions"
+        component={ImportOptionsScreen}
+        options={{
+          headerTitle: '📥 Import Story',
+          headerBackTitle: 'Home',
+        }}
+      />
+      <HomeStack.Screen
+        name="StorySelection"
+        component={StorySelectionScreen}
+        options={{
+          headerTitle: '📚 Select Story',
+          headerBackTitle: 'Import',
+        }}
+      />
+      <HomeStack.Screen
+        name="StoryPreviewEdit"
+        component={StoryPreviewEditScreen}
+        options={{
+          headerTitle: '📖 Story Preview',
+          headerBackTitle: 'Stories',
+        }}
+      />
+    </HomeStack.Navigator>
+  );
+};
 
 // Extract icon component to avoid nested component definition
-const TabBarIcon: React.FC<{ route: any; color: string; size: number }> = ({
-  route,
-  color,
-  size,
-}) => {
+const TabBarIcon: React.FC<{
+  route: { name: keyof TabParamList };
+  color: string;
+  size: number;
+}> = ({ route, color, size }) => {
   let emoji: string;
 
   switch (route.name) {
-    case 'Home':
+    case 'HomeStack':
       emoji = '🏠';
       break;
     case 'Settings':
@@ -73,11 +150,11 @@ const AppNavigator: React.FC = () => {
         })}
       >
         <Tab.Screen
-          name="Home"
-          component={HomeScreen}
+          name="HomeStack"
+          component={HomeStackNavigator}
           options={{
             title: 'Home',
-            headerTitle: '🏠 Home',
+            headerShown: false, // Hide tab navigator header since HomeStack handles headers
           }}
         />
         <Tab.Screen

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,11 +8,22 @@ import {
   Switch,
   Alert,
 } from 'react-native';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useAuth } from '../context/AuthContext';
+import type { GradeLevel } from '../types/database';
+import { TabParamList } from '../navigation/AppNavigator';
+import TestErrorComponent from '../components/common/TestErrorComponent';
 
-type GradeLevel = 'K-2' | '3-5' | '6-8' | '9-12';
+type SettingsScreenNavigationProp = BottomTabNavigationProp<
+  TabParamList,
+  'Settings'
+>;
 
-const SettingsScreen: React.FC = () => {
+interface SettingsScreenProps {
+  navigation: SettingsScreenNavigationProp;
+}
+
+const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
   const { userProfile, updateProfile, signOut } = useAuth();
   const [speechEnabled, setSpeechEnabled] = useState(
     userProfile?.speech_enabled || false,
@@ -91,19 +102,18 @@ const SettingsScreen: React.FC = () => {
     ]);
   };
 
+  const gradeLevelDescriptions = useMemo(
+    () => ({
+      'K-2': 'Simple vocabulary and basic sentence structure',
+      '3-5': 'Intermediate complexity with creative prompts',
+      '6-8': 'Advanced storytelling and character development',
+      '9-12': 'Complex narratives and literary techniques',
+    }),
+    [],
+  );
+
   const getGradeLevelDescription = (level: GradeLevel): string => {
-    switch (level) {
-      case 'K-2':
-        return 'Simple vocabulary and basic sentence structure';
-      case '3-5':
-        return 'Intermediate complexity with creative prompts';
-      case '6-8':
-        return 'Advanced storytelling and character development';
-      case '9-12':
-        return 'Complex narratives and literary techniques';
-      default:
-        return '';
-    }
+    return gradeLevelDescriptions[level] || '';
   };
 
   return (
@@ -211,6 +221,16 @@ const SettingsScreen: React.FC = () => {
             </Text>
           </View>
         </View>
+
+        {/* Development Tools - Only shown in __DEV__ mode */}
+        {__DEV__ && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🛠️ Development Tools</Text>
+            <TestErrorComponent
+              onError={() => console.log('Test error triggered from Settings')}
+            />
+          </View>
+        )}
       </View>
     </ScrollView>
   );
@@ -318,4 +338,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default SettingsScreen;
+export default React.memo(SettingsScreen);
