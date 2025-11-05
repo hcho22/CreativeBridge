@@ -44,14 +44,14 @@ export class LoadingStateManager {
    */
   static subscribe(listener: (state: LoadingState) => void): () => void {
     this.listeners.add(listener);
-    
+
     // Immediately call with current state (with error handling)
     try {
       listener(this.currentState);
     } catch (error) {
       console.error('Error in loading state listener:', error);
     }
-    
+
     // Return unsubscribe function
     return () => {
       this.listeners.delete(listener);
@@ -63,7 +63,7 @@ export class LoadingStateManager {
    */
   static setState(
     state: LoadingStates,
-    options: LoadingStateOptions = {}
+    options: LoadingStateOptions = {},
   ): void {
     const newState: LoadingState = {
       state,
@@ -109,9 +109,11 @@ export class LoadingStateManager {
    * Update progress for current state
    */
   static updateProgress(progress: number, details?: string): void {
-    if (this.currentState.state === LoadingStates.IDLE || 
-        this.currentState.state === LoadingStates.ERROR ||
-        this.currentState.state === LoadingStates.SUCCESS) {
+    if (
+      this.currentState.state === LoadingStates.IDLE ||
+      this.currentState.state === LoadingStates.ERROR ||
+      this.currentState.state === LoadingStates.SUCCESS
+    ) {
       return; // Don't update progress for terminal states
     }
 
@@ -131,7 +133,7 @@ export class LoadingStateManager {
   static async executeWithLoading<T>(
     operation: () => Promise<T>,
     loadingState: LoadingStates,
-    options: LoadingStateOptions = {}
+    options: LoadingStateOptions = {},
   ): Promise<T> {
     try {
       this.setState(loadingState, options);
@@ -139,7 +141,8 @@ export class LoadingStateManager {
       this.setSuccess(options.message || 'Operation completed successfully');
       return result;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Operation failed';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Operation failed';
       this.setError(errorMessage);
       throw error;
     }
@@ -149,7 +152,9 @@ export class LoadingStateManager {
    * Execute a file import operation with progress tracking
    */
   static async executeFileImport<T>(
-    operation: (updateProgress: (progress: number, details?: string) => void) => Promise<T>
+    operation: (
+      updateProgress: (progress: number, details?: string) => void,
+    ) => Promise<T>,
   ): Promise<T> {
     try {
       this.setState(LoadingStates.CHECKING_PERMISSIONS, {
@@ -164,7 +169,8 @@ export class LoadingStateManager {
       this.setSuccess('File imported successfully');
       return result;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'File import failed';
+      const errorMessage =
+        error instanceof Error ? error.message : 'File import failed';
       this.setError(errorMessage);
       throw error;
     }

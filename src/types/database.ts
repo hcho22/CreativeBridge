@@ -1,6 +1,8 @@
 // Database type definitions for CreativeBridge
 // Matches the Supabase database schema from setup_user_profiles_table.sql
 
+import { StoryDownloadHistoryRecord } from './storyDownload';
+
 // Grade level options
 export type GradeLevel = 'K-2' | '3-5' | '6-8' | '9-12';
 
@@ -59,6 +61,11 @@ export interface GameSession {
   story_source: StorySource;
   original_creation_date?: string;
   story_metadata: Record<string, any>;
+
+  // Image Generation Fields
+  generated_image_url?: string;
+  image_generation_timestamp?: string;
+  image_generation_cost?: number;
 }
 
 // Leaderboard interfaces - match database views
@@ -105,6 +112,37 @@ export interface Database {
           story_metadata?: Record<string, any>;
         };
         Update: Partial<Omit<GameSession, 'id' | 'created_at' | 'user_id'>>;
+      };
+      image_generation_events: {
+        Row: ImageGenerationEvent;
+        Insert: Omit<
+          ImageGenerationEvent,
+          'id' | 'created_at' | 'completed_at'
+        > & {
+          id?: string;
+          created_at?: string;
+          completed_at?: string;
+        };
+        Update: Partial<
+          Omit<ImageGenerationEvent, 'id' | 'created_at' | 'user_id'>
+        >;
+      };
+      story_download_history: {
+        Row: StoryDownloadHistoryRecord;
+        Insert: Omit<
+          StoryDownloadHistoryRecord,
+          'id' | 'created_at' | 'completed_at' | 'retry_count' | 'file_exists' | 'metadata'
+        > & {
+          id?: string;
+          created_at?: string;
+          completed_at?: string;
+          retry_count?: number;
+          file_exists?: boolean;
+          metadata?: Record<string, any>;
+        };
+        Update: Partial<
+          Omit<StoryDownloadHistoryRecord, 'id' | 'created_at' | 'user_id'>
+        >;
       };
     };
     Views: {
@@ -163,6 +201,65 @@ export interface Database {
         };
         Returns: boolean;
       };
+      update_story_generated_image: {
+        Args: {
+          p_session_id: string;
+          p_image_url: string;
+          p_generation_cost?: number;
+        };
+        Returns: boolean;
+      };
+      get_user_stories_with_images: {
+        Args: {
+          p_user_id: string;
+          p_limit?: number;
+          p_offset?: number;
+        };
+        Returns: StoryWithImage[];
+      };
+      get_image_generation_stats: {
+        Args: {};
+        Returns: ImageGenerationStats[];
+      };
+      create_image_generation_event: {
+        Args: {
+          p_user_id: string;
+          p_session_id: string;
+          p_xp_cost?: number;
+          p_story_grade_level?: string;
+          p_story_word_count?: number;
+          p_metadata?: Record<string, any>;
+        };
+        Returns: string;
+      };
+      update_image_generation_event: {
+        Args: {
+          p_event_id: string;
+          p_status: GenerationStatus;
+          p_image_url?: string;
+          p_error_type?: ErrorType;
+          p_service_used?: ServiceUsed;
+          p_api_response_time?: number;
+          p_prompt_used?: string;
+        };
+        Returns: boolean;
+      };
+      get_image_generation_analytics: {
+        Args: {
+          p_user_id?: string;
+          p_start_date?: string;
+          p_end_date?: string;
+        };
+        Returns: ImageGenerationAnalytics[];
+      };
+      get_user_image_generation_events: {
+        Args: {
+          p_user_id: string;
+          p_limit?: number;
+          p_offset?: number;
+        };
+        Returns: UserImageGenerationEvent[];
+      };
     };
   };
 }
@@ -176,6 +273,10 @@ export type GameSessionInsert =
   Database['public']['Tables']['game_sessions']['Insert'];
 export type GameSessionUpdate =
   Database['public']['Tables']['game_sessions']['Update'];
+export type ImageGenerationEventInsert =
+  Database['public']['Tables']['image_generation_events']['Insert'];
+export type ImageGenerationEventUpdate =
+  Database['public']['Tables']['image_generation_events']['Update'];
 
 // Authentication and profile creation types
 export interface CreateProfileData {
@@ -297,6 +398,90 @@ export interface SearchableStory {
   words_written: number;
   story_source: StorySource;
   relevance_score: number;
+}
+
+export interface StoryWithImage {
+  session_id: string;
+  created_at: string;
+  completed_at: string;
+  story_content: string;
+  generated_image_url: string;
+  image_generation_timestamp: string;
+  image_generation_cost: number;
+  final_score: number;
+  words_written: number;
+}
+
+export interface ImageGenerationStats {
+  total_images_generated: number;
+  avg_generation_cost: number;
+  images_generated_today: number;
+  images_generated_this_week: number;
+  images_generated_this_month: number;
+}
+
+// Image generation event types
+export type GenerationStatus =
+  | 'pending'
+  | 'success'
+  | 'failed'
+  | 'refunded'
+  | 'timeout';
+export type ErrorType =
+  | 'api_failure'
+  | 'content_safety'
+  | 'insufficient_xp'
+  | 'timeout'
+  | 'rate_limit';
+export type ServiceUsed =
+  | 'stability-ai/stable-diffusion-3.5-large'
+  | 'google/nano-banana'
+  | 'replicate'
+  | 'backup_service';
+
+export interface ImageGenerationEvent {
+  id: string;
+  user_id: string;
+  session_id?: string;
+  xp_cost: number;
+  generation_status: GenerationStatus;
+  error_type?: ErrorType;
+  service_used: ServiceUsed;
+  api_response_time?: number;
+  image_url?: string;
+  story_grade_level?: string;
+  story_word_count?: number;
+  prompt_used?: string;
+  metadata: Record<string, any>;
+  created_at: string;
+  completed_at?: string;
+}
+
+export interface ImageGenerationAnalytics {
+  total_attempts: number;
+  successful_generations: number;
+  failed_generations: number;
+  refunded_generations: number;
+  avg_response_time: number;
+  most_common_error_type: string;
+  total_xp_spent: number;
+  replicate_usage: number;
+  backup_service_usage: number;
+}
+
+export interface UserImageGenerationEvent {
+  event_id: string;
+  session_id?: string;
+  xp_cost: number;
+  generation_status: GenerationStatus;
+  error_type?: ErrorType;
+  service_used: ServiceUsed;
+  api_response_time?: number;
+  image_url?: string;
+  story_grade_level?: string;
+  story_word_count?: number;
+  created_at: string;
+  completed_at?: string;
 }
 
 export interface StoryImportData {

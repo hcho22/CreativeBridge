@@ -1,6 +1,6 @@
 /**
  * Integration tests for Advanced Search functionality
- * 
+ *
  * Tests the complete advanced search workflow with real-world scenarios
  */
 
@@ -26,7 +26,9 @@ describe('Advanced Search Integration', () => {
     });
 
     it('should handle search with non-existent content', async () => {
-      const results = await advancedSearchService.fullTextSearch('nonexistent_content_xyz');
+      const results = await advancedSearchService.fullTextSearch(
+        'nonexistent_content_xyz',
+      );
       expect(Array.isArray(results)).toBe(true);
       expect(results.length).toBe(0);
     });
@@ -35,13 +37,15 @@ describe('Advanced Search Integration', () => {
       const suggestions = await advancedSearchService.getSuggestions('adv');
       expect(Array.isArray(suggestions)).toBe(true);
       // Should contain 'adventure' from common terms
-      const adventureSuggestion = suggestions.find(s => s.text.includes('adventure'));
+      const adventureSuggestion = suggestions.find(s =>
+        s.text.includes('adventure'),
+      );
       expect(adventureSuggestion).toBeDefined();
     });
 
     it('should handle metadata search', async () => {
       const results = await advancedSearchService.searchByMetadata({
-        source: 'CreativeBridge'
+        source: 'CreativeBridge',
       });
       expect(Array.isArray(results)).toBe(true);
     });
@@ -61,7 +65,7 @@ describe('Advanced Search Integration', () => {
 
       // Save to history should not throw
       await expect(
-        advancedSearchService.saveToHistory('test query', 'test-user', 5)
+        advancedSearchService.saveToHistory('test query', 'test-user', 5),
       ).resolves.not.toThrow();
     });
   });
@@ -69,11 +73,11 @@ describe('Advanced Search Integration', () => {
   describe('Performance Characteristics', () => {
     it('should complete search operations quickly', async () => {
       const startTime = Date.now();
-      
+
       await Promise.all([
         advancedSearchService.fullTextSearch('test'),
         advancedSearchService.getSuggestions('te'),
-        advancedSearchService.getSearchAnalytics()
+        advancedSearchService.getSearchAnalytics(),
       ]);
 
       const endTime = Date.now();
@@ -101,9 +105,11 @@ describe('Advanced Search Integration', () => {
     it('should handle invalid input gracefully', async () => {
       // Test with various invalid inputs
       const invalidInputs = [null, undefined, '', '   ', '@#$%^&*()'];
-      
+
       for (const input of invalidInputs) {
-        const results = await advancedSearchService.fullTextSearch(input as any);
+        const results = await advancedSearchService.fullTextSearch(
+          input as any,
+        );
         expect(Array.isArray(results)).toBe(true);
       }
     });
@@ -112,12 +118,14 @@ describe('Advanced Search Integration', () => {
   describe('Search Features', () => {
     it('should support different search types', async () => {
       // Full-text search
-      const textResults = await advancedSearchService.fullTextSearch('adventure');
+      const textResults = await advancedSearchService.fullTextSearch(
+        'adventure',
+      );
       expect(Array.isArray(textResults)).toBe(true);
 
       // Metadata search
       const metadataResults = await advancedSearchService.searchByMetadata({
-        source: 'File'
+        source: 'File',
       });
       expect(Array.isArray(metadataResults)).toBe(true);
 
@@ -131,27 +139,27 @@ describe('Advanced Search Integration', () => {
         sortBy: 'date' as const,
         sortOrder: 'desc' as const,
         limit: 10,
-        offset: 0
+        offset: 0,
       };
 
       const results = await advancedSearchService.fullTextSearch(
         'test',
         undefined,
-        searchOptions
+        searchOptions,
       );
-      
+
       expect(Array.isArray(results)).toBe(true);
       expect(results.length).toBeLessThanOrEqual(10);
     });
 
     it('should handle user-specific searches', async () => {
       const userId = 'test-user-123';
-      
+
       const results = await advancedSearchService.fullTextSearch(
         'adventure',
-        userId
+        userId,
       );
-      
+
       expect(Array.isArray(results)).toBe(true);
     });
   });
@@ -159,7 +167,7 @@ describe('Advanced Search Integration', () => {
   describe('Data Consistency', () => {
     it('should maintain consistent result structure', async () => {
       const results = await advancedSearchService.fullTextSearch('test');
-      
+
       results.forEach(result => {
         expect(result).toHaveProperty('id');
         expect(result).toHaveProperty('relevanceScore');
@@ -172,7 +180,7 @@ describe('Advanced Search Integration', () => {
 
     it('should maintain consistent suggestion structure', async () => {
       const suggestions = await advancedSearchService.getSuggestions('test');
-      
+
       suggestions.forEach(suggestion => {
         expect(suggestion).toHaveProperty('text');
         expect(suggestion).toHaveProperty('type');
@@ -184,13 +192,13 @@ describe('Advanced Search Integration', () => {
 
     it('should maintain consistent analytics structure', async () => {
       const analytics = await advancedSearchService.getSearchAnalytics();
-      
+
       expect(typeof analytics.totalSearches).toBe('number');
       expect(Array.isArray(analytics.popularQueries)).toBe(true);
       expect(typeof analytics.averageResultCount).toBe('number');
       expect(typeof analytics.searchSuccessRate).toBe('number');
       expect(typeof analytics.averageResponseTime).toBe('number');
-      
+
       expect(analytics.searchSuccessRate).toBeGreaterThanOrEqual(0);
       expect(analytics.searchSuccessRate).toBeLessThanOrEqual(100);
     });

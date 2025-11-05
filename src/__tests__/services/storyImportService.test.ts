@@ -6,7 +6,7 @@ import type {
   StorySource,
 } from '../../types/database';
 
-// Mock react-native-fs 
+// Mock react-native-fs
 jest.mock('react-native-fs', () => ({
   exists: jest.fn(),
   stat: jest.fn(),

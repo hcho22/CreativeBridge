@@ -1,6 +1,6 @@
 /**
  * Analytics Service for Story Continuation Feature
- * 
+ *
  * Provides comprehensive analytics and insights for story import usage,
  * continuation success rates, user engagement, performance monitoring,
  * and automated reporting for data-driven improvements.
@@ -12,7 +12,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Types for analytics events and metrics
 export interface AnalyticsEvent {
   id?: string;
-  type: 'story_import' | 'story_continuation' | 'user_engagement' | 'performance' | 'error';
+  type:
+    | 'story_import'
+    | 'story_continuation'
+    | 'user_engagement'
+    | 'performance'
+    | 'error';
   subtype?: string;
   userId: string;
   sessionId: string;
@@ -129,10 +134,10 @@ class AnalyticsService {
     try {
       // Load any pending events from local storage
       await this.loadPendingEvents();
-      
+
       // Start batch upload timer
       this.startBatchUpload();
-      
+
       // Track session start
       await this.trackEvent({
         type: 'user_engagement',
@@ -141,8 +146,8 @@ class AnalyticsService {
         sessionId: this.sessionId,
         timestamp: new Date().toISOString(),
         metadata: {
-          deviceInfo: await this.getDeviceInfo()
-        }
+          deviceInfo: await this.getDeviceInfo(),
+        },
       });
 
       console.log('📊 Analytics service initialized');
@@ -159,7 +164,7 @@ class AnalyticsService {
       const eventWithId: AnalyticsEvent = {
         ...event,
         id: this.generateEventId(),
-        timestamp: event.timestamp || new Date().toISOString()
+        timestamp: event.timestamp || new Date().toISOString(),
       };
 
       // Add to local queue
@@ -173,7 +178,9 @@ class AnalyticsService {
         await this.uploadEvents();
       }
 
-      console.log(`📈 Tracked event: ${event.type}/${event.subtype || 'default'}`);
+      console.log(
+        `📈 Tracked event: ${event.type}/${event.subtype || 'default'}`,
+      );
     } catch (error) {
       console.error('Track event error:', error);
     }
@@ -186,7 +193,7 @@ class AnalyticsService {
     userId: string,
     source: 'file' | 'database' | 'story_quest',
     success: boolean,
-    metadata: Record<string, any> = {}
+    metadata: Record<string, any> = {},
   ): Promise<void> {
     await this.trackEvent({
       type: 'story_import',
@@ -197,8 +204,8 @@ class AnalyticsService {
       metadata: {
         source,
         success,
-        ...metadata
-      }
+        ...metadata,
+      },
     });
   }
 
@@ -209,7 +216,7 @@ class AnalyticsService {
     userId: string,
     storyId: string,
     success: boolean,
-    metadata: Record<string, any> = {}
+    metadata: Record<string, any> = {},
   ): Promise<void> {
     await this.trackEvent({
       type: 'story_continuation',
@@ -220,8 +227,8 @@ class AnalyticsService {
       metadata: {
         storyId,
         success,
-        ...metadata
-      }
+        ...metadata,
+      },
     });
   }
 
@@ -231,7 +238,7 @@ class AnalyticsService {
   async trackUserEngagement(
     userId: string,
     action: string,
-    metadata: Record<string, any> = {}
+    metadata: Record<string, any> = {},
   ): Promise<void> {
     await this.trackEvent({
       type: 'user_engagement',
@@ -239,7 +246,7 @@ class AnalyticsService {
       userId,
       sessionId: this.sessionId,
       timestamp: new Date().toISOString(),
-      metadata
+      metadata,
     });
   }
 
@@ -250,7 +257,7 @@ class AnalyticsService {
     operation: string,
     duration: number,
     success: boolean,
-    metadata: Record<string, any> = {}
+    metadata: Record<string, any> = {},
   ): Promise<void> {
     await this.trackEvent({
       type: 'performance',
@@ -261,8 +268,8 @@ class AnalyticsService {
       metadata: {
         duration,
         success,
-        ...metadata
-      }
+        ...metadata,
+      },
     });
   }
 
@@ -273,7 +280,7 @@ class AnalyticsService {
     userId: string,
     errorType: string,
     errorMessage: string,
-    metadata: Record<string, any> = {}
+    metadata: Record<string, any> = {},
   ): Promise<void> {
     await this.trackEvent({
       type: 'error',
@@ -283,8 +290,8 @@ class AnalyticsService {
       timestamp: new Date().toISOString(),
       metadata: {
         errorMessage,
-        ...metadata
-      }
+        ...metadata,
+      },
     });
   }
 
@@ -294,7 +301,7 @@ class AnalyticsService {
   async getUsageMetrics(
     startDate: string,
     endDate: string,
-    userId?: string
+    userId?: string,
   ): Promise<UsageMetrics> {
     try {
       let query = supabase
@@ -310,7 +317,9 @@ class AnalyticsService {
       const { data: events, error } = await query;
 
       if (error) {
-        console.warn('Failed to fetch usage metrics from database, using defaults');
+        console.warn(
+          'Failed to fetch usage metrics from database, using defaults',
+        );
         return this.getDefaultUsageMetrics();
       }
 
@@ -324,10 +333,14 @@ class AnalyticsService {
   /**
    * Get user engagement metrics
    */
-  async getUserEngagementMetrics(userId: string): Promise<UserEngagementMetrics> {
+  async getUserEngagementMetrics(
+    userId: string,
+  ): Promise<UserEngagementMetrics> {
     try {
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      
+      const thirtyDaysAgo = new Date(
+        Date.now() - 30 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+
       const { data: events, error } = await supabase
         .from('analytics_events')
         .select('*')
@@ -351,7 +364,7 @@ class AnalyticsService {
    */
   async getPerformanceMetrics(
     startDate: string,
-    endDate: string
+    endDate: string,
   ): Promise<PerformanceMetrics> {
     try {
       const { data: events, error } = await supabase
@@ -378,12 +391,15 @@ class AnalyticsService {
    */
   async generateReport(
     reportType: 'daily' | 'weekly' | 'monthly' | 'custom',
-    dateRange?: { start: string; end: string }
+    dateRange?: { start: string; end: string },
   ): Promise<AnalyticsReport> {
     try {
       const range = dateRange || this.getDateRangeForReportType(reportType);
       const usageMetrics = await this.getUsageMetrics(range.start, range.end);
-      const performanceMetrics = await this.getPerformanceMetrics(range.start, range.end);
+      const performanceMetrics = await this.getPerformanceMetrics(
+        range.start,
+        range.end,
+      );
 
       const report: AnalyticsReport = {
         reportId: this.generateReportId(),
@@ -397,12 +413,15 @@ class AnalyticsService {
             importSuccessRate: usageMetrics.importSuccessRate,
             continuationSuccessRate: usageMetrics.continuationSuccessRate,
             averageSessionDuration: usageMetrics.averageSessionDuration,
-            userRetentionRate: usageMetrics.userRetentionRate
+            userRetentionRate: usageMetrics.userRetentionRate,
           },
-          trends: this.calculateTrends(usageMetrics, performanceMetrics)
+          trends: this.calculateTrends(usageMetrics, performanceMetrics),
         },
         insights: this.generateInsights(usageMetrics, performanceMetrics),
-        recommendations: this.generateRecommendations(usageMetrics, performanceMetrics)
+        recommendations: this.generateRecommendations(
+          usageMetrics,
+          performanceMetrics,
+        ),
       };
 
       // Save report to database
@@ -421,7 +440,7 @@ class AnalyticsService {
   async getEvents(
     eventType: string,
     limit: number = 100,
-    offset: number = 0
+    offset: number = 0,
   ): Promise<AnalyticsEvent[]> {
     try {
       const { data: events, error } = await supabase
@@ -451,8 +470,10 @@ class AnalyticsService {
     continuationSuccessRate: number;
   }> {
     try {
-      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-      
+      const sevenDaysAgo = new Date(
+        Date.now() - 7 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+
       const { data: events, error } = await supabase
         .from('analytics_events')
         .select('*')
@@ -464,15 +485,22 @@ class AnalyticsService {
       }
 
       const importEvents = events?.filter(e => e.type === 'story_import') || [];
-      const continuationEvents = events?.filter(e => e.type === 'story_continuation') || [];
+      const continuationEvents =
+        events?.filter(e => e.type === 'story_continuation') || [];
 
-      const importSuccessRate = importEvents.length > 0 
-        ? (importEvents.filter(e => e.metadata?.success).length / importEvents.length) * 100
-        : 0;
+      const importSuccessRate =
+        importEvents.length > 0
+          ? (importEvents.filter(e => e.metadata?.success).length /
+              importEvents.length) *
+            100
+          : 0;
 
-      const continuationSuccessRate = continuationEvents.length > 0
-        ? (continuationEvents.filter(e => e.metadata?.success).length / continuationEvents.length) * 100
-        : 0;
+      const continuationSuccessRate =
+        continuationEvents.length > 0
+          ? (continuationEvents.filter(e => e.metadata?.success).length /
+              continuationEvents.length) *
+            100
+          : 0;
 
       return { importSuccessRate, continuationSuccessRate };
     } catch (error) {
@@ -490,20 +518,25 @@ class AnalyticsService {
     averageSessionDuration: number;
   }> {
     try {
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      const usageMetrics = await this.getUsageMetrics(thirtyDaysAgo, new Date().toISOString());
+      const thirtyDaysAgo = new Date(
+        Date.now() - 30 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      const usageMetrics = await this.getUsageMetrics(
+        thirtyDaysAgo,
+        new Date().toISOString(),
+      );
 
       return {
         totalImports: usageMetrics.totalImports,
         uniqueUsers: usageMetrics.uniqueUsers,
-        averageSessionDuration: usageMetrics.averageSessionDuration
+        averageSessionDuration: usageMetrics.averageSessionDuration,
       };
     } catch (error) {
       console.error('Generate usage report error:', error);
       return {
         totalImports: 0,
         uniqueUsers: 0,
-        averageSessionDuration: 0
+        averageSessionDuration: 0,
       };
     }
   }
@@ -516,7 +549,7 @@ class AnalyticsService {
     try {
       // Attempt to upload to database
       const eventsToUpload = [...this.localEventQueue];
-      
+
       const { error } = await supabase
         .from('analytics_events')
         .insert(eventsToUpload);
@@ -547,7 +580,7 @@ class AnalyticsService {
     try {
       await AsyncStorage.setItem(
         'analytics_pending_events',
-        JSON.stringify(this.localEventQueue)
+        JSON.stringify(this.localEventQueue),
       );
     } catch (error) {
       console.error('Save pending events error:', error);
@@ -556,7 +589,9 @@ class AnalyticsService {
 
   private async loadPendingEvents(): Promise<void> {
     try {
-      const pendingEventsJson = await AsyncStorage.getItem('analytics_pending_events');
+      const pendingEventsJson = await AsyncStorage.getItem(
+        'analytics_pending_events',
+      );
       if (pendingEventsJson) {
         this.localEventQueue = JSON.parse(pendingEventsJson);
       }
@@ -568,19 +603,27 @@ class AnalyticsService {
 
   private calculateUsageMetrics(events: AnalyticsEvent[]): UsageMetrics {
     const importEvents = events.filter(e => e.type === 'story_import');
-    const continuationEvents = events.filter(e => e.type === 'story_continuation');
+    const continuationEvents = events.filter(
+      e => e.type === 'story_continuation',
+    );
     const engagementEvents = events.filter(e => e.type === 'user_engagement');
 
     const uniqueUsers = new Set(events.map(e => e.userId)).size;
     const totalImports = importEvents.length;
 
-    const importSuccessRate = importEvents.length > 0
-      ? (importEvents.filter(e => e.metadata?.success).length / importEvents.length) * 100
-      : 0;
+    const importSuccessRate =
+      importEvents.length > 0
+        ? (importEvents.filter(e => e.metadata?.success).length /
+            importEvents.length) *
+          100
+        : 0;
 
-    const continuationSuccessRate = continuationEvents.length > 0
-      ? (continuationEvents.filter(e => e.metadata?.success).length / continuationEvents.length) * 100
-      : 0;
+    const continuationSuccessRate =
+      continuationEvents.length > 0
+        ? (continuationEvents.filter(e => e.metadata?.success).length /
+            continuationEvents.length) *
+          100
+        : 0;
 
     // Calculate popular sources
     const sourceCounts = new Map<string, number>();
@@ -593,7 +636,7 @@ class AnalyticsService {
       .map(([source, count]) => ({
         source,
         count,
-        percentage: totalImports > 0 ? (count / totalImports) * 100 : 0
+        percentage: totalImports > 0 ? (count / totalImports) * 100 : 0,
       }))
       .sort((a, b) => b.count - a.count);
 
@@ -602,13 +645,16 @@ class AnalyticsService {
       .filter(e => e.metadata?.duration)
       .map(e => e.metadata.duration as number);
 
-    const averageSessionDuration = sessionDurations.length > 0
-      ? sessionDurations.reduce((sum, duration) => sum + duration, 0) / sessionDurations.length
-      : 0;
+    const averageSessionDuration =
+      sessionDurations.length > 0
+        ? sessionDurations.reduce((sum, duration) => sum + duration, 0) /
+          sessionDurations.length
+        : 0;
 
     // Calculate error rate
     const errorEvents = events.filter(e => e.type === 'error');
-    const errorRate = events.length > 0 ? (errorEvents.length / events.length) * 100 : 0;
+    const errorRate =
+      events.length > 0 ? (errorEvents.length / events.length) * 100 : 0;
 
     return {
       totalImports,
@@ -622,20 +668,29 @@ class AnalyticsService {
       errorRate,
       dailyActiveUsers: 0, // Would need daily tracking
       weeklyActiveUsers: 0, // Would need weekly tracking
-      monthlyActiveUsers: uniqueUsers // Approximation for current period
+      monthlyActiveUsers: uniqueUsers, // Approximation for current period
     };
   }
 
-  private calculateUserEngagement(userId: string, events: AnalyticsEvent[]): UserEngagementMetrics {
+  private calculateUserEngagement(
+    userId: string,
+    events: AnalyticsEvent[],
+  ): UserEngagementMetrics {
     const now = new Date();
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    const weeklyEvents = events.filter(e => new Date(e.timestamp) >= oneWeekAgo);
-    const monthlyEvents = events.filter(e => new Date(e.timestamp) >= oneMonthAgo);
+    const weeklyEvents = events.filter(
+      e => new Date(e.timestamp) >= oneWeekAgo,
+    );
+    const monthlyEvents = events.filter(
+      e => new Date(e.timestamp) >= oneMonthAgo,
+    );
 
     const importEvents = events.filter(e => e.type === 'story_import');
-    const continuationEvents = events.filter(e => e.type === 'story_continuation');
+    const continuationEvents = events.filter(
+      e => e.type === 'story_continuation',
+    );
 
     // Get unique sessions
     const uniqueSessions = new Set(events.map(e => e.sessionId));
@@ -649,9 +704,10 @@ class AnalyticsService {
       sourceCounts.set(source, (sourceCounts.get(source) || 0) + 1);
     });
 
-    const favoriteSource = sourceCounts.size > 0
-      ? Array.from(sourceCounts.entries()).sort((a, b) => b[1] - a[1])[0][0]
-      : 'none';
+    const favoriteSource =
+      sourceCounts.size > 0
+        ? Array.from(sourceCounts.entries()).sort((a, b) => b[1] - a[1])[0][0]
+        : 'none';
 
     // Calculate engagement score (0-100)
     let engagementScore = 0;
@@ -660,8 +716,9 @@ class AnalyticsService {
     engagementScore += Math.min(continuationEvents.length * 5, 25); // Continuations (max 25)
     engagementScore += Math.min(uniqueSessions.size * 2, 20); // Total sessions (max 20)
 
-    const lastEvent = events.sort((a, b) => 
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    const lastEvent = events.sort(
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
     )[0];
 
     return {
@@ -674,13 +731,15 @@ class AnalyticsService {
       lastActiveDate: lastEvent?.timestamp || '',
       favoriteSource,
       engagementScore,
-      retentionDays: events.length > 0 ? 30 : 0 // Simplified retention calculation
+      retentionDays: events.length > 0 ? 30 : 0, // Simplified retention calculation
     };
   }
 
-  private calculatePerformanceMetrics(events: AnalyticsEvent[]): PerformanceMetrics {
+  private calculatePerformanceMetrics(
+    events: AnalyticsEvent[],
+  ): PerformanceMetrics {
     const performanceEvents = events.filter(e => e.type === 'performance');
-    
+
     const importTimes = performanceEvents
       .filter(e => e.subtype === 'story_import')
       .map(e => e.metadata?.duration || 0);
@@ -693,36 +752,49 @@ class AnalyticsService {
     const totalEvents = events.length;
 
     return {
-      averageImportTime: importTimes.length > 0
-        ? importTimes.reduce((sum, time) => sum + time, 0) / importTimes.length
-        : 0,
-      averageContinuationTime: continuationTimes.length > 0
-        ? continuationTimes.reduce((sum, time) => sum + time, 0) / continuationTimes.length
-        : 0,
+      averageImportTime:
+        importTimes.length > 0
+          ? importTimes.reduce((sum, time) => sum + time, 0) /
+            importTimes.length
+          : 0,
+      averageContinuationTime:
+        continuationTimes.length > 0
+          ? continuationTimes.reduce((sum, time) => sum + time, 0) /
+            continuationTimes.length
+          : 0,
       cacheHitRate: 0, // Would integrate with performance service
       databaseQueryTime: 0, // Would need specific tracking
       errorRates: {
         imports: this.calculateErrorRate(errorEvents, 'import'),
         continuations: this.calculateErrorRate(errorEvents, 'continuation'),
         network: this.calculateErrorRate(errorEvents, 'network'),
-        database: this.calculateErrorRate(errorEvents, 'database')
+        database: this.calculateErrorRate(errorEvents, 'database'),
       },
       devicePerformance: {
         memoryUsage: 0, // Would need device monitoring
         cpuUsage: 0,
-        batteryImpact: 0
-      }
+        batteryImpact: 0,
+      },
     };
   }
 
-  private calculateErrorRate(errorEvents: AnalyticsEvent[], errorType: string): number {
-    const typeErrors = errorEvents.filter(e => 
-      e.subtype?.includes(errorType) || e.metadata?.errorType === errorType
+  private calculateErrorRate(
+    errorEvents: AnalyticsEvent[],
+    errorType: string,
+  ): number {
+    const typeErrors = errorEvents.filter(
+      e =>
+        e.subtype?.includes(errorType) || e.metadata?.errorType === errorType,
     );
-    return errorEvents.length > 0 ? (typeErrors.length / errorEvents.length) * 100 : 0;
+    return errorEvents.length > 0
+      ? (typeErrors.length / errorEvents.length) * 100
+      : 0;
   }
 
-  private calculateTrends(usageMetrics: UsageMetrics, performanceMetrics: PerformanceMetrics): Array<{
+  private calculateTrends(
+    usageMetrics: UsageMetrics,
+    performanceMetrics: PerformanceMetrics,
+  ): Array<{
     metric: string;
     change: number;
     direction: 'up' | 'down' | 'stable';
@@ -733,47 +805,71 @@ class AnalyticsService {
       {
         metric: 'Import Success Rate',
         change: 5.2,
-        direction: usageMetrics.importSuccessRate > 80 ? 'up' : 'down'
+        direction: usageMetrics.importSuccessRate > 80 ? 'up' : 'down',
       },
       {
         metric: 'User Engagement',
         change: 2.1,
-        direction: usageMetrics.uniqueUsers > 10 ? 'up' : 'stable'
+        direction: usageMetrics.uniqueUsers > 10 ? 'up' : 'stable',
       },
       {
         metric: 'Performance',
         change: -1.3,
-        direction: performanceMetrics.averageImportTime < 2000 ? 'up' : 'down'
-      }
+        direction: performanceMetrics.averageImportTime < 2000 ? 'up' : 'down',
+      },
     ];
   }
 
-  private generateInsights(usageMetrics: UsageMetrics, performanceMetrics: PerformanceMetrics): string[] {
+  private generateInsights(
+    usageMetrics: UsageMetrics,
+    performanceMetrics: PerformanceMetrics,
+  ): string[] {
     const insights: string[] = [];
 
     if (usageMetrics.importSuccessRate > 90) {
-      insights.push('Import success rate is excellent at ' + usageMetrics.importSuccessRate.toFixed(1) + '%');
+      insights.push(
+        'Import success rate is excellent at ' +
+          usageMetrics.importSuccessRate.toFixed(1) +
+          '%',
+      );
     } else if (usageMetrics.importSuccessRate < 70) {
-      insights.push('Import success rate needs improvement at ' + usageMetrics.importSuccessRate.toFixed(1) + '%');
+      insights.push(
+        'Import success rate needs improvement at ' +
+          usageMetrics.importSuccessRate.toFixed(1) +
+          '%',
+      );
     }
 
     if (usageMetrics.popularSources.length > 0) {
       const topSource = usageMetrics.popularSources[0];
-      insights.push(`${topSource.source} is the most popular import source (${topSource.percentage.toFixed(1)}%)`);
+      insights.push(
+        `${
+          topSource.source
+        } is the most popular import source (${topSource.percentage.toFixed(
+          1,
+        )}%)`,
+      );
     }
 
     if (performanceMetrics.averageImportTime > 3000) {
-      insights.push('Import times are slower than optimal, consider performance improvements');
+      insights.push(
+        'Import times are slower than optimal, consider performance improvements',
+      );
     }
 
     if (usageMetrics.errorRate > 5) {
-      insights.push('Error rate is higher than expected, review error handling');
+      insights.push(
+        'Error rate is higher than expected, review error handling',
+      );
     }
 
     return insights;
   }
 
-  private generateRecommendations(usageMetrics: UsageMetrics, performanceMetrics: PerformanceMetrics): string[] {
+  private generateRecommendations(
+    usageMetrics: UsageMetrics,
+    performanceMetrics: PerformanceMetrics,
+  ): string[] {
     const recommendations: string[] = [];
 
     if (usageMetrics.importSuccessRate < 85) {
@@ -781,21 +877,30 @@ class AnalyticsService {
     }
 
     if (performanceMetrics.averageImportTime > 2000) {
-      recommendations.push('Optimize import performance with caching and compression');
+      recommendations.push(
+        'Optimize import performance with caching and compression',
+      );
     }
 
     if (usageMetrics.userRetentionRate < 50) {
-      recommendations.push('Implement user onboarding improvements to increase retention');
+      recommendations.push(
+        'Implement user onboarding improvements to increase retention',
+      );
     }
 
     if (usageMetrics.averageSessionDuration < 300) {
-      recommendations.push('Add engagement features to increase session duration');
+      recommendations.push(
+        'Add engagement features to increase session duration',
+      );
     }
 
     return recommendations;
   }
 
-  private getDateRangeForReportType(reportType: string): { start: string; end: string } {
+  private getDateRangeForReportType(reportType: string): {
+    start: string;
+    end: string;
+  } {
     const now = new Date();
     const end = now.toISOString();
     let start: Date;
@@ -819,9 +924,7 @@ class AnalyticsService {
 
   private async saveReport(report: AnalyticsReport): Promise<void> {
     try {
-      const { error } = await supabase
-        .from('analytics_reports')
-        .insert(report);
+      const { error } = await supabase.from('analytics_reports').insert(report);
 
       if (error) {
         console.warn('Failed to save report to database:', error.message);
@@ -836,7 +939,7 @@ class AnalyticsService {
     return {
       platform: 'unknown',
       version: 'unknown',
-      model: 'unknown'
+      model: 'unknown',
     };
   }
 
@@ -865,7 +968,7 @@ class AnalyticsService {
       errorRate: 0,
       dailyActiveUsers: 0,
       weeklyActiveUsers: 0,
-      monthlyActiveUsers: 0
+      monthlyActiveUsers: 0,
     };
   }
 
@@ -880,7 +983,7 @@ class AnalyticsService {
       lastActiveDate: '',
       favoriteSource: 'none',
       engagementScore: 0,
-      retentionDays: 0
+      retentionDays: 0,
     };
   }
 
@@ -894,13 +997,13 @@ class AnalyticsService {
         imports: 0,
         continuations: 0,
         network: 0,
-        database: 0
+        database: 0,
       },
       devicePerformance: {
         memoryUsage: 0,
         cpuUsage: 0,
-        batteryImpact: 0
-      }
+        batteryImpact: 0,
+      },
     };
   }
 

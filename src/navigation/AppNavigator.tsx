@@ -161,7 +161,7 @@ const AppNavigator: React.FC = () => {
           name="Settings"
           component={SettingsScreen}
           options={{
-            title: 'Settings ⚙️',
+            title: 'Settings',
             headerTitle: '⚙️ Game Settings',
           }}
         />
@@ -169,7 +169,7 @@ const AppNavigator: React.FC = () => {
           name="Profile"
           component={ProfileScreen}
           options={{
-            title: 'Profile 👤',
+            title: 'Profile',
             headerTitle: '👤 Your Profile',
           }}
         />

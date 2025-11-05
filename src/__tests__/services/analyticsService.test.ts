@@ -1,6 +1,6 @@
 /**
  * Analytics Service Tests
- * 
+ *
  * Comprehensive test suite for story analytics functionality including
  * event tracking, usage metrics, user engagement analytics, performance
  * monitoring, and automated reporting system.
@@ -41,7 +41,7 @@ describe('AnalyticsService', () => {
       userId: 'user-123',
       sessionId: 'session-1',
       timestamp: '2024-01-01T10:00:00Z',
-      metadata: { source: 'file', success: true, fileSize: 1024 }
+      metadata: { source: 'file', success: true, fileSize: 1024 },
     },
     {
       id: 'event-2',
@@ -50,7 +50,7 @@ describe('AnalyticsService', () => {
       userId: 'user-123',
       sessionId: 'session-1',
       timestamp: '2024-01-01T10:05:00Z',
-      metadata: { storyId: 'story-1', success: true, duration: 2000 }
+      metadata: { storyId: 'story-1', success: true, duration: 2000 },
     },
     {
       id: 'event-3',
@@ -59,7 +59,7 @@ describe('AnalyticsService', () => {
       userId: 'user-456',
       sessionId: 'session-2',
       timestamp: '2024-01-01T11:00:00Z',
-      metadata: { duration: 300 }
+      metadata: { duration: 300 },
     },
     {
       id: 'event-4',
@@ -68,8 +68,8 @@ describe('AnalyticsService', () => {
       userId: 'user-789',
       sessionId: 'session-3',
       timestamp: '2024-01-01T12:00:00Z',
-      metadata: { errorMessage: 'File format not supported' }
-    }
+      metadata: { errorMessage: 'File format not supported' },
+    },
   ];
 
   beforeEach(() => {
@@ -86,7 +86,7 @@ describe('AnalyticsService', () => {
     it('should track story import events', async () => {
       await analyticsService.trackStoryImport('user-123', 'file', true, {
         fileSize: 2048,
-        storyLength: 500
+        storyLength: 500,
       });
 
       // Should complete without throwing
@@ -94,10 +94,15 @@ describe('AnalyticsService', () => {
     });
 
     it('should track story continuation events', async () => {
-      await analyticsService.trackStoryContinuation('user-123', 'story-1', true, {
-        generatedWords: 150,
-        aiModel: 'gpt-4'
-      });
+      await analyticsService.trackStoryContinuation(
+        'user-123',
+        'story-1',
+        true,
+        {
+          generatedWords: 150,
+          aiModel: 'gpt-4',
+        },
+      );
 
       // Should complete without throwing
       expect(true).toBe(true);
@@ -106,7 +111,7 @@ describe('AnalyticsService', () => {
     it('should track user engagement events', async () => {
       await analyticsService.trackUserEngagement('user-123', 'story_selected', {
         storySource: 'database',
-        selectionTime: 1500
+        selectionTime: 1500,
       });
 
       // Should complete without throwing
@@ -116,7 +121,7 @@ describe('AnalyticsService', () => {
     it('should track performance metrics', async () => {
       await analyticsService.trackPerformance('story_import', 2500, true, {
         cacheHit: false,
-        memoryUsage: 45
+        memoryUsage: 45,
       });
 
       // Should complete without throwing
@@ -124,24 +129,31 @@ describe('AnalyticsService', () => {
     });
 
     it('should track error events', async () => {
-      await analyticsService.trackError('user-123', 'file_read_error', 'Permission denied', {
-        fileName: 'story.txt',
-        fileSize: 0
-      });
+      await analyticsService.trackError(
+        'user-123',
+        'file_read_error',
+        'Permission denied',
+        {
+          fileName: 'story.txt',
+          fileSize: 0,
+        },
+      );
 
       // Should complete without throwing
       expect(true).toBe(true);
     });
 
     it('should handle tracking errors gracefully', async () => {
-      const mockInsert = jest.fn().mockRejectedValue(new Error('Database error'));
+      const mockInsert = jest
+        .fn()
+        .mockRejectedValue(new Error('Database error'));
       (supabase.from as jest.Mock).mockReturnValue({
-        insert: mockInsert
+        insert: mockInsert,
       });
 
       // Should not throw
       await expect(
-        analyticsService.trackStoryImport('user-123', 'file', true)
+        analyticsService.trackStoryImport('user-123', 'file', true),
       ).resolves.not.toThrow();
     });
   });
@@ -150,7 +162,7 @@ describe('AnalyticsService', () => {
     it('should get usage metrics for date range', async () => {
       const mockQuery = {
         data: mockEvents,
-        error: null
+        error: null,
       };
 
       const mockBuilder = {
@@ -158,14 +170,14 @@ describe('AnalyticsService', () => {
         gte: jest.fn().mockReturnThis(),
         lte: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       };
 
       (supabase.from as jest.Mock).mockReturnValue(mockBuilder);
 
       const metrics = await analyticsService.getUsageMetrics(
         '2024-01-01T00:00:00Z',
-        '2024-01-02T00:00:00Z'
+        '2024-01-02T00:00:00Z',
       );
 
       expect(metrics).toHaveProperty('totalImports');
@@ -182,19 +194,19 @@ describe('AnalyticsService', () => {
     it('should handle missing data gracefully', async () => {
       const mockQuery = {
         data: null,
-        error: { message: 'Table not found' }
+        error: { message: 'Table not found' },
       };
 
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         gte: jest.fn().mockReturnThis(),
         lte: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       const metrics = await analyticsService.getUsageMetrics(
         '2024-01-01T00:00:00Z',
-        '2024-01-02T00:00:00Z'
+        '2024-01-02T00:00:00Z',
       );
 
       expect(metrics.totalImports).toBe(0);
@@ -205,7 +217,7 @@ describe('AnalyticsService', () => {
     it('should filter metrics by user when specified', async () => {
       const mockQuery = {
         data: mockEvents.filter(e => e.userId === 'user-123'),
-        error: null
+        error: null,
       };
 
       const mockBuilder = {
@@ -213,7 +225,7 @@ describe('AnalyticsService', () => {
         gte: jest.fn().mockReturnThis(),
         lte: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       };
 
       (supabase.from as jest.Mock).mockReturnValue(mockBuilder);
@@ -221,7 +233,7 @@ describe('AnalyticsService', () => {
       const metrics = await analyticsService.getUsageMetrics(
         '2024-01-01T00:00:00Z',
         '2024-01-02T00:00:00Z',
-        'user-123'
+        'user-123',
       );
 
       expect(mockBuilder.eq).toHaveBeenCalledWith('userId', 'user-123');
@@ -233,19 +245,21 @@ describe('AnalyticsService', () => {
     it('should get user engagement metrics', async () => {
       const mockQuery = {
         data: mockEvents.filter(e => e.userId === 'user-123'),
-        error: null
+        error: null,
       };
 
       const mockBuilder = {
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         gte: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       };
 
       (supabase.from as jest.Mock).mockReturnValue(mockBuilder);
 
-      const engagement = await analyticsService.getUserEngagementMetrics('user-123');
+      const engagement = await analyticsService.getUserEngagementMetrics(
+        'user-123',
+      );
 
       expect(engagement).toHaveProperty('userId', 'user-123');
       expect(engagement).toHaveProperty('sessionsThisWeek');
@@ -262,17 +276,19 @@ describe('AnalyticsService', () => {
     it('should calculate engagement score correctly', async () => {
       const mockQuery = {
         data: mockEvents.filter(e => e.userId === 'user-123'),
-        error: null
+        error: null,
       };
 
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         gte: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
-      const engagement = await analyticsService.getUserEngagementMetrics('user-123');
+      const engagement = await analyticsService.getUserEngagementMetrics(
+        'user-123',
+      );
 
       expect(engagement.engagementScore).toBeGreaterThan(0);
       expect(engagement.engagementScore).toBeLessThanOrEqual(100);
@@ -281,17 +297,19 @@ describe('AnalyticsService', () => {
     it('should handle user with no data', async () => {
       const mockQuery = {
         data: [],
-        error: null
+        error: null,
       };
 
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         gte: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
-      const engagement = await analyticsService.getUserEngagementMetrics('unknown-user');
+      const engagement = await analyticsService.getUserEngagementMetrics(
+        'unknown-user',
+      );
 
       expect(engagement.totalStoryImports).toBe(0);
       expect(engagement.totalStoryContinuations).toBe(0);
@@ -307,19 +325,19 @@ describe('AnalyticsService', () => {
           ...mockEvents[0],
           type: 'performance',
           subtype: 'story_import',
-          metadata: { duration: 1500, success: true }
+          metadata: { duration: 1500, success: true },
         },
         {
           ...mockEvents[1],
           type: 'performance',
           subtype: 'story_continuation',
-          metadata: { duration: 2500, success: true }
-        }
+          metadata: { duration: 2500, success: true },
+        },
       ];
 
       const mockQuery = {
         data: performanceEvents,
-        error: null
+        error: null,
       };
 
       const mockBuilder = {
@@ -327,14 +345,14 @@ describe('AnalyticsService', () => {
         eq: jest.fn().mockReturnThis(),
         gte: jest.fn().mockReturnThis(),
         lte: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       };
 
       (supabase.from as jest.Mock).mockReturnValue(mockBuilder);
 
       const metrics = await analyticsService.getPerformanceMetrics(
         '2024-01-01T00:00:00Z',
-        '2024-01-02T00:00:00Z'
+        '2024-01-02T00:00:00Z',
       );
 
       expect(metrics).toHaveProperty('averageImportTime');
@@ -349,7 +367,7 @@ describe('AnalyticsService', () => {
     it('should handle no performance data', async () => {
       const mockQuery = {
         data: [],
-        error: null
+        error: null,
       };
 
       (supabase.from as jest.Mock).mockReturnValue({
@@ -357,12 +375,12 @@ describe('AnalyticsService', () => {
         eq: jest.fn().mockReturnThis(),
         gte: jest.fn().mockReturnThis(),
         lte: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       const metrics = await analyticsService.getPerformanceMetrics(
         '2024-01-01T00:00:00Z',
-        '2024-01-02T00:00:00Z'
+        '2024-01-02T00:00:00Z',
       );
 
       expect(metrics.averageImportTime).toBe(0);
@@ -374,16 +392,16 @@ describe('AnalyticsService', () => {
     it('should generate daily report', async () => {
       const mockUsageQuery = {
         data: mockEvents,
-        error: null
+        error: null,
       };
 
       const mockPerformanceQuery = {
         data: [],
-        error: null
+        error: null,
       };
 
       const mockInsertQuery = {
-        error: null
+        error: null,
       };
 
       (supabase.from as jest.Mock)
@@ -391,18 +409,18 @@ describe('AnalyticsService', () => {
           select: jest.fn().mockReturnThis(),
           gte: jest.fn().mockReturnThis(),
           lte: jest.fn().mockReturnThis(),
-          ...mockUsageQuery
+          ...mockUsageQuery,
         })
         .mockReturnValueOnce({
           select: jest.fn().mockReturnThis(),
           eq: jest.fn().mockReturnThis(),
           gte: jest.fn().mockReturnThis(),
           lte: jest.fn().mockReturnThis(),
-          ...mockPerformanceQuery
+          ...mockPerformanceQuery,
         })
         .mockReturnValueOnce({
           insert: jest.fn().mockReturnThis(),
-          ...mockInsertQuery
+          ...mockInsertQuery,
         });
 
       const report = await analyticsService.generateReport('daily');
@@ -432,18 +450,18 @@ describe('AnalyticsService', () => {
           select: jest.fn().mockReturnThis(),
           gte: jest.fn().mockReturnThis(),
           lte: jest.fn().mockReturnThis(),
-          ...mockUsageQuery
+          ...mockUsageQuery,
         })
         .mockReturnValueOnce({
           select: jest.fn().mockReturnThis(),
           eq: jest.fn().mockReturnThis(),
           gte: jest.fn().mockReturnThis(),
           lte: jest.fn().mockReturnThis(),
-          ...mockPerformanceQuery
+          ...mockPerformanceQuery,
         })
         .mockReturnValueOnce({
           insert: jest.fn().mockReturnThis(),
-          ...mockInsertQuery
+          ...mockInsertQuery,
         });
 
       const report = await analyticsService.generateReport('weekly');
@@ -462,18 +480,18 @@ describe('AnalyticsService', () => {
           select: jest.fn().mockReturnThis(),
           gte: jest.fn().mockReturnThis(),
           lte: jest.fn().mockReturnThis(),
-          ...mockUsageQuery
+          ...mockUsageQuery,
         })
         .mockReturnValueOnce({
           select: jest.fn().mockReturnThis(),
           eq: jest.fn().mockReturnThis(),
           gte: jest.fn().mockReturnThis(),
           lte: jest.fn().mockReturnThis(),
-          ...mockPerformanceQuery
+          ...mockPerformanceQuery,
         })
         .mockReturnValueOnce({
           insert: jest.fn().mockReturnThis(),
-          ...mockInsertQuery
+          ...mockInsertQuery,
         });
 
       const report = await analyticsService.generateReport('monthly');
@@ -491,26 +509,29 @@ describe('AnalyticsService', () => {
           select: jest.fn().mockReturnThis(),
           gte: jest.fn().mockReturnThis(),
           lte: jest.fn().mockReturnThis(),
-          ...mockUsageQuery
+          ...mockUsageQuery,
         })
         .mockReturnValueOnce({
           select: jest.fn().mockReturnThis(),
           eq: jest.fn().mockReturnThis(),
           gte: jest.fn().mockReturnThis(),
           lte: jest.fn().mockReturnThis(),
-          ...mockPerformanceQuery
+          ...mockPerformanceQuery,
         })
         .mockReturnValueOnce({
           insert: jest.fn().mockReturnThis(),
-          ...mockInsertQuery
+          ...mockInsertQuery,
         });
 
       const customRange = {
         start: '2024-01-01T00:00:00Z',
-        end: '2024-01-07T23:59:59Z'
+        end: '2024-01-07T23:59:59Z',
       };
 
-      const report = await analyticsService.generateReport('custom', customRange);
+      const report = await analyticsService.generateReport(
+        'custom',
+        customRange,
+      );
 
       expect(report.reportType).toBe('custom');
       expect(report.dateRange).toEqual(customRange);
@@ -521,7 +542,7 @@ describe('AnalyticsService', () => {
     it('should get events by type', async () => {
       const mockQuery = {
         data: mockEvents.filter(e => e.type === 'story_import'),
-        error: null
+        error: null,
       };
 
       const mockBuilder = {
@@ -529,7 +550,7 @@ describe('AnalyticsService', () => {
         eq: jest.fn().mockReturnThis(),
         order: jest.fn().mockReturnThis(),
         range: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       };
 
       (supabase.from as jest.Mock).mockReturnValue(mockBuilder);
@@ -537,7 +558,9 @@ describe('AnalyticsService', () => {
       const events = await analyticsService.getEvents('story_import', 50, 0);
 
       expect(mockBuilder.eq).toHaveBeenCalledWith('type', 'story_import');
-      expect(mockBuilder.order).toHaveBeenCalledWith('timestamp', { ascending: false });
+      expect(mockBuilder.order).toHaveBeenCalledWith('timestamp', {
+        ascending: false,
+      });
       expect(mockBuilder.range).toHaveBeenCalledWith(0, 49);
       expect(Array.isArray(events)).toBe(true);
     });
@@ -545,7 +568,7 @@ describe('AnalyticsService', () => {
     it('should handle pagination correctly', async () => {
       const mockQuery = {
         data: mockEvents,
-        error: null
+        error: null,
       };
 
       const mockBuilder = {
@@ -553,7 +576,7 @@ describe('AnalyticsService', () => {
         eq: jest.fn().mockReturnThis(),
         order: jest.fn().mockReturnThis(),
         range: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       };
 
       (supabase.from as jest.Mock).mockReturnValue(mockBuilder);
@@ -566,7 +589,7 @@ describe('AnalyticsService', () => {
     it('should handle database errors when getting events', async () => {
       const mockQuery = {
         data: null,
-        error: { message: 'Database error' }
+        error: { message: 'Database error' },
       };
 
       (supabase.from as jest.Mock).mockReturnValue({
@@ -574,7 +597,7 @@ describe('AnalyticsService', () => {
         eq: jest.fn().mockReturnThis(),
         order: jest.fn().mockReturnThis(),
         range: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       const events = await analyticsService.getEvents('story_import');
@@ -589,29 +612,29 @@ describe('AnalyticsService', () => {
         data: [
           {
             type: 'story_import',
-            metadata: { success: true }
+            metadata: { success: true },
           },
           {
             type: 'story_import',
-            metadata: { success: false }
+            metadata: { success: false },
           },
           {
             type: 'story_continuation',
-            metadata: { success: true }
+            metadata: { success: true },
           },
           {
             type: 'story_continuation',
-            metadata: { success: true }
-          }
+            metadata: { success: true },
+          },
         ],
-        error: null
+        error: null,
       };
 
       const mockBuilder = {
         select: jest.fn().mockReturnThis(),
         in: jest.fn().mockReturnThis(),
         gte: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       };
 
       (supabase.from as jest.Mock).mockReturnValue(mockBuilder);
@@ -625,14 +648,14 @@ describe('AnalyticsService', () => {
     it('should handle no events gracefully', async () => {
       const mockQuery = {
         data: [],
-        error: null
+        error: null,
       };
 
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         in: jest.fn().mockReturnThis(),
         gte: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       const rates = await analyticsService.getSuccessRates();
@@ -646,14 +669,14 @@ describe('AnalyticsService', () => {
     it('should generate usage report', async () => {
       const mockQuery = {
         data: mockEvents,
-        error: null
+        error: null,
       };
 
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         gte: jest.fn().mockReturnThis(),
         lte: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       const report = await analyticsService.generateUsageReport();
@@ -670,14 +693,14 @@ describe('AnalyticsService', () => {
     it('should handle errors in usage report generation', async () => {
       const mockQuery = {
         data: null,
-        error: { message: 'Database error' }
+        error: { message: 'Database error' },
       };
 
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         gte: jest.fn().mockReturnThis(),
         lte: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       const report = await analyticsService.generateUsageReport();
@@ -692,36 +715,39 @@ describe('AnalyticsService', () => {
     it('should handle database connection errors', async () => {
       const mockQuery = {
         data: null,
-        error: { message: 'Connection refused' }
+        error: { message: 'Connection refused' },
       };
 
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         gte: jest.fn().mockReturnThis(),
         lte: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       // Should not throw
       await expect(
-        analyticsService.getUsageMetrics('2024-01-01', '2024-01-02')
+        analyticsService.getUsageMetrics('2024-01-01', '2024-01-02'),
       ).resolves.not.toThrow();
     });
 
     it('should handle invalid date ranges', async () => {
       const mockQuery = {
         data: [],
-        error: null
+        error: null,
       };
 
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         gte: jest.fn().mockReturnThis(),
         lte: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
-      const metrics = await analyticsService.getUsageMetrics('invalid-date', 'invalid-date');
+      const metrics = await analyticsService.getUsageMetrics(
+        'invalid-date',
+        'invalid-date',
+      );
 
       expect(metrics).toBeDefined();
       expect(metrics.totalImports).toBe(0);
@@ -732,23 +758,26 @@ describe('AnalyticsService', () => {
         { type: 'story_import' }, // Missing required fields
         null,
         undefined,
-        { id: 'event-1', type: 'unknown_type' }
+        { id: 'event-1', type: 'unknown_type' },
       ];
 
       const mockQuery = {
         data: malformedEvents,
-        error: null
+        error: null,
       };
 
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         gte: jest.fn().mockReturnThis(),
         lte: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       // Should handle malformed data gracefully
-      const metrics = await analyticsService.getUsageMetrics('2024-01-01', '2024-01-02');
+      const metrics = await analyticsService.getUsageMetrics(
+        '2024-01-01',
+        '2024-01-02',
+      );
 
       expect(metrics).toBeDefined();
       expect(typeof metrics.totalImports).toBe('number');
@@ -767,7 +796,7 @@ describe('AnalyticsService', () => {
     it('should handle batch upload timer', () => {
       // Advance timers to trigger batch upload
       jest.advanceTimersByTime(31000);
-      
+
       // Should not throw errors
       expect(true).toBe(true);
     });

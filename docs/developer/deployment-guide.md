@@ -9,12 +9,14 @@ This guide covers deployment procedures, configuration requirements, and databas
 ### System Requirements
 
 **Development Environment:**
+
 - Node.js 18.0 or higher
 - React Native CLI 0.81.1
 - Xcode 14+ (for iOS)
 - Android Studio 2022.1+ (for Android)
 
 **Production Environment:**
+
 - Supabase project with PostgreSQL
 - OpenAI API access
 - Cloud storage for file uploads
@@ -70,18 +72,18 @@ Run the following SQL scripts in order:
 
 ```sql
 -- Add story continuation fields to existing table
-ALTER TABLE game_sessions 
+ALTER TABLE game_sessions
 ADD COLUMN IF NOT EXISTS imported_story_content TEXT,
-ADD COLUMN IF NOT EXISTS story_source TEXT 
+ADD COLUMN IF NOT EXISTS story_source TEXT
   CHECK (story_source IN ('CreativeBridge', 'Story_Quest', 'File')),
 ADD COLUMN IF NOT EXISTS original_creation_date TIMESTAMP WITH TIME ZONE,
 ADD COLUMN IF NOT EXISTS story_metadata JSONB DEFAULT '{}';
 
 -- Create index for better search performance
-CREATE INDEX IF NOT EXISTS idx_game_sessions_story_source 
+CREATE INDEX IF NOT EXISTS idx_game_sessions_story_source
 ON game_sessions(story_source);
 
-CREATE INDEX IF NOT EXISTS idx_game_sessions_content_search 
+CREATE INDEX IF NOT EXISTS idx_game_sessions_content_search
 ON game_sessions USING gin(to_tsvector('english', imported_story_content));
 ```
 
@@ -113,13 +115,13 @@ CREATE TABLE IF NOT EXISTS analytics_reports (
 );
 
 -- Indexes for analytics
-CREATE INDEX IF NOT EXISTS idx_analytics_events_type 
+CREATE INDEX IF NOT EXISTS idx_analytics_events_type
 ON analytics_events(type, timestamp);
 
-CREATE INDEX IF NOT EXISTS idx_analytics_events_user 
+CREATE INDEX IF NOT EXISTS idx_analytics_events_user
 ON analytics_events(user_id, timestamp);
 
-CREATE INDEX IF NOT EXISTS idx_analytics_events_session 
+CREATE INDEX IF NOT EXISTS idx_analytics_events_session
 ON analytics_events(session_id);
 ```
 
@@ -134,7 +136,7 @@ CREATE TABLE IF NOT EXISTS sync_stories (
   source TEXT,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   device_id TEXT NOT NULL,
-  sync_status TEXT DEFAULT 'pending' 
+  sync_status TEXT DEFAULT 'pending'
     CHECK (sync_status IN ('pending', 'synced', 'conflict', 'error')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -153,13 +155,13 @@ CREATE TABLE IF NOT EXISTS sync_conflicts (
 );
 
 -- Indexes for sync
-CREATE INDEX IF NOT EXISTS idx_sync_stories_user_device 
+CREATE INDEX IF NOT EXISTS idx_sync_stories_user_device
 ON sync_stories(user_id, device_id);
 
-CREATE INDEX IF NOT EXISTS idx_sync_stories_status 
+CREATE INDEX IF NOT EXISTS idx_sync_stories_status
 ON sync_stories(sync_status, updated_at);
 
-CREATE INDEX IF NOT EXISTS idx_sync_conflicts_story 
+CREATE INDEX IF NOT EXISTS idx_sync_conflicts_story
 ON sync_conflicts(story_id, is_resolved);
 ```
 
@@ -176,10 +178,10 @@ CREATE TABLE IF NOT EXISTS search_indices (
 );
 
 -- Create full-text search index
-CREATE INDEX IF NOT EXISTS idx_search_content_vector 
+CREATE INDEX IF NOT EXISTS idx_search_content_vector
 ON search_indices USING gin(content_vector);
 
-CREATE INDEX IF NOT EXISTS idx_search_metadata_vector 
+CREATE INDEX IF NOT EXISTS idx_search_metadata_vector
 ON search_indices USING gin(metadata_vector);
 ```
 
@@ -194,37 +196,37 @@ ALTER TABLE sync_conflicts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE search_indices ENABLE ROW LEVEL SECURITY;
 
 -- Analytics events policies
-CREATE POLICY "Users can insert their own analytics events" 
-ON analytics_events FOR INSERT 
+CREATE POLICY "Users can insert their own analytics events"
+ON analytics_events FOR INSERT
 WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Users can view their own analytics events" 
-ON analytics_events FOR SELECT 
+CREATE POLICY "Users can view their own analytics events"
+ON analytics_events FOR SELECT
 USING (auth.uid() = user_id);
 
 -- Analytics reports policies (admin only)
-CREATE POLICY "Admin can manage analytics reports" 
-ON analytics_reports FOR ALL 
+CREATE POLICY "Admin can manage analytics reports"
+ON analytics_reports FOR ALL
 USING (
   EXISTS (
-    SELECT 1 FROM user_profiles 
-    WHERE id = auth.uid() 
+    SELECT 1 FROM user_profiles
+    WHERE id = auth.uid()
     AND (metadata->>'role')::text = 'admin'
   )
 );
 
 -- Sync stories policies
-CREATE POLICY "Users can manage their own sync stories" 
-ON sync_stories FOR ALL 
+CREATE POLICY "Users can manage their own sync stories"
+ON sync_stories FOR ALL
 USING (auth.uid() = user_id);
 
 -- Sync conflicts policies
-CREATE POLICY "Users can view conflicts for their stories" 
-ON sync_conflicts FOR SELECT 
+CREATE POLICY "Users can view conflicts for their stories"
+ON sync_conflicts FOR SELECT
 USING (
   EXISTS (
-    SELECT 1 FROM sync_stories 
-    WHERE id = story_id 
+    SELECT 1 FROM sync_stories
+    WHERE id = story_id
     AND user_id = auth.uid()
   )
 );
@@ -247,7 +249,7 @@ BEGIN
     content_vector = EXCLUDED.content_vector,
     metadata_vector = EXCLUDED.metadata_vector,
     last_indexed = NOW();
-  
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -262,7 +264,7 @@ CREATE TRIGGER update_search_index_trigger
 CREATE OR REPLACE FUNCTION cleanup_old_analytics()
 RETURNS void AS $$
 BEGIN
-  DELETE FROM analytics_events 
+  DELETE FROM analytics_events
   WHERE created_at < NOW() - INTERVAL '1 year';
 END;
 $$ LANGUAGE plpgsql;
@@ -277,7 +279,7 @@ $$ LANGUAGE plpgsql;
 Update `metro.config.js`:
 
 ```javascript
-const {getDefaultConfig, mergeConfig} = require('@react-native/metro-config');
+const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config');
 
 const config = {
   resolver: {
@@ -363,7 +365,7 @@ target 'CreativeBridge' do
 
   # Story continuation dependencies
   pod 'react-native-document-picker', :path => '../node_modules/react-native-document-picker'
-  
+
   post_install do |installer|
     react_native_post_install(installer)
   end
@@ -582,10 +584,10 @@ export class HealthCheckService {
         .from('user_profiles')
         .select('count')
         .limit(1);
-      
-      return error ? 
-        { status: 'error', message: error.message } :
-        { status: 'ok', responseTime: Date.now() };
+
+      return error
+        ? { status: 'error', message: error.message }
+        : { status: 'ok', responseTime: Date.now() };
     } catch (error) {
       return { status: 'error', message: error.message };
     }
@@ -604,20 +606,20 @@ export class HealthCheckService {
 export const securityConfig = {
   rateLimit: {
     analytics: { max: 100, window: 60000 }, // 100 requests per minute
-    search: { max: 60, window: 60000 },     // 60 requests per minute
-    sync: { max: 30, window: 60000 },       // 30 requests per minute
-    ai: { max: 10, window: 60000 },         // 10 requests per minute
+    search: { max: 60, window: 60000 }, // 60 requests per minute
+    sync: { max: 30, window: 60000 }, // 30 requests per minute
+    ai: { max: 10, window: 60000 }, // 10 requests per minute
   },
-  
+
   encryption: {
     algorithm: 'AES-256-GCM',
     keyDerivation: 'PBKDF2',
     iterations: 100000,
   },
-  
+
   validation: {
     maxStoryLength: 1000000, // 1MB
-    maxFileSize: 10485760,   // 10MB
+    maxFileSize: 10485760, // 10MB
     allowedFileTypes: ['txt', 'plain'],
   },
 };
@@ -631,12 +633,12 @@ export const contentSecurityPolicy = {
   'default-src': ["'self'"],
   'script-src': ["'self'", "'unsafe-eval'"],
   'style-src': ["'self'", "'unsafe-inline'"],
-  'img-src': ["'self'", "data:", "https:"],
+  'img-src': ["'self'", 'data:', 'https:'],
   'connect-src': [
     "'self'",
-    "https://*.supabase.co",
-    "https://api.openai.com",
-    "wss://*.supabase.co"
+    'https://*.supabase.co',
+    'https://api.openai.com',
+    'wss://*.supabase.co',
   ],
   'font-src': ["'self'"],
   'object-src': ["'none'"],

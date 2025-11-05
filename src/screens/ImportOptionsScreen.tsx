@@ -39,20 +39,20 @@ export const ImportOptionsScreen: React.FC<ImportOptionsScreenProps> = ({
   const handleFileImport = async () => {
     try {
       setIsImporting(true);
-      
+
       // Use the file picker utilities
       const result = await FilePickerUtils.pickTextFile();
-      
+
       if (result.cancelled) {
         // User cancelled file selection
         return;
       }
-      
+
       if (!result.success) {
         Alert.alert(
           'Import Error',
           result.error || 'Failed to import file. Please try again.',
-          [{ text: 'OK' }]
+          [{ text: 'OK' }],
         );
         return;
       }
@@ -72,8 +72,11 @@ export const ImportOptionsScreen: React.FC<ImportOptionsScreenProps> = ({
           console.warn('Navigation to StoryPreviewEdit not configured:', error);
           Alert.alert(
             'Import Successful',
-            `Story imported successfully!\n\nContent: ${result.content.substring(0, 100)}...`,
-            [{ text: 'OK' }]
+            `Story imported successfully!\n\nContent: ${result.content.substring(
+              0,
+              100,
+            )}...`,
+            [{ text: 'OK' }],
           );
         }
       }
@@ -82,7 +85,7 @@ export const ImportOptionsScreen: React.FC<ImportOptionsScreenProps> = ({
       Alert.alert(
         'Import Error',
         'An unexpected error occurred while importing the file. Please try again.',
-        [{ text: 'OK' }]
+        [{ text: 'OK' }],
       );
     } finally {
       setIsImporting(false);
@@ -148,7 +151,10 @@ export const ImportOptionsScreen: React.FC<ImportOptionsScreenProps> = ({
         <View style={styles.optionsContainer}>
           {/* File Import Option */}
           <TouchableOpacity
-            style={[styles.optionCard, isImporting && styles.optionCardDisabled]}
+            style={[
+              styles.optionCard,
+              isImporting && styles.optionCardDisabled,
+            ]}
             onPress={handleFileImport}
             activeOpacity={isImporting ? 1 : 0.7}
             disabled={isImporting}

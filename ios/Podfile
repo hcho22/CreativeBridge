@@ -31,5 +31,23 @@ target 'CreativeBridge' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+    
+    # Fix for Xcode 26+ compatibility with React Native 0.81.1
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        # For problematic C++ modules, use C++17 instead of C++20
+        if target.name.include?('RNReanimated') || target.name.include?('fmt') || target.name.include?('glog') || target.name.include?('React-jsi')
+          config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'
+        end
+        
+        # Ensure C++ standard library is properly linked
+        config.build_settings['CLANG_CXX_LIBRARY'] = 'libc++'
+        config.build_settings['HEADER_SEARCH_PATHS'] ||= '$(inherited)'
+        config.build_settings['HEADER_SEARCH_PATHS'] << ' /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/usr/include/c++/v1'
+        
+        # Fix deployment target warnings
+        config.build_settings.delete 'IPHONEOS_DEPLOYMENT_TARGET'
+      end
+    end
   end
 end

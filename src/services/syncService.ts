@@ -1,6 +1,6 @@
 /**
  * Cross-Platform Story Synchronization Service
- * 
+ *
  * Provides comprehensive synchronization capabilities for story data across
  * multiple devices and platforms, including real-time updates, conflict
  * resolution, offline sync, and data consistency management.
@@ -50,7 +50,12 @@ export interface ConflictData {
   localVersion: Partial<SyncStory>;
   remoteVersion: Partial<SyncStory>;
   conflictTimestamp: string;
-  resolutionStrategy?: 'manual' | 'auto_latest' | 'auto_merge' | 'auto_local' | 'auto_remote';
+  resolutionStrategy?:
+    | 'manual'
+    | 'auto_latest'
+    | 'auto_merge'
+    | 'auto_local'
+    | 'auto_remote';
   isResolved: boolean;
 }
 
@@ -96,7 +101,7 @@ class SyncService {
   private autoSyncTimer?: NodeJS.Timeout;
   private conflictQueue: ConflictData[] = [];
   private pendingChanges: SyncChange[] = [];
-  
+
   // Configuration
   private config: SyncConfiguration = {
     autoSyncInterval: 30000, // 30 seconds
@@ -106,7 +111,7 @@ class SyncService {
     enableRealTimeSync: true,
     enableOfflineMode: true,
     compressionEnabled: true,
-    encryptionEnabled: false
+    encryptionEnabled: false,
   };
 
   private readonly STORAGE_KEYS = {
@@ -114,7 +119,7 @@ class SyncService {
     CONFLICTS: 'sync_conflicts',
     DEVICE_ID: 'sync_device_id',
     LAST_SYNC: 'sync_last_sync_time',
-    OFFLINE_STORIES: 'sync_offline_stories'
+    OFFLINE_STORIES: 'sync_offline_stories',
   };
 
   constructor() {
@@ -128,7 +133,9 @@ class SyncService {
   private async initializeSync(): Promise<void> {
     try {
       // Load device ID or generate new one
-      const storedDeviceId = await AsyncStorage.getItem(this.STORAGE_KEYS.DEVICE_ID);
+      const storedDeviceId = await AsyncStorage.getItem(
+        this.STORAGE_KEYS.DEVICE_ID,
+      );
       if (storedDeviceId) {
         this.deviceId = storedDeviceId;
       } else {
@@ -171,7 +178,12 @@ class SyncService {
   /**
    * Update story on specific device
    */
-  async updateStoryOnDevice(deviceId: string, storyId: string, content: string, metadata?: any): Promise<void> {
+  async updateStoryOnDevice(
+    deviceId: string,
+    storyId: string,
+    content: string,
+    metadata?: any,
+  ): Promise<void> {
     try {
       const story: Partial<SyncStory> = {
         id: storyId,
@@ -181,11 +193,11 @@ class SyncService {
           updatedAt: new Date().toISOString(),
           version: (metadata?.version || 0) + 1,
           lastEditedBy: deviceId,
-          checksum: this.calculateChecksum(content)
+          checksum: this.calculateChecksum(content),
         },
         deviceId,
         userId: this.userId || '',
-        syncStatus: 'pending'
+        syncStatus: 'pending',
       };
 
       // Save locally first
@@ -200,7 +212,7 @@ class SyncService {
         userId: this.userId || '',
         timestamp: new Date().toISOString(),
         changeData: story,
-        isApplied: false
+        isApplied: false,
       };
 
       this.pendingChanges.push(change);
@@ -214,7 +226,11 @@ class SyncService {
       console.log(`📝 Story ${storyId} updated on device ${deviceId}`);
     } catch (error) {
       console.error('Update story on device error:', error);
-      throw new Error(`Failed to update story: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to update story: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`,
+      );
     }
   }
 
@@ -235,12 +251,19 @@ class SyncService {
       }
 
       // Update last sync time
-      await AsyncStorage.setItem(this.STORAGE_KEYS.LAST_SYNC, new Date().toISOString());
+      await AsyncStorage.setItem(
+        this.STORAGE_KEYS.LAST_SYNC,
+        new Date().toISOString(),
+      );
 
       console.log(`🔄 Synced across ${deviceIds.length} devices`);
     } catch (error) {
       console.error('Sync across devices error:', error);
-      throw new Error(`Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Sync failed: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`,
+      );
     } finally {
       this.syncInProgress = false;
     }
@@ -249,7 +272,10 @@ class SyncService {
   /**
    * Get story from specific device
    */
-  async getStoryOnDevice(deviceId: string, storyId: string): Promise<SyncStory | null> {
+  async getStoryOnDevice(
+    deviceId: string,
+    storyId: string,
+  ): Promise<SyncStory | null> {
     try {
       // Try to get from remote first if online
       if (this.isOnline && !this.isOfflineMode) {
@@ -276,14 +302,19 @@ class SyncService {
   /**
    * Resolve conflict between story versions
    */
-  async resolveConflict(storyId: string, conflictingEdits: Array<{
-    deviceId: string;
-    content: string;
-    timestamp: number;
-  }>): Promise<SyncStory> {
+  async resolveConflict(
+    storyId: string,
+    conflictingEdits: Array<{
+      deviceId: string;
+      content: string;
+      timestamp: number;
+    }>,
+  ): Promise<SyncStory> {
     try {
       // Sort by timestamp (latest first)
-      const sortedEdits = conflictingEdits.sort((a, b) => b.timestamp - a.timestamp);
+      const sortedEdits = conflictingEdits.sort(
+        (a, b) => b.timestamp - a.timestamp,
+      );
       const latestEdit = sortedEdits[0];
 
       // Apply resolution strategy
@@ -302,7 +333,9 @@ class SyncService {
         default:
           // Manual resolution - return conflict for user decision
           const conflict = await this.createConflict(storyId, sortedEdits);
-          throw new Error(`Manual conflict resolution required: ${conflict.conflictId}`);
+          throw new Error(
+            `Manual conflict resolution required: ${conflict.conflictId}`,
+          );
       }
 
       // Create resolved story
@@ -313,26 +346,34 @@ class SyncService {
           title: `Resolved Story ${storyId}`,
           wordCount: resolvedContent.split(' ').length,
           lastEditedBy: 'sync_service',
-          createdAt: new Date(Math.min(...sortedEdits.map(e => e.timestamp))).toISOString(),
+          createdAt: new Date(
+            Math.min(...sortedEdits.map(e => e.timestamp)),
+          ).toISOString(),
           updatedAt: new Date().toISOString(),
           version: Math.max(...sortedEdits.map((_, i) => i + 1)),
-          checksum: this.calculateChecksum(resolvedContent)
+          checksum: this.calculateChecksum(resolvedContent),
         },
         source: 'CreativeBridge',
         userId: this.userId || '',
         deviceId: this.deviceId,
-        syncStatus: 'synced'
+        syncStatus: 'synced',
       };
 
       // Save resolved story
       await this.saveStoryLocally(resolvedStory);
       await this.uploadStoryToRemote(resolvedStory);
 
-      console.log(`⚖️ Conflict resolved for story ${storyId} using ${resolutionStrategy}`);
+      console.log(
+        `⚖️ Conflict resolved for story ${storyId} using ${resolutionStrategy}`,
+      );
       return resolvedStory;
     } catch (error) {
       console.error('Resolve conflict error:', error);
-      throw new Error(`Conflict resolution failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Conflict resolution failed: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`,
+      );
     }
   }
 
@@ -347,7 +388,11 @@ class SyncService {
   /**
    * Update story with offline support
    */
-  async updateStory(storyId: string, content: string, metadata?: any): Promise<void> {
+  async updateStory(
+    storyId: string,
+    content: string,
+    metadata?: any,
+  ): Promise<void> {
     await this.updateStoryOnDevice(this.deviceId, storyId, content, metadata);
   }
 
@@ -362,7 +407,11 @@ class SyncService {
    * Sync pending changes to remote
    */
   async syncPendingChanges(): Promise<void> {
-    if (!this.isOnline || this.isOfflineMode || this.pendingChanges.length === 0) {
+    if (
+      !this.isOnline ||
+      this.isOfflineMode ||
+      this.pendingChanges.length === 0
+    ) {
       return;
     }
 
@@ -384,7 +433,9 @@ class SyncService {
       }
 
       // Remove applied changes
-      this.pendingChanges = this.pendingChanges.filter(change => !change.isApplied);
+      this.pendingChanges = this.pendingChanges.filter(
+        change => !change.isApplied,
+      );
       await this.savePendingChanges();
 
       console.log('✅ Pending changes synced');
@@ -397,8 +448,10 @@ class SyncService {
    * Get current sync status
    */
   async getSyncStatus(): Promise<SyncStatus> {
-    const lastSyncTime = await AsyncStorage.getItem(this.STORAGE_KEYS.LAST_SYNC);
-    
+    const lastSyncTime = await AsyncStorage.getItem(
+      this.STORAGE_KEYS.LAST_SYNC,
+    );
+
     return {
       isOnline: this.isOnline,
       lastSyncTime,
@@ -406,7 +459,7 @@ class SyncService {
       conflictsCount: this.conflictQueue.length,
       syncInProgress: this.syncInProgress,
       devicesSynced: [], // Would be populated from device registry
-      errorMessages: []
+      errorMessages: [],
     };
   }
 
@@ -444,7 +497,10 @@ class SyncService {
       if (!device) return;
 
       // Get changes since last sync
-      const changes = await this.getChangesSince(device.lastSyncTimestamp, deviceId);
+      const changes = await this.getChangesSince(
+        device.lastSyncTimestamp,
+        deviceId,
+      );
 
       // Apply changes and detect conflicts
       for (const change of changes) {
@@ -494,18 +550,16 @@ class SyncService {
 
   private async uploadStoryToRemote(story: SyncStory): Promise<void> {
     try {
-      const { error } = await supabase
-        .from('sync_stories')
-        .upsert({
-          id: story.id,
-          content: story.content,
-          metadata: story.metadata,
-          source: story.source,
-          user_id: story.userId,
-          device_id: story.deviceId,
-          sync_status: story.syncStatus,
-          updated_at: new Date().toISOString()
-        });
+      const { error } = await supabase.from('sync_stories').upsert({
+        id: story.id,
+        content: story.content,
+        metadata: story.metadata,
+        source: story.source,
+        user_id: story.userId,
+        device_id: story.deviceId,
+        sync_status: story.syncStatus,
+        updated_at: new Date().toISOString(),
+      });
 
       if (error) {
         console.error('Upload story to remote error:', error);
@@ -541,7 +595,10 @@ class SyncService {
     );
   }
 
-  private async handleConflict(localStory: SyncStory, remoteStory: SyncStory): Promise<void> {
+  private async handleConflict(
+    localStory: SyncStory,
+    remoteStory: SyncStory,
+  ): Promise<void> {
     const conflict: ConflictData = {
       conflictId: this.generateConflictId(),
       conflictType: 'content',
@@ -549,7 +606,7 @@ class SyncService {
       remoteVersion: remoteStory,
       conflictTimestamp: new Date().toISOString(),
       resolutionStrategy: this.config.conflictResolution,
-      isResolved: false
+      isResolved: false,
     };
 
     this.conflictQueue.push(conflict);
@@ -558,14 +615,17 @@ class SyncService {
     console.log(`⚠️ Conflict detected for story ${localStory.id}`);
   }
 
-  private async createConflict(storyId: string, conflictingEdits: any[]): Promise<ConflictData> {
+  private async createConflict(
+    storyId: string,
+    conflictingEdits: any[],
+  ): Promise<ConflictData> {
     const conflict: ConflictData = {
       conflictId: this.generateConflictId(),
       conflictType: 'content',
       localVersion: { id: storyId },
       remoteVersion: { id: storyId },
       conflictTimestamp: new Date().toISOString(),
-      isResolved: false
+      isResolved: false,
     };
 
     this.conflictQueue.push(conflict);
@@ -574,11 +634,13 @@ class SyncService {
     return conflict;
   }
 
-  private async mergeContent(edits: Array<{ content: string; timestamp: number }>): Promise<string> {
+  private async mergeContent(
+    edits: Array<{ content: string; timestamp: number }>,
+  ): Promise<string> {
     // Simple merge strategy - could be enhanced with diff algorithms
     const allContent = edits.map(edit => edit.content);
-    const longestContent = allContent.reduce((longest, current) => 
-      current.length > longest.length ? current : longest
+    const longestContent = allContent.reduce((longest, current) =>
+      current.length > longest.length ? current : longest,
     );
 
     return longestContent;
@@ -586,7 +648,9 @@ class SyncService {
 
   private async pullRemoteChanges(): Promise<void> {
     try {
-      const lastSyncTime = await AsyncStorage.getItem(this.STORAGE_KEYS.LAST_SYNC) || '1970-01-01T00:00:00Z';
+      const lastSyncTime =
+        (await AsyncStorage.getItem(this.STORAGE_KEYS.LAST_SYNC)) ||
+        '1970-01-01T00:00:00Z';
 
       const { data: remoteChanges, error } = await supabase
         .from('sync_stories')
@@ -601,13 +665,18 @@ class SyncService {
 
       for (const remoteStory of remoteChanges || []) {
         const localStory = await this.getStoryLocally(remoteStory.id);
-        
+
         if (!localStory) {
           // New story from remote
           await this.saveStoryLocally(this.convertToSyncStory(remoteStory));
-        } else if (this.hasConflict(localStory, this.convertToSyncStory(remoteStory))) {
+        } else if (
+          this.hasConflict(localStory, this.convertToSyncStory(remoteStory))
+        ) {
           // Conflict detected
-          await this.handleConflict(localStory, this.convertToSyncStory(remoteStory));
+          await this.handleConflict(
+            localStory,
+            this.convertToSyncStory(remoteStory),
+          );
         } else if (remoteStory.updated_at > localStory.metadata.updatedAt) {
           // Remote is newer, update local
           await this.saveStoryLocally(this.convertToSyncStory(remoteStory));
@@ -625,9 +694,11 @@ class SyncService {
       try {
         if (conflict.resolutionStrategy === 'auto_latest') {
           // Auto-resolve with latest timestamp
-          const latest = conflict.remoteVersion.metadata?.updatedAt > conflict.localVersion.metadata?.updatedAt 
-            ? conflict.remoteVersion 
-            : conflict.localVersion;
+          const latest =
+            conflict.remoteVersion.metadata?.updatedAt >
+            conflict.localVersion.metadata?.updatedAt
+              ? conflict.remoteVersion
+              : conflict.localVersion;
 
           if (latest.id) {
             await this.saveStoryLocally(latest as SyncStory);
@@ -641,7 +712,9 @@ class SyncService {
     }
 
     // Remove resolved conflicts
-    this.conflictQueue = this.conflictQueue.filter(conflict => !conflict.isResolved);
+    this.conflictQueue = this.conflictQueue.filter(
+      conflict => !conflict.isResolved,
+    );
     await this.saveConflicts();
   }
 
@@ -656,7 +729,10 @@ class SyncService {
         stories.push(story);
       }
 
-      await AsyncStorage.setItem(this.STORAGE_KEYS.OFFLINE_STORIES, JSON.stringify(stories));
+      await AsyncStorage.setItem(
+        this.STORAGE_KEYS.OFFLINE_STORIES,
+        JSON.stringify(stories),
+      );
     } catch (error) {
       console.error('Save story locally error:', error);
     }
@@ -674,7 +750,9 @@ class SyncService {
 
   private async getOfflineStories(): Promise<SyncStory[]> {
     try {
-      const storiesJson = await AsyncStorage.getItem(this.STORAGE_KEYS.OFFLINE_STORIES);
+      const storiesJson = await AsyncStorage.getItem(
+        this.STORAGE_KEYS.OFFLINE_STORIES,
+      );
       return storiesJson ? JSON.parse(storiesJson) : [];
     } catch (error) {
       console.error('Get offline stories error:', error);
@@ -684,7 +762,9 @@ class SyncService {
 
   private async loadPendingChanges(): Promise<void> {
     try {
-      const changesJson = await AsyncStorage.getItem(this.STORAGE_KEYS.PENDING_CHANGES);
+      const changesJson = await AsyncStorage.getItem(
+        this.STORAGE_KEYS.PENDING_CHANGES,
+      );
       this.pendingChanges = changesJson ? JSON.parse(changesJson) : [];
     } catch (error) {
       console.error('Load pending changes error:', error);
@@ -694,7 +774,10 @@ class SyncService {
 
   private async savePendingChanges(): Promise<void> {
     try {
-      await AsyncStorage.setItem(this.STORAGE_KEYS.PENDING_CHANGES, JSON.stringify(this.pendingChanges));
+      await AsyncStorage.setItem(
+        this.STORAGE_KEYS.PENDING_CHANGES,
+        JSON.stringify(this.pendingChanges),
+      );
     } catch (error) {
       console.error('Save pending changes error:', error);
     }
@@ -702,7 +785,9 @@ class SyncService {
 
   private async loadConflicts(): Promise<void> {
     try {
-      const conflictsJson = await AsyncStorage.getItem(this.STORAGE_KEYS.CONFLICTS);
+      const conflictsJson = await AsyncStorage.getItem(
+        this.STORAGE_KEYS.CONFLICTS,
+      );
       this.conflictQueue = conflictsJson ? JSON.parse(conflictsJson) : [];
     } catch (error) {
       console.error('Load conflicts error:', error);
@@ -712,7 +797,10 @@ class SyncService {
 
   private async saveConflicts(): Promise<void> {
     try {
-      await AsyncStorage.setItem(this.STORAGE_KEYS.CONFLICTS, JSON.stringify(this.conflictQueue));
+      await AsyncStorage.setItem(
+        this.STORAGE_KEYS.CONFLICTS,
+        JSON.stringify(this.conflictQueue),
+      );
     } catch (error) {
       console.error('Save conflicts error:', error);
     }
@@ -744,17 +832,18 @@ class SyncService {
 
     supabase
       .channel('story_sync')
-      .on('postgres_changes', 
-        { 
-          event: '*', 
-          schema: 'public', 
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
           table: 'sync_stories',
-          filter: `user_id=eq.${this.userId}`
+          filter: `user_id=eq.${this.userId}`,
         },
-        async (payload) => {
+        async payload => {
           console.log('📡 Real-time sync change received:', payload);
           await this.handleRealtimeChange(payload);
-        }
+        },
       )
       .subscribe();
   }
@@ -765,7 +854,10 @@ class SyncService {
         const remoteStory = this.convertToSyncStory(payload.new);
         const localStory = await this.getStoryLocally(remoteStory.id);
 
-        if (!localStory || remoteStory.metadata.version > localStory.metadata.version) {
+        if (
+          !localStory ||
+          remoteStory.metadata.version > localStory.metadata.version
+        ) {
           await this.saveStoryLocally(remoteStory);
           console.log(`🔄 Story ${remoteStory.id} updated from real-time sync`);
         }
@@ -783,7 +875,7 @@ class SyncService {
       source: data.source || 'CreativeBridge',
       userId: data.user_id,
       deviceId: data.device_id,
-      syncStatus: data.sync_status || 'synced'
+      syncStatus: data.sync_status || 'synced',
     };
   }
 
@@ -792,7 +884,7 @@ class SyncService {
     let hash = 0;
     for (let i = 0; i < content.length; i++) {
       const char = content.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash; // Convert to 32-bit integer
     }
     return hash.toString(16);
@@ -815,7 +907,10 @@ class SyncService {
     return null;
   }
 
-  private async getChangesSince(timestamp: string, deviceId: string): Promise<SyncChange[]> {
+  private async getChangesSince(
+    timestamp: string,
+    deviceId: string,
+  ): Promise<SyncChange[]> {
     // This would query changes since timestamp
     return [];
   }

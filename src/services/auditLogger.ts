@@ -33,6 +33,47 @@ export enum EventType {
   APP_ERROR = 'APP_ERROR',
   NETWORK_ERROR = 'NETWORK_ERROR',
   VALIDATION_ERROR = 'VALIDATION_ERROR',
+
+  // API and Service Events
+  API_KEY_ACCESSED = 'API_KEY_ACCESSED',
+  API_CALL_SUCCESS = 'API_CALL_SUCCESS',
+  API_CALL_FAILED = 'API_CALL_FAILED',
+  SERVICE_INITIALIZED = 'SERVICE_INITIALIZED',
+  SERVICE_INIT_FAILED = 'SERVICE_INIT_FAILED',
+  SECURITY_POLICY_VIOLATION = 'SECURITY_POLICY_VIOLATION',
+  SYSTEM_MAINTENANCE = 'SYSTEM_MAINTENANCE',
+
+  // Monitoring and System Health Events
+  SYSTEM_HEALTH_CHECK = 'SYSTEM_HEALTH_CHECK',
+  SYSTEM_INITIALIZED = 'SYSTEM_INITIALIZED',
+  ALERT_TRIGGERED = 'ALERT_TRIGGERED',
+
+  // Feature Flag Events
+  FEATURE_FLAG_ACCESSED = 'FEATURE_FLAG_ACCESSED',
+  FEATURE_FLAG_UPDATED = 'FEATURE_FLAG_UPDATED',
+  FEATURE_FLAG_ERROR = 'FEATURE_FLAG_ERROR',
+
+  // Rollout Events
+  ROLLOUT_STARTED = 'ROLLOUT_STARTED',
+  ROLLOUT_PAUSED = 'ROLLOUT_PAUSED',
+  ROLLOUT_RESUMED = 'ROLLOUT_RESUMED',
+  ROLLOUT_INCREMENTED = 'ROLLOUT_INCREMENTED',
+  ROLLOUT_COMPLETED = 'ROLLOUT_COMPLETED',
+  ROLLOUT_ROLLED_BACK = 'ROLLOUT_ROLLED_BACK',
+
+  // Monitoring Events
+  SYSTEM_HEALTH_CHECK = 'SYSTEM_HEALTH_CHECK',
+  ALERT_TRIGGERED = 'ALERT_TRIGGERED',
+  API_COST_RECORDED = 'API_COST_RECORDED',
+  BUDGET_ALERT = 'BUDGET_ALERT',
+
+  // Feedback Events
+  USER_FEEDBACK_SUBMITTED = 'USER_FEEDBACK_SUBMITTED',
+  CRITICAL_ERROR = 'CRITICAL_ERROR',
+
+  // Analytics Events
+  ANALYTICS_INSIGHTS_GENERATED = 'ANALYTICS_INSIGHTS_GENERATED',
+  ITERATION_PLAN_GENERATED = 'ITERATION_PLAN_GENERATED',
 }
 
 export enum EventCategory {
@@ -40,6 +81,11 @@ export enum EventCategory {
   DATA = 'DATA',
   SECURITY = 'SECURITY',
   ERROR = 'ERROR',
+  API_ACCESS = 'API_ACCESS',
+  SYSTEM = 'SYSTEM',
+  USER_INTERACTION = 'USER_INTERACTION',
+  ANALYTICS = 'ANALYTICS',
+  PLANNING = 'PLANNING',
 }
 
 export enum Severity {
@@ -47,6 +93,10 @@ export enum Severity {
   MEDIUM = 'MEDIUM',
   HIGH = 'HIGH',
   CRITICAL = 'CRITICAL',
+  INFO = 'INFO',
+  WARN = 'WARN',
+  WARNING = 'WARNING',
+  ERROR = 'ERROR',
 }
 
 export interface AuditLogEntry {
@@ -62,6 +112,7 @@ export interface AuditLogEntry {
   sessionId?: string;
   isSuspicious?: boolean;
   riskScore?: number;
+  context?: Record<string, any>;
 }
 
 export interface DeviceFingerprint {
@@ -354,6 +405,31 @@ class AuditLogger {
       },
       isSuspicious: true,
       riskScore: 60,
+    });
+  }
+
+  async logSecurityEvent(event: {
+    eventType: EventType;
+    eventCategory: EventCategory;
+    severity: Severity;
+    description: string;
+    metadata?: Record<string, any>;
+    context?: Record<string, any>;
+    userId?: string;
+  }): Promise<void> {
+    await this.logEvent({
+      userId: event.userId,
+      eventType: event.eventType,
+      eventCategory: event.eventCategory,
+      severity: event.severity,
+      description: event.description,
+      metadata: {
+        ...event.metadata,
+        ...event.context,
+      },
+      isSuspicious:
+        event.eventType === EventType.SECURITY_POLICY_VIOLATION ||
+        event.eventType === EventType.SUSPICIOUS_ACTIVITY,
     });
   }
 

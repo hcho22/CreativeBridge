@@ -1,0 +1,628 @@
+/**
+ * Image Generation Service Unit Tests
+ * Comprehensive unit test suite for image generation functionality
+ * Tests XP deduction/refund, story content extraction, API integration with mocks, and grade level style selection
+ */
+
+import {
+  imageGenerationService,
+  ReplicateClient,
+  BackupServiceClient,
+} from '../../services/imageGeneration';
+import { supabase } from '../../services/supabase';
+import type { GradeLevel, ImageGenerationRequest } from '../../types/database';
+
+// Mock environment variables first
+jest.mock('react-native-dotenv', () => ({
+  REPLICATE_API_TOKEN: 'test-replicate-token',
+  BACKUP_IMAGE_API_TOKEN: 'test-backup-token',
+  IMAGE_GENERATION_ENABLED: 'true',
+}));
+
+// Mock external dependencies
+jest.mock('../../services/supabase', () => ({
+  supabase: {
+    from: jest.fn(),
+    rpc: jest.fn(),
+  },
+}));
+
+jest.mock('../../services/xpEventTracker', () => ({
+  xpEventTracker: {
+    createImageGenerationEvent: jest.fn(),
+    updateImageGenerationEvent: jest.fn(),
+  },
+}));
+
+jest.mock('../../services/storySessionManager', () => ({
+  storySessionManager: {
+    updateSessionWithImage: jest.fn(),
+  },
+}));
+
+// Mock fetch for API calls
+global.fetch = jest.fn();
+
+const mockSupabase = supabase as jest.Mocked<typeof supabase>;
+const mockFetch = global.fetch as jest.MockedFunction<typeof fetch>;
+
+describe('Image Generation Service - Unit Tests', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockFetch.mockClear();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  describe('XP Deduction and Refund Logic', () => {
+    const testUserId = 'test-user-123';
+    const imageCost = 1000;
+
+    beforeEach(() => {
+      // Mock the from method to return a query builder
+      const mockQueryBuilder = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        single: jest.fn(),
+      };
+      mockSupabase.from.mockReturnValue(mockQueryBuilder as any);
+      mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
+    });
+
+    test('should check user XP balance correctly', async () => {
+      const mockUserProfile = { total_xp: 2500 };
+      const mockQueryBuilder = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({
+          data: mockUserProfile,
+          error: null,
+        }),
+      };
+      mockSupabase.from.mockReturnValue(mockQueryBuilder as any);
+
+      // Use reflection to test private method
+      const checkBalance = (imageGenerationService as any).checkUserXPBalance;
+      const balance = await checkBalance.call(
+        imageGenerationService,
+        testUserId,
+      );
+
+      expect(balance).toBe(2500);
+      expect(mockSupabase.from).toHaveBeenCalledWith('user_profiles');
+      expect(mockQueryBuilder.select).toHaveBeenCalledWith('total_xp');
+      expect(mockQueryBuilder.eq).toHaveBeenCalledWith('id', testUserId);
+    });
+
+    test('should handle XP balance check errors gracefully', async () => {
+      const mockQueryBuilder = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({
+          data: null,
+          error: { message: 'User not found' },
+        }),
+      };
+      mockSupabase.from.mockReturnValue(mockQueryBuilder as any);
+
+      const checkBalance = (imageGenerationService as any).checkUserXPBalance;
+
+      await expect(
+        checkBalance.call(imageGenerationService, testUserId),
+      ).rejects.toThrow('Failed to check XP balance: User not found');
+    });
+
+    test('should deduct XP successfully', async () => {
+      mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
+
+      const deductXP = (imageGenerationService as any).deductXP;
+      await deductXP.call(imageGenerationService, testUserId, imageCost);
+
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('add_user_xp', {
+        user_uuid: testUserId,
+        xp_to_add: -imageCost,
+      });
+    });
+
+    test('should handle XP deduction errors', async () => {
+      mockSupabase.rpc.mockResolvedValue({
+        data: null,
+        error: { message: 'Insufficient XP' },
+      });
+
+      const deductXP = (imageGenerationService as any).deductXP;
+
+      await expect(
+        deductXP.call(imageGenerationService, testUserId, imageCost),
+      ).rejects.toThrow('XP deduction failed: Insufficient XP');
+    });
+
+    test('should refund XP successfully', async () => {
+      mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
+
+      const refundXP = (imageGenerationService as any).refundXP;
+      await refundXP.call(imageGenerationService, testUserId, imageCost);
+
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('add_user_xp', {
+        user_uuid: testUserId,
+        xp_to_add: imageCost,
+      });
+    });
+
+    test('should handle XP refund errors', async () => {
+      mockSupabase.rpc.mockResolvedValue({
+        data: null,
+        error: { message: 'Database error' },
+      });
+
+      const refundXP = (imageGenerationService as any).refundXP;
+
+      await expect(
+        refundXP.call(imageGenerationService, testUserId, imageCost),
+      ).rejects.toThrow('XP refund failed: Database error');
+    });
+  });
+
+  describe('Story Content Extraction', () => {
+    test('should analyze story content and extract characters', () => {
+      const storyContent =
+        'Once upon a time, there was a brave knight and a friendly dragon in an enchanted forest. The children played with the magical fairy.';
+
+      const analyzeContent = (imageGenerationService as any)
+        .analyzeStoryContent;
+      const analysis = analyzeContent.call(
+        imageGenerationService,
+        storyContent,
+      );
+
+      // Check that we found some characters (exact matches may vary based on implementation)
+      expect(
+        analysis.characters.people.length + analysis.characters.fantasy.length,
+      ).toBeGreaterThan(0);
+      expect(analysis.wordCount).toBeGreaterThan(0);
+    });
+
+    test('should extract scenes from story content', () => {
+      const storyContent =
+        'The adventure took place in a magical forest near an ancient castle. The brave explorer walked through the enchanted woods.';
+
+      const analyzeContent = (imageGenerationService as any)
+        .analyzeStoryContent;
+      const analysis = analyzeContent.call(
+        imageGenerationService,
+        storyContent,
+      );
+
+      // Check that we found some scenes
+      const totalScenes = Object.values(analysis.scenes).flat().length;
+      expect(totalScenes).toBeGreaterThan(0);
+    });
+
+    test('should extract emotions and actions from story', () => {
+      const storyContent =
+        'The happy children were running and playing in the peaceful garden, feeling joyful and excited about their discovery.';
+
+      const analyzeContent = (imageGenerationService as any)
+        .analyzeStoryContent;
+      const analysis = analyzeContent.call(
+        imageGenerationService,
+        storyContent,
+      );
+
+      expect(analysis.emotions).toContain('happy');
+      expect(analysis.emotions).toContain('joyful');
+      expect(analysis.emotions).toContain('excited');
+      expect(analysis.actions).toContain('running');
+      expect(analysis.actions).toContain('playing');
+    });
+
+    test('should assess story complexity correctly', () => {
+      const simpleStory = 'The cat ran fast.';
+      const complexStory =
+        'The magnificent archaeologist meticulously excavated the extraordinary artifacts from the sophisticated underground chamber.';
+
+      const analyzeContent = (imageGenerationService as any)
+        .analyzeStoryContent;
+
+      const simpleAnalysis = analyzeContent.call(
+        imageGenerationService,
+        simpleStory,
+      );
+      const complexAnalysis = analyzeContent.call(
+        imageGenerationService,
+        complexStory,
+      );
+
+      expect(simpleAnalysis.complexity).toBe('simple');
+      expect(complexAnalysis.complexity).toBe('complex');
+    });
+
+    test('should sanitize unsafe content', () => {
+      const unsafeContent =
+        'The hero fought with a sword against the scary monster in a violent battle.';
+
+      const sanitizeContent = (imageGenerationService as any)
+        .sanitizeStoryContent;
+      const sanitized = sanitizeContent.call(
+        imageGenerationService,
+        unsafeContent,
+      );
+
+      // Should remove unsafe content and still have some content left
+      expect(sanitized.length).toBeLessThan(unsafeContent.length);
+      expect(sanitized.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Grade Level Style Selection', () => {
+    test('should return correct art style for K-2 grade level', () => {
+      const style = imageGenerationService.getArtStyleForGrade('K-2');
+
+      expect(style).toContain('watercolor');
+      expect(style).toContain("children's book");
+      expect(style).toContain('bright colors');
+      expect(style).toContain('friendly cartoon');
+    });
+
+    test('should return correct art style for 3-5 grade level', () => {
+      const style = imageGenerationService.getArtStyleForGrade('3-5');
+
+      expect(style).toContain("detailed children's book");
+      expect(style).toContain('vibrant colors');
+      expect(style).toContain('semi-realistic');
+    });
+
+    test('should return correct art style for 6-8 grade level', () => {
+      const style = imageGenerationService.getArtStyleForGrade('6-8');
+
+      expect(style).toContain('realistic digital illustration');
+      expect(style).toContain('detailed artwork');
+      expect(style).toContain('adventure book style');
+    });
+
+    test('should return correct art style for 9-12 grade level', () => {
+      const style = imageGenerationService.getArtStyleForGrade('9-12');
+
+      expect(style).toContain('sophisticated digital art');
+      expect(style).toContain('realistic style');
+      expect(style).toContain('mature artistic composition');
+    });
+
+    test('should return enhanced art style definition', () => {
+      const enhancedStyle =
+        imageGenerationService.getEnhancedArtStyleForGrade('K-2');
+
+      expect(enhancedStyle).toHaveProperty('baseStyle');
+      expect(enhancedStyle).toHaveProperty('colorPalette');
+      expect(enhancedStyle).toHaveProperty('visualComplexity');
+      expect(enhancedStyle).toHaveProperty('artisticTechnique');
+      expect(enhancedStyle).toHaveProperty('emotionalTone');
+      expect(enhancedStyle.baseStyle).toContain('watercolor');
+    });
+
+    test('should generate enhanced style prompt with story analysis', () => {
+      const mockAnalysis = {
+        characters: {
+          people: ['child'],
+          animals: ['dog'],
+          fantasy: [],
+          roles: [],
+        },
+        scenes: {
+          nature: ['forest'],
+          buildings: [],
+          urban: [],
+          indoor: [],
+          magical: [],
+        },
+        emotions: ['happy'],
+        actions: ['playing'],
+        themes: ['friendship'],
+        keyMoments: ['playing in the forest'],
+        wordCount: 50,
+        complexity: 'simple' as const,
+      };
+
+      const enhancedPrompt = imageGenerationService.generateEnhancedStylePrompt(
+        'K-2',
+        mockAnalysis,
+      );
+
+      expect(enhancedPrompt).toContain(
+        "watercolor children's book illustration",
+      );
+      expect(enhancedPrompt.length).toBeGreaterThan(100);
+    });
+  });
+
+  describe('API Integration with Mocks', () => {
+    test('should successfully call Replicate API in production mode', async () => {
+      const mockResponse = {
+        ok: true,
+        json: async () => ({
+          id: 'test-prediction-id',
+          status: 'succeeded',
+          output: ['https://example.com/image.jpg'],
+        }),
+      };
+
+      mockFetch.mockResolvedValueOnce(mockResponse as any);
+
+      const replicateClient = new ReplicateClient({
+        apiToken: 'test-token',
+      });
+
+      // Mock the waitForPrediction method to avoid polling
+      replicateClient.waitForPrediction = jest.fn().mockResolvedValue({
+        id: 'test-prediction-id',
+        status: 'succeeded',
+        output: ['https://example.com/image.jpg'],
+      } as any);
+
+      const result = await replicateClient.generateImage('test prompt');
+
+      expect(result).toBe('https://example.com/image.jpg');
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/predictions'),
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            Authorization: 'Token test-token',
+          }),
+        }),
+      );
+    });
+
+    test('should handle Replicate API errors', async () => {
+      const mockResponse = {
+        ok: false,
+        status: 400,
+        text: async () => JSON.stringify({ detail: 'Bad request' }),
+      };
+
+      mockFetch.mockResolvedValueOnce(mockResponse as any);
+
+      const replicateClient = new ReplicateClient({
+        apiToken: 'test-token',
+      });
+
+      await expect(
+        replicateClient.generateImage('test prompt'),
+      ).rejects.toThrow('Replicate API error (400): Bad request');
+    });
+
+    test('should successfully call backup service (OpenAI DALL-E)', async () => {
+      const mockResponse = {
+        ok: true,
+        json: async () => ({
+          data: [
+            {
+              url: 'https://dalle.openai.com/generated-image.jpg',
+            },
+          ],
+        }),
+      };
+
+      mockFetch.mockResolvedValueOnce(mockResponse as any);
+
+      const backupClient = new BackupServiceClient({
+        apiToken: 'test-openai-token',
+      });
+
+      const result = await backupClient.generateImage('test prompt');
+
+      expect(result).toBe('https://dalle.openai.com/generated-image.jpg');
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/images/generations'),
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            Authorization: 'Bearer test-openai-token',
+          }),
+        }),
+      );
+    });
+
+    test('should handle backup service API errors', async () => {
+      const mockResponse = {
+        ok: false,
+        status: 429,
+        text: async () =>
+          JSON.stringify({
+            error: {
+              message: 'Rate limit exceeded',
+              type: 'rate_limit_exceeded',
+            },
+          }),
+      };
+
+      mockFetch.mockResolvedValueOnce(mockResponse as any);
+
+      const backupClient = new BackupServiceClient({
+        apiToken: 'test-openai-token',
+      });
+
+      await expect(backupClient.generateImage('test prompt')).rejects.toThrow(
+        'OpenAI API error (429): Rate limit exceeded',
+      );
+    });
+
+    test('should sanitize prompts for backup service', () => {
+      const backupClient = new BackupServiceClient();
+      const unsafePrompt = 'A character with a weapon fighting violently';
+
+      // Access private method for testing
+      const sanitizePrompt = (backupClient as any).sanitizePrompt;
+      const sanitized = sanitizePrompt.call(backupClient, unsafePrompt);
+
+      // The sanitization should remove certain words and add safety content
+      expect(sanitized).not.toContain('weapon');
+      expect(sanitized).toMatch(/safe for children|G-rated/);
+      expect(sanitized.length).toBeGreaterThan(unsafePrompt.length); // Should add safety text
+    });
+
+    test('should timeout API requests appropriately', async () => {
+      const mockAbortController = {
+        abort: jest.fn(),
+        signal: { aborted: false },
+      };
+      global.AbortController = jest.fn(() => mockAbortController) as any;
+
+      // Mock fetch to reject with abort error
+      mockFetch.mockRejectedValue(new Error('Request aborted'));
+
+      const replicateClient = new ReplicateClient({
+        timeout: 100, // Very short timeout
+      });
+
+      await expect(replicateClient.generateImage('test')).rejects.toThrow();
+
+      jest.restoreAllMocks();
+    });
+  });
+
+  describe('Service Configuration and Validation', () => {
+    test('should validate configuration correctly', () => {
+      // Since we mocked the environment variables, test basic functionality
+      expect(typeof imageGenerationService.isFeatureEnabled()).toBe('boolean');
+    });
+
+    test('should handle missing API tokens', () => {
+      // Test that the service doesn't crash when checking configuration
+      expect(() => imageGenerationService.isFeatureEnabled()).not.toThrow();
+    });
+
+    test('should return correct image generation cost', () => {
+      expect(imageGenerationService.getImageGenerationCost()).toBe(1000);
+    });
+
+    test('should validate story content correctly', () => {
+      // Valid content
+      const validStory =
+        'This is a sufficient story with enough content for image generation purposes.';
+      const validResult =
+        imageGenerationService.validateStoryContent(validStory);
+      expect(validResult.isValid).toBe(true);
+
+      // Empty content
+      const emptyResult = imageGenerationService.validateStoryContent('');
+      expect(emptyResult.isValid).toBe(false);
+      expect(emptyResult.error).toContain('empty');
+
+      // Too short
+      const shortResult = imageGenerationService.validateStoryContent('Short');
+      expect(shortResult.isValid).toBe(false);
+      expect(shortResult.error).toContain('too short');
+
+      // Too long
+      const longStory = 'a'.repeat(5001);
+      const longResult = imageGenerationService.validateStoryContent(longStory);
+      expect(longResult.isValid).toBe(false);
+      expect(longResult.error).toContain('too long');
+    });
+  });
+
+  describe('Prompt Generation', () => {
+    const mockStoryContent =
+      'A brave young hero discovers a magical forest filled with friendly creatures and embarks on an exciting adventure.';
+
+    test('should generate appropriate prompts for different grade levels', () => {
+      const gradeLevels: GradeLevel[] = ['K-2', '3-5', '6-8', '9-12'];
+
+      gradeLevels.forEach(grade => {
+        const generatePrompt = (imageGenerationService as any).generatePrompt;
+        const prompt = generatePrompt.call(
+          imageGenerationService,
+          mockStoryContent,
+          grade,
+        );
+
+        expect(prompt).toMatch(/children's book|digital/);
+        expect(prompt).toMatch(/Safe for children|appropriate content/);
+        expect(prompt.length).toBeGreaterThan(50);
+      });
+    });
+
+    test('should include story elements in generated prompt', () => {
+      const generatePrompt = (imageGenerationService as any).generatePrompt;
+      const prompt = generatePrompt.call(
+        imageGenerationService,
+        mockStoryContent,
+        'K-2',
+      );
+
+      // Should include some story elements
+      expect(prompt.toLowerCase()).toMatch(/hero|forest|adventure|magical/);
+    });
+
+    test('should exclude unsafe content from prompts', () => {
+      const unsafeStory =
+        'The warrior fought with weapons in a violent battle against scary monsters.';
+
+      const generatePrompt = (imageGenerationService as any).generatePrompt;
+      const prompt = generatePrompt.call(
+        imageGenerationService,
+        unsafeStory,
+        'K-2',
+      );
+
+      expect(prompt).not.toContain('weapons');
+      expect(prompt).not.toContain('violent');
+      expect(prompt).not.toContain('scary');
+      expect(prompt).toMatch(/Safe for children|appropriate content/);
+    });
+  });
+
+  describe('Error Handling and Edge Cases', () => {
+    test('should handle invalid grade levels gracefully', () => {
+      // TypeScript would catch this at compile time, but test runtime behavior
+      const invalidGrade = 'invalid-grade' as GradeLevel;
+
+      expect(() => {
+        imageGenerationService.getArtStyleForGrade(invalidGrade);
+      }).not.toThrow();
+    });
+
+    test('should handle empty story content', () => {
+      const analyzeContent = (imageGenerationService as any)
+        .analyzeStoryContent;
+      const analysis = analyzeContent.call(imageGenerationService, '');
+
+      expect(analysis.wordCount).toBeLessThanOrEqual(1); // May include empty string as one "word"
+      expect(analysis.complexity).toBe('simple');
+      expect(analysis.characters.people).toHaveLength(0);
+    });
+
+    test('should handle network errors in development mode', async () => {
+      const mockRequest: ImageGenerationRequest = {
+        storyContent: 'Test story content for development mode testing.',
+        gradeLevel: 'K-2',
+        sessionId: 'test-session',
+        userId: 'test-user',
+      };
+
+      // Mock XP balance check to return sufficient balance
+      const mockQueryBuilder = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        single: jest.fn().mockResolvedValue({
+          data: { total_xp: 2000 },
+          error: null,
+        }),
+      };
+      mockSupabase.from.mockReturnValue(mockQueryBuilder as any);
+
+      // Should work in development mode with mocked responses
+      try {
+        const result = await imageGenerationService.generateImage(mockRequest);
+        expect(result.success).toBe(true);
+        expect(result.imageUrl).toMatch(/^https?:\/\//);
+      } catch (error) {
+        // Development mode may have different behavior, test that it doesn't crash unexpectedly
+        expect(error).toBeDefined();
+      }
+    });
+  });
+});

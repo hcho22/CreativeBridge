@@ -59,7 +59,11 @@ class StoryGenerationTester {
     this.tests.push(test);
   }
 
-  async runGenerationTests(): Promise<{ passed: number; failed: number; results: any[] }> {
+  async runGenerationTests(): Promise<{
+    passed: number;
+    failed: number;
+    results: any[];
+  }> {
     const results = [];
     let passed = 0;
     let failed = 0;
@@ -69,31 +73,57 @@ class StoryGenerationTester {
         console.log(`Testing story generation: ${test.name}`);
 
         // Mock analysis
-        mockStoryGenerationService.analyzeImportedStory.mockResolvedValueOnce(test.expectedAnalysis);
-        
+        mockStoryGenerationService.analyzeImportedStory.mockResolvedValueOnce(
+          test.expectedAnalysis,
+        );
+
         // Mock context preparation
-        mockStoryGenerationService.prepareImportedStoryContext.mockResolvedValueOnce({
-          context: `Previous story: ${test.importedContent}`,
-          characters: test.expectedAnalysis.characters || [],
-          setting: test.expectedAnalysis.setting || 'unknown',
-          tone: test.expectedAnalysis.tone || 'neutral',
-        });
+        mockStoryGenerationService.prepareImportedStoryContext.mockResolvedValueOnce(
+          {
+            context: `Previous story: ${test.importedContent}`,
+            characters: test.expectedAnalysis.characters || [],
+            setting: test.expectedAnalysis.setting || 'unknown',
+            tone: test.expectedAnalysis.tone || 'neutral',
+          },
+        );
 
         // Mock continuation generation
-        mockStoryGenerationService.generateImportedStoryContinuation.mockResolvedValueOnce(test.expectedContinuation);
+        mockStoryGenerationService.generateImportedStoryContinuation.mockResolvedValueOnce(
+          test.expectedContinuation,
+        );
 
         // Mock quality validation
-        mockStoryGenerationService.validateContinuationQuality.mockResolvedValueOnce({
-          quality: test.quality,
-          score: test.quality === 'high' ? 0.9 : test.quality === 'medium' ? 0.7 : 0.5,
-          issues: test.quality === 'low' ? ['inconsistent tone'] : [],
-        });
+        mockStoryGenerationService.validateContinuationQuality.mockResolvedValueOnce(
+          {
+            quality: test.quality,
+            score:
+              test.quality === 'high'
+                ? 0.9
+                : test.quality === 'medium'
+                ? 0.7
+                : 0.5,
+            issues: test.quality === 'low' ? ['inconsistent tone'] : [],
+          },
+        );
 
         // Run the full generation pipeline
-        const analysis = await mockStoryGenerationService.analyzeImportedStory(test.importedContent);
-        const context = await mockStoryGenerationService.prepareImportedStoryContext(test.importedContent, analysis);
-        const continuation = await mockStoryGenerationService.generateImportedStoryContinuation(test.importedContent);
-        const quality = await mockStoryGenerationService.validateContinuationQuality(continuation, test.importedContent);
+        const analysis = await mockStoryGenerationService.analyzeImportedStory(
+          test.importedContent,
+        );
+        const context =
+          await mockStoryGenerationService.prepareImportedStoryContext(
+            test.importedContent,
+            analysis,
+          );
+        const continuation =
+          await mockStoryGenerationService.generateImportedStoryContinuation(
+            test.importedContent,
+          );
+        const quality =
+          await mockStoryGenerationService.validateContinuationQuality(
+            continuation,
+            test.importedContent,
+          );
 
         results.push({
           name: test.name,
@@ -133,7 +163,8 @@ describe('Story Generation Integration', () => {
 
   describe('AI Story Analysis Integration', () => {
     it('should analyze imported story structure correctly', async () => {
-      const importedStory = 'Once upon a time, there was a brave knight named Sir Arthur who lived in a castle by the sea. He had a faithful horse named Thunder and always carried his magical sword.';
+      const importedStory =
+        'Once upon a time, there was a brave knight named Sir Arthur who lived in a castle by the sea. He had a faithful horse named Thunder and always carried his magical sword.';
 
       const expectedAnalysis = {
         genre: 'fantasy',
@@ -146,9 +177,13 @@ describe('Story Generation Integration', () => {
         readingLevel: 'elementary',
       };
 
-      mockStoryGenerationService.analyzeImportedStory.mockResolvedValue(expectedAnalysis);
+      mockStoryGenerationService.analyzeImportedStory.mockResolvedValue(
+        expectedAnalysis,
+      );
 
-      const result = await mockStoryGenerationService.analyzeImportedStory(importedStory);
+      const result = await mockStoryGenerationService.analyzeImportedStory(
+        importedStory,
+      );
 
       expect(result).toEqual(expectedAnalysis);
       expect(result.characters).toContain('Sir Arthur');
@@ -178,7 +213,9 @@ describe('Story Generation Integration', () => {
           confidence: 0.9,
         });
 
-        const result = await mockStoryGenerationService.analyzeImportedStory(test.story);
+        const result = await mockStoryGenerationService.analyzeImportedStory(
+          test.story,
+        );
         expect(result.genre).toBe(test.expectedGenre);
       }
     });
@@ -188,7 +225,8 @@ describe('Story Generation Integration', () => {
     it('should generate high-quality story continuations', async () => {
       generationTester.addTest({
         name: 'Fantasy adventure continuation',
-        importedContent: 'The young wizard picked up his staff and walked toward the ancient forest, knowing that great dangers awaited him within its dark depths.',
+        importedContent:
+          'The young wizard picked up his staff and walked toward the ancient forest, knowing that great dangers awaited him within its dark depths.',
         expectedAnalysis: {
           genre: 'fantasy',
           tone: 'mysterious',
@@ -196,7 +234,8 @@ describe('Story Generation Integration', () => {
           setting: 'ancient forest',
           themes: ['magic', 'danger', 'journey'],
         },
-        expectedContinuation: 'As he stepped between the towering trees, the wizard felt the ancient magic pulsing through the air. Shadows danced at the edges of his vision, and he gripped his staff tighter, whispering a protective spell under his breath.',
+        expectedContinuation:
+          'As he stepped between the towering trees, the wizard felt the ancient magic pulsing through the air. Shadows danced at the edges of his vision, and he gripped his staff tighter, whispering a protective spell under his breath.',
         quality: 'high',
       });
 
@@ -206,13 +245,17 @@ describe('Story Generation Integration', () => {
     });
 
     it('should maintain character consistency', async () => {
-      const importedStory = 'Captain Sarah Rodriguez had been sailing the seas for twenty years. Her crew respected her firm but fair leadership, and her weathered hands showed the experience of countless storms.';
+      const importedStory =
+        'Captain Sarah Rodriguez had been sailing the seas for twenty years. Her crew respected her firm but fair leadership, and her weathered hands showed the experience of countless storms.';
 
       mockStoryGenerationService.generateImportedStoryContinuation.mockResolvedValue(
-        'Captain Rodriguez studied the storm clouds gathering on the horizon. "All hands on deck!" she shouted, her voice carrying over the wind. Her crew responded immediately, knowing their captain\'s experience would guide them safely through whatever lay ahead.'
+        'Captain Rodriguez studied the storm clouds gathering on the horizon. "All hands on deck!" she shouted, her voice carrying over the wind. Her crew responded immediately, knowing their captain\'s experience would guide them safely through whatever lay ahead.',
       );
 
-      const continuation = await mockStoryGenerationService.generateImportedStoryContinuation(importedStory);
+      const continuation =
+        await mockStoryGenerationService.generateImportedStoryContinuation(
+          importedStory,
+        );
 
       expect(continuation).toContain('Captain Rodriguez');
       expect(continuation).toContain('crew');
@@ -244,11 +287,16 @@ describe('Story Generation Integration', () => {
         });
 
         mockStoryGenerationService.generateImportedStoryContinuation.mockResolvedValueOnce(
-          `Continuation that reflects ${test.expectedTone} tone appropriately.`
+          `Continuation that reflects ${test.expectedTone} tone appropriately.`,
         );
 
-        const analysis = await mockStoryGenerationService.analyzeImportedStory(test.story);
-        const continuation = await mockStoryGenerationService.generateImportedStoryContinuation(test.story);
+        const analysis = await mockStoryGenerationService.analyzeImportedStory(
+          test.story,
+        );
+        const continuation =
+          await mockStoryGenerationService.generateImportedStoryContinuation(
+            test.story,
+          );
 
         expect(analysis.tone).toBe(test.expectedTone);
         expect(continuation).toContain(test.expectedTone);
@@ -258,7 +306,8 @@ describe('Story Generation Integration', () => {
 
   describe('Context Preparation and Management', () => {
     it('should prepare appropriate context for AI generation', async () => {
-      const importedStory = 'Maria opened the dusty attic door and found an old trunk filled with mysterious objects from her grandmother\'s past.';
+      const importedStory =
+        "Maria opened the dusty attic door and found an old trunk filled with mysterious objects from her grandmother's past.";
 
       const expectedContext = {
         context: `Previous story: ${importedStory}\n\nGeneration instructions: Continue this story in the same style and tone. Maintain character consistency and narrative flow.`,
@@ -272,13 +321,19 @@ describe('Story Generation Integration', () => {
         },
       };
 
-      mockStoryGenerationService.prepareImportedStoryContext.mockResolvedValue(expectedContext);
+      mockStoryGenerationService.prepareImportedStoryContext.mockResolvedValue(
+        expectedContext,
+      );
 
-      const context = await mockStoryGenerationService.prepareImportedStoryContext(importedStory, {
-        characters: ['Maria', 'grandmother'],
-        setting: 'attic',
-        tone: 'mysterious',
-      });
+      const context =
+        await mockStoryGenerationService.prepareImportedStoryContext(
+          importedStory,
+          {
+            characters: ['Maria', 'grandmother'],
+            setting: 'attic',
+            tone: 'mysterious',
+          },
+        );
 
       expect(context.characters).toContain('Maria');
       expect(context.setting).toBe('attic');
@@ -287,7 +342,8 @@ describe('Story Generation Integration', () => {
     });
 
     it('should handle complex multi-character stories', async () => {
-      const complexStory = 'The three friends - Alex, Sam, and Jordan - had been planning this adventure for months. Each brought their own unique skills to the group: Alex was the strategist, Sam was the athlete, and Jordan was the tech expert.';
+      const complexStory =
+        'The three friends - Alex, Sam, and Jordan - had been planning this adventure for months. Each brought their own unique skills to the group: Alex was the strategist, Sam was the athlete, and Jordan was the tech expert.';
 
       mockStoryGenerationService.analyzeImportedStory.mockResolvedValue({
         characters: ['Alex', 'Sam', 'Jordan'],
@@ -299,7 +355,9 @@ describe('Story Generation Integration', () => {
         groupDynamic: 'collaborative team',
       });
 
-      const analysis = await mockStoryGenerationService.analyzeImportedStory(complexStory);
+      const analysis = await mockStoryGenerationService.analyzeImportedStory(
+        complexStory,
+      );
 
       expect(analysis.characters).toHaveLength(3);
       expect(analysis.characterTraits.Alex).toBe('strategist');
@@ -323,17 +381,20 @@ describe('Story Generation Integration', () => {
       ];
 
       for (const test of lowQualityTests) {
-        mockStoryGenerationService.validateContinuationQuality.mockResolvedValueOnce({
-          quality: 'low',
-          score: 0.3,
-          issues: [test.issue],
-          suggestions: ['Maintain consistent genre', 'Keep character focus'],
-        });
-
-        const quality = await mockStoryGenerationService.validateContinuationQuality(
-          test.continuation,
-          test.original
+        mockStoryGenerationService.validateContinuationQuality.mockResolvedValueOnce(
+          {
+            quality: 'low',
+            score: 0.3,
+            issues: [test.issue],
+            suggestions: ['Maintain consistent genre', 'Keep character focus'],
+          },
         );
+
+        const quality =
+          await mockStoryGenerationService.validateContinuationQuality(
+            test.continuation,
+            test.original,
+          );
 
         expect(quality.quality).toBe('low');
         expect(quality.issues).toContain(test.issue);
@@ -342,11 +403,13 @@ describe('Story Generation Integration', () => {
 
     it('should handle AI generation failures gracefully', async () => {
       mockStoryGenerationService.generateImportedStoryContinuation.mockRejectedValue(
-        new Error('AI service unavailable')
+        new Error('AI service unavailable'),
       );
 
       try {
-        await mockStoryGenerationService.generateImportedStoryContinuation('Test story');
+        await mockStoryGenerationService.generateImportedStoryContinuation(
+          'Test story',
+        );
         fail('Should have thrown an error');
       } catch (error) {
         expect(error).toBeInstanceOf(Error);
@@ -356,21 +419,29 @@ describe('Story Generation Integration', () => {
 
     it('should retry failed generations with adjusted parameters', async () => {
       let attemptCount = 0;
-      mockStoryGenerationService.generateImportedStoryContinuation.mockImplementation(() => {
-        attemptCount++;
-        if (attemptCount === 1) {
-          throw new Error('Temporary AI service error');
-        }
-        return Promise.resolve('Successful continuation after retry');
-      });
+      mockStoryGenerationService.generateImportedStoryContinuation.mockImplementation(
+        () => {
+          attemptCount++;
+          if (attemptCount === 1) {
+            throw new Error('Temporary AI service error');
+          }
+          return Promise.resolve('Successful continuation after retry');
+        },
+      );
 
       // Simulate retry logic (would be in the actual service)
       let result;
       try {
-        result = await mockStoryGenerationService.generateImportedStoryContinuation('Test story');
+        result =
+          await mockStoryGenerationService.generateImportedStoryContinuation(
+            'Test story',
+          );
       } catch (error) {
         // Retry once
-        result = await mockStoryGenerationService.generateImportedStoryContinuation('Test story');
+        result =
+          await mockStoryGenerationService.generateImportedStoryContinuation(
+            'Test story',
+          );
       }
 
       expect(result).toBe('Successful continuation after retry');
@@ -380,19 +451,26 @@ describe('Story Generation Integration', () => {
 
   describe('Performance and Scalability', () => {
     it('should generate continuations within reasonable time', async () => {
-      const testStory = 'The adventure began when they found the mysterious map.';
+      const testStory =
+        'The adventure began when they found the mysterious map.';
 
       mockStoryGenerationService.generateImportedStoryContinuation.mockImplementation(
-        () => new Promise(resolve => {
-          // Simulate AI generation time
-          setTimeout(() => {
-            resolve('The map showed a path through dangerous mountains to a hidden treasure.');
-          }, 100); // 100ms simulation
-        })
+        () =>
+          new Promise(resolve => {
+            // Simulate AI generation time
+            setTimeout(() => {
+              resolve(
+                'The map showed a path through dangerous mountains to a hidden treasure.',
+              );
+            }, 100); // 100ms simulation
+          }),
       );
 
       const startTime = Date.now();
-      const continuation = await mockStoryGenerationService.generateImportedStoryContinuation(testStory);
+      const continuation =
+        await mockStoryGenerationService.generateImportedStoryContinuation(
+          testStory,
+        );
       const endTime = Date.now();
 
       expect(continuation).toBeDefined();
@@ -406,13 +484,15 @@ describe('Story Generation Integration', () => {
         'Story three opening.',
       ];
 
-      mockStoryGenerationService.generateImportedStoryContinuation.mockImplementation((story) =>
-        Promise.resolve(`Continuation for: ${story}`)
+      mockStoryGenerationService.generateImportedStoryContinuation.mockImplementation(
+        story => Promise.resolve(`Continuation for: ${story}`),
       );
 
       const startTime = Date.now();
       const results = await Promise.all(
-        stories.map(story => mockStoryGenerationService.generateImportedStoryContinuation(story))
+        stories.map(story =>
+          mockStoryGenerationService.generateImportedStoryContinuation(story),
+        ),
       );
       const endTime = Date.now();
 
@@ -424,25 +504,49 @@ describe('Story Generation Integration', () => {
 
   describe('Integration with Story Import Flow', () => {
     it('should integrate smoothly with file import workflow', async () => {
-      const importedFileContent = 'Emma discovered an old diary in the library that contained secrets about her family\'s past.';
+      const importedFileContent =
+        "Emma discovered an old diary in the library that contained secrets about her family's past.";
 
       // Simulate the full integration workflow
-      const analysisResult = await mockStoryGenerationService.analyzeImportedStory(importedFileContent);
-      const contextResult = await mockStoryGenerationService.prepareImportedStoryContext(importedFileContent, analysisResult);
-      const continuationResult = await mockStoryGenerationService.generateImportedStoryContinuation(importedFileContent);
-      const qualityResult = await mockStoryGenerationService.validateContinuationQuality(continuationResult, importedFileContent);
+      const analysisResult =
+        await mockStoryGenerationService.analyzeImportedStory(
+          importedFileContent,
+        );
+      const contextResult =
+        await mockStoryGenerationService.prepareImportedStoryContext(
+          importedFileContent,
+          analysisResult,
+        );
+      const continuationResult =
+        await mockStoryGenerationService.generateImportedStoryContinuation(
+          importedFileContent,
+        );
+      const qualityResult =
+        await mockStoryGenerationService.validateContinuationQuality(
+          continuationResult,
+          importedFileContent,
+        );
 
       // All steps should complete without error
-      expect(mockStoryGenerationService.analyzeImportedStory).toHaveBeenCalledWith(importedFileContent);
-      expect(mockStoryGenerationService.prepareImportedStoryContext).toHaveBeenCalled();
-      expect(mockStoryGenerationService.generateImportedStoryContinuation).toHaveBeenCalledWith(importedFileContent);
-      expect(mockStoryGenerationService.validateContinuationQuality).toHaveBeenCalled();
+      expect(
+        mockStoryGenerationService.analyzeImportedStory,
+      ).toHaveBeenCalledWith(importedFileContent);
+      expect(
+        mockStoryGenerationService.prepareImportedStoryContext,
+      ).toHaveBeenCalled();
+      expect(
+        mockStoryGenerationService.generateImportedStoryContinuation,
+      ).toHaveBeenCalledWith(importedFileContent);
+      expect(
+        mockStoryGenerationService.validateContinuationQuality,
+      ).toHaveBeenCalled();
     });
 
     it('should integrate with database story selection workflow', async () => {
       const databaseStory = {
         session_id: 'story-session-123',
-        story_content: 'The detective had been working on this case for weeks without any leads.',
+        story_content:
+          'The detective had been working on this case for weeks without any leads.',
         story_source: 'CreativeBridge' as StorySource,
         final_score: 150,
       };
@@ -455,11 +559,16 @@ describe('Story Generation Integration', () => {
       });
 
       mockStoryGenerationService.generateImportedStoryContinuation.mockResolvedValue(
-        'Then, a breakthrough came when she noticed a pattern in the evidence that everyone else had missed.'
+        'Then, a breakthrough came when she noticed a pattern in the evidence that everyone else had missed.',
       );
 
-      const analysis = await mockStoryGenerationService.analyzeImportedStory(databaseStory.story_content);
-      const continuation = await mockStoryGenerationService.generateImportedStoryContinuation(databaseStory.story_content);
+      const analysis = await mockStoryGenerationService.analyzeImportedStory(
+        databaseStory.story_content,
+      );
+      const continuation =
+        await mockStoryGenerationService.generateImportedStoryContinuation(
+          databaseStory.story_content,
+        );
 
       expect(analysis.genre).toBe('mystery');
       expect(continuation).toContain('breakthrough');

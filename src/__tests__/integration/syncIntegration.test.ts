@@ -1,6 +1,6 @@
 /**
  * Sync Service Integration Tests
- * 
+ *
  * Tests complete synchronization workflows including cross-platform sync,
  * conflict resolution scenarios, offline-to-online transitions, and
  * real-world usage patterns across multiple devices and platforms.
@@ -29,22 +29,28 @@ describe('Sync Service Integration', () => {
 
       // Device 1 creates a new story
       await syncService.updateStoryOnDevice(
-        devices[0], 
-        storyId, 
+        devices[0],
+        storyId,
         'Once upon a time, in a magical kingdom...',
-        { title: 'Magical Kingdom', author: 'User123' }
+        { title: 'Magical Kingdom', author: 'User123' },
       );
 
       // Sync across all devices
       await syncService.syncAcrossDevices(devices);
 
       // All devices should have the story
-      const storyOnDevice2 = await syncService.getStoryOnDevice(devices[1], storyId);
-      const storyOnDevice3 = await syncService.getStoryOnDevice(devices[2], storyId);
+      const storyOnDevice2 = await syncService.getStoryOnDevice(
+        devices[1],
+        storyId,
+      );
+      const storyOnDevice3 = await syncService.getStoryOnDevice(
+        devices[2],
+        storyId,
+      );
 
       expect(storyOnDevice2).toBeDefined();
       expect(storyOnDevice3).toBeDefined();
-      
+
       if (storyOnDevice2 && storyOnDevice3) {
         expect(storyOnDevice2.content).toContain('magical kingdom');
         expect(storyOnDevice3.content).toContain('magical kingdom');
@@ -60,31 +66,34 @@ describe('Sync Service Integration', () => {
 
       // Each device adds to the story
       await syncService.updateStoryOnDevice(
-        devices[0], 
-        storyId, 
+        devices[0],
+        storyId,
         'Chapter 1: The hero begins their journey.',
-        { chapter: 1 }
+        { chapter: 1 },
       );
 
       await syncService.updateStoryOnDevice(
-        devices[1], 
-        storyId, 
+        devices[1],
+        storyId,
         'Chapter 1: The hero begins their journey.\nChapter 2: They encounter their first challenge.',
-        { chapter: 2 }
+        { chapter: 2 },
       );
 
       await syncService.updateStoryOnDevice(
-        devices[2], 
-        storyId, 
+        devices[2],
+        storyId,
         'Chapter 1: The hero begins their journey.\nChapter 2: They encounter their first challenge.\nChapter 3: The plot thickens.',
-        { chapter: 3 }
+        { chapter: 3 },
       );
 
       // Sync all changes
       await syncService.syncAcrossDevices(devices);
 
       // Should have the most recent version everywhere
-      const finalStory = await syncService.getStoryOnDevice(devices[0], storyId);
+      const finalStory = await syncService.getStoryOnDevice(
+        devices[0],
+        storyId,
+      );
       expect(finalStory?.content).toContain('Chapter 3');
     });
 
@@ -98,25 +107,32 @@ describe('Sync Service Integration', () => {
       const conflictingEdits = [
         {
           deviceId: 'device-1',
-          content: 'The dragon was red and fierce, breathing fire across the land.',
-          timestamp: Date.now() - 1000 // 1 second ago
+          content:
+            'The dragon was red and fierce, breathing fire across the land.',
+          timestamp: Date.now() - 1000, // 1 second ago
         },
         {
-          deviceId: 'device-2', 
+          deviceId: 'device-2',
           content: 'The dragon was blue and wise, sharing ancient knowledge.',
-          timestamp: Date.now() - 500 // 0.5 seconds ago
+          timestamp: Date.now() - 500, // 0.5 seconds ago
         },
         {
           deviceId: 'device-3',
-          content: 'The dragon was golden and magical, granting wishes to worthy heroes.',
-          timestamp: Date.now() // Most recent
-        }
+          content:
+            'The dragon was golden and magical, granting wishes to worthy heroes.',
+          timestamp: Date.now(), // Most recent
+        },
       ];
 
-      const resolvedStory = await syncService.resolveConflict(storyId, conflictingEdits);
+      const resolvedStory = await syncService.resolveConflict(
+        storyId,
+        conflictingEdits,
+      );
 
       // Should use the most recent edit (latest timestamp)
-      expect(resolvedStory.content).toBe('The dragon was golden and magical, granting wishes to worthy heroes.');
+      expect(resolvedStory.content).toBe(
+        'The dragon was golden and magical, granting wishes to worthy heroes.',
+      );
       expect(resolvedStory.metadata.lastEditedBy).toBe('sync_service');
       expect(resolvedStory.syncStatus).toBe('synced');
     });
@@ -131,9 +147,18 @@ describe('Sync Service Integration', () => {
       syncService.setOfflineMode(true);
 
       // Make changes while offline
-      await syncService.updateStory(storyId, 'Offline edit 1: The adventure begins.');
-      await syncService.updateStory(storyId, 'Offline edit 1: The adventure begins.\nOffline edit 2: Plot development.');
-      await syncService.updateStory(storyId, 'Offline edit 1: The adventure begins.\nOffline edit 2: Plot development.\nOffline edit 3: Climax approaches.');
+      await syncService.updateStory(
+        storyId,
+        'Offline edit 1: The adventure begins.',
+      );
+      await syncService.updateStory(
+        storyId,
+        'Offline edit 1: The adventure begins.\nOffline edit 2: Plot development.',
+      );
+      await syncService.updateStory(
+        storyId,
+        'Offline edit 1: The adventure begins.\nOffline edit 2: Plot development.\nOffline edit 3: Climax approaches.',
+      );
 
       // Check pending changes
       const pendingChanges = await syncService.getPendingChanges();
@@ -181,11 +206,11 @@ describe('Sync Service Integration', () => {
 
       // Go offline and make multiple edits
       syncService.setOfflineMode(true);
-      
+
       const offlineEdits = [
         'Original story content\nFirst offline edit',
         'Original story content\nFirst offline edit\nSecond offline edit',
-        'Original story content\nFirst offline edit\nSecond offline edit\nThird offline edit'
+        'Original story content\nFirst offline edit\nSecond offline edit\nThird offline edit',
       ];
 
       for (const edit of offlineEdits) {
@@ -201,7 +226,10 @@ describe('Sync Service Integration', () => {
       await syncService.syncPendingChanges();
 
       // Data should be consistent
-      const finalStory = await syncService.getStoryOnDevice('current-device', storyId);
+      const finalStory = await syncService.getStoryOnDevice(
+        'current-device',
+        storyId,
+      );
       expect(finalStory?.content).toContain('Third offline edit');
     });
   });
@@ -222,12 +250,12 @@ describe('Sync Service Integration', () => {
             title: 'Real-time Story',
             version: 2,
             lastEditedBy: 'other-device',
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
           },
           user_id: userId,
           device_id: 'other-device',
-          sync_status: 'synced'
-        }
+          sync_status: 'synced',
+        },
       };
 
       // Access the private method for testing
@@ -235,8 +263,13 @@ describe('Sync Service Integration', () => {
       await service.handleRealtimeChange(mockRealtimePayload);
 
       // Story should be updated locally
-      const updatedStory = await syncService.getStoryOnDevice('other-device', 'realtime-story');
-      expect(updatedStory?.content).toBe('Story updated from another device in real-time');
+      const updatedStory = await syncService.getStoryOnDevice(
+        'other-device',
+        'realtime-story',
+      );
+      expect(updatedStory?.content).toBe(
+        'Story updated from another device in real-time',
+      );
     });
 
     it('should handle real-time story insertion', async () => {
@@ -254,20 +287,25 @@ describe('Sync Service Integration', () => {
             title: 'New Story',
             version: 1,
             createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
           },
           user_id: userId,
           device_id: 'creator-device',
-          sync_status: 'synced'
-        }
+          sync_status: 'synced',
+        },
       };
 
       const service = syncService as any;
       await service.handleRealtimeChange(mockInsertPayload);
 
       // New story should be available locally
-      const newStory = await syncService.getStoryOnDevice('creator-device', 'new-realtime-story');
-      expect(newStory?.content).toBe('A brand new story created on another device');
+      const newStory = await syncService.getStoryOnDevice(
+        'creator-device',
+        'new-realtime-story',
+      );
+      expect(newStory?.content).toBe(
+        'A brand new story created on another device',
+      );
     });
 
     it('should prevent real-time conflicts with local edits', async () => {
@@ -279,7 +317,7 @@ describe('Sync Service Integration', () => {
       // Local story with specific version
       await syncService.updateStory(storyId, 'Local version of the story', {
         version: 1,
-        lastEditedBy: 'local-device'
+        lastEditedBy: 'local-device',
       });
 
       // Simulate real-time update with newer version
@@ -291,19 +329,22 @@ describe('Sync Service Integration', () => {
           metadata: {
             version: 2,
             lastEditedBy: 'remote-device',
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
           },
           user_id: userId,
           device_id: 'remote-device',
-          sync_status: 'synced'
-        }
+          sync_status: 'synced',
+        },
       };
 
       const service = syncService as any;
       await service.handleRealtimeChange(mockRealtimePayload);
 
       // Should update to newer version
-      const updatedStory = await syncService.getStoryOnDevice('remote-device', storyId);
+      const updatedStory = await syncService.getStoryOnDevice(
+        'remote-device',
+        storyId,
+      );
       expect(updatedStory?.content).toBe('Remote version of the story');
       expect(updatedStory?.metadata.version).toBe(2);
     });
@@ -313,11 +354,11 @@ describe('Sync Service Integration', () => {
     it('should sync between iOS, Android, and Web platforms', async () => {
       const userId = 'cross-platform-user';
       const storyId = 'cross-platform-story';
-      
+
       const platforms = [
         { deviceId: 'ios-12345', type: 'ios' },
         { deviceId: 'android-67890', type: 'android' },
-        { deviceId: 'web-browser-001', type: 'web' }
+        { deviceId: 'web-browser-001', type: 'web' },
       ];
 
       syncService.setUserId(userId);
@@ -327,21 +368,21 @@ describe('Sync Service Integration', () => {
         platforms[0].deviceId,
         storyId,
         'iOS contribution: The story begins on a mobile device.',
-        { platform: 'ios', contributor: 'ios-user' }
+        { platform: 'ios', contributor: 'ios-user' },
       );
 
       await syncService.updateStoryOnDevice(
         platforms[1].deviceId,
         storyId,
         'iOS contribution: The story begins on a mobile device.\nAndroid contribution: Continued on another mobile platform.',
-        { platform: 'android', contributor: 'android-user' }
+        { platform: 'android', contributor: 'android-user' },
       );
 
       await syncService.updateStoryOnDevice(
         platforms[2].deviceId,
         storyId,
         'iOS contribution: The story begins on a mobile device.\nAndroid contribution: Continued on another mobile platform.\nWeb contribution: Finalized on the web platform.',
-        { platform: 'web', contributor: 'web-user' }
+        { platform: 'web', contributor: 'web-user' },
       );
 
       // Sync across all platforms
@@ -349,7 +390,10 @@ describe('Sync Service Integration', () => {
 
       // Verify all platforms have the complete story
       for (const platform of platforms) {
-        const story = await syncService.getStoryOnDevice(platform.deviceId, storyId);
+        const story = await syncService.getStoryOnDevice(
+          platform.deviceId,
+          storyId,
+        );
         expect(story?.content).toContain('iOS contribution');
         expect(story?.content).toContain('Android contribution');
         expect(story?.content).toContain('Web contribution');
@@ -370,8 +414,8 @@ describe('Sync Service Integration', () => {
         {
           platform: 'ios',
           features: ['voice-input', 'haptic-feedback'],
-          deviceInfo: { model: 'iPhone 14', os: 'iOS 17' }
-        }
+          deviceInfo: { model: 'iPhone 14', os: 'iOS 17' },
+        },
       );
 
       await syncService.updateStoryOnDevice(
@@ -381,12 +425,18 @@ describe('Sync Service Integration', () => {
         {
           platform: 'web',
           features: ['rich-text-editor', 'collaborative-editing'],
-          deviceInfo: { browser: 'Chrome', os: 'macOS' }
-        }
+          deviceInfo: { browser: 'Chrome', os: 'macOS' },
+        },
       );
 
-      const iosStory = await syncService.getStoryOnDevice('ios-device', storyId);
-      const webStory = await syncService.getStoryOnDevice('web-device', storyId);
+      const iosStory = await syncService.getStoryOnDevice(
+        'ios-device',
+        storyId,
+      );
+      const webStory = await syncService.getStoryOnDevice(
+        'web-device',
+        storyId,
+      );
 
       // Both should have the story content
       expect(iosStory?.content).toContain('web enhancements');
@@ -411,7 +461,10 @@ describe('Sync Service Integration', () => {
       const promises = [];
       for (let i = 0; i < 50; i++) {
         promises.push(
-          syncService.updateStory(storyId, `Update ${i}: Content iteration ${i}`)
+          syncService.updateStory(
+            storyId,
+            `Update ${i}: Content iteration ${i}`,
+          ),
         );
       }
 
@@ -447,7 +500,10 @@ describe('Sync Service Integration', () => {
       expect(duration).toBeLessThan(2000); // Under 2 seconds
 
       // Content should be stored correctly
-      const story = await syncService.getStoryOnDevice('current-device', storyId);
+      const story = await syncService.getStoryOnDevice(
+        'current-device',
+        storyId,
+      );
       expect(story?.content.length).toBeGreaterThan(10000);
       expect(story?.content).toContain('The End.');
     });
@@ -461,7 +517,10 @@ describe('Sync Service Integration', () => {
       const storyPromises = [];
       for (let i = 0; i < 100; i++) {
         storyPromises.push(
-          syncService.updateStory(`story-${i}`, `Content for story number ${i}`)
+          syncService.updateStory(
+            `story-${i}`,
+            `Content for story number ${i}`,
+          ),
         );
       }
 
@@ -472,7 +531,10 @@ describe('Sync Service Integration', () => {
       expect(syncStatus.pendingChanges).toBe(100);
 
       // Should be able to retrieve any story
-      const randomStory = await syncService.getStoryOnDevice('current-device', 'story-42');
+      const randomStory = await syncService.getStoryOnDevice(
+        'current-device',
+        'story-42',
+      );
       expect(randomStory?.content).toBe('Content for story number 42');
     });
   });
@@ -502,7 +564,10 @@ describe('Sync Service Integration', () => {
       const syncStatus = await syncService.getSyncStatus();
       expect(syncStatus.isOnline).toBe(true);
 
-      const story = await syncService.getStoryOnDevice('current-device', storyId);
+      const story = await syncService.getStoryOnDevice(
+        'current-device',
+        storyId,
+      );
       expect(story?.content).toContain('offline period');
     });
 
@@ -516,7 +581,7 @@ describe('Sync Service Integration', () => {
       const service = syncService as any;
       let syncCount = 0;
       const originalSyncWithDevice = service.syncWithDevice;
-      
+
       service.syncWithDevice = async (deviceId: string) => {
         syncCount++;
         if (deviceId === 'device-2') {
@@ -526,7 +591,9 @@ describe('Sync Service Integration', () => {
       };
 
       // Sync should handle partial failures
-      await expect(syncService.syncAcrossDevices(deviceIds)).rejects.toThrow('Sync failed');
+      await expect(syncService.syncAcrossDevices(deviceIds)).rejects.toThrow(
+        'Sync failed',
+      );
 
       // Should have attempted to sync all devices
       expect(syncCount).toBe(3);
@@ -552,7 +619,7 @@ describe('Sync Service Integration', () => {
         () => syncService.setOfflineMode(true),
         () => syncService.updateStory(storyId, 'Update 3'),
         () => syncService.setOfflineMode(false),
-        () => syncService.syncPendingChanges()
+        () => syncService.syncPendingChanges(),
       ];
 
       // Execute operations even if some fail
@@ -565,7 +632,10 @@ describe('Sync Service Integration', () => {
       }
 
       // Final state should be consistent
-      const finalStory = await syncService.getStoryOnDevice('current-device', storyId);
+      const finalStory = await syncService.getStoryOnDevice(
+        'current-device',
+        storyId,
+      );
       expect(finalStory).toBeDefined();
       expect(finalStory?.content).toContain('consistent state');
     });
@@ -579,12 +649,16 @@ describe('Sync Service Integration', () => {
 
       // Try to sync with invalid data
       await expect(
-        syncService.updateStoryOnDevice('', 'story-123', '')
+        syncService.updateStoryOnDevice('', 'story-123', ''),
       ).rejects.toThrow();
 
       // Valid data should work
       await expect(
-        syncService.updateStoryOnDevice('valid-device', 'story-123', 'Valid content')
+        syncService.updateStoryOnDevice(
+          'valid-device',
+          'story-123',
+          'Valid content',
+        ),
       ).resolves.not.toThrow();
     });
 
@@ -599,15 +673,22 @@ describe('Sync Service Integration', () => {
       await syncService.updateStory(storyId, originalContent);
 
       // Get the story and verify checksum
-      const story = await syncService.getStoryOnDevice('current-device', storyId);
+      const story = await syncService.getStoryOnDevice(
+        'current-device',
+        storyId,
+      );
       const originalChecksum = story?.metadata.checksum;
 
       // Update the story
-      const updatedContent = originalContent + '\nAdditional content for testing';
+      const updatedContent =
+        originalContent + '\nAdditional content for testing';
       await syncService.updateStory(storyId, updatedContent);
 
       // Get updated story and verify checksum changed
-      const updatedStory = await syncService.getStoryOnDevice('current-device', storyId);
+      const updatedStory = await syncService.getStoryOnDevice(
+        'current-device',
+        storyId,
+      );
       const updatedChecksum = updatedStory?.metadata.checksum;
 
       expect(originalChecksum).not.toBe(updatedChecksum);
@@ -621,23 +702,28 @@ describe('Sync Service Integration', () => {
       syncService.setUserId(userId);
 
       // Create story with version 1
-      await syncService.updateStory(storyId, 'Version 1 content', { version: 1 });
+      await syncService.updateStory(storyId, 'Version 1 content', {
+        version: 1,
+      });
 
       // Simulate concurrent edits creating version conflict
       const conflictingEdits = [
         {
           deviceId: 'device-1',
           content: 'Version 2a from device 1',
-          timestamp: Date.now() - 1000
+          timestamp: Date.now() - 1000,
         },
         {
           deviceId: 'device-2',
           content: 'Version 2b from device 2',
-          timestamp: Date.now() - 500
-        }
+          timestamp: Date.now() - 500,
+        },
       ];
 
-      const resolvedStory = await syncService.resolveConflict(storyId, conflictingEdits);
+      const resolvedStory = await syncService.resolveConflict(
+        storyId,
+        conflictingEdits,
+      );
 
       // Should resolve to the more recent version
       expect(resolvedStory.content).toBe('Version 2b from device 2');

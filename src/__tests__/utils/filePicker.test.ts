@@ -53,7 +53,9 @@ jest.mock('../../services/storyImportService', () => ({
 
 const mockDocumentPicker = DocumentPicker as jest.Mocked<typeof DocumentPicker>;
 const mockRNFS = RNFS as jest.Mocked<typeof RNFS>;
-const mockPermissionsAndroid = PermissionsAndroid as jest.Mocked<typeof PermissionsAndroid>;
+const mockPermissionsAndroid = PermissionsAndroid as jest.Mocked<
+  typeof PermissionsAndroid
+>;
 
 describe('FilePickerUtils', () => {
   beforeEach(() => {
@@ -65,17 +67,17 @@ describe('FilePickerUtils', () => {
 
   describe('File Validation', () => {
     it('should validate txt file format', () => {
-      const validFile = { 
-        name: 'story.txt', 
-        type: 'text/plain', 
-        size: 1024, 
-        uri: 'file://test.txt' 
+      const validFile = {
+        name: 'story.txt',
+        type: 'text/plain',
+        size: 1024,
+        uri: 'file://test.txt',
       };
-      const invalidFile = { 
-        name: 'story.pdf', 
-        type: 'application/pdf', 
-        size: 1024, 
-        uri: 'file://test.pdf' 
+      const invalidFile = {
+        name: 'story.pdf',
+        type: 'application/pdf',
+        size: 1024,
+        uri: 'file://test.pdf',
       };
 
       expect(FilePickerUtils.isValidTextFile(validFile)).toBe(true);
@@ -118,8 +120,12 @@ describe('FilePickerUtils', () => {
 
       expect(result.isValid).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors.some(error => error.includes('too large'))).toBe(true);
-      expect(result.errors.some(error => error.includes('Invalid file type'))).toBe(true);
+      expect(result.errors.some(error => error.includes('too large'))).toBe(
+        true,
+      );
+      expect(
+        result.errors.some(error => error.includes('Invalid file type')),
+      ).toBe(true);
     });
 
     it('should provide warnings for edge cases', () => {
@@ -134,7 +140,9 @@ describe('FilePickerUtils', () => {
 
       expect(result.isValid).toBe(true);
       expect(result.warnings.length).toBeGreaterThan(0);
-      expect(result.warnings.some(warning => warning.includes('very small'))).toBe(true);
+      expect(
+        result.warnings.some(warning => warning.includes('very small')),
+      ).toBe(true);
     });
   });
 
@@ -147,7 +155,9 @@ describe('FilePickerUtils', () => {
     });
 
     it('should detect UTF-8 BOM', async () => {
-      const utf8Bom = Buffer.from([0xEF, 0xBB, 0xBF, 0x48, 0x65, 0x6C, 0x6C, 0x6F]); // BOM + "Hello"
+      const utf8Bom = Buffer.from([
+        0xef, 0xbb, 0xbf, 0x48, 0x65, 0x6c, 0x6c, 0x6f,
+      ]); // BOM + "Hello"
       const encoding = await FilePickerUtils.detectEncoding(utf8Bom);
 
       expect(encoding).toBe('utf8');
@@ -203,7 +213,7 @@ describe('FilePickerUtils', () => {
       const result = await FilePickerUtils.checkStoragePermissions();
 
       expect(mockPermissionsAndroid.check).toHaveBeenCalledWith(
-        PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE
+        PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
       );
       expect(result).toBe(true);
     });
@@ -211,7 +221,9 @@ describe('FilePickerUtils', () => {
     it('should request permissions when not granted', async () => {
       (Platform as any).Version = 29;
       mockPermissionsAndroid.check.mockResolvedValue(false);
-      mockPermissionsAndroid.request.mockResolvedValue(PermissionsAndroid.RESULTS.GRANTED);
+      mockPermissionsAndroid.request.mockResolvedValue(
+        PermissionsAndroid.RESULTS.GRANTED,
+      );
 
       const result = await FilePickerUtils.checkStoragePermissions();
 
@@ -222,7 +234,9 @@ describe('FilePickerUtils', () => {
     it('should handle permission denial', async () => {
       (Platform as any).Version = 29;
       mockPermissionsAndroid.check.mockResolvedValue(false);
-      mockPermissionsAndroid.request.mockResolvedValue(PermissionsAndroid.RESULTS.DENIED);
+      mockPermissionsAndroid.request.mockResolvedValue(
+        PermissionsAndroid.RESULTS.DENIED,
+      );
 
       const result = await FilePickerUtils.checkStoragePermissions();
 
@@ -231,7 +245,9 @@ describe('FilePickerUtils', () => {
 
     it('should handle permission errors gracefully', async () => {
       (Platform as any).Version = 29;
-      mockPermissionsAndroid.check.mockRejectedValue(new Error('Permission error'));
+      mockPermissionsAndroid.check.mockRejectedValue(
+        new Error('Permission error'),
+      );
 
       const result = await FilePickerUtils.checkStoragePermissions();
 
@@ -266,12 +282,16 @@ describe('FilePickerUtils', () => {
       mockRNFS.unlink.mockRejectedValue(new Error('Cleanup failed'));
 
       // Should not throw
-      await expect(FilePickerUtils.cleanupTempFiles(tempFileUri)).resolves.toBeUndefined();
+      await expect(
+        FilePickerUtils.cleanupTempFiles(tempFileUri),
+      ).resolves.toBeUndefined();
     });
 
     it('should handle missing file URI', async () => {
       await expect(FilePickerUtils.cleanupTempFiles()).resolves.toBeUndefined();
-      await expect(FilePickerUtils.cleanupTempFiles('')).resolves.toBeUndefined();
+      await expect(
+        FilePickerUtils.cleanupTempFiles(''),
+      ).resolves.toBeUndefined();
     });
   });
 

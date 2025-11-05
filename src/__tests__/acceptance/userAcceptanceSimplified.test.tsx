@@ -52,13 +52,29 @@ function generateStoryData(count: number) {
 
 function generateFileContent(wordCount: number): string {
   const words = [
-    'adventure', 'dragon', 'knight', 'princess', 'castle', 'forest', 'magic', 'sword',
-    'quest', 'treasure', 'brave', 'mysterious', 'ancient', 'powerful', 'journey'
+    'adventure',
+    'dragon',
+    'knight',
+    'princess',
+    'castle',
+    'forest',
+    'magic',
+    'sword',
+    'quest',
+    'treasure',
+    'brave',
+    'mysterious',
+    'ancient',
+    'powerful',
+    'journey',
   ];
-  
-  return Array.from({ length: wordCount }, () => 
-    words[Math.floor(Math.random() * words.length)]
-  ).join(' ') + '.';
+
+  return (
+    Array.from(
+      { length: wordCount },
+      () => words[Math.floor(Math.random() * words.length)],
+    ).join(' ') + '.'
+  );
 }
 
 describe('User Acceptance Tests - Story Continuation Feature', () => {
@@ -77,7 +93,8 @@ describe('User Acceptance Tests - Story Continuation Feature', () => {
         },
         {
           name: 'unicode.txt',
-          content: 'The café had résumé writing services. 中文 characters and emoji 🐉',
+          content:
+            'The café had résumé writing services. 中文 characters and emoji 🐉',
           encoding: 'utf-8',
           expectedSuccess: true,
         },
@@ -107,14 +124,18 @@ describe('User Acceptance Tests - Story Continuation Feature', () => {
           warnings: file.content.length > 50000 ? ['Large file detected'] : [],
         });
 
-        const result = await mockStoryImportService.readFileWithEncoding(file.name);
+        const result = await mockStoryImportService.readFileWithEncoding(
+          file.name,
+        );
         expect(result.success).toBe(file.expectedSuccess);
-        
+
         if (result.success) {
           expect(result.content).toBe(file.content);
           expect(result.metadata.encoding).toBe(file.encoding);
-          
-          const validation = mockStoryImportService.validateStoryContent(file.content);
+
+          const validation = mockStoryImportService.validateStoryContent(
+            file.content,
+          );
           expect(validation.isValid).toBe(true);
         }
       }
@@ -122,33 +143,36 @@ describe('User Acceptance Tests - Story Continuation Feature', () => {
 
     it('should handle file processing performance', async () => {
       const fileSizes = [
-        { words: 100, maxTime: 50 },   // Small file
+        { words: 100, maxTime: 50 }, // Small file
         { words: 1000, maxTime: 200 }, // Medium file
         { words: 5000, maxTime: 500 }, // Large file
       ];
 
       for (const fileTest of fileSizes) {
         const content = generateFileContent(fileTest.words);
-        
-        mockStoryImportService.readFileWithEncoding.mockImplementation(() => 
-          new Promise(resolve => {
-            setTimeout(() => {
-              resolve({
-                success: true,
-                content,
-                metadata: {
-                  file_name: `${fileTest.words}_words.txt`,
-                  file_size: content.length,
-                  encoding: 'utf-8',
-                  imported_word_count: fileTest.words,
-                },
-              });
-            }, 20); // Simulate processing time
-          })
+
+        mockStoryImportService.readFileWithEncoding.mockImplementation(
+          () =>
+            new Promise(resolve => {
+              setTimeout(() => {
+                resolve({
+                  success: true,
+                  content,
+                  metadata: {
+                    file_name: `${fileTest.words}_words.txt`,
+                    file_size: content.length,
+                    encoding: 'utf-8',
+                    imported_word_count: fileTest.words,
+                  },
+                });
+              }, 20); // Simulate processing time
+            }),
         );
 
         const startTime = performance.now();
-        const result = await mockStoryImportService.readFileWithEncoding(`${fileTest.words}_words.txt`);
+        const result = await mockStoryImportService.readFileWithEncoding(
+          `${fileTest.words}_words.txt`,
+        );
         const processingTime = performance.now() - startTime;
 
         expect(result.success).toBe(true);
@@ -182,8 +206,10 @@ describe('User Acceptance Tests - Story Continuation Feature', () => {
           errorType: invalidFile.errorType,
         });
 
-        const result = await mockStoryImportService.readFileWithEncoding(invalidFile.name);
-        
+        const result = await mockStoryImportService.readFileWithEncoding(
+          invalidFile.name,
+        );
+
         expect(result.success).toBe(false);
         expect(result.error).toBe(invalidFile.error);
         expect(result.errorType).toBe(invalidFile.errorType);
@@ -194,24 +220,30 @@ describe('User Acceptance Tests - Story Continuation Feature', () => {
   describe('Search and Filter Performance', () => {
     it('should search large story collections efficiently', async () => {
       const largeCollection = generateStoryData(1000);
-      
-      mockStoryManagementService.searchStories.mockImplementation((searchTerm: string) => {
-        const startTime = performance.now();
-        const results = largeCollection.filter(story => 
-          story.story_content.toLowerCase().includes(searchTerm.toLowerCase())
-        ).slice(0, 20);
-        const processingTime = performance.now() - startTime;
-        
-        return Promise.resolve({
-          success: true,
-          stories: results,
-          total: results.length,
-          processingTime,
-        });
-      });
+
+      mockStoryManagementService.searchStories.mockImplementation(
+        (searchTerm: string) => {
+          const startTime = performance.now();
+          const results = largeCollection
+            .filter(story =>
+              story.story_content
+                .toLowerCase()
+                .includes(searchTerm.toLowerCase()),
+            )
+            .slice(0, 20);
+          const processingTime = performance.now() - startTime;
+
+          return Promise.resolve({
+            success: true,
+            stories: results,
+            total: results.length,
+            processingTime,
+          });
+        },
+      );
 
       const searchTerms = ['adventure', 'dragon', 'magic'];
-      
+
       for (const term of searchTerms) {
         const startTime = performance.now();
         const result = await mockStoryManagementService.searchStories(term);
@@ -220,38 +252,46 @@ describe('User Acceptance Tests - Story Continuation Feature', () => {
         expect(result.success).toBe(true);
         expect(totalTime).toBeLessThan(1000); // Should complete within 1 second
         expect(result.stories.length).toBeLessThanOrEqual(20);
-        
+
         // Verify results are relevant
         result.stories.forEach((story: any) => {
-          expect(story.story_content.toLowerCase()).toContain(term.toLowerCase());
+          expect(story.story_content.toLowerCase()).toContain(
+            term.toLowerCase(),
+          );
         });
       }
     });
 
     it('should handle complex filtering efficiently', async () => {
       const stories = generateStoryData(500);
-      
-      mockStoryManagementService.filterStories.mockImplementation((filters: any) => {
-        const startTime = performance.now();
-        let filtered = [...stories];
-        
-        if (filters.source) {
-          filtered = filtered.filter(story => story.story_source === filters.source);
-        }
-        
-        if (filters.minWords) {
-          filtered = filtered.filter(story => story.words_written >= filters.minWords);
-        }
-        
-        const processingTime = performance.now() - startTime;
-        
-        return Promise.resolve({
-          success: true,
-          stories: filtered.slice(0, filters.limit || 50),
-          total: filtered.length,
-          processingTime,
-        });
-      });
+
+      mockStoryManagementService.filterStories.mockImplementation(
+        (filters: any) => {
+          const startTime = performance.now();
+          let filtered = [...stories];
+
+          if (filters.source) {
+            filtered = filtered.filter(
+              story => story.story_source === filters.source,
+            );
+          }
+
+          if (filters.minWords) {
+            filtered = filtered.filter(
+              story => story.words_written >= filters.minWords,
+            );
+          }
+
+          const processingTime = performance.now() - startTime;
+
+          return Promise.resolve({
+            success: true,
+            stories: filtered.slice(0, filters.limit || 50),
+            total: filtered.length,
+            processingTime,
+          });
+        },
+      );
 
       const complexFilters = [
         { source: 'CreativeBridge', minWords: 100, limit: 10 },
@@ -272,38 +312,41 @@ describe('User Acceptance Tests - Story Continuation Feature', () => {
     it('should maintain real-time search performance', async () => {
       const stories = generateStoryData(200);
       let searchCallCount = 0;
-      
-      mockStoryManagementService.searchStories.mockImplementation((term: string) => {
-        searchCallCount++;
-        const results = stories.filter(story => 
-          story.story_content.toLowerCase().includes(term.toLowerCase())
-        );
-        
-        return Promise.resolve({
-          success: true,
-          stories: results.slice(0, 10),
-          total: results.length,
-          searchId: searchCallCount,
-        });
-      });
+
+      mockStoryManagementService.searchStories.mockImplementation(
+        (term: string) => {
+          searchCallCount++;
+          const results = stories.filter(story =>
+            story.story_content.toLowerCase().includes(term.toLowerCase()),
+          );
+
+          return Promise.resolve({
+            success: true,
+            stories: results.slice(0, 10),
+            total: results.length,
+            searchId: searchCallCount,
+          });
+        },
+      );
 
       // Simulate real-time search with progressive typing
       const searchProgression = ['a', 'ad', 'adv', 'adven', 'adventure'];
       const searchTimes: number[] = [];
-      
+
       for (const term of searchProgression) {
         const startTime = performance.now();
         const result = await mockStoryManagementService.searchStories(term);
         const searchTime = performance.now() - startTime;
-        
+
         searchTimes.push(searchTime);
-        
+
         expect(result.success).toBe(true);
         expect(searchTime).toBeLessThan(200); // Real-time search should be very fast
       }
-      
+
       // Verify search performance doesn't degrade significantly
-      const averageTime = searchTimes.reduce((a, b) => a + b, 0) / searchTimes.length;
+      const averageTime =
+        searchTimes.reduce((a, b) => a + b, 0) / searchTimes.length;
       expect(averageTime).toBeLessThan(100);
     });
   });
@@ -318,8 +361,9 @@ describe('User Acceptance Tests - Story Continuation Feature', () => {
 
       for (const storyTest of storyLengths) {
         const originalContent = generateFileContent(storyTest.wordCount);
-        const editedContent = originalContent + ' This is an edited addition to the story.';
-        
+        const editedContent =
+          originalContent + ' This is an edited addition to the story.';
+
         mockStoryManagementService.editStoryContent.mockResolvedValue({
           success: true,
           story: {
@@ -333,12 +377,14 @@ describe('User Acceptance Tests - Story Continuation Feature', () => {
         const result = await mockStoryManagementService.editStoryContent(
           'test-story',
           'user-123',
-          editedContent
+          editedContent,
         );
 
         expect(result.success).toBe(true);
         expect(result.story.content).toBe(editedContent);
-        expect(result.story.content.length).toBeGreaterThan(originalContent.length);
+        expect(result.story.content.length).toBeGreaterThan(
+          originalContent.length,
+        );
         expect(result.story.words_written).toBeGreaterThan(storyTest.wordCount);
       }
     });
@@ -357,7 +403,7 @@ The knight stood at the edge of the forest.
 
       const editedContent = formattedContent.replace(
         'The knight stood at the edge of the forest.',
-        'The brave knight stood confidently at the edge of the dark forest.'
+        'The brave knight stood confidently at the edge of the dark forest.',
       );
 
       mockStoryManagementService.editStoryContent.mockResolvedValue({
@@ -372,7 +418,7 @@ The knight stood at the edge of the forest.
       const result = await mockStoryManagementService.editStoryContent(
         'formatted-story',
         'user-123',
-        editedContent
+        editedContent,
       );
 
       expect(result.success).toBe(true);
@@ -387,17 +433,20 @@ The knight stood at the edge of the forest.
     it('should verify AI continuation quality with imported stories', async () => {
       const testStories = [
         {
-          content: 'The magical kingdom was in peril as the ancient dragon awakened.',
+          content:
+            'The magical kingdom was in peril as the ancient dragon awakened.',
           expectedGenre: 'fantasy',
           expectedTone: 'dramatic',
         },
         {
-          content: 'Detective Martinez examined the crime scene carefully, looking for clues.',
+          content:
+            'Detective Martinez examined the crime scene carefully, looking for clues.',
           expectedGenre: 'mystery',
           expectedTone: 'investigative',
         },
         {
-          content: 'The spaceship landed on the alien planet with a gentle thud.',
+          content:
+            'The spaceship landed on the alien planet with a gentle thud.',
           expectedGenre: 'science fiction',
           expectedTone: 'adventurous',
         },
@@ -415,24 +464,37 @@ The knight stood at the edge of the forest.
 
         // Mock continuation generation
         const continuation = `The story continues in the ${story.expectedGenre} genre with ${story.expectedTone} tone.`;
-        mockStoryGenerationService.generateImportedStoryContinuation.mockResolvedValue(continuation);
+        mockStoryGenerationService.generateImportedStoryContinuation.mockResolvedValue(
+          continuation,
+        );
 
         // Mock quality validation
-        mockStoryGenerationService.validateContinuationQuality.mockResolvedValue({
-          quality: 'high',
-          score: 0.9,
-          consistencyCheck: {
-            genreConsistent: true,
-            toneConsistent: true,
-            characterConsistent: true,
+        mockStoryGenerationService.validateContinuationQuality.mockResolvedValue(
+          {
+            quality: 'high',
+            score: 0.9,
+            consistencyCheck: {
+              genreConsistent: true,
+              toneConsistent: true,
+              characterConsistent: true,
+            },
+            issues: [],
+            suggestions: [],
           },
-          issues: [],
-          suggestions: [],
-        });
+        );
 
-        const analysis = await mockStoryGenerationService.analyzeImportedStory(story.content);
-        const generatedContinuation = await mockStoryGenerationService.generateImportedStoryContinuation(story.content);
-        const quality = await mockStoryGenerationService.validateContinuationQuality(generatedContinuation, story.content);
+        const analysis = await mockStoryGenerationService.analyzeImportedStory(
+          story.content,
+        );
+        const generatedContinuation =
+          await mockStoryGenerationService.generateImportedStoryContinuation(
+            story.content,
+          );
+        const quality =
+          await mockStoryGenerationService.validateContinuationQuality(
+            generatedContinuation,
+            story.content,
+          );
 
         expect(analysis.genre).toBe(story.expectedGenre);
         expect(analysis.tone).toBe(story.expectedTone);
@@ -445,32 +507,48 @@ The knight stood at the edge of the forest.
     });
 
     it('should maintain story coherence across multiple continuations', async () => {
-      const originalStory = 'Captain Sarah Rodriguez commanded her starship through the asteroid field.';
+      const originalStory =
+        'Captain Sarah Rodriguez commanded her starship through the asteroid field.';
       let currentStory = originalStory;
 
       // Generate multiple continuations
       for (let i = 0; i < 3; i++) {
-        const continuation = `Chapter ${i + 2}: The adventure continues as Captain Rodriguez faces new challenges.`;
+        const continuation = `Chapter ${
+          i + 2
+        }: The adventure continues as Captain Rodriguez faces new challenges.`;
         currentStory += ' ' + continuation;
 
-        mockStoryGenerationService.generateImportedStoryContinuation.mockResolvedValueOnce(continuation);
-        mockStoryGenerationService.validateContinuationQuality.mockResolvedValueOnce({
-          quality: 'high',
-          score: 0.85 + (i * 0.02), // Slightly increasing quality
-          coherenceScore: 0.9 - (i * 0.05), // Slightly decreasing coherence (realistic)
-          characterConsistency: {
-            'Captain Sarah Rodriguez': 'maintained',
-            'starship': 'maintained',
+        mockStoryGenerationService.generateImportedStoryContinuation.mockResolvedValueOnce(
+          continuation,
+        );
+        mockStoryGenerationService.validateContinuationQuality.mockResolvedValueOnce(
+          {
+            quality: 'high',
+            score: 0.85 + i * 0.02, // Slightly increasing quality
+            coherenceScore: 0.9 - i * 0.05, // Slightly decreasing coherence (realistic)
+            characterConsistency: {
+              'Captain Sarah Rodriguez': 'maintained',
+              starship: 'maintained',
+            },
           },
-        });
+        );
 
-        const generatedContinuation = await mockStoryGenerationService.generateImportedStoryContinuation(currentStory);
-        const quality = await mockStoryGenerationService.validateContinuationQuality(generatedContinuation, currentStory);
+        const generatedContinuation =
+          await mockStoryGenerationService.generateImportedStoryContinuation(
+            currentStory,
+          );
+        const quality =
+          await mockStoryGenerationService.validateContinuationQuality(
+            generatedContinuation,
+            currentStory,
+          );
 
         expect(generatedContinuation).toContain('Captain Rodriguez');
         expect(quality.quality).toBe('high');
         expect(quality.coherenceScore).toBeGreaterThan(0.7); // Maintain reasonable coherence
-        expect(quality.characterConsistency['Captain Sarah Rodriguez']).toBe('maintained');
+        expect(quality.characterConsistency['Captain Sarah Rodriguez']).toBe(
+          'maintained',
+        );
       }
     });
   });
@@ -478,25 +556,29 @@ The knight stood at the edge of the forest.
   describe('Cross-Platform Compatibility', () => {
     it('should work consistently across iOS and Android', async () => {
       const platforms = ['ios', 'android'];
-      
-      for (const platform of platforms) {
-        mockStoryImportService.readFileWithEncoding.mockImplementation((_uri: string) => {
-          const isIOS = platform === 'ios';
-          return Promise.resolve({
-            success: true,
-            content: 'Platform-specific story content',
-            metadata: {
-              file_name: 'story.txt',
-              file_size: 1024,
-              encoding: 'utf-8',
-              platform: platform,
-              path: isIOS ? 'file:///ios/path' : 'file:///android/path',
-            },
-          });
-        });
 
-        const result = await mockStoryImportService.readFileWithEncoding('test-file');
-        
+      for (const platform of platforms) {
+        mockStoryImportService.readFileWithEncoding.mockImplementation(
+          (_uri: string) => {
+            const isIOS = platform === 'ios';
+            return Promise.resolve({
+              success: true,
+              content: 'Platform-specific story content',
+              metadata: {
+                file_name: 'story.txt',
+                file_size: 1024,
+                encoding: 'utf-8',
+                platform: platform,
+                path: isIOS ? 'file:///ios/path' : 'file:///android/path',
+              },
+            });
+          },
+        );
+
+        const result = await mockStoryImportService.readFileWithEncoding(
+          'test-file',
+        );
+
         expect(result.success).toBe(true);
         expect(result.metadata.platform).toBe(platform);
         expect(result.metadata.path).toContain(platform);
@@ -538,8 +620,10 @@ The knight stood at the edge of the forest.
           });
         }
 
-        const result = await mockStoryImportService.readFileWithEncoding('test-file');
-        
+        const result = await mockStoryImportService.readFileWithEncoding(
+          'test-file',
+        );
+
         expect(result.success).toBe(scenario.expectedSuccess);
         if (!scenario.expectedSuccess) {
           expect(result.error).toBe(scenario.expectedError);
@@ -565,7 +649,9 @@ The knight stood at the edge of the forest.
           name: 'search_and_filter',
           operation: async () => {
             await mockStoryManagementService.searchStories('adventure');
-            return mockStoryManagementService.filterStories({ source: 'CreativeBridge' });
+            return mockStoryManagementService.filterStories({
+              source: 'CreativeBridge',
+            });
           },
           maxDuration: 300,
         },
@@ -587,25 +673,25 @@ The knight stood at the edge of the forest.
         content: 'Mock content',
         metadata: {},
       });
-      
+
       mockStoryImportService.validateStoryContent.mockReturnValue({
         isValid: true,
         errors: [],
         warnings: [],
       });
-      
+
       mockStoryManagementService.searchStories.mockResolvedValue({
         success: true,
         stories: [],
         total: 0,
       });
-      
+
       mockStoryManagementService.filterStories.mockResolvedValue({
         success: true,
         stories: [],
         total: 0,
       });
-      
+
       mockStoryManagementService.getStoryLibrary.mockResolvedValue({
         success: true,
         stories: [],

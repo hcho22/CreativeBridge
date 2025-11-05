@@ -32,6 +32,10 @@
 	<string>CreativeBridge needs photo library access to let you choose images for your stories.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>CreativeBridge uses speech recognition to convert your voice into text for story creation.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>CreativeBridge needs access to save your completed stories as text files to your device.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>CreativeBridge needs access to save your completed stories to the Downloads folder.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

@@ -107,7 +107,6 @@ describe('StoryGenerationService', () => {
     });
   });
 
-
   describe('Error Handling and Fallbacks', () => {
     it('should provide fallback content when API fails', async () => {
       const mockOpenAI = require('openai').default;
@@ -134,7 +133,7 @@ describe('StoryGenerationService', () => {
     it('should analyze imported story structure and style', () => {
       const analysis = storyGenerationService.analyzeImportedStory(
         mockImportedStory,
-        'K-2'
+        'K-2',
       );
 
       expect(analysis.wordCount).toBeGreaterThan(0);
@@ -149,14 +148,14 @@ describe('StoryGenerationService', () => {
     it('should prepare context for imported story continuation', () => {
       const analysis = storyGenerationService.analyzeImportedStory(
         mockImportedStory,
-        '3-5'
+        '3-5',
       );
-      
+
       const context = storyGenerationService.prepareImportedStoryContext(
         mockImportedStory,
         'Luna decided to explore deeper into the forest.',
         '3-5',
-        analysis
+        analysis,
       );
 
       expect(context).toContain('fantasy');
@@ -171,7 +170,8 @@ describe('StoryGenerationService', () => {
         choices: [
           {
             message: {
-              content: 'Luna felt the crystal grow warmer as she stepped deeper into the enchanted forest.',
+              content:
+                'Luna felt the crystal grow warmer as she stepped deeper into the enchanted forest.',
             },
           },
         ],
@@ -183,11 +183,12 @@ describe('StoryGenerationService', () => {
         chat: { completions: { create: mockCreate } },
       }));
 
-      const response = await storyGenerationService.generateImportedStoryContinuation(
-        mockImportedStory,
-        'Luna decided to follow the crystal\'s glow.',
-        'K-2'
-      );
+      const response =
+        await storyGenerationService.generateImportedStoryContinuation(
+          mockImportedStory,
+          "Luna decided to follow the crystal's glow.",
+          'K-2',
+        );
 
       expect(response.success).toBe(true);
       expect(response.story).toBeTruthy();
@@ -196,12 +197,13 @@ describe('StoryGenerationService', () => {
 
     it('should maintain character consistency in continuations', async () => {
       const storyWithCharacter = `Elena was a curious 10-year-old who loved solving puzzles. She had just moved to a new town and was exploring her grandmother's attic.`;
-      
+
       const mockResponse = {
         choices: [
           {
             message: {
-              content: 'Elena discovered an old journal filled with mysterious symbols.',
+              content:
+                'Elena discovered an old journal filled with mysterious symbols.',
             },
           },
         ],
@@ -213,11 +215,12 @@ describe('StoryGenerationService', () => {
         chat: { completions: { create: mockCreate } },
       }));
 
-      const response = await storyGenerationService.generateImportedStoryContinuation(
-        storyWithCharacter,
-        'Elena noticed something glinting behind the old books.',
-        '3-5'
-      );
+      const response =
+        await storyGenerationService.generateImportedStoryContinuation(
+          storyWithCharacter,
+          'Elena noticed something glinting behind the old books.',
+          '3-5',
+        );
 
       expect(response.success).toBe(true);
       expect(response.story).toBeTruthy();
@@ -225,9 +228,12 @@ describe('StoryGenerationService', () => {
 
     it('should detect and maintain genre consistency', () => {
       const sciFiStory = `Captain Zara piloted her spacecraft through the asteroid field. The computer systems were malfunctioning, and alien signals filled the communication channels.`;
-      
-      const analysis = storyGenerationService.analyzeImportedStory(sciFiStory, '6-8');
-      
+
+      const analysis = storyGenerationService.analyzeImportedStory(
+        sciFiStory,
+        '6-8',
+      );
+
       expect(analysis.genre).toBe('scifi');
       expect(analysis.characters).toContain('Captain Zara');
       expect(analysis.settings.length).toBeGreaterThanOrEqual(0);
@@ -237,19 +243,30 @@ describe('StoryGenerationService', () => {
       const simpleStory = `The cat sat. It was happy.`;
       const complexStory = `The multifaceted protagonist navigated through an intricate labyrinth of philosophical dilemmas while contemplating the existential ramifications of their choices.`;
 
-      const simpleAnalysis = storyGenerationService.analyzeImportedStory(simpleStory, 'K-2');
-      const complexAnalysis = storyGenerationService.analyzeImportedStory(complexStory, '9-12');
+      const simpleAnalysis = storyGenerationService.analyzeImportedStory(
+        simpleStory,
+        'K-2',
+      );
+      const complexAnalysis = storyGenerationService.analyzeImportedStory(
+        complexStory,
+        '9-12',
+      );
 
       expect(simpleAnalysis.complexity).toBe('appropriate');
       expect(complexAnalysis.complexity).toBe('appropriate'); // For 9-12, the complex sentence still fits within limits
-      expect(simpleAnalysis.avgWordsPerSentence).toBeLessThan(complexAnalysis.avgWordsPerSentence);
+      expect(simpleAnalysis.avgWordsPerSentence).toBeLessThan(
+        complexAnalysis.avgWordsPerSentence,
+      );
     });
 
     it('should extract themes from imported stories', () => {
       const friendshipStory = `Emma and Jake were best friends who always helped each other. When Emma lost her lunch money, Jake shared his sandwich without hesitation.`;
-      
-      const analysis = storyGenerationService.analyzeImportedStory(friendshipStory, '3-5');
-      
+
+      const analysis = storyGenerationService.analyzeImportedStory(
+        friendshipStory,
+        '3-5',
+      );
+
       expect(analysis.themes).toContain('friendship');
       expect(analysis.characters).toContain('Emma');
       expect(analysis.characters).toContain('Jake');
@@ -257,9 +274,12 @@ describe('StoryGenerationService', () => {
 
     it('should handle stories with dialogue', () => {
       const dialogueStory = `"Hello there!" called Maya from across the playground. "Do you want to play?" asked the new student nervously.`;
-      
-      const analysis = storyGenerationService.analyzeImportedStory(dialogueStory, '3-5');
-      
+
+      const analysis = storyGenerationService.analyzeImportedStory(
+        dialogueStory,
+        '3-5',
+      );
+
       expect(analysis.style.features).toContain('includes dialogue');
       expect(analysis.characters).toContain('Maya');
     });
@@ -271,11 +291,12 @@ describe('StoryGenerationService', () => {
         chat: { completions: { create: mockCreate } },
       }));
 
-      const response = await storyGenerationService.generateImportedStoryContinuation(
-        mockImportedStory,
-        'Luna looked around curiously.',
-        'K-2'
-      );
+      const response =
+        await storyGenerationService.generateImportedStoryContinuation(
+          mockImportedStory,
+          'Luna looked around curiously.',
+          'K-2',
+        );
 
       expect(response.success).toBe(true); // Should use fallback
       expect(response.story).toBeTruthy();

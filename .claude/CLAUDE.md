@@ -29,6 +29,28 @@ npm test              # Run Jest tests
 
 # Pre-commit hooks are configured via Husky and lint-staged
 # They automatically run on git commit to ensure code quality
+
+# Image Generation Feature Testing
+npm test -- --testPathPattern=imageGeneration  # Test image generation components
+npm test -- --testPathPattern=xpSystem         # Test XP system integration
+npm run test:image-generation                   # Run all image generation tests
+```
+
+### Image Generation Feature Deployment
+
+```bash
+# Staging deployment
+npm run deploy:staging                          # Deploy to staging with 25% rollout
+npm run deploy:image-generation -- --stage=staging --percentage=50  # Custom staging deployment
+
+# Production deployment
+npm run deploy:production                       # Deploy to production with 25% rollout
+npm run deploy:image-generation -- --stage=production --percentage=75  # Custom production deployment
+
+# Monitoring and management
+npm run monitor:image-generation                # Monitor rollout progress and health
+npm run validate:database                       # Validate database migrations
+npm run rollback:image-generation -- --deployment-id=<id>  # Rollback deployment
 ```
 
 ### Asset Generation
@@ -103,6 +125,9 @@ src/
 ├── context/AuthContext.tsx     # Global auth/user state management
 ├── services/
 │   ├── supabase.ts            # Supabase client + TypeScript types
+│   ├── imageGeneration.ts     # AI image generation service
+│   ├── secureApiKeyManager.ts # Secure API key management
+│   ├── xpEventTracker.ts      # XP system event tracking
 │   └── reactotron.ts          # Debug tooling configuration
 ├── navigation/
 │   ├── AppNavigator.tsx       # Bottom tab navigation setup
@@ -115,7 +140,9 @@ src/
 ├── hooks/
 │   └── useReactotron.ts       # Debug logging utilities
 └── components/common/
-    └── VoiceInput.tsx         # Voice accessibility component
+    ├── VoiceInput.tsx         # Voice accessibility component
+    ├── ImageGeneration.tsx    # Story image generation component
+    └── StoryImageDisplay.tsx  # Generated image display component
 ```
 
 ## Development Guidelines
@@ -125,6 +152,7 @@ src/
 - Node.js 20+ required (specified in package.json engines)
 - React Native development environment (Xcode for iOS, Android Studio for Android)
 - Supabase credentials in src/services/supabase.ts (configured for development)
+- **Image Generation APIs**: Configure .env file with Replicate.com and backup service tokens
 
 ### Code Standards
 
@@ -152,3 +180,60 @@ src/
 - **iOS pods**: If iOS build fails, clean and reinstall: `cd ios && rm -rf Pods Podfile.lock && pod install`
 - **Android builds**: Clean gradle cache: `cd android && ./gradlew clean`
 - **Supabase auth**: Check network connectivity and Supabase project status if auth fails
+- **Image Generation**: If image generation fails, check API keys in .env and feature flag status
+
+## Story Image Generation Feature
+
+### Overview
+
+The Story Image Generation feature allows users to create AI-powered illustrations for their completed stories using XP points (1000 XP per image). The feature integrates with the existing XP system and provides grade-appropriate art styles.
+
+### API Configuration
+
+Required environment variables in `.env`:
+
+```bash
+# Primary image generation service (Replicate.com)
+REPLICATE_API_TOKEN=your_replicate_token_here
+
+# Backup service (also uses Replicate)
+BACKUP_IMAGE_API_TOKEN=your_backup_token_here
+
+# Feature flag for gradual rollout
+IMAGE_GENERATION_ENABLED=false
+
+# Performance settings
+IMAGE_GENERATION_TIMEOUT_PRIMARY=45000
+IMAGE_GENERATION_TIMEOUT_BACKUP=30000
+IMAGE_GENERATION_MAX_CONCURRENT=5
+IMAGE_GENERATION_XP_COST=1000
+```
+
+### Key Components
+
+- **ImageGeneration.tsx**: Main UI component for image generation
+- **StoryImageDisplay.tsx**: Component for displaying generated images
+- **imageGeneration.ts**: Core service handling API calls and content extraction
+- **secureApiKeyManager.ts**: Secure API key management with logging
+- **xpEventTracker.ts**: XP system integration for cost tracking
+
+### Grade-Level Art Styles
+
+- **K-2**: Watercolor children's book style, bright colors, simple shapes
+- **3-5**: Detailed children's illustrations, vibrant colors, moderate complexity
+- **6-8**: Realistic digital art, dramatic lighting, complex compositions
+- **9-12**: Sophisticated digital art, mature palettes, professional quality
+
+### Security Features
+
+- API keys are masked in logs and never exposed
+- Rate limiting and access tracking
+- Secure environment variable management
+- Content filtering and prompt sanitization
+
+### Performance Optimizations
+
+- Optimized timeouts (45s primary, 30s backup)
+- Reduced concurrent requests (max 5)
+- Mobile-optimized polling intervals
+- Memory and battery usage optimization

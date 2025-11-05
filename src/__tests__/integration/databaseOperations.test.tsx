@@ -68,7 +68,11 @@ class DatabaseOperationsTester {
     this.conflicts.push(test);
   }
 
-  async runConflictTests(): Promise<{ passed: number; failed: number; results: any[] }> {
+  async runConflictTests(): Promise<{
+    passed: number;
+    failed: number;
+    results: any[];
+  }> {
     const results = [];
     let passed = 0;
     let failed = 0;
@@ -177,7 +181,7 @@ describe('Database Operations Integration', () => {
           p_user_id: 'user-123',
           p_story_source: 'File',
           p_imported_content: mockStory.story_content,
-        })
+        }),
       );
     });
 
@@ -218,7 +222,7 @@ describe('Database Operations Integration', () => {
           p_user_id: 'user-123',
           p_limit: 50,
           p_offset: 0,
-        }
+        },
       );
     });
 
@@ -253,13 +257,13 @@ describe('Database Operations Integration', () => {
 
       const result = await StoryImportService.searchUserStories(
         'user-123',
-        'adventure'
+        'adventure',
       );
 
       expect(result.success).toBe(true);
       expect(result.stories).toEqual(mockSearchResults);
       expect(result.stories![0].relevance_score).toBeGreaterThan(
-        result.stories![1].relevance_score
+        result.stories![1].relevance_score,
       );
       expect(mockSupabaseRpc).toHaveBeenCalledWith('search_user_stories', {
         p_user_id: 'user-123',
@@ -323,7 +327,7 @@ describe('Database Operations Integration', () => {
         expectedResolution: 'merge',
       });
 
-      mockSupabaseRpc.mockImplementation((functionName) => {
+      mockSupabaseRpc.mockImplementation(functionName => {
         if (functionName === 'create_story_continuation_session') {
           return {
             data: { session_id: 'merged-session-123', merged: true },
@@ -420,9 +424,15 @@ describe('Database Operations Integration', () => {
 
       // Mock successful sequential operations
       mockSupabaseRpc
-        .mockResolvedValueOnce({ data: { session_id: 'session-123' }, error: null })
+        .mockResolvedValueOnce({
+          data: { session_id: 'session-123' },
+          error: null,
+        })
         .mockResolvedValueOnce({ data: { metadata_saved: true }, error: null })
-        .mockResolvedValueOnce({ data: { indexes_updated: true }, error: null });
+        .mockResolvedValueOnce({
+          data: { indexes_updated: true },
+          error: null,
+        });
 
       const result = await StoryManagementService.saveStory({
         ...storyData,
@@ -475,8 +485,8 @@ describe('Database Operations Integration', () => {
       const startTime = Date.now();
       const results = await Promise.all(
         concurrentOperations.map(operation =>
-          StoryManagementService.saveStory({ ...operation, gradeLevel: 'K-2' })
-        )
+          StoryManagementService.saveStory({ ...operation, gradeLevel: 'K-2' }),
+        ),
       );
       const endTime = Date.now();
 
@@ -511,7 +521,7 @@ describe('Database Operations Integration', () => {
         story_excerpt: `Story ${i} with adventure...`,
         words_written: 20 + i,
         story_source: 'CreativeBridge' as StorySource,
-        relevance_score: Math.max(0.1, 1 - (i * 0.001)), // Decreasing relevance
+        relevance_score: Math.max(0.1, 1 - i * 0.001), // Decreasing relevance
       }));
 
       mockSupabaseRpc.mockResolvedValue({
@@ -522,7 +532,7 @@ describe('Database Operations Integration', () => {
       const startTime = Date.now();
       const result = await StoryImportService.searchUserStories(
         'user-123',
-        'adventure'
+        'adventure',
       );
       const endTime = Date.now();
 
@@ -547,7 +557,7 @@ describe('Database Operations Integration', () => {
       const startTime = Date.now();
       const result = await StoryImportService.searchUserStories(
         'user-123',
-        'fantasy dragon adventure'
+        'fantasy dragon adventure',
       );
       const endTime = Date.now();
 
@@ -565,7 +575,10 @@ describe('Database Operations Integration', () => {
         metadata: null as any, // Invalid metadata
       };
 
-      const result = await StoryManagementService.saveStory({ ...invalidStoryData, gradeLevel: 'K-2' });
+      const result = await StoryManagementService.saveStory({
+        ...invalidStoryData,
+        gradeLevel: 'K-2',
+      });
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('validation');

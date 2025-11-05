@@ -1,6 +1,6 @@
 /**
  * Story_Quest Import Screen
- * 
+ *
  * This screen allows users to connect their Story_Quest account
  * and import their stories from the Story_Quest platform.
  */
@@ -21,7 +21,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 
-import { storyQuestService, StoryQuestUser, StoryQuestStory, UserMatchResult } from '../services/storyQuestService';
+import {
+  storyQuestService,
+  StoryQuestUser,
+  StoryQuestStory,
+  UserMatchResult,
+} from '../services/storyQuestService';
 import { useAuth } from '../context/AuthContext';
 
 type RootStackParamList = {
@@ -30,8 +35,14 @@ type RootStackParamList = {
   ImportOptions: undefined;
 };
 
-type StoryQuestImportScreenNavigationProp = StackNavigationProp<RootStackParamList, 'StoryQuestImport'>;
-type StoryQuestImportScreenRouteProp = RouteProp<RootStackParamList, 'StoryQuestImport'>;
+type StoryQuestImportScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  'StoryQuestImport'
+>;
+type StoryQuestImportScreenRouteProp = RouteProp<
+  RootStackParamList,
+  'StoryQuestImport'
+>;
 
 interface Props {
   navigation: StoryQuestImportScreenNavigationProp;
@@ -48,14 +59,29 @@ interface ConnectionStep {
 
 const StoryQuestImportScreen: React.FC<Props> = ({ navigation }) => {
   const { user } = useAuth();
-  
+
   // Connection state
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionSteps, setConnectionSteps] = useState<ConnectionStep[]>([
-    { id: 'health', title: 'Check Story_Quest API', description: 'Verifying platform availability...', status: 'pending' },
-    { id: 'match', title: 'Find Your Account', description: 'Looking for your Story_Quest profile...', status: 'pending' },
-    { id: 'stories', title: 'Load Your Stories', description: 'Fetching your completed stories...', status: 'pending' },
+    {
+      id: 'health',
+      title: 'Check Story_Quest API',
+      description: 'Verifying platform availability...',
+      status: 'pending',
+    },
+    {
+      id: 'match',
+      title: 'Find Your Account',
+      description: 'Looking for your Story_Quest profile...',
+      status: 'pending',
+    },
+    {
+      id: 'stories',
+      title: 'Load Your Stories',
+      description: 'Fetching your completed stories...',
+      status: 'pending',
+    },
   ]);
 
   // User input state
@@ -63,13 +89,19 @@ const StoryQuestImportScreen: React.FC<Props> = ({ navigation }) => {
   const [username, setUsername] = useState('');
 
   // Data state
-  const [storyQuestUser, setStoryQuestUser] = useState<StoryQuestUser | null>(null);
+  const [storyQuestUser, setStoryQuestUser] = useState<StoryQuestUser | null>(
+    null,
+  );
   const [stories, setStories] = useState<StoryQuestStory[]>([]);
-  const [selectedStories, setSelectedStories] = useState<Set<string>>(new Set());
+  const [selectedStories, setSelectedStories] = useState<Set<string>>(
+    new Set(),
+  );
   const [userMatch, setUserMatch] = useState<UserMatchResult | null>(null);
 
   // UI state
-  const [currentView, setCurrentView] = useState<'connect' | 'stories' | 'import'>('connect');
+  const [currentView, setCurrentView] = useState<
+    'connect' | 'stories' | 'import'
+  >('connect');
 
   useEffect(() => {
     // Auto-fill email from current user if available
@@ -78,49 +110,70 @@ const StoryQuestImportScreen: React.FC<Props> = ({ navigation }) => {
     }
   }, [user]);
 
-  const updateConnectionStep = (stepId: string, status: ConnectionStep['status'], error?: string) => {
-    setConnectionSteps(prev => prev.map(step => 
-      step.id === stepId ? { ...step, status, error } : step
-    ));
+  const updateConnectionStep = (
+    stepId: string,
+    status: ConnectionStep['status'],
+    error?: string,
+  ) => {
+    setConnectionSteps(prev =>
+      prev.map(step =>
+        step.id === stepId ? { ...step, status, error } : step,
+      ),
+    );
   };
 
   const handleConnect = async () => {
     if (!email.trim()) {
-      Alert.alert('Email Required', 'Please enter your email address to find your Story_Quest account.');
+      Alert.alert(
+        'Email Required',
+        'Please enter your email address to find your Story_Quest account.',
+      );
       return;
     }
 
     setIsConnecting(true);
-    setConnectionSteps(prev => prev.map(step => ({ ...step, status: 'pending', error: undefined })));
+    setConnectionSteps(prev =>
+      prev.map(step => ({ ...step, status: 'pending', error: undefined })),
+    );
 
     try {
       // Step 1: Check API health
       updateConnectionStep('health', 'in_progress');
       const isHealthy = await storyQuestService.checkApiHealth();
-      
+
       if (!isHealthy) {
-        updateConnectionStep('health', 'error', 'Story_Quest service is currently unavailable');
+        updateConnectionStep(
+          'health',
+          'error',
+          'Story_Quest service is currently unavailable',
+        );
         Alert.alert(
           'Service Unavailable',
           'Story_Quest is currently unavailable. Please try again later.',
-          [{ text: 'OK' }]
+          [{ text: 'OK' }],
         );
         setIsConnecting(false);
         return;
       }
-      
+
       updateConnectionStep('health', 'completed');
 
       // Step 2: Find user account
       updateConnectionStep('match', 'in_progress');
-      const matchResult = await storyQuestService.matchUserByEmail(email.trim());
-      
+      const matchResult = await storyQuestService.matchUserByEmail(
+        email.trim(),
+      );
+
       if (!matchResult.found) {
-        updateConnectionStep('match', 'error', 'No Story_Quest account found with this email');
+        updateConnectionStep(
+          'match',
+          'error',
+          'No Story_Quest account found with this email',
+        );
         Alert.alert(
           'Account Not Found',
-          'We couldn\'t find a Story_Quest account associated with this email. Please check your email or try a different one.',
-          [{ text: 'OK' }]
+          "We couldn't find a Story_Quest account associated with this email. Please check your email or try a different one.",
+          [{ text: 'OK' }],
         );
         setIsConnecting(false);
         return;
@@ -136,21 +189,27 @@ const StoryQuestImportScreen: React.FC<Props> = ({ navigation }) => {
           'Account Match',
           `Found a possible match (${matchResult.confidence} confidence) for user "${matchResult.user?.username}". Is this correct?`,
           [
-            { text: 'No, try again', style: 'cancel', onPress: () => setIsConnecting(false) },
-            { text: 'Yes, continue', onPress: () => continueWithUserMatch(matchResult.user!) }
-          ]
+            {
+              text: 'No, try again',
+              style: 'cancel',
+              onPress: () => setIsConnecting(false),
+            },
+            {
+              text: 'Yes, continue',
+              onPress: () => continueWithUserMatch(matchResult.user!),
+            },
+          ],
         );
         return;
       }
 
       await continueWithUserMatch(matchResult.user!);
-
     } catch (error) {
       console.error('Connection error:', error);
       Alert.alert(
         'Connection Error',
         'Failed to connect to Story_Quest. Please try again.',
-        [{ text: 'OK' }]
+        [{ text: 'OK' }],
       );
       setIsConnecting(false);
     }
@@ -161,13 +220,17 @@ const StoryQuestImportScreen: React.FC<Props> = ({ navigation }) => {
       // Step 3: Fetch user stories
       updateConnectionStep('stories', 'in_progress');
       const storiesResult = await storyQuestService.fetchUserStories(user.id);
-      
+
       if (!storiesResult.success) {
-        updateConnectionStep('stories', 'error', storiesResult.error || 'Failed to load stories');
+        updateConnectionStep(
+          'stories',
+          'error',
+          storiesResult.error || 'Failed to load stories',
+        );
         Alert.alert(
           'Loading Error',
           'Failed to load your stories from Story_Quest. Please try again.',
-          [{ text: 'OK' }]
+          [{ text: 'OK' }],
         );
         setIsConnecting(false);
         return;
@@ -175,7 +238,7 @@ const StoryQuestImportScreen: React.FC<Props> = ({ navigation }) => {
 
       setStories(storiesResult.data || []);
       updateConnectionStep('stories', 'completed');
-      
+
       setIsConnected(true);
       setIsConnecting(false);
       setCurrentView('stories');
@@ -183,11 +246,10 @@ const StoryQuestImportScreen: React.FC<Props> = ({ navigation }) => {
       if (storiesResult.data?.length === 0) {
         Alert.alert(
           'No Stories Found',
-          'We didn\'t find any completed stories in your Story_Quest account.',
-          [{ text: 'OK' }]
+          "We didn't find any completed stories in your Story_Quest account.",
+          [{ text: 'OK' }],
         );
       }
-
     } catch (error) {
       console.error('Story loading error:', error);
       updateConnectionStep('stories', 'error', 'Failed to load stories');
@@ -209,7 +271,10 @@ const StoryQuestImportScreen: React.FC<Props> = ({ navigation }) => {
 
   const handleImportSelected = async () => {
     if (selectedStories.size === 0) {
-      Alert.alert('No Stories Selected', 'Please select at least one story to import.');
+      Alert.alert(
+        'No Stories Selected',
+        'Please select at least one story to import.',
+      );
       return;
     }
 
@@ -222,11 +287,16 @@ const StoryQuestImportScreen: React.FC<Props> = ({ navigation }) => {
     let successCount = 0;
     let errorCount = 0;
 
-    const selectedStoryList = stories.filter(story => selectedStories.has(story.id));
+    const selectedStoryList = stories.filter(story =>
+      selectedStories.has(story.id),
+    );
 
     for (const story of selectedStoryList) {
       try {
-        const result = await storyQuestService.importStoryToCreativeBridge(story, user.id);
+        const result = await storyQuestService.importStoryToCreativeBridge(
+          story,
+          user.id,
+        );
         if (result.success) {
           successCount++;
         } else {
@@ -240,33 +310,36 @@ const StoryQuestImportScreen: React.FC<Props> = ({ navigation }) => {
     }
 
     // Show results
-    const message = successCount > 0 
-      ? `Successfully imported ${successCount} ${successCount === 1 ? 'story' : 'stories'}!${errorCount > 0 ? ` ${errorCount} failed to import.` : ''}`
-      : 'Failed to import any stories. Please try again.';
+    const message =
+      successCount > 0
+        ? `Successfully imported ${successCount} ${
+            successCount === 1 ? 'story' : 'stories'
+          }!${errorCount > 0 ? ` ${errorCount} failed to import.` : ''}`
+        : 'Failed to import any stories. Please try again.';
 
-    Alert.alert(
-      'Import Complete',
-      message,
-      [
-        { 
-          text: 'OK', 
-          onPress: () => {
-            if (successCount > 0) {
-              navigation.navigate('ImportOptions');
-            }
+    Alert.alert('Import Complete', message, [
+      {
+        text: 'OK',
+        onPress: () => {
+          if (successCount > 0) {
+            navigation.navigate('ImportOptions');
           }
-        }
-      ]
-    );
+        },
+      },
+    ]);
   };
 
   const renderConnectionStep = ({ item }: { item: ConnectionStep }) => {
     const getStatusIcon = () => {
       switch (item.status) {
-        case 'completed': return '✅';
-        case 'in_progress': return '⏳';
-        case 'error': return '❌';
-        default: return '⚪';
+        case 'completed':
+          return '✅';
+        case 'in_progress':
+          return '⏳';
+        case 'error':
+          return '❌';
+        default:
+          return '⚪';
       }
     };
 
@@ -284,9 +357,10 @@ const StoryQuestImportScreen: React.FC<Props> = ({ navigation }) => {
 
   const renderStoryItem = ({ item }: { item: StoryQuestStory }) => {
     const isSelected = selectedStories.has(item.id);
-    const preview = item.story_content.length > 100 
-      ? item.story_content.substring(0, 100) + '...'
-      : item.story_content;
+    const preview =
+      item.story_content.length > 100
+        ? item.story_content.substring(0, 100) + '...'
+        : item.story_content;
 
     return (
       <TouchableOpacity
@@ -310,7 +384,8 @@ const StoryQuestImportScreen: React.FC<Props> = ({ navigation }) => {
     <ScrollView style={styles.container}>
       <Text style={styles.title}>Connect to Story_Quest</Text>
       <Text style={styles.subtitle}>
-        Import your completed stories from Story_Quest to continue them in CreativeBridge.
+        Import your completed stories from Story_Quest to continue them in
+        CreativeBridge.
       </Text>
 
       <View style={styles.inputContainer}>
@@ -327,7 +402,10 @@ const StoryQuestImportScreen: React.FC<Props> = ({ navigation }) => {
       </View>
 
       <TouchableOpacity
-        style={[styles.connectButton, isConnecting && styles.connectButtonDisabled]}
+        style={[
+          styles.connectButton,
+          isConnecting && styles.connectButtonDisabled,
+        ]}
         onPress={handleConnect}
         disabled={isConnecting}
       >
@@ -352,10 +430,18 @@ const StoryQuestImportScreen: React.FC<Props> = ({ navigation }) => {
       {storyQuestUser && userMatch && (
         <View style={styles.userInfoContainer}>
           <Text style={styles.userInfoTitle}>Account Found!</Text>
-          <Text style={styles.userInfoText}>Username: {storyQuestUser.username}</Text>
-          <Text style={styles.userInfoText}>Display Name: {storyQuestUser.display_name}</Text>
-          <Text style={styles.userInfoText}>Total XP: {storyQuestUser.total_xp}</Text>
-          <Text style={styles.userInfoText}>Stories Completed: {storyQuestUser.total_stories_completed}</Text>
+          <Text style={styles.userInfoText}>
+            Username: {storyQuestUser.username}
+          </Text>
+          <Text style={styles.userInfoText}>
+            Display Name: {storyQuestUser.display_name}
+          </Text>
+          <Text style={styles.userInfoText}>
+            Total XP: {storyQuestUser.total_xp}
+          </Text>
+          <Text style={styles.userInfoText}>
+            Stories Completed: {storyQuestUser.total_stories_completed}
+          </Text>
           <Text style={styles.matchConfidence}>
             Match Confidence: {userMatch.confidence} (by {userMatch.matchedBy})
           </Text>
@@ -370,7 +456,7 @@ const StoryQuestImportScreen: React.FC<Props> = ({ navigation }) => {
       <Text style={styles.subtitle}>
         Select stories you'd like to import and continue in CreativeBridge.
       </Text>
-      
+
       <View style={styles.selectionHeader}>
         <Text style={styles.selectionCount}>
           {selectedStories.size} of {stories.length} selected
@@ -386,7 +472,9 @@ const StoryQuestImportScreen: React.FC<Props> = ({ navigation }) => {
           }}
         >
           <Text style={styles.selectAllText}>
-            {selectedStories.size === stories.length ? 'Deselect All' : 'Select All'}
+            {selectedStories.size === stories.length
+              ? 'Deselect All'
+              : 'Select All'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -399,12 +487,16 @@ const StoryQuestImportScreen: React.FC<Props> = ({ navigation }) => {
       />
 
       <TouchableOpacity
-        style={[styles.importButton, selectedStories.size === 0 && styles.importButtonDisabled]}
+        style={[
+          styles.importButton,
+          selectedStories.size === 0 && styles.importButtonDisabled,
+        ]}
         onPress={handleImportSelected}
         disabled={selectedStories.size === 0}
       >
         <Text style={styles.importButtonText}>
-          Import {selectedStories.size} {selectedStories.size === 1 ? 'Story' : 'Stories'}
+          Import {selectedStories.size}{' '}
+          {selectedStories.size === 1 ? 'Story' : 'Stories'}
         </Text>
       </TouchableOpacity>
     </View>
@@ -413,9 +505,14 @@ const StoryQuestImportScreen: React.FC<Props> = ({ navigation }) => {
   const renderImportView = () => (
     <View style={styles.container}>
       <Text style={styles.title}>Importing Stories...</Text>
-      <ActivityIndicator size="large" color="#007AFF" style={styles.importingIndicator} />
+      <ActivityIndicator
+        size="large"
+        color="#007AFF"
+        style={styles.importingIndicator}
+      />
       <Text style={styles.importingText}>
-        Importing your selected stories from Story_Quest. This may take a moment.
+        Importing your selected stories from Story_Quest. This may take a
+        moment.
       </Text>
     </View>
   );

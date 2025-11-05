@@ -1,7 +1,12 @@
 // Story Import Error Handler
 // Specialized error handling for story import operations with user-friendly messaging and retry logic
 
-import { errorHandler, ErrorLevel, ErrorCategory, ErrorContext } from '../services/errorHandler';
+import {
+  errorHandler,
+  ErrorLevel,
+  ErrorCategory,
+  ErrorContext,
+} from '../services/errorHandler';
 import { Alert } from 'react-native';
 
 export enum StoryImportErrorType {
@@ -55,7 +60,7 @@ export class StoryImportErrorHandler {
   static processError(error: Error | string, context?: any): StoryImportError {
     const errorMessage = typeof error === 'string' ? error : error.message;
     const errorType = this.categorizeError(errorMessage);
-    
+
     const processedError: StoryImportError = {
       type: errorType,
       message: errorMessage,
@@ -75,7 +80,10 @@ export class StoryImportErrorHandler {
   /**
    * Handle file import errors with specific messaging
    */
-  static handleFileImportError(error: Error | string, fileName?: string): StoryImportError {
+  static handleFileImportError(
+    error: Error | string,
+    fileName?: string,
+  ): StoryImportError {
     const context = { fileName, operation: 'file_import' };
     return this.processError(error, context);
   }
@@ -83,7 +91,10 @@ export class StoryImportErrorHandler {
   /**
    * Handle database story fetch errors
    */
-  static handleDatabaseError(error: Error | string, operation: string): StoryImportError {
+  static handleDatabaseError(
+    error: Error | string,
+    operation: string,
+  ): StoryImportError {
     const context = { operation: `database_${operation}` };
     return this.processError(error, context);
   }
@@ -91,7 +102,10 @@ export class StoryImportErrorHandler {
   /**
    * Handle network errors with retry suggestions
    */
-  static handleNetworkError(error: Error | string, endpoint?: string): StoryImportError {
+  static handleNetworkError(
+    error: Error | string,
+    endpoint?: string,
+  ): StoryImportError {
     const context = { endpoint, operation: 'network_request' };
     return this.processError(error, context);
   }
@@ -110,7 +124,7 @@ export class StoryImportErrorHandler {
   static showErrorAlert(
     storyError: StoryImportError,
     onRetry?: () => void,
-    onCancel?: () => void
+    onCancel?: () => void,
   ): void {
     const buttons: any[] = [];
 
@@ -131,7 +145,7 @@ export class StoryImportErrorHandler {
     Alert.alert(
       this.getAlertTitle(storyError.type),
       storyError.userMessage,
-      buttons
+      buttons,
     );
   }
 
@@ -140,7 +154,7 @@ export class StoryImportErrorHandler {
    */
   static async executeWithRetry<T>(
     operation: () => Promise<T>,
-    options: Partial<RetryOptions> = {}
+    options: Partial<RetryOptions> = {},
   ): Promise<T> {
     const retryOptions = { ...this.defaultRetryOptions, ...options };
     let lastError: Error;
@@ -150,9 +164,9 @@ export class StoryImportErrorHandler {
         return await operation();
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        
+
         const storyError = this.processError(lastError);
-        
+
         // Don't retry if error is not retryable or if this is the last attempt
         if (!storyError.isRetryable || attempt === retryOptions.maxAttempts) {
           throw lastError;
@@ -190,7 +204,8 @@ export class StoryImportErrorHandler {
     return {
       type: StoryImportErrorType.OFFLINE_MODE,
       message: 'Device is offline',
-      userMessage: 'You appear to be offline. Please check your internet connection and try again.',
+      userMessage:
+        'You appear to be offline. Please check your internet connection and try again.',
       isRetryable: true,
       retryDelay: 2000,
     };
@@ -203,23 +218,38 @@ export class StoryImportErrorHandler {
     const errorMessage = typeof error === 'string' ? error : error.message;
     const lowerMessage = errorMessage.toLowerCase();
 
-    if (lowerMessage.includes('permission denied') || lowerMessage.includes('access denied')) {
+    if (
+      lowerMessage.includes('permission denied') ||
+      lowerMessage.includes('access denied')
+    ) {
       return 'Permission denied. Please check app permissions for file access.';
     }
-    
-    if (lowerMessage.includes('file not found') || lowerMessage.includes('no such file')) {
+
+    if (
+      lowerMessage.includes('file not found') ||
+      lowerMessage.includes('no such file')
+    ) {
       return 'The selected file could not be found. Please try selecting a different file.';
     }
-    
-    if (lowerMessage.includes('file too large') || lowerMessage.includes('size limit')) {
+
+    if (
+      lowerMessage.includes('file too large') ||
+      lowerMessage.includes('size limit')
+    ) {
       return 'The selected file is too large. Please choose a file smaller than 10MB.';
     }
-    
-    if (lowerMessage.includes('invalid format') || lowerMessage.includes('unsupported')) {
+
+    if (
+      lowerMessage.includes('invalid format') ||
+      lowerMessage.includes('unsupported')
+    ) {
       return 'Invalid file format. Please select a .txt file.';
     }
-    
-    if (lowerMessage.includes('corrupted') || lowerMessage.includes('malformed')) {
+
+    if (
+      lowerMessage.includes('corrupted') ||
+      lowerMessage.includes('malformed')
+    ) {
       return 'The file appears to be corrupted or unreadable. Please try a different file.';
     }
 
@@ -233,59 +263,101 @@ export class StoryImportErrorHandler {
     const lowerMessage = errorMessage.toLowerCase();
 
     // File-related errors
-    if (lowerMessage.includes('cancelled') || lowerMessage.includes('user cancelled')) {
+    if (
+      lowerMessage.includes('cancelled') ||
+      lowerMessage.includes('user cancelled')
+    ) {
       return StoryImportErrorType.FILE_SELECTION_CANCELLED;
     }
-    if (lowerMessage.includes('file not found') || lowerMessage.includes('no such file')) {
+    if (
+      lowerMessage.includes('file not found') ||
+      lowerMessage.includes('no such file')
+    ) {
       return StoryImportErrorType.FILE_NOT_FOUND;
     }
-    if (lowerMessage.includes('too large') || lowerMessage.includes('size limit')) {
+    if (
+      lowerMessage.includes('too large') ||
+      lowerMessage.includes('size limit')
+    ) {
       return StoryImportErrorType.FILE_TOO_LARGE;
     }
-    if (lowerMessage.includes('invalid format') || lowerMessage.includes('unsupported')) {
+    if (
+      lowerMessage.includes('invalid format') ||
+      lowerMessage.includes('unsupported')
+    ) {
       return StoryImportErrorType.FILE_INVALID_FORMAT;
     }
-    if (lowerMessage.includes('corrupted') || lowerMessage.includes('malformed')) {
+    if (
+      lowerMessage.includes('corrupted') ||
+      lowerMessage.includes('malformed')
+    ) {
       return StoryImportErrorType.FILE_CORRUPTED;
     }
-    if (lowerMessage.includes('permission denied') || lowerMessage.includes('access denied')) {
+    if (
+      lowerMessage.includes('permission denied') ||
+      lowerMessage.includes('access denied')
+    ) {
       return StoryImportErrorType.FILE_PERMISSION_DENIED;
     }
 
     // Database-related errors (check before network to avoid confusion)
     if (lowerMessage.includes('database') || lowerMessage.includes('db')) {
-      return lowerMessage.includes('connection') 
+      return lowerMessage.includes('connection')
         ? StoryImportErrorType.DATABASE_CONNECTION_ERROR
         : StoryImportErrorType.DATABASE_QUERY_ERROR;
     }
 
     // Network-related errors
-    if (lowerMessage.includes('timeout') || lowerMessage.includes('timed out')) {
+    if (
+      lowerMessage.includes('timeout') ||
+      lowerMessage.includes('timed out')
+    ) {
       return StoryImportErrorType.NETWORK_TIMEOUT;
     }
-    if (lowerMessage.includes('network') || lowerMessage.includes('connection')) {
+    if (
+      lowerMessage.includes('network') ||
+      lowerMessage.includes('connection')
+    ) {
       return StoryImportErrorType.NETWORK_CONNECTION_ERROR;
     }
 
     // Content validation errors
-    if (lowerMessage.includes('content too short') || lowerMessage.includes('minimum length')) {
+    if (
+      lowerMessage.includes('content too short') ||
+      lowerMessage.includes('minimum length')
+    ) {
       return StoryImportErrorType.STORY_CONTENT_TOO_SHORT;
     }
-    if (lowerMessage.includes('content too long') || lowerMessage.includes('maximum length')) {
+    if (
+      lowerMessage.includes('content too long') ||
+      lowerMessage.includes('maximum length')
+    ) {
       return StoryImportErrorType.STORY_CONTENT_TOO_LONG;
     }
-    if (lowerMessage.includes('invalid content') || lowerMessage.includes('validation')) {
+    if (
+      lowerMessage.includes('invalid content') ||
+      lowerMessage.includes('validation')
+    ) {
       return StoryImportErrorType.STORY_CONTENT_INVALID;
     }
 
     // Service-related errors
-    if (lowerMessage.includes('ai service') || lowerMessage.includes('openai')) {
+    if (
+      lowerMessage.includes('ai service') ||
+      lowerMessage.includes('openai')
+    ) {
       return StoryImportErrorType.AI_SERVICE_UNAVAILABLE;
     }
-    if (lowerMessage.includes('rate limit') || lowerMessage.includes('too many requests')) {
+    if (
+      lowerMessage.includes('rate limit') ||
+      lowerMessage.includes('too many requests')
+    ) {
       return StoryImportErrorType.RATE_LIMIT_EXCEEDED;
     }
-    if (lowerMessage.includes('offline') || lowerMessage.includes('no connection')) {
+    if (
+      lowerMessage.includes('offline') ||
+      lowerMessage.includes('no connection')
+    ) {
       return StoryImportErrorType.OFFLINE_MODE;
     }
 
@@ -295,59 +367,62 @@ export class StoryImportErrorHandler {
   /**
    * Get user-friendly error messages
    */
-  private static getUserFriendlyMessage(type: StoryImportErrorType, originalMessage?: string): string {
+  private static getUserFriendlyMessage(
+    type: StoryImportErrorType,
+    originalMessage?: string,
+  ): string {
     switch (type) {
       case StoryImportErrorType.FILE_SELECTION_CANCELLED:
         return 'File selection was cancelled.';
-        
+
       case StoryImportErrorType.FILE_NOT_FOUND:
         return 'The selected file could not be found. Please try selecting the file again.';
-        
+
       case StoryImportErrorType.FILE_TOO_LARGE:
         return 'The selected file is too large (maximum 10MB). Please choose a smaller file.';
-        
+
       case StoryImportErrorType.FILE_INVALID_FORMAT:
         return 'Invalid file format. Please select a .txt file containing your story.';
-        
+
       case StoryImportErrorType.FILE_CORRUPTED:
         return 'The file appears to be corrupted or unreadable. Please try a different file.';
-        
+
       case StoryImportErrorType.FILE_PERMISSION_DENIED:
         return 'Permission denied. Please check that the app has access to read files on your device.';
-        
+
       case StoryImportErrorType.NETWORK_TIMEOUT:
         return 'The request timed out. Please check your internet connection and try again.';
-        
+
       case StoryImportErrorType.NETWORK_CONNECTION_ERROR:
         return 'Unable to connect to the server. Please check your internet connection and try again.';
-        
+
       case StoryImportErrorType.DATABASE_CONNECTION_ERROR:
         return 'Unable to connect to the database. Please try again in a few moments.';
-        
+
       case StoryImportErrorType.DATABASE_QUERY_ERROR:
         return 'A database error occurred. Please try again.';
-        
+
       case StoryImportErrorType.STORY_CONTENT_INVALID:
         return 'The story content is invalid. Please check that your file contains readable text.';
-        
+
       case StoryImportErrorType.STORY_CONTENT_TOO_SHORT:
         return 'The story is too short. Please select a file with at least a few sentences.';
-        
+
       case StoryImportErrorType.STORY_CONTENT_TOO_LONG:
         return 'The story is too long. Please select a shorter story or split it into multiple parts.';
-        
+
       case StoryImportErrorType.AI_SERVICE_UNAVAILABLE:
         return 'AI story generation is currently unavailable. Please try again later.';
-        
+
       case StoryImportErrorType.RATE_LIMIT_EXCEEDED:
         return 'Too many requests. Please wait a moment before trying again.';
-        
+
       case StoryImportErrorType.OFFLINE_MODE:
         return 'You appear to be offline. Please check your internet connection and try again.';
-        
+
       case StoryImportErrorType.UNKNOWN_ERROR:
       default:
-        return originalMessage && originalMessage.length < 100 
+        return originalMessage && originalMessage.length < 100
           ? `An error occurred: ${originalMessage}`
           : 'An unexpected error occurred. Please try again.';
     }
@@ -367,7 +442,7 @@ export class StoryImportErrorHandler {
       case StoryImportErrorType.OFFLINE_MODE:
       case StoryImportErrorType.UNKNOWN_ERROR:
         return true;
-        
+
       case StoryImportErrorType.FILE_SELECTION_CANCELLED:
       case StoryImportErrorType.FILE_NOT_FOUND:
       case StoryImportErrorType.FILE_TOO_LARGE:
@@ -378,7 +453,7 @@ export class StoryImportErrorHandler {
       case StoryImportErrorType.STORY_CONTENT_TOO_SHORT:
       case StoryImportErrorType.STORY_CONTENT_TOO_LONG:
         return false;
-        
+
       default:
         return false;
     }
@@ -437,7 +512,10 @@ export class StoryImportErrorHandler {
   /**
    * Calculate retry delay with exponential backoff
    */
-  private static calculateRetryDelay(attempt: number, options: RetryOptions): number {
+  private static calculateRetryDelay(
+    attempt: number,
+    options: RetryOptions,
+  ): number {
     if (!options.exponentialBackoff) {
       return Math.min(options.baseDelay, options.maxDelay);
     }
@@ -456,7 +534,10 @@ export class StoryImportErrorHandler {
   /**
    * Log error through main error handler
    */
-  private static async logError(storyError: StoryImportError, context?: any): Promise<void> {
+  private static async logError(
+    storyError: StoryImportError,
+    context?: any,
+  ): Promise<void> {
     try {
       const errorContext: ErrorContext = {
         component: 'StoryImport',
@@ -485,7 +566,7 @@ export class StoryImportErrorHandler {
         storyError.originalError || storyError.message,
         ErrorLevel.ERROR,
         category,
-        errorContext
+        errorContext,
       );
     } catch (logError) {
       // Don't let logging errors crash the app

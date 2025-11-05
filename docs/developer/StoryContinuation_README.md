@@ -9,21 +9,25 @@ This documentation covers the new story continuation features implemented in Cre
 ### Core Services
 
 1. **Story Import Service** (`src/services/storyImportService.ts`)
+
    - File import from .txt files
    - Database story fetching
    - Story validation and processing
 
 2. **Story Management Service** (`src/services/storyManagementService.ts`)
+
    - CRUD operations for stories
    - Search and filtering functionality
    - Story editing operations
 
 3. **Analytics Service** (`src/services/analyticsService.ts`)
+
    - Event tracking and metrics collection
    - User engagement analytics
    - Performance monitoring and reporting
 
 4. **Sync Service** (`src/services/syncService.ts`)
+
    - Cross-platform story synchronization
    - Real-time updates and conflict resolution
    - Offline-first architecture
@@ -36,11 +40,13 @@ This documentation covers the new story continuation features implemented in Cre
 ### UI Components
 
 1. **Story Selection Components**
+
    - `StorySelectionModal.tsx` - Story list with search and filters
    - `StoryPreviewEdit.tsx` - Story viewing and editing
    - `AdvancedSearchModal.tsx` - Enhanced search interface
 
 2. **Screen Components**
+
    - `ImportOptionsScreen.tsx` - Import method selection
    - `StorySelectionScreen.tsx` - Story browser
    - `StoryPreviewEditScreen.tsx` - Story preview and editing
@@ -53,11 +59,13 @@ This documentation covers the new story continuation features implemented in Cre
 ### Setting Up Development Environment
 
 1. Ensure you have the required dependencies:
+
    ```bash
    npm install
    ```
 
 2. Configure environment variables in `.env`:
+
    ```
    SUPABASE_URL=your_supabase_url
    SUPABASE_ANON_KEY=your_supabase_key
@@ -107,14 +115,14 @@ import { analyticsService } from '../services/analyticsService';
 // Track story import
 await analyticsService.trackStoryImport(userId, 'file', true, {
   fileSize: 2048,
-  storyLength: 500
+  storyLength: 500,
 });
 
 // Get usage metrics
 const metrics = await analyticsService.getUsageMetrics(
   startDate,
   endDate,
-  userId
+  userId,
 );
 ```
 
@@ -127,12 +135,7 @@ import { syncService } from '../services/syncService';
 syncService.setUserId(userId);
 
 // Update story on device
-await syncService.updateStoryOnDevice(
-  deviceId,
-  storyId,
-  content,
-  metadata
-);
+await syncService.updateStoryOnDevice(deviceId, storyId, content, metadata);
 
 // Sync across devices
 await syncService.syncAcrossDevices([deviceId1, deviceId2]);
@@ -208,16 +211,16 @@ module.exports = {
   preset: 'react-native',
   setupFiles: ['<rootDir>/src/__tests__/setup.ts'],
   transformIgnorePatterns: [
-    'node_modules/(?!(react-native|@react-native|@supabase|react-native-url-polyfill)/)'
+    'node_modules/(?!(react-native|@react-native|@supabase|react-native-url-polyfill)/)',
   ],
   coverageThreshold: {
     global: {
       branches: 70,
       functions: 70,
       lines: 70,
-      statements: 70
-    }
-  }
+      statements: 70,
+    },
+  },
 };
 ```
 

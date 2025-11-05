@@ -23,14 +23,43 @@ if (!supabaseAnonKey) {
   console.error('Missing Supabase Anon Key configuration');
 }
 
-// Import and re-export for backward compatibility
+// Import and re-export for backward compatibility and new image generation types
 import type {
   Database,
   UserProfile,
   GameSession,
   GradeLevel,
+  // Image generation types (Task 2.1 & 2.2)
+  ImageGenerationEvent,
+  ImageGenerationEventInsert,
+  ImageGenerationEventUpdate,
+  ImageGenerationAnalytics,
+  UserImageGenerationEvent,
+  StoryWithImage,
+  ImageGenerationStats,
+  GenerationStatus,
+  ErrorType,
+  ServiceUsed,
 } from '../types/database';
-export type { UserProfile, GameSession, Database, GradeLevel };
+
+export type {
+  // Core types
+  UserProfile,
+  GameSession,
+  Database,
+  GradeLevel,
+  // Image generation types (Task 2.1 & 2.2)
+  ImageGenerationEvent,
+  ImageGenerationEventInsert,
+  ImageGenerationEventUpdate,
+  ImageGenerationAnalytics,
+  UserImageGenerationEvent,
+  StoryWithImage,
+  ImageGenerationStats,
+  GenerationStatus,
+  ErrorType,
+  ServiceUsed,
+};
 
 export const supabase: SupabaseClient<Database> = createClient<Database>(
   supabaseUrl,

@@ -28,7 +28,7 @@ export interface FileValidationResult {
 export class FilePickerUtils {
   // Maximum file size (10MB)
   private static readonly MAX_FILE_SIZE = 10 * 1024 * 1024;
-  
+
   // Supported file types
   private static readonly SUPPORTED_TYPES = [
     'text/plain',
@@ -86,7 +86,9 @@ export class FilePickerUtils {
       }
 
       // Read file content
-      const fileContent = await StoryImportService.readFileWithEncoding(file.uri);
+      const fileContent = await StoryImportService.readFileWithEncoding(
+        file.uri,
+      );
       if (!fileContent.success) {
         return {
           success: false,
@@ -134,7 +136,11 @@ export class FilePickerUtils {
 
     // Check file size
     if (file.size && file.size > this.MAX_FILE_SIZE) {
-      errors.push(`File too large. Maximum size is ${this.formatFileSize(this.MAX_FILE_SIZE)}`);
+      errors.push(
+        `File too large. Maximum size is ${this.formatFileSize(
+          this.MAX_FILE_SIZE,
+        )}`,
+      );
     }
 
     // Check file extension
@@ -152,7 +158,8 @@ export class FilePickerUtils {
       warnings.push('File appears to be very small');
     }
 
-    if (file.size && file.size > 1024 * 1024) { // 1MB
+    if (file.size && file.size > 1024 * 1024) {
+      // 1MB
       warnings.push('Large file may take longer to process');
     }
 
@@ -169,15 +176,14 @@ export class FilePickerUtils {
   static isValidTextFile(file: DocumentPickerResponse): boolean {
     // Check by extension first
     const fileName = file.name?.toLowerCase() || '';
-    const hasValidExtension = fileName && this.SUPPORTED_EXTENSIONS.some(ext => 
-      fileName.endsWith(ext)
-    );
+    const hasValidExtension =
+      fileName && this.SUPPORTED_EXTENSIONS.some(ext => fileName.endsWith(ext));
 
     // Check by MIME type
-    const hasValidMimeType = file.type && (
-      this.SUPPORTED_TYPES.includes(file.type) ||
-      file.type.startsWith('text/')
-    );
+    const hasValidMimeType =
+      file.type &&
+      (this.SUPPORTED_TYPES.includes(file.type) ||
+        file.type.startsWith('text/'));
 
     // Must have at least one valid indicator
     return Boolean(hasValidExtension || hasValidMimeType);
@@ -203,7 +209,7 @@ export class FilePickerUtils {
     // Check for BOM markers
     if (fileContent.length >= 3) {
       const first3 = fileContent.subarray(0, 3);
-      if (first3[0] === 0xEF && first3[1] === 0xBB && first3[2] === 0xBF) {
+      if (first3[0] === 0xef && first3[1] === 0xbb && first3[2] === 0xbf) {
         return 'utf8'; // UTF-8 BOM
       }
     }
@@ -229,7 +235,7 @@ export class FilePickerUtils {
 
       // For older Android versions, check READ_EXTERNAL_STORAGE
       const granted = await PermissionsAndroid.check(
-        PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE
+        PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
       );
 
       if (granted) {
@@ -241,11 +247,12 @@ export class FilePickerUtils {
         PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
         {
           title: 'Storage Permission',
-          message: 'CreativeBridge needs access to storage to import story files',
+          message:
+            'CreativeBridge needs access to storage to import story files',
           buttonNeutral: 'Ask Me Later',
           buttonNegative: 'Cancel',
           buttonPositive: 'OK',
-        }
+        },
       );
 
       return result === PermissionsAndroid.RESULTS.GRANTED;
@@ -270,7 +277,7 @@ export class FilePickerUtils {
       }
 
       // Show explanation dialog
-      return new Promise((resolve) => {
+      return new Promise(resolve => {
         Alert.alert(
           'Storage Access Required',
           'To import story files, CreativeBridge needs permission to access your device storage. This allows you to select .txt files from your device.',
@@ -287,7 +294,7 @@ export class FilePickerUtils {
                 resolve(granted);
               },
             },
-          ]
+          ],
         );
       });
     } catch (error) {
@@ -384,13 +391,13 @@ export class FilePickerUtils {
     Alert.alert(
       'File Import Help',
       'To import a story:\n\n' +
-      '1. Tap "Import from File"\n' +
-      '2. Select a .txt file from your device\n' +
-      '3. The story content will be loaded\n' +
-      '4. Review and edit if needed\n' +
-      '5. Tap "Continue Story" to generate new content\n\n' +
-      'Supported formats: .txt files up to 10MB',
-      [{ text: 'Got it', style: 'default' }]
+        '1. Tap "Import from File"\n' +
+        '2. Select a .txt file from your device\n' +
+        '3. The story content will be loaded\n' +
+        '4. Review and edit if needed\n' +
+        '5. Tap "Continue Story" to generate new content\n\n' +
+        'Supported formats: .txt files up to 10MB',
+      [{ text: 'Got it', style: 'default' }],
     );
   }
 }

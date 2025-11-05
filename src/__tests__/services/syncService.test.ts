@@ -1,6 +1,6 @@
 /**
  * Sync Service Tests
- * 
+ *
  * Comprehensive test suite for cross-platform story synchronization including
  * device-based sync, conflict resolution, offline mode, real-time updates,
  * and data consistency across multiple platforms.
@@ -32,20 +32,21 @@ jest.mock('../../services/supabase', () => ({
 describe('SyncService', () => {
   const mockStory = {
     id: 'story-123',
-    content: 'Once upon a time, there was a brave knight who embarked on a quest.',
+    content:
+      'Once upon a time, there was a brave knight who embarked on a quest.',
     metadata: {
-      title: 'The Knight\'s Quest',
+      title: "The Knight's Quest",
       wordCount: 12,
       lastEditedBy: 'device-1',
       createdAt: '2024-01-01T10:00:00Z',
       updatedAt: '2024-01-01T10:30:00Z',
       version: 1,
-      checksum: 'abc123'
+      checksum: 'abc123',
     },
     source: 'CreativeBridge' as const,
     userId: 'user-123',
     deviceId: 'device-1',
-    syncStatus: 'synced' as const
+    syncStatus: 'synced' as const,
   };
 
   const mockChange = {
@@ -56,14 +57,14 @@ describe('SyncService', () => {
     userId: 'user-123',
     timestamp: '2024-01-01T10:30:00Z',
     changeData: mockStory,
-    isApplied: false
+    isApplied: false,
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
     jest.clearAllTimers();
     jest.useFakeTimers();
-    
+
     // Mock AsyncStorage to return empty arrays/null by default
     const mockAsyncStorage = require('@react-native-async-storage/async-storage');
     mockAsyncStorage.getItem.mockImplementation((key: string) => {
@@ -112,15 +113,15 @@ describe('SyncService', () => {
   describe('User Management', () => {
     it('should set user ID correctly', () => {
       const userId = 'user-456';
-      
+
       expect(() => syncService.setUserId(userId)).not.toThrow();
     });
 
     it('should setup realtime subscriptions when user ID is set', () => {
       const userId = 'user-789';
-      
+
       syncService.setUserId(userId);
-      
+
       expect(supabase.channel).toHaveBeenCalledWith('story_sync');
     });
   });
@@ -134,25 +135,32 @@ describe('SyncService', () => {
 
       syncService.setUserId('user-123');
 
-      await syncService.updateStoryOnDevice(deviceId, storyId, content, metadata);
+      await syncService.updateStoryOnDevice(
+        deviceId,
+        storyId,
+        content,
+        metadata,
+      );
 
       const mockAsyncStorage = require('@react-native-async-storage/async-storage');
       expect(mockAsyncStorage.setItem).toHaveBeenCalledWith(
         expect.stringContaining('offline_stories'),
-        expect.any(String)
+        expect.any(String),
       );
       expect(mockAsyncStorage.setItem).toHaveBeenCalledWith(
         expect.stringContaining('pending_changes'),
-        expect.any(String)
+        expect.any(String),
       );
     });
 
     it('should handle update errors gracefully', async () => {
       const mockAsyncStorage = require('@react-native-async-storage/async-storage');
-      mockAsyncStorage.setItem.mockRejectedValueOnce(new Error('Storage error'));
+      mockAsyncStorage.setItem.mockRejectedValueOnce(
+        new Error('Storage error'),
+      );
 
       await expect(
-        syncService.updateStoryOnDevice('device-1', 'story-123', 'content')
+        syncService.updateStoryOnDevice('device-1', 'story-123', 'content'),
       ).rejects.toThrow('Failed to update story');
     });
 
@@ -160,7 +168,9 @@ describe('SyncService', () => {
       syncService.setUserId('user-123');
 
       await expect(
-        syncService.updateStory('story-123', 'New content', { title: 'New Title' })
+        syncService.updateStory('story-123', 'New content', {
+          title: 'New Title',
+        }),
       ).resolves.not.toThrow();
     });
   });
@@ -174,7 +184,7 @@ describe('SyncService', () => {
       const mockAsyncStorage = require('@react-native-async-storage/async-storage');
       expect(mockAsyncStorage.setItem).toHaveBeenCalledWith(
         expect.stringContaining('last_sync_time'),
-        expect.any(String)
+        expect.any(String),
       );
     });
 
@@ -193,11 +203,15 @@ describe('SyncService', () => {
 
     it('should handle sync errors and reset sync state', async () => {
       const deviceIds = ['device-1'];
-      
-      // Mock an error during sync
-      jest.spyOn(syncService as any, 'syncWithDevice').mockRejectedValueOnce(new Error('Sync error'));
 
-      await expect(syncService.syncAcrossDevices(deviceIds)).rejects.toThrow('Sync failed');
+      // Mock an error during sync
+      jest
+        .spyOn(syncService as any, 'syncWithDevice')
+        .mockRejectedValueOnce(new Error('Sync error'));
+
+      await expect(syncService.syncAcrossDevices(deviceIds)).rejects.toThrow(
+        'Sync failed',
+      );
     });
   });
 
@@ -209,19 +223,19 @@ describe('SyncService', () => {
         metadata: {},
         user_id: 'user-123',
         device_id: 'device-1',
-        sync_status: 'synced'
+        sync_status: 'synced',
       };
 
       const mockQuery = {
         data: mockRemoteStory,
-        error: null
+        error: null,
       };
 
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         single: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       const story = await syncService.getStoryOnDevice('device-1', 'story-123');
@@ -234,19 +248,19 @@ describe('SyncService', () => {
     it('should fall back to local storage when remote fails', async () => {
       const mockQuery = {
         data: null,
-        error: { message: 'Not found' }
+        error: { message: 'Not found' },
       };
 
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         single: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       // Mock local storage with story
       (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce(
-        JSON.stringify([mockStory])
+        JSON.stringify([mockStory]),
       );
 
       const story = await syncService.getStoryOnDevice('device-1', 'story-123');
@@ -258,17 +272,20 @@ describe('SyncService', () => {
     it('should return null when story not found anywhere', async () => {
       const mockQuery = {
         data: null,
-        error: { message: 'Not found' }
+        error: { message: 'Not found' },
       };
 
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         single: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
-      const story = await syncService.getStoryOnDevice('device-1', 'unknown-story');
+      const story = await syncService.getStoryOnDevice(
+        'device-1',
+        'unknown-story',
+      );
 
       expect(story).toBeNull();
     });
@@ -280,21 +297,24 @@ describe('SyncService', () => {
         {
           deviceId: 'device-1',
           content: 'First edit',
-          timestamp: 1000
+          timestamp: 1000,
         },
         {
           deviceId: 'device-2',
           content: 'Second edit (latest)',
-          timestamp: 2000
+          timestamp: 2000,
         },
         {
           deviceId: 'device-3',
           content: 'Third edit',
-          timestamp: 1500
-        }
+          timestamp: 1500,
+        },
       ];
 
-      const resolved = await syncService.resolveConflict('story-123', conflictingEdits);
+      const resolved = await syncService.resolveConflict(
+        'story-123',
+        conflictingEdits,
+      );
 
       expect(resolved.content).toBe('Second edit (latest)');
       expect(resolved.metadata.lastEditedBy).toBe('sync_service');
@@ -310,19 +330,24 @@ describe('SyncService', () => {
         {
           deviceId: 'device-1',
           content: 'Short edit',
-          timestamp: 1000
+          timestamp: 1000,
         },
         {
           deviceId: 'device-2',
           content: 'This is a much longer edit with more content',
-          timestamp: 2000
-        }
+          timestamp: 2000,
+        },
       ];
 
-      const resolved = await syncService.resolveConflict('story-123', conflictingEdits);
+      const resolved = await syncService.resolveConflict(
+        'story-123',
+        conflictingEdits,
+      );
 
       // Should pick the longer content as per simple merge strategy
-      expect(resolved.content).toBe('This is a much longer edit with more content');
+      expect(resolved.content).toBe(
+        'This is a much longer edit with more content',
+      );
     });
 
     it('should throw error for manual conflict resolution', async () => {
@@ -333,17 +358,17 @@ describe('SyncService', () => {
         {
           deviceId: 'device-1',
           content: 'Edit 1',
-          timestamp: 1000
+          timestamp: 1000,
         },
         {
           deviceId: 'device-2',
           content: 'Edit 2',
-          timestamp: 2000
-        }
+          timestamp: 2000,
+        },
       ];
 
       await expect(
-        syncService.resolveConflict('story-123', conflictingEdits)
+        syncService.resolveConflict('story-123', conflictingEdits),
       ).rejects.toThrow('Manual conflict resolution required');
     });
   });
@@ -351,14 +376,14 @@ describe('SyncService', () => {
   describe('Offline Mode', () => {
     it('should enable offline mode', () => {
       syncService.setOfflineMode(true);
-      
+
       // Should not throw
       expect(true).toBe(true);
     });
 
     it('should disable offline mode', () => {
       syncService.setOfflineMode(false);
-      
+
       // Should not throw
       expect(true).toBe(true);
     });
@@ -377,7 +402,7 @@ describe('SyncService', () => {
   describe('Pending Changes Management', () => {
     it('should get pending changes', async () => {
       (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce(
-        JSON.stringify([mockChange])
+        JSON.stringify([mockChange]),
       );
 
       const pendingChanges = await syncService.getPendingChanges();
@@ -392,7 +417,7 @@ describe('SyncService', () => {
       const mockUploadQuery = { error: null };
       (supabase.from as jest.Mock).mockReturnValue({
         upsert: jest.fn().mockReturnThis(),
-        ...mockUploadQuery
+        ...mockUploadQuery,
       });
 
       // Pre-populate pending changes
@@ -419,7 +444,7 @@ describe('SyncService', () => {
       const mockUploadQuery = { error: { message: 'Upload failed' } };
       (supabase.from as jest.Mock).mockReturnValue({
         upsert: jest.fn().mockReturnThis(),
-        ...mockUploadQuery
+        ...mockUploadQuery,
       });
 
       const service = syncService as any;
@@ -466,14 +491,14 @@ describe('SyncService', () => {
     it('should force sync all data', async () => {
       const mockRemoteQuery = {
         data: [],
-        error: null
+        error: null,
       };
 
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         gt: jest.fn().mockReturnThis(),
-        ...mockRemoteQuery
+        ...mockRemoteQuery,
       });
 
       syncService.setUserId('user-123');
@@ -483,22 +508,24 @@ describe('SyncService', () => {
 
     it('should handle force sync errors', async () => {
       const service = syncService as any;
-      jest.spyOn(service, 'syncPendingChanges').mockRejectedValueOnce(new Error('Sync error'));
+      jest
+        .spyOn(service, 'syncPendingChanges')
+        .mockRejectedValueOnce(new Error('Sync error'));
 
       await expect(syncService.forceSyncAll()).rejects.toThrow('Sync error');
     });
 
     it('should reset sync state after force sync', async () => {
       const service = syncService as any;
-      
+
       // Start force sync
       const syncPromise = syncService.forceSyncAll();
-      
+
       // Sync should be in progress
       expect(service.syncInProgress).toBe(true);
-      
+
       await syncPromise;
-      
+
       // Sync should be completed
       expect(service.syncInProgress).toBe(false);
     });
@@ -506,7 +533,8 @@ describe('SyncService', () => {
 
   describe('Network State Management', () => {
     it('should handle network state changes', async () => {
-      const mockNetworkCallback = (NetInfo.addEventListener as jest.Mock).mock.calls[0][0];
+      const mockNetworkCallback = (NetInfo.addEventListener as jest.Mock).mock
+        .calls[0][0];
 
       // Simulate going offline
       mockNetworkCallback({ isConnected: false });
@@ -514,7 +542,7 @@ describe('SyncService', () => {
       // Simulate coming back online
       const service = syncService as any;
       service.pendingChanges = [mockChange];
-      
+
       mockNetworkCallback({ isConnected: true });
 
       // Should trigger sync when back online
@@ -530,11 +558,12 @@ describe('SyncService', () => {
       const mockUploadQuery = { error: null };
       (supabase.from as jest.Mock).mockReturnValue({
         upsert: jest.fn().mockReturnThis(),
-        ...mockUploadQuery
+        ...mockUploadQuery,
       });
 
-      const mockNetworkCallback = (NetInfo.addEventListener as jest.Mock).mock.calls[0][0];
-      
+      const mockNetworkCallback = (NetInfo.addEventListener as jest.Mock).mock
+        .calls[0][0];
+
       // Simulate coming back online
       mockNetworkCallback({ isConnected: true });
 
@@ -555,7 +584,7 @@ describe('SyncService', () => {
 
       const mockChannel = {
         on: jest.fn().mockReturnThis(),
-        subscribe: jest.fn()
+        subscribe: jest.fn(),
       };
 
       (supabase.channel as jest.Mock).mockReturnValue(mockChannel);
@@ -578,8 +607,8 @@ describe('SyncService', () => {
           metadata: { version: 2 },
           user_id: 'user-123',
           device_id: 'device-2',
-          sync_status: 'synced'
-        }
+          sync_status: 'synced',
+        },
       };
 
       await expect(realtimeCallback(payload)).resolves.not.toThrow();
@@ -597,11 +626,13 @@ describe('SyncService', () => {
           metadata: { version: 1 },
           user_id: 'user-123',
           device_id: 'device-2',
-          sync_status: 'synced'
-        }
+          sync_status: 'synced',
+        },
       };
 
-      await expect(service.handleRealtimeChange(payload)).resolves.not.toThrow();
+      await expect(
+        service.handleRealtimeChange(payload),
+      ).resolves.not.toThrow();
     });
   });
 
@@ -609,7 +640,7 @@ describe('SyncService', () => {
     it('should calculate checksum correctly', () => {
       const service = syncService as any;
       const content = 'Test story content';
-      
+
       const checksum1 = service.calculateChecksum(content);
       const checksum2 = service.calculateChecksum(content);
       const checksum3 = service.calculateChecksum('Different content');
@@ -621,7 +652,7 @@ describe('SyncService', () => {
 
     it('should generate unique device IDs', () => {
       const service = syncService as any;
-      
+
       const id1 = service.generateDeviceId();
       const id2 = service.generateDeviceId();
 
@@ -634,7 +665,7 @@ describe('SyncService', () => {
 
     it('should generate unique change IDs', () => {
       const service = syncService as any;
-      
+
       const id1 = service.generateChangeId();
       const id2 = service.generateChangeId();
 
@@ -647,7 +678,7 @@ describe('SyncService', () => {
 
     it('should generate unique conflict IDs', () => {
       const service = syncService as any;
-      
+
       const id1 = service.generateConflictId();
       const id2 = service.generateConflictId();
 
@@ -667,7 +698,7 @@ describe('SyncService', () => {
         source: 'CreativeBridge',
         user_id: 'user-123',
         device_id: 'device-1',
-        sync_status: 'synced'
+        sync_status: 'synced',
       };
 
       const syncStory = service.convertToSyncStory(dbObject);
@@ -682,24 +713,26 @@ describe('SyncService', () => {
 
   describe('Error Handling', () => {
     it('should handle storage errors gracefully', async () => {
-      (AsyncStorage.setItem as jest.Mock).mockRejectedValueOnce(new Error('Storage full'));
+      (AsyncStorage.setItem as jest.Mock).mockRejectedValueOnce(
+        new Error('Storage full'),
+      );
 
       await expect(
-        syncService.updateStoryOnDevice('device-1', 'story-123', 'content')
+        syncService.updateStoryOnDevice('device-1', 'story-123', 'content'),
       ).rejects.toThrow();
     });
 
     it('should handle database errors gracefully', async () => {
       const mockQuery = {
         data: null,
-        error: { message: 'Database connection failed' }
+        error: { message: 'Database connection failed' },
       };
 
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         single: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       const story = await syncService.getStoryOnDevice('device-1', 'story-123');
@@ -721,11 +754,14 @@ describe('SyncService', () => {
         {
           deviceId: 'device-1',
           content: 'Edit 1',
-          timestamp: 1000
-        }
+          timestamp: 1000,
+        },
       ];
 
-      const resolved = await syncService.resolveConflict('story-123', conflictingEdits);
+      const resolved = await syncService.resolveConflict(
+        'story-123',
+        conflictingEdits,
+      );
 
       expect(resolved).toBeDefined();
       expect(resolved.content).toBe('Edit 1');
@@ -755,7 +791,7 @@ describe('SyncService', () => {
       const largeChangeSet = Array.from({ length: 1000 }, (_, i) => ({
         ...mockChange,
         id: `change-${i}`,
-        storyId: `story-${i}`
+        storyId: `story-${i}`,
       }));
 
       service.pendingChanges = largeChangeSet;
@@ -769,11 +805,11 @@ describe('SyncService', () => {
       const deviceSets = [
         ['device-1', 'device-2'],
         ['device-3', 'device-4'],
-        ['device-5', 'device-6']
+        ['device-5', 'device-6'],
       ];
 
-      const syncPromises = deviceSets.map(devices => 
-        syncService.syncAcrossDevices(devices)
+      const syncPromises = deviceSets.map(devices =>
+        syncService.syncAcrossDevices(devices),
       );
 
       // Should handle multiple concurrent sync requests
@@ -782,10 +818,10 @@ describe('SyncService', () => {
 
     it('should efficiently batch storage operations', async () => {
       const service = syncService as any;
-      
+
       const stories = Array.from({ length: 100 }, (_, i) => ({
         ...mockStory,
-        id: `story-${i}`
+        id: `story-${i}`,
       }));
 
       // Should batch save operations efficiently

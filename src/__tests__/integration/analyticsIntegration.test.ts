@@ -1,6 +1,6 @@
 /**
  * Analytics Service Integration Tests
- * 
+ *
  * Tests the complete analytics workflow with real-world scenarios,
  * including cross-service integration, data flow, and reporting.
  */
@@ -43,7 +43,7 @@ describe('Analytics Service Integration', () => {
       await analyticsService.trackStoryImport(userId, 'file', true, {
         fileSize: 2048,
         storyLength: 500,
-        importDuration: 1500
+        importDuration: 1500,
       });
       await analyticsService.trackUserEngagement(userId, 'import_success');
 
@@ -51,7 +51,7 @@ describe('Analytics Service Integration', () => {
       await analyticsService.trackUserEngagement(userId, 'story_preview');
       await analyticsService.trackStoryContinuation(userId, storyId, true, {
         generatedWords: 150,
-        continuationDuration: 3000
+        continuationDuration: 3000,
       });
 
       // Should not throw errors
@@ -65,12 +65,17 @@ describe('Analytics Service Integration', () => {
       await analyticsService.trackUserEngagement(userId, 'import_screen_view');
       await analyticsService.trackStoryImport(userId, 'file', false, {
         errorType: 'invalid_format',
-        fileSize: 0
+        fileSize: 0,
       });
-      await analyticsService.trackError(userId, 'import_error', 'Unsupported file format', {
-        fileName: 'story.pdf',
-        attemptedFormat: 'pdf'
-      });
+      await analyticsService.trackError(
+        userId,
+        'import_error',
+        'Unsupported file format',
+        {
+          fileName: 'story.pdf',
+          attemptedFormat: 'pdf',
+        },
+      );
 
       // Should handle gracefully
       expect(true).toBe(true);
@@ -79,7 +84,7 @@ describe('Analytics Service Integration', () => {
     it('should provide consistent metrics across functions', async () => {
       const usageMetrics = await analyticsService.getUsageMetrics(
         '2024-01-01T00:00:00Z',
-        '2024-01-02T00:00:00Z'
+        '2024-01-02T00:00:00Z',
       );
 
       const successRates = await analyticsService.getSuccessRates();
@@ -108,9 +113,17 @@ describe('Analytics Service Integration', () => {
       userIds.forEach(userId => {
         promises.push(
           analyticsService.trackUserEngagement(userId, 'session_start'),
-          analyticsService.trackStoryImport(userId, 'file', Math.random() > 0.1),
-          analyticsService.trackStoryContinuation(userId, `story-${userId}`, Math.random() > 0.05),
-          analyticsService.trackUserEngagement(userId, 'session_end')
+          analyticsService.trackStoryImport(
+            userId,
+            'file',
+            Math.random() > 0.1,
+          ),
+          analyticsService.trackStoryContinuation(
+            userId,
+            `story-${userId}`,
+            Math.random() > 0.05,
+          ),
+          analyticsService.trackUserEngagement(userId, 'session_end'),
         );
       });
 
@@ -136,9 +149,14 @@ describe('Analytics Service Integration', () => {
       await analyticsService.trackUserEngagement(userId, 'session_start');
       await analyticsService.trackStoryImport(userId, 'story_quest', true);
       await analyticsService.trackStoryContinuation(userId, 'story-2', true);
-      await analyticsService.trackUserEngagement(userId, 'advanced_feature_used');
+      await analyticsService.trackUserEngagement(
+        userId,
+        'advanced_feature_used',
+      );
 
-      const engagement = await analyticsService.getUserEngagementMetrics(userId);
+      const engagement = await analyticsService.getUserEngagementMetrics(
+        userId,
+      );
 
       expect(engagement.userId).toBe(userId);
       expect(engagement.totalStoryImports).toBeGreaterThanOrEqual(0);
@@ -151,7 +169,7 @@ describe('Analytics Service Integration', () => {
         'story_continuation',
         'database_query',
         'file_processing',
-        'ai_generation'
+        'ai_generation',
       ];
 
       // Track various performance metrics
@@ -161,13 +179,13 @@ describe('Analytics Service Integration', () => {
 
         await analyticsService.trackPerformance(operation, duration, success, {
           memoryUsage: Math.random() * 100,
-          cacheHit: Math.random() > 0.3
+          cacheHit: Math.random() > 0.3,
         });
       }
 
       const performanceMetrics = await analyticsService.getPerformanceMetrics(
         '2024-01-01T00:00:00Z',
-        '2024-12-31T23:59:59Z'
+        '2024-12-31T23:59:59Z',
       );
 
       expect(performanceMetrics).toHaveProperty('averageImportTime');
@@ -237,10 +255,13 @@ describe('Analytics Service Integration', () => {
     it('should handle custom date range reports', async () => {
       const customRange = {
         start: '2024-01-01T00:00:00Z',
-        end: '2024-01-07T23:59:59Z'
+        end: '2024-01-07T23:59:59Z',
       };
 
-      const report = await analyticsService.generateReport('custom', customRange);
+      const report = await analyticsService.generateReport(
+        'custom',
+        customRange,
+      );
 
       expect(report.reportType).toBe('custom');
       expect(report.dateRange).toEqual(customRange);
@@ -263,25 +284,27 @@ describe('Analytics Service Integration', () => {
       const usageMetrics = await analyticsService.getUsageMetrics(
         '2024-01-01T00:00:00Z',
         '2024-12-31T23:59:59Z',
-        userId
+        userId,
       );
 
-      const userEngagement = await analyticsService.getUserEngagementMetrics(userId);
+      const userEngagement = await analyticsService.getUserEngagementMetrics(
+        userId,
+      );
       const successRates = await analyticsService.getSuccessRates();
 
       // Data should be consistent
       expect(userEngagement.userId).toBe(userId);
-      
+
       // All metrics should be non-negative numbers
       expect(usageMetrics.totalImports).toBeGreaterThanOrEqual(0);
       expect(usageMetrics.uniqueUsers).toBeGreaterThanOrEqual(0);
       expect(usageMetrics.importSuccessRate).toBeGreaterThanOrEqual(0);
       expect(usageMetrics.importSuccessRate).toBeLessThanOrEqual(100);
-      
+
       expect(userEngagement.totalStoryImports).toBeGreaterThanOrEqual(0);
       expect(userEngagement.engagementScore).toBeGreaterThanOrEqual(0);
       expect(userEngagement.engagementScore).toBeLessThanOrEqual(100);
-      
+
       expect(successRates.importSuccessRate).toBeGreaterThanOrEqual(0);
       expect(successRates.importSuccessRate).toBeLessThanOrEqual(100);
     });
@@ -294,7 +317,7 @@ describe('Analytics Service Integration', () => {
         concurrentPromises.push(
           analyticsService.trackStoryImport(`user-${i}`, 'file', true),
           analyticsService.trackUserEngagement(`user-${i}`, 'action'),
-          analyticsService.trackPerformance('operation', 1000, true)
+          analyticsService.trackPerformance('operation', 1000, true),
         );
       }
 
@@ -307,28 +330,30 @@ describe('Analytics Service Integration', () => {
     it('should continue working after database errors', async () => {
       // These operations should not throw even if database is unavailable
       await expect(
-        analyticsService.trackStoryImport('user-123', 'file', true)
+        analyticsService.trackStoryImport('user-123', 'file', true),
       ).resolves.not.toThrow();
 
       await expect(
-        analyticsService.getUsageMetrics('2024-01-01', '2024-01-02')
+        analyticsService.getUsageMetrics('2024-01-01', '2024-01-02'),
       ).resolves.not.toThrow();
 
       await expect(
-        analyticsService.generateReport('daily')
+        analyticsService.generateReport('daily'),
       ).resolves.not.toThrow();
     });
 
     it('should provide meaningful defaults when data is unavailable', async () => {
       const metrics = await analyticsService.getUsageMetrics(
         '2024-01-01T00:00:00Z',
-        '2024-01-02T00:00:00Z'
+        '2024-01-02T00:00:00Z',
       );
 
-      const engagement = await analyticsService.getUserEngagementMetrics('unknown-user');
+      const engagement = await analyticsService.getUserEngagementMetrics(
+        'unknown-user',
+      );
       const performance = await analyticsService.getPerformanceMetrics(
         '2024-01-01T00:00:00Z',
-        '2024-01-02T00:00:00Z'
+        '2024-01-02T00:00:00Z',
       );
 
       // Should provide structured default responses
@@ -346,15 +371,15 @@ describe('Analytics Service Integration', () => {
     it('should handle malformed input gracefully', async () => {
       // Should not throw with invalid inputs
       await expect(
-        analyticsService.trackStoryImport('', 'file' as any, true)
+        analyticsService.trackStoryImport('', 'file' as any, true),
       ).resolves.not.toThrow();
 
       await expect(
-        analyticsService.getUsageMetrics('invalid-date', 'invalid-date')
+        analyticsService.getUsageMetrics('invalid-date', 'invalid-date'),
       ).resolves.not.toThrow();
 
       await expect(
-        analyticsService.getUserEngagementMetrics('')
+        analyticsService.getUserEngagementMetrics(''),
       ).resolves.not.toThrow();
     });
   });
@@ -368,7 +393,7 @@ describe('Analytics Service Integration', () => {
         analyticsService.trackUserEngagement('user-123', 'action'),
         analyticsService.getUsageMetrics('2024-01-01', '2024-01-02'),
         analyticsService.getUserEngagementMetrics('user-123'),
-        analyticsService.getSuccessRates()
+        analyticsService.getSuccessRates(),
       ]);
 
       const endTime = Date.now();
@@ -381,7 +406,7 @@ describe('Analytics Service Integration', () => {
 
       for (let i = 0; i < batchSize; i++) {
         promises.push(
-          analyticsService.trackStoryImport(`batch-user-${i}`, 'file', true)
+          analyticsService.trackStoryImport(`batch-user-${i}`, 'file', true),
         );
       }
 
@@ -406,8 +431,9 @@ describe('Analytics Service Integration', () => {
       analyticsService.destroy();
 
       // Should still work after cleanup
-      expect(analyticsService.trackStoryImport('user-123', 'file', true))
-        .resolves.not.toThrow();
+      expect(
+        analyticsService.trackStoryImport('user-123', 'file', true),
+      ).resolves.not.toThrow();
     });
   });
 });

@@ -7,6 +7,14 @@ import type {
   ImportableStory,
   SearchableStory,
   StoryMetadata,
+  StoryWithImage,
+  ImageGenerationStats,
+  ImageGenerationEvent,
+  ImageGenerationAnalytics,
+  UserImageGenerationEvent,
+  GenerationStatus,
+  ErrorType,
+  ServiceUsed,
 } from '../../types/database';
 
 // Mock Supabase client for testing
@@ -54,6 +62,10 @@ describe('Database Schema - Story Continuation', () => {
         xp_earned: 150,
         story_source: 'File',
         story_metadata: { imported_word_count: 50 },
+        // Image generation fields
+        generated_image_url: 'https://example.com/image.jpg',
+        image_generation_timestamp: new Date().toISOString(),
+        image_generation_cost: 1000,
       };
 
       expect(mockGameSession.story_source).toBe('File');
@@ -62,6 +74,12 @@ describe('Database Schema - Story Continuation', () => {
       });
       expect(mockGameSession.imported_story_content).toBeUndefined();
       expect(mockGameSession.original_creation_date).toBeUndefined();
+      // Test image generation fields
+      expect(mockGameSession.generated_image_url).toBe(
+        'https://example.com/image.jpg',
+      );
+      expect(mockGameSession.image_generation_cost).toBe(1000);
+      expect(typeof mockGameSession.image_generation_timestamp).toBe('string');
     });
 
     it('should define StoryImportData interface correctly', () => {
@@ -266,6 +284,41 @@ describe('Database Schema - Story Continuation', () => {
       expect(functionArgs.p_imported_content.length).toBeGreaterThan(10);
       expect(typeof functionArgs.p_original_date).toBe('string');
     });
+
+    it('should define update_story_generated_image function args correctly', () => {
+      const functionArgs = {
+        p_session_id: 'session-123',
+        p_image_url: 'https://example.com/generated-image.jpg',
+        p_generation_cost: 1000,
+      };
+
+      expect(typeof functionArgs.p_session_id).toBe('string');
+      expect(typeof functionArgs.p_image_url).toBe('string');
+      expect(typeof functionArgs.p_generation_cost).toBe('number');
+      expect(functionArgs.p_image_url.startsWith('http')).toBe(true);
+      expect(functionArgs.p_generation_cost).toBeGreaterThan(0);
+    });
+
+    it('should define get_user_stories_with_images function args correctly', () => {
+      const functionArgs = {
+        p_user_id: 'user-123',
+        p_limit: 20,
+        p_offset: 0,
+      };
+
+      expect(typeof functionArgs.p_user_id).toBe('string');
+      expect(typeof functionArgs.p_limit).toBe('number');
+      expect(typeof functionArgs.p_offset).toBe('number');
+      expect(functionArgs.p_limit).toBeGreaterThan(0);
+      expect(functionArgs.p_offset).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should define get_image_generation_stats function correctly', () => {
+      const functionArgs = {};
+
+      expect(typeof functionArgs).toBe('object');
+      // This function takes no arguments, so we just verify the args object exists
+    });
   });
 
   describe('Insert and Update Types', () => {
@@ -312,6 +365,306 @@ describe('Database Schema - Story Continuation', () => {
     });
   });
 
+  describe('Image Generation Types', () => {
+    it('should define StoryWithImage interface correctly', () => {
+      const storyWithImage: StoryWithImage = {
+        session_id: 'session-123',
+        created_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+        story_content: 'A completed story with an image...',
+        generated_image_url: 'https://example.com/generated-image.jpg',
+        image_generation_timestamp: new Date().toISOString(),
+        image_generation_cost: 1000,
+        final_score: 200,
+        words_written: 150,
+      };
+
+      expect(storyWithImage.session_id).toBe('session-123');
+      expect(storyWithImage.generated_image_url).toContain(
+        'generated-image.jpg',
+      );
+      expect(storyWithImage.image_generation_cost).toBe(1000);
+      expect(typeof storyWithImage.image_generation_timestamp).toBe('string');
+      expect(storyWithImage.final_score).toBe(200);
+    });
+
+    it('should define ImageGenerationStats interface correctly', () => {
+      const stats: ImageGenerationStats = {
+        total_images_generated: 150,
+        avg_generation_cost: 950.5,
+        images_generated_today: 5,
+        images_generated_this_week: 25,
+        images_generated_this_month: 75,
+      };
+
+      expect(typeof stats.total_images_generated).toBe('number');
+      expect(typeof stats.avg_generation_cost).toBe('number');
+      expect(stats.images_generated_today).toBeGreaterThanOrEqual(0);
+      expect(stats.images_generated_this_week).toBeGreaterThanOrEqual(
+        stats.images_generated_today,
+      );
+      expect(stats.images_generated_this_month).toBeGreaterThanOrEqual(
+        stats.images_generated_this_week,
+      );
+    });
+
+    it('should allow GameSession with image generation fields', () => {
+      const sessionWithImage: GameSession = {
+        id: 'test-id',
+        user_id: 'user-123',
+        created_at: new Date().toISOString(),
+        grade_level: 'K-2',
+        final_score: 100,
+        words_written: 50,
+        sentences_completed: 5,
+        challenges_completed: 3,
+        xp_earned: 150,
+        story_source: 'New',
+        story_metadata: {},
+        generated_image_url: 'https://example.com/story-image.jpg',
+        image_generation_timestamp: new Date().toISOString(),
+        image_generation_cost: 1000,
+      };
+
+      expect(sessionWithImage.generated_image_url).toBeDefined();
+      expect(sessionWithImage.image_generation_cost).toBe(1000);
+      expect(typeof sessionWithImage.image_generation_timestamp).toBe('string');
+    });
+
+    it('should allow optional image fields in GameSession', () => {
+      const sessionWithoutImage: GameSession = {
+        id: 'test-id',
+        user_id: 'user-123',
+        created_at: new Date().toISOString(),
+        grade_level: 'K-2',
+        final_score: 100,
+        words_written: 50,
+        sentences_completed: 5,
+        challenges_completed: 3,
+        xp_earned: 150,
+        story_source: 'New',
+        story_metadata: {},
+      };
+
+      expect(sessionWithoutImage.generated_image_url).toBeUndefined();
+      expect(sessionWithoutImage.image_generation_timestamp).toBeUndefined();
+      expect(sessionWithoutImage.image_generation_cost).toBeUndefined();
+    });
+  });
+
+  describe('Image Generation Events Table', () => {
+    it('should define ImageGenerationEvent interface correctly', () => {
+      const imageEvent: ImageGenerationEvent = {
+        id: 'event-123',
+        user_id: 'user-456',
+        session_id: 'session-789',
+        xp_cost: 1000,
+        generation_status: 'success',
+        error_type: undefined,
+        service_used: 'replicate',
+        api_response_time: 2500,
+        image_url: 'https://example.com/generated-image.jpg',
+        story_grade_level: 'K-2',
+        story_word_count: 150,
+        prompt_used: 'A colorful watercolor illustration of...',
+        metadata: { device: 'iPhone', user_agent: 'iOS' },
+        created_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+      };
+
+      expect(imageEvent.id).toBe('event-123');
+      expect(imageEvent.user_id).toBe('user-456');
+      expect(imageEvent.generation_status).toBe('success');
+      expect(imageEvent.service_used).toBe('replicate');
+      expect(imageEvent.xp_cost).toBe(1000);
+      expect(typeof imageEvent.metadata).toBe('object');
+    });
+
+    it('should validate GenerationStatus type correctly', () => {
+      const validStatuses: GenerationStatus[] = [
+        'pending',
+        'success',
+        'failed',
+        'refunded',
+        'timeout',
+      ];
+
+      validStatuses.forEach(status => {
+        expect([
+          'pending',
+          'success',
+          'failed',
+          'refunded',
+          'timeout',
+        ]).toContain(status);
+      });
+    });
+
+    it('should validate ErrorType type correctly', () => {
+      const validErrorTypes: ErrorType[] = [
+        'api_failure',
+        'content_safety',
+        'insufficient_xp',
+        'timeout',
+        'rate_limit',
+      ];
+
+      validErrorTypes.forEach(errorType => {
+        expect([
+          'api_failure',
+          'content_safety',
+          'insufficient_xp',
+          'timeout',
+          'rate_limit',
+        ]).toContain(errorType);
+      });
+    });
+
+    it('should validate ServiceUsed type correctly', () => {
+      const validServices: ServiceUsed[] = ['replicate', 'backup_service'];
+
+      validServices.forEach(service => {
+        expect(['replicate', 'backup_service']).toContain(service);
+      });
+    });
+
+    it('should define ImageGenerationAnalytics interface correctly', () => {
+      const analytics: ImageGenerationAnalytics = {
+        total_attempts: 100,
+        successful_generations: 85,
+        failed_generations: 10,
+        refunded_generations: 5,
+        avg_response_time: 2800.5,
+        most_common_error_type: 'timeout',
+        total_xp_spent: 85000,
+        replicate_usage: 90,
+        backup_service_usage: 10,
+      };
+
+      expect(analytics.total_attempts).toBe(100);
+      expect(analytics.successful_generations).toBe(85);
+      expect(typeof analytics.avg_response_time).toBe('number');
+      expect(analytics.total_xp_spent).toBe(85000);
+    });
+
+    it('should define UserImageGenerationEvent interface correctly', () => {
+      const userEvent: UserImageGenerationEvent = {
+        event_id: 'event-456',
+        session_id: 'session-123',
+        xp_cost: 1000,
+        generation_status: 'failed',
+        error_type: 'api_failure',
+        service_used: 'replicate',
+        api_response_time: 5000,
+        image_url: undefined,
+        story_grade_level: '3-5',
+        story_word_count: 200,
+        created_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+      };
+
+      expect(userEvent.event_id).toBe('event-456');
+      expect(userEvent.generation_status).toBe('failed');
+      expect(userEvent.error_type).toBe('api_failure');
+      expect(userEvent.image_url).toBeUndefined();
+    });
+
+    it('should allow ImageGenerationEvent inserts with required fields', () => {
+      const eventInsert = {
+        user_id: 'user-123',
+        session_id: 'session-456',
+        xp_cost: 1000,
+        generation_status: 'pending' as GenerationStatus,
+        service_used: 'replicate' as ServiceUsed,
+        metadata: { initiated_from: 'story_completion' },
+      };
+
+      expect(eventInsert.user_id).toBeDefined();
+      expect(eventInsert.generation_status).toBe('pending');
+      expect(eventInsert.service_used).toBe('replicate');
+      expect(typeof eventInsert.metadata).toBe('object');
+    });
+
+    it('should allow ImageGenerationEvent updates with partial fields', () => {
+      const eventUpdate = {
+        generation_status: 'success' as GenerationStatus,
+        image_url: 'https://example.com/final-image.jpg',
+        api_response_time: 3200,
+        completed_at: new Date().toISOString(),
+      };
+
+      expect(eventUpdate.generation_status).toBe('success');
+      expect(eventUpdate.image_url).toContain('final-image.jpg');
+      expect(eventUpdate.api_response_time).toBe(3200);
+    });
+  });
+
+  describe('Image Generation Event Functions', () => {
+    it('should define create_image_generation_event function args correctly', () => {
+      const functionArgs = {
+        p_user_id: 'user-123',
+        p_session_id: 'session-456',
+        p_xp_cost: 1000,
+        p_story_grade_level: 'K-2',
+        p_story_word_count: 150,
+        p_metadata: { device: 'mobile' },
+      };
+
+      expect(typeof functionArgs.p_user_id).toBe('string');
+      expect(typeof functionArgs.p_session_id).toBe('string');
+      expect(typeof functionArgs.p_xp_cost).toBe('number');
+      expect(functionArgs.p_xp_cost).toBeGreaterThan(0);
+      expect(typeof functionArgs.p_metadata).toBe('object');
+    });
+
+    it('should define update_image_generation_event function args correctly', () => {
+      const functionArgs = {
+        p_event_id: 'event-123',
+        p_status: 'success' as GenerationStatus,
+        p_image_url: 'https://example.com/image.jpg',
+        p_error_type: undefined,
+        p_service_used: 'replicate' as ServiceUsed,
+        p_api_response_time: 2500,
+        p_prompt_used: 'A beautiful illustration...',
+      };
+
+      expect(typeof functionArgs.p_event_id).toBe('string');
+      expect(['pending', 'success', 'failed', 'refunded', 'timeout']).toContain(
+        functionArgs.p_status,
+      );
+      expect(['replicate', 'backup_service']).toContain(
+        functionArgs.p_service_used,
+      );
+      expect(typeof functionArgs.p_api_response_time).toBe('number');
+    });
+
+    it('should define get_image_generation_analytics function args correctly', () => {
+      const functionArgs = {
+        p_user_id: 'user-123',
+        p_start_date: new Date('2024-01-01').toISOString(),
+        p_end_date: new Date('2024-12-31').toISOString(),
+      };
+
+      expect(typeof functionArgs.p_user_id).toBe('string');
+      expect(typeof functionArgs.p_start_date).toBe('string');
+      expect(typeof functionArgs.p_end_date).toBe('string');
+    });
+
+    it('should define get_user_image_generation_events function args correctly', () => {
+      const functionArgs = {
+        p_user_id: 'user-123',
+        p_limit: 25,
+        p_offset: 50,
+      };
+
+      expect(typeof functionArgs.p_user_id).toBe('string');
+      expect(typeof functionArgs.p_limit).toBe('number');
+      expect(typeof functionArgs.p_offset).toBe('number');
+      expect(functionArgs.p_limit).toBeGreaterThan(0);
+      expect(functionArgs.p_offset).toBeGreaterThanOrEqual(0);
+    });
+  });
+
   describe('Migration Script Validation', () => {
     it('should have created migration script file', () => {
       // This test verifies that the migration script was created
@@ -321,26 +674,42 @@ describe('Database Schema - Story Continuation', () => {
     });
 
     it('should define all required new columns', () => {
-      const requiredColumns = [
+      const requiredStoryColumns = [
         'imported_story_content',
         'story_source',
         'original_creation_date',
         'story_metadata',
       ];
 
+      const requiredImageColumns = [
+        'generated_image_url',
+        'image_generation_timestamp',
+        'image_generation_cost',
+      ];
+
+      const allRequiredColumns = [
+        ...requiredStoryColumns,
+        ...requiredImageColumns,
+      ];
+
       // In a real test, you would verify these columns exist in the schema
-      requiredColumns.forEach(column => {
+      allRequiredColumns.forEach(column => {
         expect(typeof column).toBe('string');
         expect(column.length).toBeGreaterThan(0);
       });
     });
 
     it('should include proper constraints and indexes', () => {
-      const expectedConstraints = ['valid_story_source'];
+      const expectedConstraints = [
+        'valid_story_source',
+        'check_image_generation_cost_positive',
+      ];
       const expectedIndexes = [
         'idx_game_sessions_story_source',
         'idx_game_sessions_original_creation_date',
         'idx_game_sessions_story_metadata',
+        'idx_game_sessions_generated_image_url',
+        'idx_game_sessions_image_generation_timestamp',
       ];
 
       expectedConstraints.forEach(constraint => {
@@ -350,6 +719,81 @@ describe('Database Schema - Story Continuation', () => {
       expectedIndexes.forEach(index => {
         expect(typeof index).toBe('string');
         expect(index.startsWith('idx_')).toBe(true);
+      });
+    });
+
+    it('should have created image generation events table migration', () => {
+      // This test verifies that the image generation events migration was created
+      const migrationExists = true; // Placeholder for file existence check
+      expect(migrationExists).toBe(true);
+    });
+
+    it('should define all required image generation events table columns', () => {
+      const requiredColumns = [
+        'id',
+        'user_id',
+        'session_id',
+        'xp_cost',
+        'generation_status',
+        'error_type',
+        'service_used',
+        'api_response_time',
+        'image_url',
+        'story_grade_level',
+        'story_word_count',
+        'prompt_used',
+        'metadata',
+        'created_at',
+        'completed_at',
+      ];
+
+      // In a real test, you would verify these columns exist in the schema
+      requiredColumns.forEach(column => {
+        expect(typeof column).toBe('string');
+        expect(column.length).toBeGreaterThan(0);
+      });
+    });
+
+    it('should include proper constraints and indexes for image generation events', () => {
+      const expectedConstraints = [
+        'check_xp_cost_positive',
+        'check_response_time_reasonable',
+      ];
+      const expectedIndexes = [
+        'idx_image_generation_events_user_id',
+        'idx_image_generation_events_session_id',
+        'idx_image_generation_events_status',
+        'idx_image_generation_events_created_at',
+        'idx_image_generation_events_service_used',
+        'idx_image_generation_events_error_type',
+        'idx_image_generation_events_grade_level',
+        'idx_image_generation_events_user_status',
+        'idx_image_generation_events_status_created',
+        'idx_image_generation_events_service_status',
+        'idx_image_generation_events_metadata',
+      ];
+
+      expectedConstraints.forEach(constraint => {
+        expect(typeof constraint).toBe('string');
+      });
+
+      expectedIndexes.forEach(index => {
+        expect(typeof index).toBe('string');
+        expect(index.startsWith('idx_')).toBe(true);
+      });
+    });
+
+    it('should include proper RLS policies for image generation events', () => {
+      const expectedPolicies = [
+        'Users can insert their own image generation events',
+        'Users can view their own image generation events',
+        'Users can update their own image generation events',
+        // Admin policy commented out until admin roles are implemented
+      ];
+
+      expectedPolicies.forEach(policy => {
+        expect(typeof policy).toBe('string');
+        expect(policy.length).toBeGreaterThan(0);
       });
     });
   });

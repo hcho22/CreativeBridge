@@ -1,7 +1,11 @@
 // Loading State Manager Tests
 // Tests for loading state management and progress tracking
 
-import { LoadingStateManager, LoadingStates, LoadingState } from '../../utils/loadingStateManager';
+import {
+  LoadingStateManager,
+  LoadingStates,
+  LoadingState,
+} from '../../utils/loadingStateManager';
 
 describe('LoadingStateManager', () => {
   beforeEach(() => {
@@ -13,7 +17,7 @@ describe('LoadingStateManager', () => {
   describe('basic state management', () => {
     it('should start with idle state', () => {
       const currentState = LoadingStateManager.getCurrentState();
-      
+
       expect(currentState.state).toBe(LoadingStates.IDLE);
       expect(currentState.message).toBe('Ready');
       expect(currentState.isIndeterminate).toBe(false);
@@ -42,7 +46,7 @@ describe('LoadingStateManager', () => {
     it('should set error state correctly', () => {
       const errorMessage = 'File not found';
       const errorDetails = 'The selected file could not be located';
-      
+
       LoadingStateManager.setError(errorMessage, errorDetails);
 
       const currentState = LoadingStateManager.getCurrentState();
@@ -53,7 +57,7 @@ describe('LoadingStateManager', () => {
 
     it('should set success state correctly', () => {
       const successMessage = 'Story imported successfully';
-      
+
       LoadingStateManager.setSuccess(successMessage);
 
       const currentState = LoadingStateManager.getCurrentState();
@@ -69,13 +73,13 @@ describe('LoadingStateManager', () => {
 
       // Should be called immediately with current state
       expect(listener).toHaveBeenCalledWith(
-        expect.objectContaining({ state: LoadingStates.IDLE })
+        expect.objectContaining({ state: LoadingStates.IDLE }),
       );
 
       // Should be called again when state changes
       LoadingStateManager.setState(LoadingStates.READING_FILE);
       expect(listener).toHaveBeenCalledWith(
-        expect.objectContaining({ state: LoadingStates.READING_FILE })
+        expect.objectContaining({ state: LoadingStates.READING_FILE }),
       );
 
       // Should stop receiving updates after unsubscribe
@@ -94,10 +98,10 @@ describe('LoadingStateManager', () => {
       LoadingStateManager.setState(LoadingStates.PROCESSING_STORY);
 
       expect(listener1).toHaveBeenCalledWith(
-        expect.objectContaining({ state: LoadingStates.PROCESSING_STORY })
+        expect.objectContaining({ state: LoadingStates.PROCESSING_STORY }),
       );
       expect(listener2).toHaveBeenCalledWith(
-        expect.objectContaining({ state: LoadingStates.PROCESSING_STORY })
+        expect.objectContaining({ state: LoadingStates.PROCESSING_STORY }),
       );
     });
 
@@ -119,7 +123,7 @@ describe('LoadingStateManager', () => {
       expect(goodListener).toHaveBeenCalled();
       expect(consoleSpy).toHaveBeenCalledWith(
         'Error in loading state listener:',
-        expect.any(Error)
+        expect.any(Error),
       );
 
       consoleSpy.mockRestore();
@@ -138,7 +142,7 @@ describe('LoadingStateManager', () => {
 
     it('should clamp progress to 0-100 range', () => {
       LoadingStateManager.setState(LoadingStates.PROCESSING_STORY);
-      
+
       LoadingStateManager.updateProgress(-10);
       expect(LoadingStateManager.getCurrentState().progress).toBe(0);
 
@@ -149,17 +153,17 @@ describe('LoadingStateManager', () => {
     it('should not update progress for terminal states', () => {
       LoadingStateManager.setError('Test error');
       LoadingStateManager.updateProgress(50);
-      
+
       expect(LoadingStateManager.getCurrentState().progress).toBeUndefined();
 
       LoadingStateManager.setSuccess('Success');
       LoadingStateManager.updateProgress(75);
-      
+
       expect(LoadingStateManager.getCurrentState().progress).toBeUndefined();
 
       LoadingStateManager.setIdle();
       LoadingStateManager.updateProgress(25);
-      
+
       expect(LoadingStateManager.getCurrentState().progress).toBeUndefined();
     });
   });
@@ -174,53 +178,60 @@ describe('LoadingStateManager', () => {
       const result = await LoadingStateManager.executeWithLoading(
         mockOperation,
         LoadingStates.READING_FILE,
-        { message: 'Custom reading message' }
+        { message: 'Custom reading message' },
       );
 
       expect(result).toBe('result');
       expect(mockOperation).toHaveBeenCalled();
-      
+
       // Should have set loading state, then success state
       expect(listener).toHaveBeenCalledWith(
-        expect.objectContaining({ 
+        expect.objectContaining({
           state: LoadingStates.READING_FILE,
-          message: 'Custom reading message'
-        })
+          message: 'Custom reading message',
+        }),
       );
       expect(listener).toHaveBeenCalledWith(
-        expect.objectContaining({ state: LoadingStates.SUCCESS })
+        expect.objectContaining({ state: LoadingStates.SUCCESS }),
       );
     });
 
     it('should handle operation errors', async () => {
-      const mockOperation = jest.fn().mockRejectedValue(new Error('Operation failed'));
+      const mockOperation = jest
+        .fn()
+        .mockRejectedValue(new Error('Operation failed'));
       const listener = jest.fn();
 
       LoadingStateManager.subscribe(listener);
 
       await expect(
-        LoadingStateManager.executeWithLoading(mockOperation, LoadingStates.SAVING_STORY)
+        LoadingStateManager.executeWithLoading(
+          mockOperation,
+          LoadingStates.SAVING_STORY,
+        ),
       ).rejects.toThrow('Operation failed');
 
       // Should have set loading state, then error state
       expect(listener).toHaveBeenCalledWith(
-        expect.objectContaining({ state: LoadingStates.SAVING_STORY })
+        expect.objectContaining({ state: LoadingStates.SAVING_STORY }),
       );
       expect(listener).toHaveBeenCalledWith(
-        expect.objectContaining({ 
+        expect.objectContaining({
           state: LoadingStates.ERROR,
-          message: 'Operation failed'
-        })
+          message: 'Operation failed',
+        }),
       );
     });
 
     it('should execute file import with progress tracking', async () => {
-      const mockOperation = jest.fn().mockImplementation(async (updateProgress) => {
-        updateProgress(25, 'Step 1');
-        updateProgress(50, 'Step 2');
-        updateProgress(100, 'Complete');
-        return 'import result';
-      });
+      const mockOperation = jest
+        .fn()
+        .mockImplementation(async updateProgress => {
+          updateProgress(25, 'Step 1');
+          updateProgress(50, 'Step 2');
+          updateProgress(100, 'Complete');
+          return 'import result';
+        });
 
       const listener = jest.fn();
       LoadingStateManager.subscribe(listener);
@@ -232,33 +243,37 @@ describe('LoadingStateManager', () => {
 
       // Should have started with checking permissions
       expect(listener).toHaveBeenCalledWith(
-        expect.objectContaining({ 
+        expect.objectContaining({
           state: LoadingStates.CHECKING_PERMISSIONS,
-          progress: 0
-        })
+          progress: 0,
+        }),
       );
 
       // Should have ended with success
       expect(listener).toHaveBeenCalledWith(
-        expect.objectContaining({ 
+        expect.objectContaining({
           state: LoadingStates.SUCCESS,
-          message: 'File imported successfully'
-        })
+          message: 'File imported successfully',
+        }),
       );
     });
   });
 
   describe('utility methods', () => {
     it('should provide operation descriptions', () => {
-      const description = LoadingStateManager.getOperationDescription(LoadingStates.READING_FILE);
-      
+      const description = LoadingStateManager.getOperationDescription(
+        LoadingStates.READING_FILE,
+      );
+
       expect(description).toContain('Reading the content');
       expect(description.length).toBeGreaterThan(20);
     });
 
     it('should provide estimated durations', () => {
-      const duration = LoadingStateManager.getEstimatedDuration(LoadingStates.GENERATING_AI_CONTINUATION);
-      
+      const duration = LoadingStateManager.getEstimatedDuration(
+        LoadingStates.GENERATING_AI_CONTINUATION,
+      );
+
       expect(duration).toBe(10000); // AI operations should take longer
       expect(typeof duration).toBe('number');
     });

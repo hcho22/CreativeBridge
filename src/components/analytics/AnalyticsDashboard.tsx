@@ -1,6 +1,6 @@
 /**
  * Analytics Dashboard Component
- * 
+ *
  * Provides a comprehensive analytics dashboard for monitoring story import
  * usage metrics, user engagement, performance insights, and automated reports.
  */
@@ -19,12 +19,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { 
-  analyticsService, 
-  UsageMetrics, 
-  UserEngagementMetrics, 
+import {
+  analyticsService,
+  UsageMetrics,
+  UserEngagementMetrics,
   PerformanceMetrics,
-  AnalyticsReport
+  AnalyticsReport,
 } from '../../services/analyticsService';
 import { useAuth } from '../../context/AuthContext';
 
@@ -47,10 +47,10 @@ interface DashboardState {
 
 const { width: screenWidth } = Dimensions.get('window');
 
-const AnalyticsDashboard: React.FC<Props> = ({ 
-  visible, 
-  onClose, 
-  userRole = 'user' 
+const AnalyticsDashboard: React.FC<Props> = ({
+  visible,
+  onClose,
+  userRole = 'user',
 }) => {
   const { user } = useAuth();
 
@@ -62,50 +62,66 @@ const AnalyticsDashboard: React.FC<Props> = ({
     loading: true,
     refreshing: false,
     error: null,
-    selectedTimeRange: 'weekly'
+    selectedTimeRange: 'weekly',
   });
 
   // Load analytics data
-  const loadAnalyticsData = useCallback(async (showRefreshing = false) => {
-    try {
-      setState(prev => ({ 
-        ...prev, 
-        loading: !showRefreshing, 
-        refreshing: showRefreshing,
-        error: null 
-      }));
+  const loadAnalyticsData = useCallback(
+    async (showRefreshing = false) => {
+      try {
+        setState(prev => ({
+          ...prev,
+          loading: !showRefreshing,
+          refreshing: showRefreshing,
+          error: null,
+        }));
 
-      const endDate = new Date().toISOString();
-      const startDate = getStartDateForRange(state.selectedTimeRange);
+        const endDate = new Date().toISOString();
+        const startDate = getStartDateForRange(state.selectedTimeRange);
 
-      const [usageMetrics, userEngagement, performanceMetrics, report] = await Promise.all([
-        // For admin, show all users; for user, show only their data
-        analyticsService.getUsageMetrics(startDate, endDate, userRole === 'user' ? user?.id : undefined),
-        user?.id ? analyticsService.getUserEngagementMetrics(user.id) : Promise.resolve(null),
-        userRole === 'admin' ? analyticsService.getPerformanceMetrics(startDate, endDate) : Promise.resolve(null),
-        userRole === 'admin' ? analyticsService.generateReport(state.selectedTimeRange) : Promise.resolve(null)
-      ]);
+        const [usageMetrics, userEngagement, performanceMetrics, report] =
+          await Promise.all([
+            // For admin, show all users; for user, show only their data
+            analyticsService.getUsageMetrics(
+              startDate,
+              endDate,
+              userRole === 'user' ? user?.id : undefined,
+            ),
+            user?.id
+              ? analyticsService.getUserEngagementMetrics(user.id)
+              : Promise.resolve(null),
+            userRole === 'admin'
+              ? analyticsService.getPerformanceMetrics(startDate, endDate)
+              : Promise.resolve(null),
+            userRole === 'admin'
+              ? analyticsService.generateReport(state.selectedTimeRange)
+              : Promise.resolve(null),
+          ]);
 
-      setState(prev => ({
-        ...prev,
-        usageMetrics,
-        userEngagement,
-        performanceMetrics,
-        recentReport: report,
-        loading: false,
-        refreshing: false
-      }));
-
-    } catch (error) {
-      console.error('Load analytics data error:', error);
-      setState(prev => ({
-        ...prev,
-        loading: false,
-        refreshing: false,
-        error: error instanceof Error ? error.message : 'Failed to load analytics data'
-      }));
-    }
-  }, [state.selectedTimeRange, user?.id, userRole]);
+        setState(prev => ({
+          ...prev,
+          usageMetrics,
+          userEngagement,
+          performanceMetrics,
+          recentReport: report,
+          loading: false,
+          refreshing: false,
+        }));
+      } catch (error) {
+        console.error('Load analytics data error:', error);
+        setState(prev => ({
+          ...prev,
+          loading: false,
+          refreshing: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : 'Failed to load analytics data',
+        }));
+      }
+    },
+    [state.selectedTimeRange, user?.id, userRole],
+  );
 
   // Load data when component mounts or time range changes
   useEffect(() => {
@@ -120,31 +136,36 @@ const AnalyticsDashboard: React.FC<Props> = ({
   }, [loadAnalyticsData]);
 
   // Handle time range change
-  const handleTimeRangeChange = useCallback((range: 'daily' | 'weekly' | 'monthly') => {
-    setState(prev => ({ ...prev, selectedTimeRange: range }));
-  }, []);
+  const handleTimeRangeChange = useCallback(
+    (range: 'daily' | 'weekly' | 'monthly') => {
+      setState(prev => ({ ...prev, selectedTimeRange: range }));
+    },
+    [],
+  );
 
   // Generate and download report
   const handleGenerateReport = useCallback(async () => {
     try {
       setState(prev => ({ ...prev, loading: true }));
-      
-      const report = await analyticsService.generateReport(state.selectedTimeRange);
-      
+
+      const report = await analyticsService.generateReport(
+        state.selectedTimeRange,
+      );
+
       setState(prev => ({ ...prev, recentReport: report, loading: false }));
-      
+
       Alert.alert(
         'Report Generated',
-        `${capitalize(state.selectedTimeRange)} report has been generated successfully.`,
-        [{ text: 'OK' }]
+        `${capitalize(
+          state.selectedTimeRange,
+        )} report has been generated successfully.`,
+        [{ text: 'OK' }],
       );
     } catch (error) {
       console.error('Generate report error:', error);
-      Alert.alert(
-        'Error',
-        'Failed to generate report. Please try again.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert('Error', 'Failed to generate report. Please try again.', [
+        { text: 'OK' },
+      ]);
       setState(prev => ({ ...prev, loading: false }));
     }
   }, [state.selectedTimeRange]);
@@ -171,14 +192,17 @@ const AnalyticsDashboard: React.FC<Props> = ({
             key={range}
             style={[
               styles.timeRangeButton,
-              state.selectedTimeRange === range && styles.timeRangeButtonActive
+              state.selectedTimeRange === range && styles.timeRangeButtonActive,
             ]}
             onPress={() => handleTimeRangeChange(range)}
           >
-            <Text style={[
-              styles.timeRangeButtonText,
-              state.selectedTimeRange === range && styles.timeRangeButtonTextActive
-            ]}>
+            <Text
+              style={[
+                styles.timeRangeButtonText,
+                state.selectedTimeRange === range &&
+                  styles.timeRangeButtonTextActive,
+              ]}
+            >
               {capitalize(range)}
             </Text>
           </TouchableOpacity>
@@ -189,7 +213,10 @@ const AnalyticsDashboard: React.FC<Props> = ({
       <ScrollView
         style={styles.content}
         refreshControl={
-          <RefreshControl refreshing={state.refreshing} onRefresh={handleRefresh} />
+          <RefreshControl
+            refreshing={state.refreshing}
+            onRefresh={handleRefresh}
+          />
         }
         showsVerticalScrollIndicator={false}
       >
@@ -202,7 +229,10 @@ const AnalyticsDashboard: React.FC<Props> = ({
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>Error</Text>
             <Text style={styles.errorMessage}>{state.error}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={() => loadAnalyticsData()}>
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={() => loadAnalyticsData()}
+            >
               <Text style={styles.retryButtonText}>Try Again</Text>
             </TouchableOpacity>
           </View>
@@ -251,27 +281,27 @@ const AnalyticsDashboard: React.FC<Props> = ({
 const UsageMetricsCard: React.FC<{ metrics: UsageMetrics }> = ({ metrics }) => (
   <View style={styles.card}>
     <Text style={styles.cardTitle}>Usage Metrics</Text>
-    
+
     <View style={styles.metricsGrid}>
-      <MetricItem 
-        label="Total Imports" 
-        value={metrics.totalImports.toString()} 
-        color="#007AFF" 
+      <MetricItem
+        label="Total Imports"
+        value={metrics.totalImports.toString()}
+        color="#007AFF"
       />
-      <MetricItem 
-        label="Unique Users" 
-        value={metrics.uniqueUsers.toString()} 
-        color="#28A745" 
+      <MetricItem
+        label="Unique Users"
+        value={metrics.uniqueUsers.toString()}
+        color="#28A745"
       />
-      <MetricItem 
-        label="Import Success Rate" 
-        value={`${metrics.importSuccessRate.toFixed(1)}%`} 
-        color="#FFC107" 
+      <MetricItem
+        label="Import Success Rate"
+        value={`${metrics.importSuccessRate.toFixed(1)}%`}
+        color="#FFC107"
       />
-      <MetricItem 
-        label="Continuation Success Rate" 
-        value={`${metrics.continuationSuccessRate.toFixed(1)}%`} 
-        color="#17A2B8" 
+      <MetricItem
+        label="Continuation Success Rate"
+        value={`${metrics.continuationSuccessRate.toFixed(1)}%`}
+        color="#17A2B8"
       />
     </View>
 
@@ -282,7 +312,9 @@ const UsageMetricsCard: React.FC<{ metrics: UsageMetrics }> = ({ metrics }) => (
           {metrics.popularSources.slice(0, 3).map((source, index) => (
             <View key={source.source} style={styles.sourceItem}>
               <Text style={styles.sourceName}>{source.source}</Text>
-              <Text style={styles.sourcePercentage}>{source.percentage.toFixed(1)}%</Text>
+              <Text style={styles.sourcePercentage}>
+                {source.percentage.toFixed(1)}%
+              </Text>
             </View>
           ))}
         </View>
@@ -292,40 +324,44 @@ const UsageMetricsCard: React.FC<{ metrics: UsageMetrics }> = ({ metrics }) => (
 );
 
 // User Engagement Card Component
-const UserEngagementCard: React.FC<{ engagement: UserEngagementMetrics }> = ({ engagement }) => (
+const UserEngagementCard: React.FC<{ engagement: UserEngagementMetrics }> = ({
+  engagement,
+}) => (
   <View style={styles.card}>
     <Text style={styles.cardTitle}>Your Engagement</Text>
-    
+
     <View style={styles.metricsGrid}>
-      <MetricItem 
-        label="Sessions This Week" 
-        value={engagement.sessionsThisWeek.toString()} 
-        color="#007AFF" 
+      <MetricItem
+        label="Sessions This Week"
+        value={engagement.sessionsThisWeek.toString()}
+        color="#007AFF"
       />
-      <MetricItem 
-        label="Total Imports" 
-        value={engagement.totalStoryImports.toString()} 
-        color="#28A745" 
+      <MetricItem
+        label="Total Imports"
+        value={engagement.totalStoryImports.toString()}
+        color="#28A745"
       />
-      <MetricItem 
-        label="Total Continuations" 
-        value={engagement.totalStoryContinuations.toString()} 
-        color="#FFC107" 
+      <MetricItem
+        label="Total Continuations"
+        value={engagement.totalStoryContinuations.toString()}
+        color="#FFC107"
       />
-      <MetricItem 
-        label="Engagement Score" 
-        value={engagement.engagementScore.toString()} 
-        color="#17A2B8" 
+      <MetricItem
+        label="Engagement Score"
+        value={engagement.engagementScore.toString()}
+        color="#17A2B8"
       />
     </View>
 
     <View style={styles.engagementDetails}>
       <Text style={styles.detailText}>
-        Favorite Source: <Text style={styles.detailValue}>{engagement.favoriteSource}</Text>
+        Favorite Source:{' '}
+        <Text style={styles.detailValue}>{engagement.favoriteSource}</Text>
       </Text>
       {engagement.lastActiveDate && (
         <Text style={styles.detailText}>
-          Last Active: <Text style={styles.detailValue}>
+          Last Active:{' '}
+          <Text style={styles.detailValue}>
             {new Date(engagement.lastActiveDate).toLocaleDateString()}
           </Text>
         </Text>
@@ -335,30 +371,34 @@ const UserEngagementCard: React.FC<{ engagement: UserEngagementMetrics }> = ({ e
 );
 
 // Performance Metrics Card Component (Admin only)
-const PerformanceMetricsCard: React.FC<{ metrics: PerformanceMetrics }> = ({ metrics }) => (
+const PerformanceMetricsCard: React.FC<{ metrics: PerformanceMetrics }> = ({
+  metrics,
+}) => (
   <View style={styles.card}>
     <Text style={styles.cardTitle}>Performance Metrics</Text>
-    
+
     <View style={styles.metricsGrid}>
-      <MetricItem 
-        label="Avg Import Time" 
-        value={`${(metrics.averageImportTime / 1000).toFixed(1)}s`} 
-        color="#007AFF" 
+      <MetricItem
+        label="Avg Import Time"
+        value={`${(metrics.averageImportTime / 1000).toFixed(1)}s`}
+        color="#007AFF"
       />
-      <MetricItem 
-        label="Avg Continuation Time" 
-        value={`${(metrics.averageContinuationTime / 1000).toFixed(1)}s`} 
-        color="#28A745" 
+      <MetricItem
+        label="Avg Continuation Time"
+        value={`${(metrics.averageContinuationTime / 1000).toFixed(1)}s`}
+        color="#28A745"
       />
-      <MetricItem 
-        label="Cache Hit Rate" 
-        value={`${metrics.cacheHitRate.toFixed(1)}%`} 
-        color="#FFC107" 
+      <MetricItem
+        label="Cache Hit Rate"
+        value={`${metrics.cacheHitRate.toFixed(1)}%`}
+        color="#FFC107"
       />
-      <MetricItem 
-        label="Error Rate" 
-        value={`${(metrics.errorRates.imports + metrics.errorRates.continuations).toFixed(1)}%`} 
-        color="#DC3545" 
+      <MetricItem
+        label="Error Rate"
+        value={`${(
+          metrics.errorRates.imports + metrics.errorRates.continuations
+        ).toFixed(1)}%`}
+        color="#DC3545"
       />
     </View>
   </View>
@@ -368,9 +408,11 @@ const PerformanceMetricsCard: React.FC<{ metrics: PerformanceMetrics }> = ({ met
 const ReportCard: React.FC<{ report: AnalyticsReport }> = ({ report }) => (
   <View style={styles.card}>
     <Text style={styles.cardTitle}>Latest Report</Text>
-    
+
     <View style={styles.reportHeader}>
-      <Text style={styles.reportType}>{capitalize(report.reportType)} Report</Text>
+      <Text style={styles.reportType}>
+        {capitalize(report.reportType)} Report
+      </Text>
       <Text style={styles.reportDate}>
         Generated: {new Date(report.generatedAt).toLocaleDateString()}
       </Text>
@@ -379,7 +421,9 @@ const ReportCard: React.FC<{ report: AnalyticsReport }> = ({ report }) => (
     <View style={styles.reportSummary}>
       <Text style={styles.subSectionTitle}>Key Insights</Text>
       {report.insights.slice(0, 3).map((insight, index) => (
-        <Text key={index} style={styles.insightText}>• {insight}</Text>
+        <Text key={index} style={styles.insightText}>
+          • {insight}
+        </Text>
       ))}
     </View>
 
@@ -387,7 +431,9 @@ const ReportCard: React.FC<{ report: AnalyticsReport }> = ({ report }) => (
       <View style={styles.reportSummary}>
         <Text style={styles.subSectionTitle}>Recommendations</Text>
         {report.recommendations.slice(0, 2).map((recommendation, index) => (
-          <Text key={index} style={styles.recommendationText}>→ {recommendation}</Text>
+          <Text key={index} style={styles.recommendationText}>
+            → {recommendation}
+          </Text>
         ))}
       </View>
     )}
@@ -395,10 +441,10 @@ const ReportCard: React.FC<{ report: AnalyticsReport }> = ({ report }) => (
 );
 
 // Metric Item Component
-const MetricItem: React.FC<{ 
-  label: string; 
-  value: string; 
-  color: string; 
+const MetricItem: React.FC<{
+  label: string;
+  value: string;
+  color: string;
 }> = ({ label, value, color }) => (
   <View style={styles.metricItem}>
     <Text style={[styles.metricValue, { color }]}>{value}</Text>
@@ -407,7 +453,9 @@ const MetricItem: React.FC<{
 );
 
 // Helper functions
-const getStartDateForRange = (range: 'daily' | 'weekly' | 'monthly'): string => {
+const getStartDateForRange = (
+  range: 'daily' | 'weekly' | 'monthly',
+): string => {
   const now = new Date();
   let startDate: Date;
 
@@ -428,7 +476,7 @@ const getStartDateForRange = (range: 'daily' | 'weekly' | 'monthly'): string => 
   return startDate.toISOString();
 };
 
-const capitalize = (str: string): string => 
+const capitalize = (str: string): string =>
   str.charAt(0).toUpperCase() + str.slice(1);
 
 const styles = StyleSheet.create({

@@ -1,6 +1,6 @@
 /**
  * Performance Service Tests
- * 
+ *
  * Comprehensive test suite for performance optimization functionality including
  * pagination, lazy loading, intelligent caching, database optimization,
  * and performance monitoring with detailed metrics.
@@ -33,25 +33,28 @@ describe('PerformanceService', () => {
   const mockStoryData = [
     {
       id: 'story-1',
-      story_content: 'This is a test story about dragons and adventures. It has many exciting moments and challenges.',
+      story_content:
+        'This is a test story about dragons and adventures. It has many exciting moments and challenges.',
       story_source: 'CreativeBridge',
       created_at: '2024-01-01T10:00:00Z',
       updated_at: '2024-01-01T10:00:00Z',
       grade_level: 'K-2',
       user_id: 'user-123',
-      story_metadata: { title: 'Dragon Adventure' }
+      story_metadata: { title: 'Dragon Adventure' },
     },
     {
       id: 'story-2',
-      story_content: 'A magical journey through enchanted forests with wise wizards and brave knights.',
-      imported_story_content: 'Additional imported content about the magical realm.',
+      story_content:
+        'A magical journey through enchanted forests with wise wizards and brave knights.',
+      imported_story_content:
+        'Additional imported content about the magical realm.',
       story_source: 'File',
       created_at: '2024-01-02T10:00:00Z',
       updated_at: '2024-01-02T10:00:00Z',
       grade_level: '3-5',
       user_id: 'user-456',
-      story_metadata: { title: 'Magical Journey' }
-    }
+      story_metadata: { title: 'Magical Journey' },
+    },
   ];
 
   beforeEach(() => {
@@ -64,15 +67,15 @@ describe('PerformanceService', () => {
     it('should get paginated story results', async () => {
       const mockQuery = {
         data: mockStoryData,
-        error: null
+        error: null,
       };
-      
+
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         order: jest.fn().mockReturnThis(),
         range: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       const results = await performanceService.getStoryPage(1, 10);
@@ -87,15 +90,15 @@ describe('PerformanceService', () => {
     it('should validate pagination parameters', async () => {
       const mockQuery = {
         data: mockStoryData,
-        error: null
+        error: null,
       };
-      
+
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         order: jest.fn().mockReturnThis(),
         range: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       // Test invalid page numbers
@@ -110,17 +113,17 @@ describe('PerformanceService', () => {
     it('should apply user filter correctly', async () => {
       const mockQuery = {
         data: [mockStoryData[0]], // Only return first story
-        error: null
+        error: null,
       };
-      
+
       const mockBuilder = {
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         order: jest.fn().mockReturnThis(),
         range: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       };
-      
+
       (supabase.from as jest.Mock).mockReturnValue(mockBuilder);
 
       await performanceService.getStoryPage(1, 10, 'user-123');
@@ -131,39 +134,41 @@ describe('PerformanceService', () => {
     it('should apply sorting options correctly', async () => {
       const mockQuery = {
         data: mockStoryData,
-        error: null
+        error: null,
       };
-      
+
       const mockBuilder = {
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         order: jest.fn().mockReturnThis(),
         range: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       };
-      
+
       (supabase.from as jest.Mock).mockReturnValue(mockBuilder);
 
       await performanceService.getStoryPage(1, 10, undefined, {
         sortBy: 'updated_at',
-        sortOrder: 'asc'
+        sortOrder: 'asc',
       });
 
-      expect(mockBuilder.order).toHaveBeenCalledWith('updated_at', { ascending: true });
+      expect(mockBuilder.order).toHaveBeenCalledWith('updated_at', {
+        ascending: true,
+      });
     });
 
     it('should handle database errors gracefully', async () => {
       const mockQuery = {
         data: null,
-        error: { message: 'Database connection failed' }
+        error: { message: 'Database connection failed' },
       };
-      
+
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         order: jest.fn().mockReturnThis(),
         range: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       const results = await performanceService.getStoryPage(1, 10);
@@ -173,15 +178,15 @@ describe('PerformanceService', () => {
     it('should handle non-existent table gracefully', async () => {
       const mockQuery = {
         data: null,
-        error: { message: 'relation "game_sessions" does not exist' }
+        error: { message: 'relation "game_sessions" does not exist' },
       };
-      
+
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         order: jest.fn().mockReturnThis(),
         range: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       const results = await performanceService.getStoryPage(1, 10);
@@ -193,14 +198,14 @@ describe('PerformanceService', () => {
     it('should get story preview with limited content', async () => {
       const mockQuery = {
         data: mockStoryData[0],
-        error: null
+        error: null,
       };
-      
+
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         single: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       const preview = await performanceService.getStoryPreview('story-1');
@@ -215,14 +220,14 @@ describe('PerformanceService', () => {
     it('should get full story content', async () => {
       const mockQuery = {
         data: mockStoryData[0],
-        error: null
+        error: null,
       };
-      
+
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         single: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       const fullStory = await performanceService.getFullStory('story-1');
@@ -236,14 +241,14 @@ describe('PerformanceService', () => {
     it('should handle missing stories gracefully', async () => {
       const mockQuery = {
         data: null,
-        error: { message: 'Row not found' }
+        error: { message: 'Row not found' },
       };
-      
+
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         single: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       const preview = await performanceService.getStoryPreview('nonexistent');
@@ -257,19 +262,19 @@ describe('PerformanceService', () => {
       const longContent = 'A'.repeat(1000);
       const mockData = {
         ...mockStoryData[0],
-        story_content: longContent
+        story_content: longContent,
       };
-      
+
       const mockQuery = {
         data: mockData,
-        error: null
+        error: null,
       };
-      
+
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         single: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       const preview = await performanceService.getStoryPreview('story-1');
@@ -283,15 +288,15 @@ describe('PerformanceService', () => {
     it('should cache and retrieve story pages', async () => {
       const mockQuery = {
         data: mockStoryData,
-        error: null
+        error: null,
       };
-      
+
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         order: jest.fn().mockReturnThis(),
         range: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       // First call - should hit database
@@ -300,13 +305,13 @@ describe('PerformanceService', () => {
 
       // Clear mock call count
       jest.clearAllMocks();
-      
+
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         order: jest.fn().mockReturnThis(),
         range: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       // Second call - should use cache
@@ -318,14 +323,14 @@ describe('PerformanceService', () => {
     it('should cache story previews and full stories separately', async () => {
       const mockQuery = {
         data: mockStoryData[0],
-        error: null
+        error: null,
       };
-      
+
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         single: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       // Get preview and full story
@@ -337,12 +342,12 @@ describe('PerformanceService', () => {
 
       // Clear mocks and get again - should use cache
       jest.clearAllMocks();
-      
+
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         single: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       const cachedPreview = await performanceService.getStoryPreview('story-1');
@@ -355,7 +360,7 @@ describe('PerformanceService', () => {
 
     it('should clear cache when requested', () => {
       performanceService.clearCache();
-      
+
       // Should not throw and should reset cache state
       expect(() => performanceService.clearCache()).not.toThrow();
     });
@@ -363,15 +368,15 @@ describe('PerformanceService', () => {
     it('should handle cache eviction for large datasets', async () => {
       const mockQuery = {
         data: mockStoryData,
-        error: null
+        error: null,
       };
-      
+
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         order: jest.fn().mockReturnThis(),
         range: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       // Fill cache beyond capacity (simulate large cache)
@@ -389,21 +394,21 @@ describe('PerformanceService', () => {
     it('should track performance metrics', async () => {
       const mockQuery = {
         data: mockStoryData,
-        error: null
+        error: null,
       };
-      
+
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         order: jest.fn().mockReturnThis(),
         range: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       await performanceService.getStoryPage(1, 10);
-      
+
       const metrics = performanceService.getMetrics();
-      
+
       expect(metrics.totalRequests).toBeGreaterThan(0);
       expect(metrics.databaseQueries).toBeGreaterThan(0);
       expect(metrics.averageLoadTime).toBeGreaterThanOrEqual(0);
@@ -413,25 +418,25 @@ describe('PerformanceService', () => {
     it('should track cache hit rate', async () => {
       const mockQuery = {
         data: mockStoryData,
-        error: null
+        error: null,
       };
-      
+
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         order: jest.fn().mockReturnThis(),
         range: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       // First call - cache miss
       await performanceService.getStoryPage(1, 10);
-      
+
       // Second call - cache hit
       await performanceService.getStoryPage(1, 10);
-      
+
       const metrics = performanceService.getMetrics();
-      
+
       expect(metrics.totalRequests).toBe(2);
       expect(metrics.cachedRequests).toBe(1);
       expect(metrics.cacheHitRate).toBe(50); // 1/2 = 50%
@@ -440,36 +445,36 @@ describe('PerformanceService', () => {
     it('should provide cache statistics', async () => {
       const mockQuery = {
         data: mockStoryData,
-        error: null
+        error: null,
       };
-      
+
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         order: jest.fn().mockReturnThis(),
         range: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       await performanceService.getStoryPage(1, 10);
-      
+
       const cacheStats = performanceService.getCacheStats();
-      
+
       expect(cacheStats).toHaveProperty('entries');
       expect(cacheStats).toHaveProperty('sizeKB');
       expect(cacheStats).toHaveProperty('hitRate');
       expect(cacheStats).toHaveProperty('oldestEntry');
       expect(cacheStats).toHaveProperty('newestEntry');
-      
+
       expect(cacheStats.entries).toBeGreaterThan(0);
       expect(cacheStats.sizeKB).toBeGreaterThanOrEqual(0);
     });
 
     it('should reset metrics correctly', () => {
       performanceService.resetMetrics();
-      
+
       const metrics = performanceService.getMetrics();
-      
+
       expect(metrics.totalRequests).toBe(0);
       expect(metrics.cachedRequests).toBe(0);
       expect(metrics.databaseQueries).toBe(0);
@@ -482,29 +487,32 @@ describe('PerformanceService', () => {
     it('should track slow queries', async () => {
       const mockQuery = {
         data: mockStoryData,
-        error: null
+        error: null,
       };
-      
+
       // Mock a slow query by delaying the response
       const slowMockBuilder = {
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         order: jest.fn().mockReturnThis(),
         range: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       };
-      
+
       // Add delay to simulate slow query
       Object.defineProperty(slowMockBuilder, 'data', {
-        get: () => new Promise(resolve => setTimeout(() => resolve(mockStoryData), 1100))
+        get: () =>
+          new Promise(resolve =>
+            setTimeout(() => resolve(mockStoryData), 1100),
+          ),
       });
-      
+
       (supabase.from as jest.Mock).mockReturnValue(slowMockBuilder);
 
       await performanceService.getStoryPage(1, 10);
-      
+
       const metrics = performanceService.getMetrics();
-      
+
       // Note: Due to test environment, actual slow query detection may not trigger
       // but the structure should be in place
       expect(metrics.slowQueries).toBeDefined();
@@ -515,17 +523,17 @@ describe('PerformanceService', () => {
   describe('Database Optimization', () => {
     it('should provide database optimization suggestions', async () => {
       const suggestions = await performanceService.analyzeDatabasePerformance();
-      
+
       expect(Array.isArray(suggestions)).toBe(true);
       expect(suggestions.length).toBeGreaterThan(0);
-      
+
       suggestions.forEach(suggestion => {
         expect(suggestion).toHaveProperty('table');
         expect(suggestion).toHaveProperty('columns');
         expect(suggestion).toHaveProperty('type');
         expect(suggestion).toHaveProperty('reason');
         expect(suggestion).toHaveProperty('estimatedImprovement');
-        
+
         expect(Array.isArray(suggestion.columns)).toBe(true);
         expect(['btree', 'gin', 'gist']).toContain(suggestion.type);
       });
@@ -533,15 +541,15 @@ describe('PerformanceService', () => {
 
     it('should suggest appropriate indexes', async () => {
       const suggestions = await performanceService.analyzeDatabasePerformance();
-      
-      const userIndexSuggestion = suggestions.find(s => 
-        s.columns.includes('user_id') && s.columns.includes('created_at')
+
+      const userIndexSuggestion = suggestions.find(
+        s => s.columns.includes('user_id') && s.columns.includes('created_at'),
       );
       expect(userIndexSuggestion).toBeDefined();
       expect(userIndexSuggestion?.type).toBe('btree');
-      
-      const fullTextSuggestion = suggestions.find(s => 
-        s.columns.includes('story_content')
+
+      const fullTextSuggestion = suggestions.find(s =>
+        s.columns.includes('story_content'),
       );
       expect(fullTextSuggestion).toBeDefined();
       expect(fullTextSuggestion?.type).toBe('gin');
@@ -552,20 +560,20 @@ describe('PerformanceService', () => {
     it('should warm up cache for user', async () => {
       const mockQuery = {
         data: mockStoryData,
-        error: null
+        error: null,
       };
-      
+
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         order: jest.fn().mockReturnThis(),
         range: jest.fn().mockReturnThis(),
         single: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       await performanceService.warmUpCache('user-123');
-      
+
       // Should have made database calls to pre-load content
       expect(supabase.from).toHaveBeenCalled();
     });
@@ -573,39 +581,39 @@ describe('PerformanceService', () => {
     it('should warm up cache without user', async () => {
       const mockQuery = {
         data: mockStoryData,
-        error: null
+        error: null,
       };
-      
+
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         order: jest.fn().mockReturnThis(),
         range: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       await performanceService.warmUpCache();
-      
+
       expect(supabase.from).toHaveBeenCalled();
     });
 
     it('should prefetch related stories', async () => {
       const mockQuery = {
         data: mockStoryData[0],
-        error: null
+        error: null,
       };
-      
+
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         order: jest.fn().mockReturnThis(),
         range: jest.fn().mockReturnThis(),
         single: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       await performanceService.prefetchRelatedStories('story-1', 'user-123');
-      
+
       // Should have made calls to prefetch related content
       expect(supabase.from).toHaveBeenCalled();
     });
@@ -613,19 +621,21 @@ describe('PerformanceService', () => {
     it('should handle warm-up errors gracefully', async () => {
       const mockQuery = {
         data: null,
-        error: { message: 'Database error' }
+        error: { message: 'Database error' },
       };
-      
+
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         order: jest.fn().mockReturnThis(),
         range: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       // Should not throw
-      await expect(performanceService.warmUpCache('user-123')).resolves.not.toThrow();
+      await expect(
+        performanceService.warmUpCache('user-123'),
+      ).resolves.not.toThrow();
     });
   });
 
@@ -633,22 +643,28 @@ describe('PerformanceService', () => {
     it('should generate appropriate story previews', async () => {
       const shortContent = 'Short story content.';
       const longContent = 'A'.repeat(500) + ' long story content continues...';
-      
-      const mockQuery1 = { data: { ...mockStoryData[0], story_content: shortContent }, error: null };
-      const mockQuery2 = { data: { ...mockStoryData[0], story_content: longContent }, error: null };
-      
+
+      const mockQuery1 = {
+        data: { ...mockStoryData[0], story_content: shortContent },
+        error: null,
+      };
+      const mockQuery2 = {
+        data: { ...mockStoryData[0], story_content: longContent },
+        error: null,
+      };
+
       (supabase.from as jest.Mock)
         .mockReturnValueOnce({
           select: jest.fn().mockReturnThis(),
           eq: jest.fn().mockReturnThis(),
           single: jest.fn().mockReturnThis(),
-          ...mockQuery1
+          ...mockQuery1,
         })
         .mockReturnValueOnce({
           select: jest.fn().mockReturnThis(),
           eq: jest.fn().mockReturnThis(),
           single: jest.fn().mockReturnThis(),
-          ...mockQuery2
+          ...mockQuery2,
         });
 
       const shortPreview = await performanceService.getStoryPreview('story-1');
@@ -662,28 +678,36 @@ describe('PerformanceService', () => {
     it('should extract titles from content', async () => {
       const contentWithTitle = 'The Dragon Adventure\n\nOnce upon a time...';
       const contentWithoutTitle = 'Once upon a time there was a story...';
-      
-      const mockQuery1 = { 
-        data: { ...mockStoryData[0], story_content: contentWithTitle, story_metadata: {} }, 
-        error: null 
+
+      const mockQuery1 = {
+        data: {
+          ...mockStoryData[0],
+          story_content: contentWithTitle,
+          story_metadata: {},
+        },
+        error: null,
       };
-      const mockQuery2 = { 
-        data: { ...mockStoryData[0], story_content: contentWithoutTitle, story_metadata: {} }, 
-        error: null 
+      const mockQuery2 = {
+        data: {
+          ...mockStoryData[0],
+          story_content: contentWithoutTitle,
+          story_metadata: {},
+        },
+        error: null,
       };
-      
+
       (supabase.from as jest.Mock)
         .mockReturnValueOnce({
           select: jest.fn().mockReturnThis(),
           eq: jest.fn().mockReturnThis(),
           single: jest.fn().mockReturnThis(),
-          ...mockQuery1
+          ...mockQuery1,
         })
         .mockReturnValueOnce({
           select: jest.fn().mockReturnThis(),
           eq: jest.fn().mockReturnThis(),
           single: jest.fn().mockReturnThis(),
-          ...mockQuery2
+          ...mockQuery2,
         });
 
       const preview1 = await performanceService.getStoryPreview('story-1');
@@ -696,16 +720,16 @@ describe('PerformanceService', () => {
 
     it('should calculate word counts correctly', async () => {
       const content = 'This is a test story with exactly ten words in it.';
-      const mockQuery = { 
-        data: { ...mockStoryData[0], story_content: content }, 
-        error: null 
+      const mockQuery = {
+        data: { ...mockStoryData[0], story_content: content },
+        error: null,
       };
-      
+
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         single: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       const preview = await performanceService.getStoryPreview('story-1');
@@ -726,24 +750,24 @@ describe('PerformanceService', () => {
         { id: 'story-1' }, // Missing required fields
         null,
         undefined,
-        { id: 'story-2', story_content: null }
+        { id: 'story-2', story_content: null },
       ];
-      
+
       const mockQuery = {
         data: malformedData,
-        error: null
+        error: null,
       };
-      
+
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         order: jest.fn().mockReturnThis(),
         range: jest.fn().mockReturnThis(),
-        ...mockQuery
+        ...mockQuery,
       });
 
       const results = await performanceService.getStoryPage(1, 10);
-      
+
       // Should handle malformed data gracefully
       expect(Array.isArray(results)).toBe(true);
     });
@@ -751,7 +775,7 @@ describe('PerformanceService', () => {
     it('should handle cache corruption gracefully', () => {
       // Clear cache should work even if cache is in bad state
       expect(() => performanceService.clearCache()).not.toThrow();
-      
+
       // Reset metrics should work even if metrics are corrupted
       expect(() => performanceService.resetMetrics()).not.toThrow();
     });

@@ -1,6 +1,6 @@
 /**
  * Advanced Search Modal Component
- * 
+ *
  * Provides an advanced search interface for the story continuation feature,
  * integrating with the AdvancedSearchService to offer full-text search,
  * metadata filtering, search suggestions, and result ranking.
@@ -21,7 +21,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { advancedSearchService, SearchResult, SearchQuery, SearchSuggestion } from '../../services/advancedSearchService';
+import {
+  advancedSearchService,
+  SearchResult,
+  SearchQuery,
+  SearchSuggestion,
+} from '../../services/advancedSearchService';
 import { useAuth } from '../../context/AuthContext';
 
 interface Props {
@@ -42,11 +47,11 @@ interface FilterState {
   sortOrder: 'asc' | 'desc';
 }
 
-const AdvancedSearchModal: React.FC<Props> = ({ 
-  visible, 
-  onClose, 
-  onStorySelect, 
-  initialQuery = '' 
+const AdvancedSearchModal: React.FC<Props> = ({
+  visible,
+  onClose,
+  onStorySelect,
+  initialQuery = '',
 }) => {
   const { user } = useAuth();
 
@@ -63,7 +68,7 @@ const AdvancedSearchModal: React.FC<Props> = ({
     gradeLevel: '',
     dateRange: null,
     sortBy: 'relevance',
-    sortOrder: 'desc'
+    sortOrder: 'desc',
   });
   const [showFilters, setShowFilters] = useState(false);
 
@@ -77,7 +82,7 @@ const AdvancedSearchModal: React.FC<Props> = ({
   const sortOptions = [
     { value: 'relevance', label: 'Relevance' },
     { value: 'date', label: 'Date' },
-    { value: 'wordCount', label: 'Word Count' }
+    { value: 'wordCount', label: 'Word Count' },
   ];
 
   // Debounced search function
@@ -97,17 +102,17 @@ const AdvancedSearchModal: React.FC<Props> = ({
           metadata: {
             source: searchFilters.source || undefined,
             gradeLevel: searchFilters.gradeLevel || undefined,
-            dateRange: searchFilters.dateRange || undefined
+            dateRange: searchFilters.dateRange || undefined,
           },
           sortBy: searchFilters.sortBy,
           sortOrder: searchFilters.sortOrder,
-          limit: 50
+          limit: 50,
         };
 
         const results = await advancedSearchService.fullTextSearch(
           searchQuery,
           user?.id,
-          searchOptions
+          searchOptions,
         );
 
         setSearchResults(results);
@@ -119,19 +124,20 @@ const AdvancedSearchModal: React.FC<Props> = ({
             searchQuery,
             user.id,
             results.length,
-            searchFilters
+            searchFilters,
           );
         }
-
       } catch (error) {
         console.error('Search error:', error);
-        setSearchError(error instanceof Error ? error.message : 'Search failed');
+        setSearchError(
+          error instanceof Error ? error.message : 'Search failed',
+        );
         setSearchResults([]);
       } finally {
         setIsSearching(false);
       }
     }, 300),
-    [user?.id]
+    [user?.id],
   );
 
   // Debounced suggestions function
@@ -146,7 +152,7 @@ const AdvancedSearchModal: React.FC<Props> = ({
         const suggestions = await advancedSearchService.getSuggestions(
           partial,
           user?.id,
-          8
+          8,
         );
         setSuggestions(suggestions);
       } catch (error) {
@@ -154,7 +160,7 @@ const AdvancedSearchModal: React.FC<Props> = ({
         setSuggestions([]);
       }
     }, 200),
-    [user?.id]
+    [user?.id],
   );
 
   // Effects
@@ -188,7 +194,7 @@ const AdvancedSearchModal: React.FC<Props> = ({
 
   const handleFilterChange = <K extends keyof FilterState>(
     key: K,
-    value: FilterState[K]
+    value: FilterState[K],
   ) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
@@ -199,7 +205,7 @@ const AdvancedSearchModal: React.FC<Props> = ({
       gradeLevel: '',
       dateRange: null,
       sortBy: 'relevance',
-      sortOrder: 'desc'
+      sortOrder: 'desc',
     });
   };
 
@@ -209,35 +215,38 @@ const AdvancedSearchModal: React.FC<Props> = ({
   };
 
   // Memoized components
-  const SearchInput = useMemo(() => (
-    <View style={styles.searchContainer}>
-      <TextInput
-        style={styles.searchInput}
-        value={query}
-        onChangeText={handleQueryChange}
-        onFocus={() => setShowSuggestions(true)}
-        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-        placeholder="Search your stories..."
-        autoCapitalize="none"
-        autoCorrect={false}
-        returnKeyType="search"
-        accessibilityLabel="Search stories"
-        accessibilityHint="Enter text to search through your stories"
-      />
-      {query.length > 0 && (
-        <TouchableOpacity
-          style={styles.clearButton}
-          onPress={() => {
-            setQuery('');
-            setShowSuggestions(false);
-          }}
-          accessibilityLabel="Clear search"
-        >
-          <Text style={styles.clearButtonText}>✕</Text>
-        </TouchableOpacity>
-      )}
-    </View>
-  ), [query]);
+  const SearchInput = useMemo(
+    () => (
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          value={query}
+          onChangeText={handleQueryChange}
+          onFocus={() => setShowSuggestions(true)}
+          onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+          placeholder="Search your stories..."
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="search"
+          accessibilityLabel="Search stories"
+          accessibilityHint="Enter text to search through your stories"
+        />
+        {query.length > 0 && (
+          <TouchableOpacity
+            style={styles.clearButton}
+            onPress={() => {
+              setQuery('');
+              setShowSuggestions(false);
+            }}
+            accessibilityLabel="Clear search"
+          >
+            <Text style={styles.clearButtonText}>✕</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    ),
+    [query],
+  );
 
   const SuggestionsDropdown = useMemo(() => {
     if (!showSuggestions || suggestions.length === 0) return null;
@@ -276,14 +285,16 @@ const AdvancedSearchModal: React.FC<Props> = ({
                 key={source}
                 style={[
                   styles.filterButton,
-                  filters.source === source && styles.filterButtonActive
+                  filters.source === source && styles.filterButtonActive,
                 ]}
                 onPress={() => handleFilterChange('source', source)}
               >
-                <Text style={[
-                  styles.filterButtonText,
-                  filters.source === source && styles.filterButtonTextActive
-                ]}>
+                <Text
+                  style={[
+                    styles.filterButtonText,
+                    filters.source === source && styles.filterButtonTextActive,
+                  ]}
+                >
                   {source || 'All'}
                 </Text>
               </TouchableOpacity>
@@ -299,14 +310,17 @@ const AdvancedSearchModal: React.FC<Props> = ({
                 key={level}
                 style={[
                   styles.filterButton,
-                  filters.gradeLevel === level && styles.filterButtonActive
+                  filters.gradeLevel === level && styles.filterButtonActive,
                 ]}
                 onPress={() => handleFilterChange('gradeLevel', level)}
               >
-                <Text style={[
-                  styles.filterButtonText,
-                  filters.gradeLevel === level && styles.filterButtonTextActive
-                ]}>
+                <Text
+                  style={[
+                    styles.filterButtonText,
+                    filters.gradeLevel === level &&
+                      styles.filterButtonTextActive,
+                  ]}
+                >
                   {level || 'All'}
                 </Text>
               </TouchableOpacity>
@@ -322,14 +336,19 @@ const AdvancedSearchModal: React.FC<Props> = ({
                 key={option.value}
                 style={[
                   styles.filterButton,
-                  filters.sortBy === option.value && styles.filterButtonActive
+                  filters.sortBy === option.value && styles.filterButtonActive,
                 ]}
-                onPress={() => handleFilterChange('sortBy', option.value as any)}
+                onPress={() =>
+                  handleFilterChange('sortBy', option.value as any)
+                }
               >
-                <Text style={[
-                  styles.filterButtonText,
-                  filters.sortBy === option.value && styles.filterButtonTextActive
-                ]}>
+                <Text
+                  style={[
+                    styles.filterButtonText,
+                    filters.sortBy === option.value &&
+                      styles.filterButtonTextActive,
+                  ]}
+                >
                   {option.label}
                 </Text>
               </TouchableOpacity>
@@ -337,7 +356,10 @@ const AdvancedSearchModal: React.FC<Props> = ({
           </ScrollView>
         </View>
 
-        <TouchableOpacity style={styles.clearFiltersButton} onPress={clearFilters}>
+        <TouchableOpacity
+          style={styles.clearFiltersButton}
+          onPress={clearFilters}
+        >
           <Text style={styles.clearFiltersText}>Clear Filters</Text>
         </TouchableOpacity>
       </View>
@@ -366,8 +388,8 @@ const AdvancedSearchModal: React.FC<Props> = ({
           <Text style={styles.resultDate}>{createdDate}</Text>
         </View>
 
-        <Text 
-          style={styles.resultPreview} 
+        <Text
+          style={styles.resultPreview}
           numberOfLines={3}
           ellipsizeMode="tail"
         >
@@ -432,7 +454,16 @@ const AdvancedSearchModal: React.FC<Props> = ({
         ItemSeparatorComponent={() => <View style={styles.resultSeparator} />}
       />
     );
-  }, [isSearching, searchError, hasSearched, searchResults, SearchResultItem, debouncedSearch, query, filters]);
+  }, [
+    isSearching,
+    searchError,
+    hasSearched,
+    searchResults,
+    SearchResultItem,
+    debouncedSearch,
+    query,
+    filters,
+  ]);
 
   return (
     <Modal
@@ -471,7 +502,8 @@ const AdvancedSearchModal: React.FC<Props> = ({
         <View style={styles.resultsContainer}>
           {hasSearched && (
             <Text style={styles.resultCount}>
-              {searchResults.length} {searchResults.length === 1 ? 'story' : 'stories'} found
+              {searchResults.length}{' '}
+              {searchResults.length === 1 ? 'story' : 'stories'} found
             </Text>
           )}
           {SearchResults}
@@ -484,7 +516,7 @@ const AdvancedSearchModal: React.FC<Props> = ({
 // Debounce utility function
 function debounce<T extends (...args: any[]) => any>(
   func: T,
-  wait: number
+  wait: number,
 ): (...args: Parameters<T>) => void {
   let timeout: NodeJS.Timeout;
   return (...args: Parameters<T>) => {

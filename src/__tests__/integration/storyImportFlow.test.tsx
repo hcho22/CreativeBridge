@@ -92,12 +92,13 @@ class E2EFlowTester {
         console.log(`Executing: ${step.description}`);
         try {
           await step.execute();
-          
+
           if (step.validate) {
             step.validate();
           }
         } catch (stepError) {
-          const errorMessage = stepError instanceof Error ? stepError.message : String(stepError);
+          const errorMessage =
+            stepError instanceof Error ? stepError.message : String(stepError);
           console.error(`Step "${step.action}" failed:`, errorMessage);
           this.errors.push(`Step "${step.action}": ${errorMessage}`);
           // Continue with other steps even if one fails
@@ -123,8 +124,10 @@ describe('Story Import Integration Flow', () => {
   describe('Complete File Import Workflow', () => {
     it('should complete full file import to story continuation flow', async () => {
       const flowTester = new E2EFlowTester();
-      const mockFileContent = 'Once upon a time, there was a brave knight who ventured into the dark forest.';
-      const mockContinuation = 'The knight discovered a magical sword glowing with ancient power.';
+      const mockFileContent =
+        'Once upon a time, there was a brave knight who ventured into the dark forest.';
+      const mockContinuation =
+        'The knight discovered a magical sword glowing with ancient power.';
 
       // Step 1: Setup mock data
       mockStoryImportService.readFileWithEncoding.mockResolvedValue({
@@ -159,7 +162,9 @@ describe('Story Import Integration Flow', () => {
         themes: ['adventure', 'courage'],
       });
 
-      mockStoryGenerationService.generateImportedStoryContinuation.mockResolvedValue(mockContinuation);
+      mockStoryGenerationService.generateImportedStoryContinuation.mockResolvedValue(
+        mockContinuation,
+      );
 
       mockStoryManagementService.saveStory.mockResolvedValue({
         success: true,
@@ -200,7 +205,7 @@ describe('Story Import Integration Flow', () => {
           renderResult = render(
             <NavigationContainer>
               <ImportOptionsScreen navigation={mockNavigation as any} />
-            </NavigationContainer>
+            </NavigationContainer>,
           );
         },
         validate: () => {
@@ -215,7 +220,7 @@ describe('Story Import Integration Flow', () => {
         execute: async () => {
           const fileImportButton = renderResult.getByText('Import from File');
           fireEvent.press(fileImportButton);
-          
+
           // Wait for file picker to be called
           await waitFor(() => {
             expect(mockFilePicker).toHaveBeenCalled();
@@ -230,7 +235,9 @@ describe('Story Import Integration Flow', () => {
         description: 'Validate imported file content',
         execute: async () => {
           await waitFor(() => {
-            expect(mockStoryImportService.validateStoryContent).toHaveBeenCalledWith(mockFileContent);
+            expect(
+              mockStoryImportService.validateStoryContent,
+            ).toHaveBeenCalledWith(mockFileContent);
           });
         },
       });
@@ -240,7 +247,9 @@ describe('Story Import Integration Flow', () => {
         description: 'Analyze story structure and style',
         execute: async () => {
           await act(async () => {
-            await mockStoryGenerationService.analyzeImportedStory(mockFileContent);
+            await mockStoryGenerationService.analyzeImportedStory(
+              mockFileContent,
+            );
           });
           storyAnalyzed = true;
         },
@@ -266,7 +275,9 @@ describe('Story Import Integration Flow', () => {
         description: 'Generate AI story continuation',
         execute: async () => {
           await act(async () => {
-            await mockStoryGenerationService.generateImportedStoryContinuation(mockFileContent);
+            await mockStoryGenerationService.generateImportedStoryContinuation(
+              mockFileContent,
+            );
           });
           continuationGenerated = true;
         },
@@ -284,10 +295,16 @@ describe('Story Import Integration Flow', () => {
 
       // Verify all services were called correctly
       expect(mockFilePicker).toHaveBeenCalled();
-      expect(mockStoryImportService.validateStoryContent).toHaveBeenCalledWith(mockFileContent);
-      expect(mockStoryGenerationService.analyzeImportedStory).toHaveBeenCalledWith(mockFileContent);
+      expect(mockStoryImportService.validateStoryContent).toHaveBeenCalledWith(
+        mockFileContent,
+      );
+      expect(
+        mockStoryGenerationService.analyzeImportedStory,
+      ).toHaveBeenCalledWith(mockFileContent);
       expect(mockStoryManagementService.saveStory).toHaveBeenCalled();
-      expect(mockStoryGenerationService.generateImportedStoryContinuation).toHaveBeenCalledWith(mockFileContent);
+      expect(
+        mockStoryGenerationService.generateImportedStoryContinuation,
+      ).toHaveBeenCalledWith(mockFileContent);
 
       // Clean up
       mockFilePicker.mockRestore();
@@ -341,7 +358,7 @@ describe('Story Import Integration Flow', () => {
           renderResult = render(
             <NavigationContainer>
               <ImportOptionsScreen navigation={mockNavigation as any} />
-            </NavigationContainer>
+            </NavigationContainer>,
           );
         },
       });
@@ -392,8 +409,12 @@ describe('Story Import Integration Flow', () => {
       expect(storiesFetched).toBe(true);
       expect(storySelected).toBe(true);
 
-      expect(mockStoryImportService.fetchUserStories).toHaveBeenCalledWith('test-user');
-      expect(mockStoryManagementService.searchStories).toHaveBeenCalledWith('magical');
+      expect(mockStoryImportService.fetchUserStories).toHaveBeenCalledWith(
+        'test-user',
+      );
+      expect(mockStoryManagementService.searchStories).toHaveBeenCalledWith(
+        'magical',
+      );
     });
   });
 
@@ -424,7 +445,7 @@ describe('Story Import Integration Flow', () => {
           renderResult = render(
             <NavigationContainer>
               <ImportOptionsScreen navigation={mockNavigation as any} />
-            </NavigationContainer>
+            </NavigationContainer>,
           );
         },
       });
@@ -445,7 +466,7 @@ describe('Story Import Integration Flow', () => {
             expect(Alert.alert).toHaveBeenCalledWith(
               'Import Error',
               'File too large. Maximum size is 10MB.',
-              [{ text: 'OK' }]
+              [{ text: 'OK' }],
             );
           });
 
@@ -477,7 +498,9 @@ describe('Story Import Integration Flow', () => {
         description: 'Attempt to fetch stories with database error',
         execute: async () => {
           await act(async () => {
-            const result = await mockStoryImportService.fetchUserStories('test-user');
+            const result = await mockStoryImportService.fetchUserStories(
+              'test-user',
+            );
             expect(result.success).toBe(false);
             expect(result.error).toBe('Database connection failed');
             errorHandled = true;
@@ -496,7 +519,7 @@ describe('Story Import Integration Flow', () => {
 
       // Mock AI service error
       mockStoryGenerationService.generateImportedStoryContinuation.mockRejectedValue(
-        new Error('AI service unavailable')
+        new Error('AI service unavailable'),
       );
 
       let errorHandled = false;
@@ -506,9 +529,13 @@ describe('Story Import Integration Flow', () => {
         description: 'Attempt AI generation with service error',
         execute: async () => {
           try {
-            await mockStoryGenerationService.generateImportedStoryContinuation('Test story');
+            await mockStoryGenerationService.generateImportedStoryContinuation(
+              'Test story',
+            );
           } catch (error) {
-            expect(error instanceof Error ? error.message : error).toBe('AI service unavailable');
+            expect(error instanceof Error ? error.message : error).toBe(
+              'AI service unavailable',
+            );
             errorHandled = true;
           }
         },
@@ -571,7 +598,7 @@ describe('Story Import Integration Flow', () => {
 
     it('should handle many stories search efficiently', async () => {
       const flowTester = new E2EFlowTester();
-      
+
       // Generate mock large dataset
       const manyStories = Array.from({ length: 1000 }, (_, i) => ({
         session_id: `session-${i}`,
@@ -637,7 +664,7 @@ describe('Story Import Integration Flow', () => {
         description: 'Test iOS specific functionality',
         execute: async () => {
           expect(require('react-native').Platform.OS).toBe('ios');
-          
+
           await mockStoryImportService.readFileWithEncoding('ios-file-uri');
           iOSCompatible = true;
         },
@@ -676,7 +703,7 @@ describe('Story Import Integration Flow', () => {
         description: 'Test Android specific functionality',
         execute: async () => {
           expect(require('react-native').Platform.OS).toBe('android');
-          
+
           await mockStoryImportService.readFileWithEncoding('android-file-uri');
           androidCompatible = true;
         },

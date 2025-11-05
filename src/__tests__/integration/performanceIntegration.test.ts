@@ -1,6 +1,6 @@
 /**
  * Performance Service Integration Tests
- * 
+ *
  * Tests the complete performance optimization workflow with real-world scenarios,
  * including cache behavior, database optimization, and cross-service integration.
  */
@@ -21,7 +21,9 @@ describe('Performance Service Integration', () => {
       expect(typeof performanceService.getFullStory).toBe('function');
       expect(typeof performanceService.getMetrics).toBe('function');
       expect(typeof performanceService.getCacheStats).toBe('function');
-      expect(typeof performanceService.analyzeDatabasePerformance).toBe('function');
+      expect(typeof performanceService.analyzeDatabasePerformance).toBe(
+        'function',
+      );
       expect(typeof performanceService.warmUpCache).toBe('function');
       expect(typeof performanceService.prefetchRelatedStories).toBe('function');
     });
@@ -33,16 +35,20 @@ describe('Performance Service Integration', () => {
     });
 
     it('should handle non-existent stories gracefully', async () => {
-      const preview = await performanceService.getStoryPreview('nonexistent-story');
-      const fullStory = await performanceService.getFullStory('nonexistent-story');
-      
+      const preview = await performanceService.getStoryPreview(
+        'nonexistent-story',
+      );
+      const fullStory = await performanceService.getFullStory(
+        'nonexistent-story',
+      );
+
       expect(preview).toBeNull();
       expect(fullStory).toBeNull();
     });
 
     it('should provide consistent metrics structure', () => {
       const metrics = performanceService.getMetrics();
-      
+
       expect(metrics).toHaveProperty('cacheHitRate');
       expect(metrics).toHaveProperty('averageLoadTime');
       expect(metrics).toHaveProperty('totalRequests');
@@ -64,7 +70,7 @@ describe('Performance Service Integration', () => {
 
     it('should provide consistent cache stats structure', () => {
       const cacheStats = performanceService.getCacheStats();
-      
+
       expect(cacheStats).toHaveProperty('entries');
       expect(cacheStats).toHaveProperty('sizeKB');
       expect(cacheStats).toHaveProperty('hitRate');
@@ -83,17 +89,17 @@ describe('Performance Service Integration', () => {
 
     it('should provide database optimization suggestions', async () => {
       const suggestions = await performanceService.analyzeDatabasePerformance();
-      
+
       expect(Array.isArray(suggestions)).toBe(true);
       expect(suggestions.length).toBeGreaterThan(0);
-      
+
       suggestions.forEach(suggestion => {
         expect(suggestion).toHaveProperty('table');
         expect(suggestion).toHaveProperty('columns');
         expect(suggestion).toHaveProperty('type');
         expect(suggestion).toHaveProperty('reason');
         expect(suggestion).toHaveProperty('estimatedImprovement');
-        
+
         expect(typeof suggestion.table).toBe('string');
         expect(Array.isArray(suggestion.columns)).toBe(true);
         expect(['btree', 'gin', 'gist']).toContain(suggestion.type);
@@ -106,12 +112,12 @@ describe('Performance Service Integration', () => {
   describe('Performance Characteristics', () => {
     it('should complete operations quickly', async () => {
       const startTime = Date.now();
-      
+
       await Promise.all([
         performanceService.getStoryPage(1, 10),
         performanceService.getMetrics(),
         performanceService.getCacheStats(),
-        performanceService.analyzeDatabasePerformance()
+        performanceService.analyzeDatabasePerformance(),
       ]);
 
       const endTime = Date.now();
@@ -119,12 +125,12 @@ describe('Performance Service Integration', () => {
     });
 
     it('should handle concurrent operations', async () => {
-      const operations = Array.from({ length: 5 }, (_, i) => 
-        performanceService.getStoryPage(i + 1, 10, `user-${i}`)
+      const operations = Array.from({ length: 5 }, (_, i) =>
+        performanceService.getStoryPage(i + 1, 10, `user-${i}`),
       );
 
       const results = await Promise.all(operations);
-      
+
       results.forEach(result => {
         expect(Array.isArray(result)).toBe(true);
       });
@@ -151,7 +157,7 @@ describe('Performance Service Integration', () => {
     it('should handle cache operations correctly', () => {
       // Clear should work without errors
       expect(() => performanceService.clearCache()).not.toThrow();
-      
+
       // Stats should be consistent after clear
       const statsAfterClear = performanceService.getCacheStats();
       expect(statsAfterClear.entries).toBe(0);
@@ -162,7 +168,7 @@ describe('Performance Service Integration', () => {
       await performanceService.getStoryPage(1, 10);
       await performanceService.getStoryPage(1, 10); // Same request (cache hit)
       await performanceService.getStoryPage(2, 10); // Different request
-      
+
       const metrics = performanceService.getMetrics();
       expect(metrics.totalRequests).toBeGreaterThan(0);
     });
@@ -173,13 +179,13 @@ describe('Performance Service Integration', () => {
       for (let i = 0; i < 20; i++) {
         promises.push(performanceService.getStoryPage(i + 1, 10, `user-${i}`));
       }
-      
+
       await Promise.all(promises);
-      
+
       // Cache should still be functional
       const stats = performanceService.getCacheStats();
       expect(stats.entries).toBeGreaterThanOrEqual(0);
-      
+
       // New requests should still work
       const newResults = await performanceService.getStoryPage(21, 10);
       expect(Array.isArray(newResults)).toBe(true);
@@ -189,24 +195,32 @@ describe('Performance Service Integration', () => {
   describe('Error Resilience', () => {
     it('should recover from service errors', async () => {
       // These operations should not throw
-      await expect(performanceService.getStoryPage(1, 10)).resolves.not.toThrow();
-      await expect(performanceService.getStoryPreview('test-id')).resolves.not.toThrow();
-      await expect(performanceService.getFullStory('test-id')).resolves.not.toThrow();
+      await expect(
+        performanceService.getStoryPage(1, 10),
+      ).resolves.not.toThrow();
+      await expect(
+        performanceService.getStoryPreview('test-id'),
+      ).resolves.not.toThrow();
+      await expect(
+        performanceService.getFullStory('test-id'),
+      ).resolves.not.toThrow();
       await expect(performanceService.warmUpCache()).resolves.not.toThrow();
-      await expect(performanceService.analyzeDatabasePerformance()).resolves.not.toThrow();
+      await expect(
+        performanceService.analyzeDatabasePerformance(),
+      ).resolves.not.toThrow();
     });
 
     it('should handle invalid input gracefully', async () => {
       // Invalid pagination parameters
       const results1 = await performanceService.getStoryPage(-1, -1);
       expect(Array.isArray(results1)).toBe(true);
-      
+
       // Invalid story IDs
       const preview = await performanceService.getStoryPreview('');
       const fullStory = await performanceService.getFullStory('');
       expect(preview).toBeNull();
       expect(fullStory).toBeNull();
-      
+
       // Invalid user IDs
       const results2 = await performanceService.getStoryPage(1, 10, '');
       expect(Array.isArray(results2)).toBe(true);
@@ -219,9 +233,9 @@ describe('Performance Service Integration', () => {
         rapidOperations.push(performanceService.getMetrics());
         rapidOperations.push(performanceService.getCacheStats());
       }
-      
+
       await Promise.all(rapidOperations);
-      
+
       // Service should still be responsive
       const finalMetrics = performanceService.getMetrics();
       expect(finalMetrics).toBeDefined();
@@ -231,14 +245,14 @@ describe('Performance Service Integration', () => {
   describe('Memory Management', () => {
     it('should not leak memory with repeated operations', async () => {
       const initialStats = performanceService.getCacheStats();
-      
+
       // Perform many operations
       for (let i = 0; i < 100; i++) {
-        await performanceService.getStoryPage(i % 10 + 1, 10);
+        await performanceService.getStoryPage((i % 10) + 1, 10);
       }
-      
+
       const finalStats = performanceService.getCacheStats();
-      
+
       // Memory usage should be reasonable (cache should evict old entries)
       expect(finalStats.sizeKB).toBeLessThan(1000); // Less than 1MB
     });
@@ -247,12 +261,12 @@ describe('Performance Service Integration', () => {
       // Start some operations
       const operations = [
         performanceService.getStoryPage(1, 10),
-        performanceService.getStoryPage(2, 10)
+        performanceService.getStoryPage(2, 10),
       ];
-      
+
       // Clear cache while operations are running
       performanceService.clearCache();
-      
+
       // Operations should still complete
       const results = await Promise.all(operations);
       results.forEach(result => {
@@ -264,24 +278,24 @@ describe('Performance Service Integration', () => {
   describe('Metrics Accuracy', () => {
     it('should accurately track request counts', async () => {
       performanceService.resetMetrics();
-      
+
       await performanceService.getStoryPage(1, 10);
       await performanceService.getStoryPage(1, 10); // Same request
       await performanceService.getStoryPage(2, 10); // Different request
-      
+
       const metrics = performanceService.getMetrics();
       expect(metrics.totalRequests).toBe(3);
     });
 
     it('should calculate cache hit rates correctly', async () => {
       performanceService.resetMetrics();
-      
+
       // First request (miss)
       await performanceService.getStoryPage(1, 10);
-      
+
       // Second request (hit)
       await performanceService.getStoryPage(1, 10);
-      
+
       const metrics = performanceService.getMetrics();
       expect(metrics.totalRequests).toBe(2);
       expect(metrics.cacheHitRate).toBeGreaterThan(0);
@@ -289,10 +303,10 @@ describe('Performance Service Integration', () => {
 
     it('should track response time history', async () => {
       performanceService.resetMetrics();
-      
+
       await performanceService.getStoryPage(1, 10);
       await performanceService.getStoryPage(2, 10);
-      
+
       const metrics = performanceService.getMetrics();
       expect(metrics.responseTimeHistory.length).toBe(2);
       expect(metrics.averageLoadTime).toBeGreaterThan(0);
@@ -304,14 +318,14 @@ describe('Performance Service Integration', () => {
       // Performance service should work even if other services are not available
       const results = await performanceService.getStoryPage(1, 10);
       expect(Array.isArray(results)).toBe(true);
-      
+
       const suggestions = await performanceService.analyzeDatabasePerformance();
       expect(Array.isArray(suggestions)).toBe(true);
     });
 
     it('should provide consistent data structures', async () => {
       const storyPage = await performanceService.getStoryPage(1, 10);
-      
+
       storyPage.forEach(story => {
         expect(story).toHaveProperty('id');
         expect(story).toHaveProperty('preview');
@@ -321,7 +335,7 @@ describe('Performance Service Integration', () => {
         expect(story).toHaveProperty('updated_at');
         expect(story).toHaveProperty('word_count');
         expect(story).toHaveProperty('user_id');
-        
+
         expect(typeof story.id).toBe('string');
         expect(typeof story.preview).toBe('string');
         expect(typeof story.source).toBe('string');
@@ -331,9 +345,13 @@ describe('Performance Service Integration', () => {
     });
 
     it('should handle user context correctly', async () => {
-      const userStories = await performanceService.getStoryPage(1, 10, 'test-user');
+      const userStories = await performanceService.getStoryPage(
+        1,
+        10,
+        'test-user',
+      );
       const allStories = await performanceService.getStoryPage(1, 10);
-      
+
       expect(Array.isArray(userStories)).toBe(true);
       expect(Array.isArray(allStories)).toBe(true);
     });

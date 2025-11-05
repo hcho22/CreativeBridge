@@ -17,7 +17,6 @@ import {
   Easing,
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useAuth } from '../context/AuthContext';
 import { TabParamList } from '../navigation/AppNavigator';
@@ -34,6 +33,11 @@ import { StoryInputDebouncer } from '../utils/debounceUtils';
 import { challengeService } from '../services/challengeService';
 import { Challenge, ChallengeProgress } from '../types/challenges';
 import ChallengeDisplay from '../components/common/ChallengeDisplay';
+import ImageGeneration from '../components/common/ImageGeneration';
+import StoryImageDisplay from '../components/common/StoryImageDisplay';
+import { storyDownloadService } from '../services/storyDownloadService';
+import RNFS from 'react-native-fs';
+import Share from 'react-native-share';
 
 type HomeScreenNavigationProp = BottomTabNavigationProp<TabParamList, 'Home'>;
 
@@ -91,6 +95,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   // Game round tracking
   const [currentRound, setCurrentRound] = useState(1);
   const [isGameCompleted, setIsGameCompleted] = useState(false);
+  const [showCompletionOptions, setShowCompletionOptions] = useState(false);
+  const [showImageGeneration, setShowImageGeneration] = useState(false);
+  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(
+    null,
+  );
   const MAX_ROUNDS = 5;
 
   // Use the user's preferred grade level from their profile, or default to K-2
@@ -348,14 +357,27 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   const checkForExistingSession = useCallback(async () => {
     try {
-      // Always clear any existing session and start fresh
-      // Users will start a new story every time they log in
+      // Check for existing session and load it if available
       const existingSession = await storySessionManager.getCurrentSession();
       if (existingSession && !existingSession.isCompleted) {
-        console.log('Clearing existing unfinished session to start fresh');
-        // Clear the current session reference but don't delete the session data
-        // This allows the session to remain in the database for history
-        await AsyncStorage.removeItem('@CreativeBridge:currentSession');
+        console.log('Loading existing session:', existingSession.id);
+        setCurrentSession(existingSession);
+        setIsGameActive(true);
+        setCurrentRound(existingSession.sessionStats.contributionCount + 1);
+
+        // Check if session has a generated image
+        if (existingSession.generated_image_url) {
+          setGeneratedImageUrl(existingSession.generated_image_url);
+          console.log(
+            'Loaded existing image:',
+            existingSession.generated_image_url,
+          );
+        }
+
+        // Set completion state if needed
+        if (existingSession.sessionStats.contributionCount >= MAX_ROUNDS) {
+          setIsGameCompleted(true);
+        }
       }
     } catch (error) {
       console.error('Error checking for existing session:', error);
@@ -443,7 +465,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           [{ text: 'Awesome!' }],
         );
       }
-       
     },
     [currentChallenge],
   );
@@ -475,8 +496,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     }
 
     try {
-      // Clear any previous errors
+      // Clear any previous errors and reset image state
       setGenerationError(null);
+      setGeneratedImageUrl(null); // Reset to prevent showing expired images from previous sessions
 
       // Start loading with animations
       setLoadingState(prev => ({
@@ -730,18 +752,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           setCurrentSession({ ...updatedSession });
           startFadeAnimation();
 
-          // Update round counter after AI responds
-          const nextRound = currentRound + 1;
-          setCurrentRound(nextRound);
-
           // Check if game should end after this round
-          if (nextRound > MAX_ROUNDS) {
+          if (currentRound >= MAX_ROUNDS) {
             setIsGameCompleted(true);
 
-            // Show game completion after a brief delay
+            // Show completion options screen after a brief delay
             setTimeout(() => {
-              handleGameCompletion();
+              setShowCompletionOptions(true);
             }, 2000);
+          } else {
+            // Only increment round counter if game is continuing
+            const nextRound = currentRound + 1;
+            setCurrentRound(nextRound);
           }
 
           // Provide audio feedback and optionally read the AI response
@@ -906,48 +928,469 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     setUserInput('');
     setCurrentRound(1);
     setIsGameCompleted(false);
+    setShowCompletionOptions(false);
+    setShowImageGeneration(false);
+    setGeneratedImageUrl(null); // Reset image URL to prevent showing expired images
   };
 
-  const handleGameCompletion = () => {
-    const finalWordCount = currentSession?.sessionStats.userWords || 0;
-    const completedChallenges = challengeProgress.filter(
-      p => p.isCompleted,
-    ).length;
+  const handleImageGeneration = useCallback(() => {
+    setShowImageGeneration(true);
+    setShowCompletionOptions(false); // Hide completion options while generating
+  }, []);
 
+  const handleBackToCompletionOptions = useCallback(() => {
+    setShowCompletionOptions(true);
+    setShowImageGeneration(false);
+  }, []);
+
+  const handleViewStory = useCallback(() => {
+    // Simply show the story (already visible) and hide completion options
+    setShowCompletionOptions(false);
+    
+    // Scroll to top of story to give user a better view
     Alert.alert(
-      '🎉 Story Complete!',
-      `Congratulations! You've completed your ${MAX_ROUNDS}-round story adventure!\n\n` +
-        `📝 Words Written: ${finalWordCount}\n` +
-        `🎯 Challenges Completed: ${completedChallenges}\n` +
-        `📚 Story Length: ${
-          currentSession?.story_content?.length || 0
-        } characters\n\n` +
-        `Your story has been saved. Would you like to start a new adventure?`,
+      '📖 Story View',
+      'Your completed story is displayed above. You can scroll to read it fully.\n\nTap the "Back to Options" button below to choose other actions.',
+      [{ text: 'OK' }]
+    );
+  }, []);
+
+  const handleImageGenerated = useCallback(
+    async (imageUrl: string) => {
+      console.log('✅ [DEBUG] handleImageGenerated called with URL:', imageUrl);
+      console.log('✅ [DEBUG] Current session ID:', currentSession?.id);
+      console.log('✅ [DEBUG] Setting generatedImageUrl state');
+      setGeneratedImageUrl(imageUrl);
+      setShowImageGeneration(false);
+
+      // Reload the session from database to get the updated session with image data
+      if (currentSession) {
+        try {
+          const updatedSession = await storySessionManager.getSession(
+            currentSession.id,
+          );
+          if (updatedSession) {
+            console.log(
+              '✅ [DEBUG] Reloaded session with image data:',
+              updatedSession.generated_image_url?.substring(0, 50) + '...',
+            );
+            setCurrentSession(updatedSession);
+          }
+        } catch (error) {
+          console.error(
+            '❌ [DEBUG] Failed to reload session after image generation:',
+            error,
+          );
+        }
+      }
+
+      // Image generated successfully - no popup needed, user will see the image directly
+      
+      console.log('✅ [DEBUG] handleImageGenerated completed');
+    },
+    [currentSession],
+  );
+
+  const handleImageGenerationError = useCallback((error: string) => {
+    console.error('❌ Image generation failed:', error);
+    setShowImageGeneration(false);
+    
+    // Return to completion options after showing error
+    Alert.alert(
+      '❌ Image Generation Failed',
+      `Sorry, we couldn't generate an image for your story.\n\nError: ${error}\n\nYou can try again or choose other actions.`,
       [
         {
-          text: 'View Story',
-          onPress: () => {
-            // Keep the story visible for review
-            console.log('📖 Player wants to review completed story');
-          },
-        },
-        {
-          text: 'New Story',
-          onPress: () => {
-            exitGame();
-            // Optionally auto-start a new game
-            setTimeout(() => {
-              handleStartNewGame();
-            }, 500);
-          },
-        },
-        {
-          text: 'Main Menu',
-          onPress: () => exitGame(),
-        },
-      ],
+          text: 'OK',
+          onPress: () => setShowCompletionOptions(true)
+        }
+      ]
     );
-  };
+  }, []);
+
+  const handleDownloadStory = useCallback(async () => {
+    if (!currentSession) {
+      Alert.alert(
+        'No Story Available',
+        'There is no story to download. Please complete a story first.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    try {
+      // Create download options directly from story content
+      const storyContent = currentSession.story_content || 
+        currentSession.contributions?.map(c => c.content).join('\n\n') || '';
+      
+      if (!storyContent.trim()) {
+        Alert.alert(
+          'Empty Story',
+          'Your story appears to be empty. Please add some content before downloading.',
+          [
+            { text: 'OK' },
+            {
+              text: 'Continue Writing',
+              onPress: () => {
+                // Keep user in the story to add content
+                console.log('User wants to continue writing');
+              }
+            }
+          ]
+        );
+        return;
+      }
+
+      const downloadOptions = storyDownloadService.createDownloadOptionsFromContent(
+        currentSession.id,
+        storyContent
+      );
+      
+      // Validate the story content with enhanced feedback
+      const validation = storyDownloadService.validateStoryContent(downloadOptions.content);
+      if (!validation.isValid) {
+        const errorDetails = validation.errors.join('\n• ');
+        Alert.alert(
+          'Story Validation Failed',
+          `Your story cannot be downloaded due to the following issues:\n\n• ${errorDetails}\n\nPlease fix these issues and try again.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Try Anyway',
+              onPress: () => {
+                // Allow download with minimal validation for edge cases
+                const fileName = storyDownloadService.generateFileName();
+                const fileContent = storyContent; // Use raw content
+                saveStoryWithLocationPicker(fileContent, fileName);
+              }
+            }
+          ]
+        );
+        return;
+      }
+
+      // Check estimated file size and warn for very large files
+      const stats = storyDownloadService.generateDownloadStats(downloadOptions);
+      if (stats.estimatedFileSize > 500000) { // 500KB
+        Alert.alert(
+          'Large Story File',
+          `Your story is quite large (${Math.round(stats.estimatedFileSize / 1024)}KB, ${stats.wordCount} words).\n\nThis may take longer to process and share. Continue?`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Continue',
+              onPress: () => proceedWithDownload(downloadOptions)
+            }
+          ]
+        );
+        return;
+      }
+
+      await proceedWithDownload(downloadOptions);
+
+    } catch (error) {
+      console.error('❌ Download preparation failed:', error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      
+      Alert.alert(
+        'Download Failed',
+        `Sorry, we couldn't prepare your story for download.\n\nError: ${errorMsg}\n\nWould you like to try again?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Retry', onPress: handleDownloadStory }
+        ]
+      );
+    }
+  }, [currentSession]);
+
+  const proceedWithDownload = useCallback(async (downloadOptions: any) => {
+    try {
+      // Generate the file content with loading indication
+      const fileContent = storyDownloadService.generateStoryFile(downloadOptions);
+      const fileName = storyDownloadService.generateFileName();
+
+      // Save file and let user choose location through share sheet (no loading popup needed)
+      await saveStoryWithLocationPicker(fileContent, fileName);
+
+    } catch (error) {
+      console.error('❌ Download processing failed:', error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      
+      Alert.alert(
+        'Processing Failed',
+        `Failed to process your story for download.\n\nError: ${errorMsg}\n\nThis might be due to the story content or a temporary issue.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Retry', onPress: () => proceedWithDownload(downloadOptions) }
+        ]
+      );
+    }
+  }, []);
+
+  const saveStoryWithLocationPicker = useCallback(async (fileContent: string, fileName: string) => {
+    try {
+      // Create temporary file in app's Documents directory
+      const documentsPath = RNFS.DocumentDirectoryPath;
+      const tempFilePath = `${documentsPath}/${fileName}`;
+
+      // Write the file to temporary location
+      await RNFS.writeFile(tempFilePath, fileContent, 'utf8');
+
+      // Get file stats for sharing
+      const fileStat = await RNFS.stat(tempFilePath);
+      console.log('📁 File created successfully:', {
+        path: tempFilePath,
+        size: fileStat.size,
+        fileName: fileName
+      });
+
+      // Dismiss loading alert
+      // Note: React Native doesn't provide direct way to dismiss specific alerts
+      // The share sheet will naturally override the loading alert
+
+      // Use iOS share sheet to let user choose save location
+      const shareOptions = {
+        title: 'Save Story',
+        message: 'Save your completed story',
+        url: `file://${tempFilePath}`,
+        type: 'text/plain',
+        filename: fileName,
+        saveToFiles: true, // This enables "Save to Files" option on iOS
+      };
+
+      try {
+        const shareResult = await Share.open(shareOptions);
+        console.log('📁 Share result:', shareResult);
+
+        // Show success message based on share result
+        if (shareResult.success) {
+          Alert.alert(
+            '✅ Story Saved!',
+            `Your story "${fileName}" has been saved successfully!\n\nYou can find it in the location you selected.`,
+            [
+              { 
+                text: 'Great!',
+                onPress: () => setShowCompletionOptions(true)
+              }
+            ]
+          );
+        } else if (shareResult.dismissedAction) {
+          Alert.alert(
+            'Story Ready',
+            `Your story "${fileName}" is ready in the app's Documents folder.\n\nYou can also access it through the Files app.`,
+            [
+              { 
+                text: 'OK',
+                onPress: () => setShowCompletionOptions(true)
+              }
+            ]
+          );
+        }
+      } catch (shareError) {
+        console.log('📁 Share cancelled or failed:', shareError);
+        
+        // Handle user cancellation gracefully
+        const errorMessage = shareError instanceof Error ? shareError.message : String(shareError);
+        
+        // Check if user actually cancelled - if so, don't show any success message
+        if (errorMessage && (
+          errorMessage.includes('User did not share') || 
+          errorMessage.includes('cancelled') ||
+          errorMessage.includes('User cancelled') ||
+          errorMessage.toLowerCase().includes('cancel')
+        )) {
+          // User cancelled - clean up the temporary file and don't show success message
+          try {
+            await RNFS.unlink(tempFilePath);
+            console.log('📁 Cleaned up temporary file after user cancellation');
+          } catch (cleanupError) {
+            console.log('📁 Could not clean up temporary file:', cleanupError);
+          }
+          // Don't show any message - user intentionally cancelled
+          return;
+        } else {
+          // Other share errors - file is still saved locally as fallback
+          Alert.alert(
+            'Story Saved Locally',
+            `Your story "${fileName}" has been saved to the app's Documents folder.\n\nYou can access it through the Files app and move it to your preferred location.`,
+            [
+              { 
+                text: 'OK',
+                onPress: () => setShowCompletionOptions(true)
+              }
+            ]
+          );
+        }
+      }
+
+      // Clean up temporary file after a delay (in case user wants to share again)
+      setTimeout(async () => {
+        try {
+          const fileExists = await RNFS.exists(tempFilePath);
+          if (fileExists) {
+            // Don't delete immediately - user might want to access it
+            console.log('📁 Keeping file for user access:', tempFilePath);
+          }
+        } catch (cleanupError) {
+          console.log('📁 Cleanup check failed:', cleanupError);
+        }
+      }, 10000); // 10 second delay
+
+    } catch (error) {
+      console.error('❌ File save operation failed:', error);
+      
+      // Provide specific error messages based on error type
+      let errorMessage = 'An unexpected error occurred while saving your story.';
+      let suggestion = 'Please try again.';
+
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      if (errorMsg?.includes('ENOSPC')) {
+        errorMessage = 'Not enough storage space available.';
+        suggestion = 'Please free up some space and try again.';
+      } else if (errorMsg?.includes('EACCES')) {
+        errorMessage = 'Permission denied to write file.';
+        suggestion = 'Please check app permissions in Settings.';
+      } else if (errorMsg?.includes('ENOENT')) {
+        errorMessage = 'Directory not accessible.';
+        suggestion = 'Please restart the app and try again.';
+      }
+
+      Alert.alert(
+        'Save Failed',
+        `${errorMessage}\n\n${suggestion}`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Retry', onPress: () => saveStoryWithLocationPicker(fileContent, fileName) },
+          {
+            text: 'Help',
+            onPress: () => showDownloadTroubleshooting(errorMsg)
+          }
+        ]
+      );
+    }
+  }, []);
+
+  const showDownloadTroubleshooting = useCallback((errorDetails: string) => {
+    let troubleshootingSteps = '';
+    let additionalActions: any[] = [];
+
+    if (errorDetails?.includes('ENOSPC')) {
+      troubleshootingSteps = `Storage Space Issue:\n\n1. Delete unused photos, videos, or apps\n2. Clear app caches in Settings\n3. Move files to iCloud or external storage\n4. Restart your device\n\nYour story needs about ${Math.round(errorDetails.length / 1024)}KB of space.`;
+      additionalActions = [
+        {
+          text: 'Open Settings',
+          onPress: () => {
+            console.log('User wants to open device settings');
+            // On iOS, we can suggest but can't directly open specific settings
+          }
+        }
+      ];
+    } else if (errorDetails?.includes('EACCES')) {
+      troubleshootingSteps = `Permission Issue:\n\n1. Go to Settings > Privacy & Security\n2. Find "CreativeBridge" in the apps list\n3. Enable "Files and Folders" permission\n4. Restart the app\n5. Try downloading again\n\nIf the issue persists, try restarting your device.`;
+      additionalActions = [
+        {
+          text: 'Restart App',
+          onPress: () => {
+            Alert.alert(
+              'Restart Required',
+              'Please close and reopen the app to refresh permissions, then try downloading again.',
+              [{ text: 'OK' }]
+            );
+          }
+        }
+      ];
+    } else if (errorDetails?.includes('ENOENT')) {
+      troubleshootingSteps = `Directory Access Issue:\n\n1. Restart the CreativeBridge app\n2. If that doesn't work, restart your device\n3. Ensure iOS is up to date\n4. Try downloading again\n\nThis is usually a temporary issue that resolves after restarting.`;
+      additionalActions = [
+        {
+          text: 'Check iOS Version',
+          onPress: () => {
+            Alert.alert(
+              'iOS Version Check',
+              'Please ensure you\'re running iOS 14.0 or later for best compatibility.\n\nGo to Settings > General > About to check your iOS version.',
+              [{ text: 'OK' }]
+            );
+          }
+        }
+      ];
+    } else {
+      troubleshootingSteps = `General Troubleshooting:\n\n1. Ensure you have a stable internet connection\n2. Close other apps to free up memory\n3. Restart the CreativeBridge app\n4. Try downloading at a different time\n5. Contact support if the issue persists\n\nError details: ${errorDetails.substring(0, 100)}...`;
+      additionalActions = [
+        {
+          text: 'Contact Support',
+          onPress: () => {
+            Alert.alert(
+              'Contact Support',
+              'If this issue continues, please contact our support team with the error details:\n\n' + errorDetails,
+              [
+                { text: 'OK' },
+                {
+                  text: 'Copy Error',
+                  onPress: () => {
+                    console.log('Error details copied to clipboard:', errorDetails);
+                    Alert.alert('Error Copied', 'Error details copied to clipboard for support.');
+                  }
+                }
+              ]
+            );
+          }
+        }
+      ];
+    }
+
+    Alert.alert(
+      'Download Troubleshooting',
+      troubleshootingSteps,
+      [
+        { text: 'OK', style: 'cancel' },
+        ...additionalActions
+      ]
+    );
+  }, []);
+
+  const retryDownloadWithFallback = useCallback(async (fileContent: string, fileName: string, attemptCount = 1) => {
+    if (attemptCount > 3) {
+      Alert.alert(
+        'Multiple Failures',
+        'The download has failed multiple times. Your story will be saved locally in the app\'s Documents folder.\n\nYou can access it later through the Files app.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    try {
+      // Add exponential backoff delay
+      if (attemptCount > 1) {
+        const delayMs = Math.pow(2, attemptCount - 1) * 1000; // 1s, 2s, 4s
+        Alert.alert(
+          `Retry Attempt ${attemptCount}`,
+          `Waiting ${delayMs / 1000} seconds before retrying...`,
+          [],
+          { cancelable: false }
+        );
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+
+      await saveStoryWithLocationPicker(fileContent, fileName);
+    } catch (error) {
+      console.error(`❌ Retry attempt ${attemptCount} failed:`, error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      
+      Alert.alert(
+        `Retry ${attemptCount} Failed`,
+        `Attempt ${attemptCount} unsuccessful.\n\nError: ${errorMsg}\n\nTry again?`,
+        [
+          { text: 'Give Up', style: 'cancel' },
+          {
+            text: `Retry (${attemptCount + 1}/3)`,
+            onPress: () => retryDownloadWithFallback(fileContent, fileName, attemptCount + 1)
+          }
+        ]
+      );
+    }
+  }, []);
+
+  // Removed handleGameCompletion function - replaced with completion options screen
 
   // Removed handleCompleteStory and handleShareStory functions since Complete button was removed
 
@@ -977,7 +1420,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           </View>
 
           {/* Current Challenge Display */}
-          {currentChallenge && (
+          {currentChallenge && !showCompletionOptions && (
             <ChallengeDisplay
               challenge={currentChallenge}
               progress={challengeProgress.find(
@@ -991,34 +1434,45 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           <View style={styles.storyBookContainer}>
             <View style={styles.storyBookHeader}>
               <Text style={styles.storyBookTitle}>📖 Your Story</Text>
-              <TouchableOpacity
-                style={styles.copyButton}
-                onPress={() => {
-                  const storyContent =
-                    currentSession?.story_content ||
-                    currentSession?.contributions
-                      ?.map(c => c.content)
-                      .join('\n\n') ||
-                    '';
-                  if (storyContent.trim()) {
-                    Clipboard.setString(storyContent);
-                    Alert.alert('✅ Copied!', 'Story copied to clipboard', [
-                      { text: 'OK' },
-                    ]);
-                  } else {
-                    Alert.alert('📝 No Story', 'No story content to copy yet', [
-                      { text: 'OK' },
-                    ]);
+              <View style={styles.storyBookButtons}>
+                <TouchableOpacity
+                  style={styles.imageGenButton}
+                  onPress={handleImageGeneration}
+                  disabled={!isGameCompleted || showImageGeneration}
+                >
+                  <Text style={styles.imageGenButtonText}>🎨</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.copyButton}
+                  onPress={() => {
+                    const storyContent =
+                      currentSession?.story_content ||
+                      currentSession?.contributions
+                        ?.map(c => c.content)
+                        .join('\n\n') ||
+                      '';
+                    if (storyContent.trim()) {
+                      Clipboard.setString(storyContent);
+                      Alert.alert('✅ Copied!', 'Story copied to clipboard', [
+                        { text: 'OK' },
+                      ]);
+                    } else {
+                      Alert.alert(
+                        '📝 No Story',
+                        'No story content to copy yet',
+                        [{ text: 'OK' }],
+                      );
+                    }
+                  }}
+                  disabled={
+                    !currentSession?.story_content &&
+                    (!currentSession?.contributions ||
+                      currentSession.contributions.length === 0)
                   }
-                }}
-                disabled={
-                  !currentSession?.story_content &&
-                  (!currentSession?.contributions ||
-                    currentSession.contributions.length === 0)
-                }
-              >
-                <Text style={styles.copyButtonText}>📋 Copy</Text>
-              </TouchableOpacity>
+                >
+                  <Text style={styles.copyButtonText}>📋 Copy</Text>
+                </TouchableOpacity>
+              </View>
             </View>
             <ScrollView
               style={styles.storyBook}
@@ -1064,6 +1518,80 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               )}
             </ScrollView>
           </View>
+
+          {/* Image Generation Section */}
+          {showImageGeneration && currentSession && (
+            <ImageGeneration
+              storyContent={currentSession.story_content || ''}
+              sessionId={currentSession.id}
+              gradeLevel={gradeLevel}
+              wordCount={currentSession.sessionStats.userWords}
+              onImageGenerated={handleImageGenerated}
+              onError={handleImageGenerationError}
+              disabled={!isGameCompleted}
+            />
+          )}
+
+          {/* Generated Image Display */}
+          {(() => {
+            const shouldShowImage =
+              (generatedImageUrl || currentSession?.generated_image_url) &&
+              currentSession;
+            console.log('🖼️ [DEBUG] Image display check:', {
+              generatedImageUrl: generatedImageUrl?.substring(0, 50) + '...',
+              sessionImageUrl:
+                currentSession?.generated_image_url?.substring(0, 50) + '...',
+              hasCurrentSession: !!currentSession,
+              shouldShowImage,
+            });
+            return shouldShowImage;
+          })() ? (
+            <View style={styles.imageDisplayContainerFullWidth}>
+              <StoryImageDisplay
+                imageUrl={
+                  generatedImageUrl || currentSession?.generated_image_url || ''
+                }
+                storyTitle={`${
+                  currentSession?.story_content
+                    ?.split(' ')
+                    .slice(0, 6)
+                    .join(' ') || 'Your Story'
+                }...`}
+                sessionId={currentSession?.id || ''}
+                showBackButton={isGameCompleted}
+                displayMode="fullWidth"
+                enableFullScreen={true}
+                onBackToOptions={() => setShowCompletionOptions(true)}
+                onImageSaved={localPath => {
+                  console.log('✅ [DEBUG] Image saved locally:', localPath);
+                  // Update session with local image path
+                  if (currentSession?.id) {
+                    storySessionManager.updateSessionWithLocalImage(
+                      currentSession.id,
+                      localPath,
+                    );
+                  }
+                }}
+                onError={error => {
+                  console.error('❌ [DEBUG] Image display error:', error);
+                  // Error is already handled gracefully by StoryImageDisplay component
+                }}
+              />
+            </View>
+          ) : null}
+
+
+          {/* Back to Options Button - Show when game is completed but options are hidden, image generation is not active, and no generated image is displayed */}
+          {isGameCompleted && !showCompletionOptions && !showImageGeneration && !(generatedImageUrl || currentSession?.generated_image_url) && (
+            <View style={styles.backToOptionsContainer}>
+              <TouchableOpacity
+                style={styles.backToOptionsButton}
+                onPress={() => setShowCompletionOptions(true)}
+              >
+                <Text style={styles.backToOptionsText}>← Back to Options</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* User Input Section */}
           <View style={styles.inputSection}>
@@ -1251,6 +1779,82 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             )}
           </View>
         </View>
+
+        {/* Story Completion Options Screen - Full Screen Overlay */}
+        {showCompletionOptions && (
+          <View style={styles.completionModalOverlay}>
+            <ScrollView 
+              style={styles.completionScrollView}
+              contentContainerStyle={styles.completionScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.completionOptionsContainer}>
+                <View style={styles.completionOptionsHeader}>
+                  <Text style={styles.completionTitle}>🎉 Story Complete!</Text>
+                  <Text style={styles.completionSubtitle}>
+                    Congratulations! You've completed your {MAX_ROUNDS}-round story adventure!
+                  </Text>
+                  <View style={styles.completionStats}>
+                    <Text style={styles.completionStat}>
+                      📝 Words Written: {currentSession?.sessionStats.userWords || 0}
+                    </Text>
+                    <Text style={styles.completionStat}>
+                      🎯 Challenges Completed: {challengeProgress.filter(p => p.isCompleted).length}
+                    </Text>
+                    <Text style={styles.completionStat}>
+                      📚 Story Length: {currentSession?.story_content?.length || 0} characters
+                    </Text>
+                  </View>
+                </View>
+                
+                <View style={styles.completionOptionsButtons}>
+                  <TouchableOpacity
+                    style={styles.completionOptionButton}
+                    onPress={handleViewStory}
+                  >
+                    <Text style={styles.completionOptionText}>📖 View Story</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={styles.completionOptionButton}
+                    onPress={() => {
+                      setShowCompletionOptions(false);
+                      handleDownloadStory();
+                    }}
+                  >
+                    <Text style={styles.completionOptionText}>⬇️ Download Story</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={styles.completionOptionButton}
+                    onPress={handleImageGeneration}
+                  >
+                    <Text style={styles.completionOptionText}>🎨 Generate Image</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[styles.completionOptionButton, styles.secondaryOptionButton]}
+                    onPress={() => {
+                      exitGame();
+                      setTimeout(() => {
+                        handleStartNewGame();
+                      }, 500);
+                    }}
+                  >
+                    <Text style={styles.completionOptionText}>✨ New Story</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[styles.completionOptionButton, styles.exitOptionButton]}
+                    onPress={() => exitGame()}
+                  >
+                    <Text style={styles.completionOptionText}>🏠 Main Menu</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </ScrollView>
+          </View>
+        )}
       </View>
     );
   }
@@ -1559,6 +2163,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  storyBookButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  imageGenButton: {
+    backgroundColor: '#6f42c1',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    minWidth: 36,
+    alignItems: 'center',
+  },
+  imageGenButtonText: {
+    fontSize: 14,
+    color: '#ffffff',
+  },
   storyBook: {
     backgroundColor: '#ffffff',
     borderRadius: 4,
@@ -1808,6 +2429,129 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   continueStoryButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  imageDisplayContainer: {
+    marginVertical: 8,
+  },
+  imageDisplayContainerFullWidth: {
+    marginVertical: 0, // Remove margins for edge-to-edge
+    flex: 1, // Allow expansion
+  },
+  // Story Completion Options Styles - Full Screen Modal
+  completionModalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Semi-transparent background
+    zIndex: 1000,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  completionScrollView: {
+    flex: 1,
+    width: '100%',
+  },
+  completionScrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  completionOptionsContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 16,
+    borderWidth: 3,
+    borderColor: '#4CAF50',
+  },
+  completionOptionsHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  completionTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#4CAF50',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  completionSubtitle: {
+    fontSize: 17,
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 24,
+    fontWeight: '500',
+  },
+  completionStats: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  completionStat: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '600',
+  },
+  completionOptionsButtons: {
+    gap: 16,
+    marginTop: 8,
+  },
+  completionOptionButton: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 175, 80, 0.3)',
+  },
+  secondaryOptionButton: {
+    backgroundColor: '#2196F3',
+  },
+  exitOptionButton: {
+    backgroundColor: '#666',
+  },
+  completionOptionText: {
+    color: '#ffffff',
+    fontSize: 17,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  // Back to Options Button Styles
+  backToOptionsContainer: {
+    alignItems: 'center',
+    marginVertical: 10,
+  },
+  backToOptionsButton: {
+    backgroundColor: '#f44336',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  backToOptionsText: {
     color: '#ffffff',
     fontSize: 14,
     fontWeight: 'bold',

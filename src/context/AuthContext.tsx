@@ -8,6 +8,7 @@ import type {
   GradeLevel,
 } from '../types/database';
 import { RememberMeStorage } from '../utils/rememberMeStorage';
+import { xpEventTracker } from '../services/xpEventTracker';
 
 interface SignUpData {
   username: string;
@@ -37,6 +38,34 @@ interface AuthContextType {
   resendConfirmation: (email: string) => Promise<{ error?: string }>;
   checkEmailConfirmation: () => Promise<boolean>;
   resetPassword: (email: string) => Promise<{ error?: string }>;
+  deductXP: (
+    amount: number,
+    reason?: string,
+  ) => Promise<{ success: boolean; error?: string; newBalance?: number }>;
+  refundXP: (
+    amount: number,
+    reason: string,
+  ) => Promise<{ success: boolean; error?: string; newBalance?: number }>;
+  validateXPBalance: (requiredAmount: number) => boolean;
+  getXPBalanceInfo: (requiredAmount: number) => {
+    hasEnoughXP: boolean;
+    currentXP: number;
+    shortfall: number;
+    canGenerate: boolean;
+    maxGenerations: number;
+  };
+  canGenerateImage: () => boolean;
+  trackXPEvent: (eventData: {
+    type: 'deduction' | 'refund' | 'validation';
+    amount: number;
+    reason: string;
+    sessionId?: string;
+  }) => Promise<void>;
+  createImageGenerationEvent: (
+    sessionId?: string,
+    storyGradeLevel?: string,
+    storyWordCount?: number,
+  ) => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -483,6 +512,368 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const validateXPBalance = (requiredAmount: number): boolean => {
+    // Skip XP validation if testing mode is enabled
+    if (process.env.DISABLE_XP_COSTS_FOR_TESTING === 'true') {
+      console.log(
+        `🧪 Testing mode: Skipping XP validation for ${requiredAmount} XP`,
+      );
+      return true;
+    }
+
+    if (!userProfile) {
+      console.log('🚫 XP validation failed: No user profile available');
+      return false;
+    }
+
+    const currentXP = userProfile.total_xp || 0;
+    const hasEnoughXP = currentXP >= requiredAmount;
+
+    console.log(
+      `💰 XP Balance Check: Current=${currentXP}, Required=${requiredAmount}, Valid=${hasEnoughXP}`,
+    );
+    return hasEnoughXP;
+  };
+
+  const getXPBalanceInfo = (requiredAmount: number) => {
+    const currentXP = userProfile?.total_xp || 0;
+    const hasEnoughXP = currentXP >= requiredAmount;
+    const shortfall = hasEnoughXP ? 0 : requiredAmount - currentXP;
+    const canGenerate = hasEnoughXP && !!userProfile && !!user;
+    const maxGenerations = Math.floor(currentXP / requiredAmount);
+
+    const info = {
+      hasEnoughXP,
+      currentXP,
+      shortfall,
+      canGenerate,
+      maxGenerations,
+    };
+
+    console.log('📊 XP Balance Info:', {
+      ...info,
+      requiredAmount,
+      userLoggedIn: !!user,
+      profileLoaded: !!userProfile,
+    });
+
+    return info;
+  };
+
+  const canGenerateImage = (): boolean => {
+    const IMAGE_GENERATION_COST = 1000;
+
+    if (!user) {
+      console.log('🚫 Image generation blocked: User not logged in');
+      return false;
+    }
+
+    if (!userProfile) {
+      console.log('🚫 Image generation blocked: User profile not loaded');
+      return false;
+    }
+
+    const currentXP = userProfile.total_xp || 0;
+    const canGenerate = currentXP >= IMAGE_GENERATION_COST;
+
+    console.log(
+      `🎨 Image Generation Check: XP=${currentXP}, Cost=${IMAGE_GENERATION_COST}, CanGenerate=${canGenerate}`,
+    );
+
+    if (!canGenerate) {
+      const shortfall = IMAGE_GENERATION_COST - currentXP;
+      console.log(`💡 User needs ${shortfall} more XP to generate image`);
+    }
+
+    return canGenerate;
+  };
+
+  const trackXPEvent = async (eventData: {
+    type: 'deduction' | 'refund' | 'validation';
+    amount: number;
+    reason: string;
+    sessionId?: string;
+  }): Promise<void> => {
+    if (!user) {
+      console.log('🚫 XP event tracking skipped: No user logged in');
+      return;
+    }
+
+    try {
+      const xpEventData = {
+        userId: user.id,
+        sessionId: eventData.sessionId,
+        xpAmount: eventData.amount,
+        eventType:
+          eventData.type === 'deduction'
+            ? ('deduction' as const)
+            : eventData.type === 'refund'
+            ? ('refund' as const)
+            : ('validation_check' as const),
+        reason: eventData.reason,
+        metadata: {
+          timestamp: new Date().toISOString(),
+          userXPBefore: userProfile?.total_xp || 0,
+        },
+      };
+
+      if (eventData.type === 'deduction') {
+        await xpEventTracker.trackXPDeduction(xpEventData);
+      } else if (eventData.type === 'refund') {
+        await xpEventTracker.trackXPRefund(xpEventData);
+      } else {
+        await xpEventTracker.trackXPValidation(
+          user.id,
+          eventData.amount,
+          userProfile?.total_xp || 0,
+          (userProfile?.total_xp || 0) >= eventData.amount,
+          'image_generation',
+        );
+      }
+    } catch (error) {
+      console.error('💥 Error tracking XP event:', error);
+    }
+  };
+
+  const createImageGenerationEvent = async (
+    sessionId?: string,
+    storyGradeLevel?: string,
+    storyWordCount?: number,
+  ): Promise<string | null> => {
+    if (!user) {
+      console.log(
+        '🚫 Image generation event creation skipped: No user logged in',
+      );
+      return null;
+    }
+
+    try {
+      const xpCost = xpEventTracker.calculateXPCost(
+        storyGradeLevel,
+        storyWordCount,
+      );
+
+      const result = await xpEventTracker.createImageGenerationEvent({
+        userId: user.id,
+        sessionId,
+        xpCost,
+        storyGradeLevel,
+        storyWordCount,
+        metadata: {
+          userXPBefore: userProfile?.total_xp || 0,
+          timestamp: new Date().toISOString(),
+        },
+      });
+
+      if (result.success) {
+        console.log(
+          '✅ Image generation event created for tracking:',
+          result.eventId,
+        );
+        return result.eventId || null;
+      } else {
+        console.error(
+          '❌ Failed to create image generation event:',
+          result.error,
+        );
+        return null;
+      }
+    } catch (error) {
+      console.error('💥 Error creating image generation event:', error);
+      return null;
+    }
+  };
+
+  const deductXP = async (
+    amount: number,
+    reason: string = 'Image generation',
+  ): Promise<{ success: boolean; error?: string; newBalance?: number }> => {
+    // Skip XP deduction if testing mode is enabled
+    if (process.env.DISABLE_XP_COSTS_FOR_TESTING === 'true') {
+      console.log(
+        `🧪 Testing mode: Skipping ${amount} XP deduction for ${reason}`,
+      );
+      return {
+        success: true,
+        newBalance: userProfile?.total_xp || 0,
+      };
+    }
+
+    if (!user || !userProfile) {
+      console.error('❌ XP deduction failed: No user logged in');
+      return {
+        success: false,
+        error: 'No user logged in',
+      };
+    }
+
+    // Validate amount is positive
+    if (amount <= 0) {
+      console.error('❌ XP deduction failed: Invalid amount', { amount });
+      return {
+        success: false,
+        error: 'Invalid XP amount',
+      };
+    }
+
+    // Check if user has enough XP
+    if (!validateXPBalance(amount)) {
+      console.error('❌ XP deduction failed: Insufficient balance', {
+        currentXP: userProfile.total_xp,
+        requestedAmount: amount,
+      });
+      return {
+        success: false,
+        error: 'Insufficient XP balance',
+      };
+    }
+
+    try {
+      console.log('💸 Deducting XP:', {
+        userId: user.id,
+        amount,
+        reason,
+        currentBalance: userProfile.total_xp,
+      });
+
+      // Use negative amount for deduction with the add_user_xp function
+      const { error } = await supabase.rpc('add_user_xp', {
+        user_uuid: user.id,
+        xp_to_add: -amount,
+        words_added: 0,
+      });
+
+      if (error) {
+        console.error('❌ Database XP deduction failed:', error);
+        return {
+          success: false,
+          error: `Database error: ${error.message}`,
+        };
+      }
+
+      // Update local state immediately for better UX
+      const newBalance = (userProfile.total_xp || 0) - amount;
+      const updatedProfile = {
+        ...userProfile,
+        total_xp: newBalance,
+      };
+      setUserProfile(updatedProfile);
+
+      console.log('✅ XP deduction successful:', {
+        previousBalance: userProfile.total_xp,
+        deductedAmount: amount,
+        newBalance,
+        reason,
+      });
+
+      // Track the XP deduction event
+      await trackXPEvent({
+        type: 'deduction',
+        amount,
+        reason,
+      });
+
+      return {
+        success: true,
+        newBalance,
+      };
+    } catch (error) {
+      console.error('💥 XP deduction exception:', error);
+      return {
+        success: false,
+        error: 'An unexpected error occurred during XP deduction',
+      };
+    }
+  };
+
+  const refundXP = async (
+    amount: number,
+    reason: string,
+  ): Promise<{ success: boolean; error?: string; newBalance?: number }> => {
+    if (!user || !userProfile) {
+      console.error('❌ XP refund failed: No user logged in');
+      return {
+        success: false,
+        error: 'No user logged in',
+      };
+    }
+
+    // Validate amount is positive
+    if (amount <= 0) {
+      console.error('❌ XP refund failed: Invalid amount', { amount });
+      return {
+        success: false,
+        error: 'Invalid refund amount',
+      };
+    }
+
+    // Validate reason is provided
+    if (!reason || reason.trim().length === 0) {
+      console.error('❌ XP refund failed: No reason provided');
+      return {
+        success: false,
+        error: 'Refund reason is required',
+      };
+    }
+
+    try {
+      console.log('💰 Refunding XP:', {
+        userId: user.id,
+        amount,
+        reason: reason.trim(),
+        currentBalance: userProfile.total_xp,
+      });
+
+      // Use positive amount for refund with the add_user_xp function
+      const { error } = await supabase.rpc('add_user_xp', {
+        user_uuid: user.id,
+        xp_to_add: amount,
+        words_added: 0,
+      });
+
+      if (error) {
+        console.error('❌ Database XP refund failed:', error);
+        return {
+          success: false,
+          error: `Database error: ${error.message}`,
+        };
+      }
+
+      // Update local state immediately for better UX
+      const newBalance = (userProfile.total_xp || 0) + amount;
+      const updatedProfile = {
+        ...userProfile,
+        total_xp: newBalance,
+      };
+      setUserProfile(updatedProfile);
+
+      console.log('✅ XP refund successful:', {
+        previousBalance: userProfile.total_xp,
+        refundedAmount: amount,
+        newBalance,
+        reason: reason.trim(),
+      });
+
+      // Track the XP refund event
+      await trackXPEvent({
+        type: 'refund',
+        amount,
+        reason: reason.trim(),
+      });
+
+      return {
+        success: true,
+        newBalance,
+      };
+    } catch (error) {
+      console.error('💥 XP refund exception:', error);
+      return {
+        success: false,
+        error: 'An unexpected error occurred during XP refund',
+      };
+    }
+  };
+
   useEffect(() => {
     const initializeAuth = async () => {
       try {
@@ -623,6 +1014,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     resendConfirmation,
     checkEmailConfirmation,
     resetPassword,
+    deductXP,
+    refundXP,
+    validateXPBalance,
+    getXPBalanceInfo,
+    canGenerateImage,
+    trackXPEvent,
+    createImageGenerationEvent,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

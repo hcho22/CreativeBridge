@@ -29,6 +29,7 @@ The Story Continuation feature allows you to import existing stories from variou
 5. Tap **"Continue"** to proceed with AI continuation
 
 **Supported File Formats:**
+
 - .txt files (UTF-8 or ASCII encoding)
 - Maximum file size: 10MB
 - Minimum content: 50 characters
@@ -57,11 +58,13 @@ The Story Continuation feature allows you to import existing stories from variou
 ### Search Functionality
 
 **Basic Search:**
+
 - Type keywords in the search bar
 - Search across story titles and content
 - Results are ranked by relevance
 
 **Advanced Search:**
+
 - Tap the filter icon for advanced options
 - Search by:
   - Author/Creator
@@ -73,11 +76,13 @@ The Story Continuation feature allows you to import existing stories from variou
 ### Story Preview and Editing
 
 1. **Preview Mode:**
+
    - Read the full story content
    - View story metadata (word count, source, creation date)
    - Scroll through long stories
 
 2. **Edit Mode:**
+
    - Tap **"Edit"** to modify the story
    - Make changes to content or title
    - Auto-save keeps your changes safe
@@ -94,6 +99,7 @@ The Story Continuation feature allows you to import existing stories from variou
 ### How It Works
 
 1. The AI analyzes your imported story:
+
    - Writing style and tone
    - Character development
    - Plot progression
@@ -107,6 +113,7 @@ The Story Continuation feature allows you to import existing stories from variou
 ### Continuation Options
 
 **Story Analysis:**
+
 - The app shows detected story elements:
   - Main characters
   - Setting and time period
@@ -114,6 +121,7 @@ The Story Continuation feature allows you to import existing stories from variou
   - Writing style notes
 
 **Generation Settings:**
+
 - **Length**: Choose continuation length (short, medium, long)
 - **Style**: Maintain original style or adjust tone
 - **Direction**: Suggest plot direction or let AI decide
@@ -122,6 +130,7 @@ The Story Continuation feature allows you to import existing stories from variou
 ### Review and Refinement
 
 1. **Review Generated Content:**
+
    - Read the AI-generated continuation
    - Check for consistency with original story
    - Evaluate quality and flow
@@ -137,11 +146,13 @@ The Story Continuation feature allows you to import existing stories from variou
 ### Organization
 
 **Categories:**
+
 - Stories are automatically categorized by source
 - Use tags to create custom categories
 - Star favorites for quick access
 
 **Sorting Options:**
+
 - **Recent**: Last accessed stories
 - **Alphabetical**: Sort by title
 - **Date Created**: Newest or oldest first
@@ -150,16 +161,19 @@ The Story Continuation feature allows you to import existing stories from variou
 ### Sync Across Devices
 
 **Automatic Sync:**
+
 - Stories sync automatically across your devices
 - Works on iOS, Android, and web platforms
 - Changes appear in real-time
 
 **Offline Mode:**
+
 - Continue working when offline
 - Changes sync when connection returns
 - No data loss during network interruptions
 
 **Conflict Resolution:**
+
 - If the same story is edited on multiple devices
 - The app will show both versions
 - Choose which version to keep or merge changes
@@ -171,12 +185,14 @@ The Story Continuation feature allows you to import existing stories from variou
 Access your writing analytics by tapping **"Analytics"** in the menu:
 
 **Usage Statistics:**
+
 - Stories imported this week/month
 - Total story continuations
 - Average session duration
 - Favorite import sources
 
 **Writing Insights:**
+
 - Most active writing days
 - Preferred story genres
 - Writing streak tracking
@@ -185,6 +201,7 @@ Access your writing analytics by tapping **"Analytics"** in the menu:
 ### Quality Indicators
 
 **Story Quality Metrics:**
+
 - Readability score
 - Character development rating
 - Plot coherence analysis
@@ -195,7 +212,9 @@ Access your writing analytics by tapping **"Analytics"** in the menu:
 ### Common Issues
 
 **File Import Problems:**
+
 - **Error: "File format not supported"**
+
   - Ensure file is .txt format
   - Check file isn't corrupted
   - Try converting from other formats
@@ -206,12 +225,14 @@ Access your writing analytics by tapping **"Analytics"** in the menu:
   - Compress content if needed
 
 **Search Not Working:**
+
 - Check internet connection
 - Clear app cache
 - Restart the app
 - Update to latest version
 
 **Sync Issues:**
+
 - Verify internet connection
 - Check account login status
 - Force manual sync in settings
@@ -220,12 +241,14 @@ Access your writing analytics by tapping **"Analytics"** in the menu:
 ### Performance Tips
 
 **For Best Performance:**
+
 - Keep story library under 1000 stories
 - Regularly clean up unused stories
 - Use Wi-Fi for large file imports
 - Close other apps during AI generation
 
 **Memory Management:**
+
 - App automatically manages memory
 - Long stories load progressively
 - Cache clears automatically when full
@@ -235,12 +258,14 @@ Access your writing analytics by tapping **"Analytics"** in the menu:
 ### Data Protection
 
 **Your Stories Are Secure:**
+
 - All content encrypted in transit and at rest
 - Only you can access your story library
 - AI processing happens securely
 - No content shared without permission
 
 **Account Security:**
+
 - Use strong passwords
 - Enable two-factor authentication
 - Log out from shared devices
@@ -249,6 +274,7 @@ Access your writing analytics by tapping **"Analytics"** in the menu:
 ### Content Ownership
 
 **You Own Your Content:**
+
 - Imported stories remain your property
 - AI continuations belong to you
 - Export options available
@@ -259,6 +285,7 @@ Access your writing analytics by tapping **"Analytics"** in the menu:
 ### Preparing Stories for Import
 
 1. **Clean Up Text:**
+
    - Remove formatting artifacts
    - Fix obvious typos
    - Ensure proper paragraph breaks
@@ -271,11 +298,13 @@ Access your writing analytics by tapping **"Analytics"** in the menu:
 ### Working with AI Continuations
 
 1. **Provide Clear Direction:**
+
    - Specify desired plot developments
    - Mention important characters to include
    - Set tone or mood preferences
 
 2. **Iterative Improvement:**
+
    - Generate multiple options
    - Combine best elements
    - Edit for perfect flow
@@ -297,6 +326,7 @@ Access your writing analytics by tapping **"Analytics"** in the menu:
 ### Contact Support
 
 If you need additional help:
+
 - Email: support@creativebridge.com
 - In-app feedback: Settings → Send Feedback
 - Response time: Usually within 24 hours
@@ -304,6 +334,7 @@ If you need additional help:
 ### Feature Requests
 
 We love hearing your ideas:
+
 - Submit suggestions through the app
 - Vote on community requests
 - Participate in beta testing
@@ -327,4 +358,4 @@ We love hearing your ideas:
 
 ---
 
-*This guide covers version 2.0 of the Story Continuation feature. For older versions, please update your app to access all features described here.*
+_This guide covers version 2.0 of the Story Continuation feature. For older versions, please update your app to access all features described here._

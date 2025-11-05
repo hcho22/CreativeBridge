@@ -1,7 +1,11 @@
 // Story Import Error Handler Tests
 // Comprehensive tests for story import error handling functionality
 
-import { StoryImportErrorHandler, StoryImportErrorType, StoryImportError } from '../../utils/storyImportErrorHandler';
+import {
+  StoryImportErrorHandler,
+  StoryImportErrorType,
+  StoryImportError,
+} from '../../utils/storyImportErrorHandler';
 import { Alert } from 'react-native';
 
 // Mock dependencies
@@ -60,7 +64,10 @@ describe('StoryImportErrorHandler', () => {
 
     it('should include context in processed error', () => {
       const context = { fileName: 'test.txt', operation: 'file_import' };
-      const result = StoryImportErrorHandler.processError('Test error', context);
+      const result = StoryImportErrorHandler.processError(
+        'Test error',
+        context,
+      );
 
       expect(result.context).toBe(context);
     });
@@ -68,23 +75,74 @@ describe('StoryImportErrorHandler', () => {
 
   describe('error categorization', () => {
     const testCases = [
-      { message: 'User cancelled operation', expected: StoryImportErrorType.FILE_SELECTION_CANCELLED },
-      { message: 'File not found on device', expected: StoryImportErrorType.FILE_NOT_FOUND },
-      { message: 'File too large for processing', expected: StoryImportErrorType.FILE_TOO_LARGE },
-      { message: 'Invalid format detected', expected: StoryImportErrorType.FILE_INVALID_FORMAT },
-      { message: 'File appears corrupted', expected: StoryImportErrorType.FILE_CORRUPTED },
-      { message: 'Permission denied access', expected: StoryImportErrorType.FILE_PERMISSION_DENIED },
-      { message: 'Request timed out', expected: StoryImportErrorType.NETWORK_TIMEOUT },
-      { message: 'Network connection failed', expected: StoryImportErrorType.NETWORK_CONNECTION_ERROR },
-      { message: 'Database connection error', expected: StoryImportErrorType.DATABASE_CONNECTION_ERROR },
-      { message: 'Database query failed', expected: StoryImportErrorType.DATABASE_QUERY_ERROR },
-      { message: 'Content too short for processing', expected: StoryImportErrorType.STORY_CONTENT_TOO_SHORT },
-      { message: 'Content exceeds maximum length', expected: StoryImportErrorType.STORY_CONTENT_TOO_LONG },
-      { message: 'Invalid content format', expected: StoryImportErrorType.STORY_CONTENT_INVALID },
-      { message: 'AI service unavailable', expected: StoryImportErrorType.AI_SERVICE_UNAVAILABLE },
-      { message: 'Rate limit exceeded', expected: StoryImportErrorType.RATE_LIMIT_EXCEEDED },
-      { message: 'Device is offline', expected: StoryImportErrorType.OFFLINE_MODE },
-      { message: 'Unknown system error', expected: StoryImportErrorType.UNKNOWN_ERROR },
+      {
+        message: 'User cancelled operation',
+        expected: StoryImportErrorType.FILE_SELECTION_CANCELLED,
+      },
+      {
+        message: 'File not found on device',
+        expected: StoryImportErrorType.FILE_NOT_FOUND,
+      },
+      {
+        message: 'File too large for processing',
+        expected: StoryImportErrorType.FILE_TOO_LARGE,
+      },
+      {
+        message: 'Invalid format detected',
+        expected: StoryImportErrorType.FILE_INVALID_FORMAT,
+      },
+      {
+        message: 'File appears corrupted',
+        expected: StoryImportErrorType.FILE_CORRUPTED,
+      },
+      {
+        message: 'Permission denied access',
+        expected: StoryImportErrorType.FILE_PERMISSION_DENIED,
+      },
+      {
+        message: 'Request timed out',
+        expected: StoryImportErrorType.NETWORK_TIMEOUT,
+      },
+      {
+        message: 'Network connection failed',
+        expected: StoryImportErrorType.NETWORK_CONNECTION_ERROR,
+      },
+      {
+        message: 'Database connection error',
+        expected: StoryImportErrorType.DATABASE_CONNECTION_ERROR,
+      },
+      {
+        message: 'Database query failed',
+        expected: StoryImportErrorType.DATABASE_QUERY_ERROR,
+      },
+      {
+        message: 'Content too short for processing',
+        expected: StoryImportErrorType.STORY_CONTENT_TOO_SHORT,
+      },
+      {
+        message: 'Content exceeds maximum length',
+        expected: StoryImportErrorType.STORY_CONTENT_TOO_LONG,
+      },
+      {
+        message: 'Invalid content format',
+        expected: StoryImportErrorType.STORY_CONTENT_INVALID,
+      },
+      {
+        message: 'AI service unavailable',
+        expected: StoryImportErrorType.AI_SERVICE_UNAVAILABLE,
+      },
+      {
+        message: 'Rate limit exceeded',
+        expected: StoryImportErrorType.RATE_LIMIT_EXCEEDED,
+      },
+      {
+        message: 'Device is offline',
+        expected: StoryImportErrorType.OFFLINE_MODE,
+      },
+      {
+        message: 'Unknown system error',
+        expected: StoryImportErrorType.UNKNOWN_ERROR,
+      },
     ];
 
     testCases.forEach(({ message, expected }) => {
@@ -147,7 +205,10 @@ describe('StoryImportErrorHandler', () => {
     it('should handle file import errors with context', () => {
       const error = 'File permission denied';
       const fileName = 'story.txt';
-      const result = StoryImportErrorHandler.handleFileImportError(error, fileName);
+      const result = StoryImportErrorHandler.handleFileImportError(
+        error,
+        fileName,
+      );
 
       expect(result.type).toBe(StoryImportErrorType.FILE_PERMISSION_DENIED);
       expect(result.context).toEqual({ fileName, operation: 'file_import' });
@@ -156,7 +217,10 @@ describe('StoryImportErrorHandler', () => {
     it('should handle database errors with operation context', () => {
       const error = 'Database connection failed';
       const operation = 'fetch_stories';
-      const result = StoryImportErrorHandler.handleDatabaseError(error, operation);
+      const result = StoryImportErrorHandler.handleDatabaseError(
+        error,
+        operation,
+      );
 
       expect(result.type).toBe(StoryImportErrorType.DATABASE_CONNECTION_ERROR);
       expect(result.context).toEqual({ operation: 'database_fetch_stories' });
@@ -165,10 +229,16 @@ describe('StoryImportErrorHandler', () => {
     it('should handle network errors with endpoint context', () => {
       const error = 'Network timeout';
       const endpoint = '/api/stories';
-      const result = StoryImportErrorHandler.handleNetworkError(error, endpoint);
+      const result = StoryImportErrorHandler.handleNetworkError(
+        error,
+        endpoint,
+      );
 
       expect(result.type).toBe(StoryImportErrorType.NETWORK_TIMEOUT);
-      expect(result.context).toEqual({ endpoint, operation: 'network_request' });
+      expect(result.context).toEqual({
+        endpoint,
+        operation: 'network_request',
+      });
     });
 
     it('should handle AI service errors', () => {
@@ -192,7 +262,11 @@ describe('StoryImportErrorHandler', () => {
         retryDelay: 3000,
       };
 
-      StoryImportErrorHandler.showErrorAlert(storyError, mockOnRetry, mockOnCancel);
+      StoryImportErrorHandler.showErrorAlert(
+        storyError,
+        mockOnRetry,
+        mockOnCancel,
+      );
 
       expect(Alert.alert).toHaveBeenCalledWith(
         'Connection Error',
@@ -200,7 +274,7 @@ describe('StoryImportErrorHandler', () => {
         expect.arrayContaining([
           expect.objectContaining({ text: 'Retry' }),
           expect.objectContaining({ text: 'OK' }),
-        ])
+        ]),
       );
     });
 
@@ -213,14 +287,16 @@ describe('StoryImportErrorHandler', () => {
         isRetryable: false,
       };
 
-      StoryImportErrorHandler.showErrorAlert(storyError, undefined, mockOnCancel);
+      StoryImportErrorHandler.showErrorAlert(
+        storyError,
+        undefined,
+        mockOnCancel,
+      );
 
       expect(Alert.alert).toHaveBeenCalledWith(
         'File Error',
         storyError.userMessage,
-        expect.arrayContaining([
-          expect.objectContaining({ text: 'OK' }),
-        ])
+        expect.arrayContaining([expect.objectContaining({ text: 'OK' })]),
       );
     });
   });
@@ -228,55 +304,67 @@ describe('StoryImportErrorHandler', () => {
   describe('executeWithRetry', () => {
     it('should execute operation successfully on first attempt', async () => {
       const mockOperation = jest.fn().mockResolvedValue('success');
-      
-      const result = await StoryImportErrorHandler.executeWithRetry(mockOperation);
-      
+
+      const result = await StoryImportErrorHandler.executeWithRetry(
+        mockOperation,
+      );
+
       expect(result).toBe('success');
       expect(mockOperation).toHaveBeenCalledTimes(1);
     });
 
     it('should retry on retryable errors', async () => {
-      const mockOperation = jest.fn()
+      const mockOperation = jest
+        .fn()
         .mockRejectedValueOnce(new Error('Network timeout'))
         .mockResolvedValue('success');
-      
-      const result = await StoryImportErrorHandler.executeWithRetry(mockOperation, {
-        maxAttempts: 2,
-        baseDelay: 100,
-        exponentialBackoff: false,
-      });
-      
+
+      const result = await StoryImportErrorHandler.executeWithRetry(
+        mockOperation,
+        {
+          maxAttempts: 2,
+          baseDelay: 100,
+          exponentialBackoff: false,
+        },
+      );
+
       expect(result).toBe('success');
       expect(mockOperation).toHaveBeenCalledTimes(2);
     });
 
     it('should not retry on non-retryable errors', async () => {
-      const mockOperation = jest.fn().mockRejectedValue(new Error('File not found'));
-      
+      const mockOperation = jest
+        .fn()
+        .mockRejectedValue(new Error('File not found'));
+
       await expect(
-        StoryImportErrorHandler.executeWithRetry(mockOperation)
+        StoryImportErrorHandler.executeWithRetry(mockOperation),
       ).rejects.toThrow('File not found');
-      
+
       expect(mockOperation).toHaveBeenCalledTimes(1);
     });
 
     it('should respect max attempts limit', async () => {
-      const mockOperation = jest.fn().mockRejectedValue(new Error('Network error'));
-      
+      const mockOperation = jest
+        .fn()
+        .mockRejectedValue(new Error('Network error'));
+
       await expect(
         StoryImportErrorHandler.executeWithRetry(mockOperation, {
           maxAttempts: 3,
           baseDelay: 10,
-        })
+        }),
       ).rejects.toThrow('Network error');
-      
+
       expect(mockOperation).toHaveBeenCalledTimes(3);
     });
 
     it('should use exponential backoff when enabled', async () => {
-      const mockOperation = jest.fn().mockRejectedValue(new Error('Network timeout'));
+      const mockOperation = jest
+        .fn()
+        .mockRejectedValue(new Error('Network timeout'));
       const startTime = Date.now();
-      
+
       try {
         await StoryImportErrorHandler.executeWithRetry(mockOperation, {
           maxAttempts: 3,
@@ -286,10 +374,10 @@ describe('StoryImportErrorHandler', () => {
       } catch (error) {
         // Expected to fail
       }
-      
+
       const endTime = Date.now();
       const duration = endTime - startTime;
-      
+
       // Should take at least 100 + 200 = 300ms due to exponential backoff
       expect(duration).toBeGreaterThan(250);
       expect(mockOperation).toHaveBeenCalledTimes(3);
@@ -326,15 +414,18 @@ describe('StoryImportErrorHandler', () => {
     const testCases = [
       {
         input: 'Permission denied to access file',
-        expected: 'Permission denied. Please check app permissions for file access.',
+        expected:
+          'Permission denied. Please check app permissions for file access.',
       },
       {
         input: 'File not found on device',
-        expected: 'The selected file could not be found. Please try selecting a different file.',
+        expected:
+          'The selected file could not be found. Please try selecting a different file.',
       },
       {
         input: 'File too large for processing',
-        expected: 'The selected file is too large. Please choose a file smaller than 10MB.',
+        expected:
+          'The selected file is too large. Please choose a file smaller than 10MB.',
       },
       {
         input: 'Invalid format detected',
@@ -342,11 +433,13 @@ describe('StoryImportErrorHandler', () => {
       },
       {
         input: 'File appears corrupted',
-        expected: 'The file appears to be corrupted or unreadable. Please try a different file.',
+        expected:
+          'The file appears to be corrupted or unreadable. Please try a different file.',
       },
       {
         input: 'Unknown error occurred',
-        expected: 'File error: Unknown error occurred. Please try again with a different file.',
+        expected:
+          'File error: Unknown error occurred. Please try again with a different file.',
       },
     ];
 
@@ -361,12 +454,12 @@ describe('StoryImportErrorHandler', () => {
   describe('user-friendly messages', () => {
     it('should provide appropriate messages for each error type', () => {
       const errorTypes = Object.values(StoryImportErrorType);
-      
+
       errorTypes.forEach(errorType => {
         const result = StoryImportErrorHandler.processError('Test error');
         // Override the type to test each one
         result.type = errorType;
-        
+
         expect(result.userMessage).toBeDefined();
         expect(result.userMessage.length).toBeGreaterThan(10);
         expect(result.userMessage).not.toContain('undefined');
@@ -376,10 +469,10 @@ describe('StoryImportErrorHandler', () => {
     it('should truncate long original messages in unknown errors', () => {
       const longMessage = 'x'.repeat(150);
       const result = StoryImportErrorHandler.processError(longMessage);
-      
+
       // Force it to be unknown error type
       result.type = StoryImportErrorType.UNKNOWN_ERROR;
-      
+
       expect(result.userMessage).toContain('An unexpected error occurred');
     });
   });
@@ -387,13 +480,31 @@ describe('StoryImportErrorHandler', () => {
   describe('alert titles', () => {
     const titleTestCases = [
       { type: StoryImportErrorType.FILE_NOT_FOUND, expected: 'File Error' },
-      { type: StoryImportErrorType.NETWORK_TIMEOUT, expected: 'Connection Error' },
-      { type: StoryImportErrorType.DATABASE_CONNECTION_ERROR, expected: 'Database Error' },
-      { type: StoryImportErrorType.STORY_CONTENT_INVALID, expected: 'Content Error' },
-      { type: StoryImportErrorType.AI_SERVICE_UNAVAILABLE, expected: 'Service Unavailable' },
-      { type: StoryImportErrorType.RATE_LIMIT_EXCEEDED, expected: 'Rate Limit' },
+      {
+        type: StoryImportErrorType.NETWORK_TIMEOUT,
+        expected: 'Connection Error',
+      },
+      {
+        type: StoryImportErrorType.DATABASE_CONNECTION_ERROR,
+        expected: 'Database Error',
+      },
+      {
+        type: StoryImportErrorType.STORY_CONTENT_INVALID,
+        expected: 'Content Error',
+      },
+      {
+        type: StoryImportErrorType.AI_SERVICE_UNAVAILABLE,
+        expected: 'Service Unavailable',
+      },
+      {
+        type: StoryImportErrorType.RATE_LIMIT_EXCEEDED,
+        expected: 'Rate Limit',
+      },
       { type: StoryImportErrorType.OFFLINE_MODE, expected: 'Offline' },
-      { type: StoryImportErrorType.FILE_SELECTION_CANCELLED, expected: 'Import Cancelled' },
+      {
+        type: StoryImportErrorType.FILE_SELECTION_CANCELLED,
+        expected: 'Import Cancelled',
+      },
     ];
 
     titleTestCases.forEach(({ type, expected }) => {
@@ -410,7 +521,7 @@ describe('StoryImportErrorHandler', () => {
         expect(Alert.alert).toHaveBeenCalledWith(
           expected,
           expect.any(String),
-          expect.any(Array)
+          expect.any(Array),
         );
       });
     });

@@ -1,0 +1,599 @@
+/**
+ * StoryImageDisplay Component Test Suite
+ * Tests for Tasks 6.1-6.5: Image display, download, storage, placeholders, and responsive design
+ */
+
+import React from 'react';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { Dimensions, Alert } from 'react-native';
+import StoryImageDisplay from '../../components/common/StoryImageDisplay';
+import Share from 'react-native-share';
+import RNFS from 'react-native-fs';
+
+// Mock external dependencies
+jest.mock('react-native-share', () => ({
+  open: jest.fn(),
+}));
+
+jest.mock('react-native-fs', () => ({
+  DocumentDirectoryPath: '/mock/documents',
+  exists: jest.fn(),
+  mkdir: jest.fn(),
+  downloadFile: jest.fn(),
+}));
+
+jest.mock('react-native', () => {
+  const RN = jest.requireActual('react-native');
+  return {
+    ...RN,
+    Alert: {
+      alert: jest.fn(),
+    },
+    Dimensions: {
+      get: jest.fn(() => ({ width: 375, height: 812 })), // iPhone X dimensions
+    },
+  };
+});
+
+const mockShare = Share as jest.Mocked<typeof Share>;
+const mockRNFS = RNFS as jest.Mocked<typeof RNFS>;
+const mockAlert = Alert.alert as jest.MockedFunction<typeof Alert.alert>;
+const mockDimensions = Dimensions.get as jest.MockedFunction<
+  typeof Dimensions.get
+>;
+
+describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
+  const mockProps = {
+    sessionId: 'test-session-123',
+    storyTitle: 'The Adventure Begins',
+    onImageSaved: jest.fn(),
+    onError: jest.fn(),
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // Reset to default iPhone X dimensions
+    mockDimensions.mockReturnValue({ width: 375, height: 812 });
+  });
+
+  describe('Task 6.1: Create image display component for generated images', () => {
+    test('should render placeholder when no image URL provided', () => {
+      const { getByText } = render(<StoryImageDisplay {...mockProps} />);
+
+      expect(getByText('🖼️')).toBeTruthy();
+      expect(getByText('No Image Generated')).toBeTruthy();
+      expect(
+        getByText('Generate an AI illustration for your story to see it here!'),
+      ).toBeTruthy();
+    });
+
+    test('should render image when URL is provided', () => {
+      const { getByText } = render(
+        <StoryImageDisplay
+          {...mockProps}
+          imageUrl="https://example.com/image.jpg"
+        />,
+      );
+
+      // Should show loading initially
+      expect(getByText('Loading your illustration...')).toBeTruthy();
+    });
+
+    test('should display story title overlay on image', async () => {
+      const { getByText, getByTestId } = render(
+        <StoryImageDisplay
+          {...mockProps}
+          imageUrl="https://example.com/image.jpg"
+          storyTitle="My Epic Adventure"
+        />,
+      );
+
+      // Simulate successful image load
+      const image = getByTestId('story-image');
+      fireEvent(image, 'onLoad');
+
+      await waitFor(() => {
+        expect(getByText('My Epic Adventure')).toBeTruthy();
+      });
+    });
+  });
+
+  describe('Task 6.1-T: Test image component displays various image sizes correctly', () => {
+    test('should calculate correct dimensions for small screens', async () => {
+      // Mock small phone screen
+      mockDimensions.mockReturnValue({ width: 320, height: 568 });
+
+      const { getByTestId, getByText } = render(
+        <StoryImageDisplay
+          {...mockProps}
+          imageUrl="https://example.com/image.jpg"
+        />,
+      );
+
+      // Wait for image to load and show image container
+      const image = getByTestId('story-image');
+      fireEvent(image, 'onLoad');
+
+      await waitFor(() => {
+        const container = getByTestId('image-container');
+        expect(container).toBeTruthy();
+      });
+    });
+
+    test('should calculate correct dimensions for large screens', async () => {
+      // Mock large tablet screen
+      mockDimensions.mockReturnValue({ width: 768, height: 1024 });
+
+      const { getByTestId } = render(
+        <StoryImageDisplay
+          {...mockProps}
+          imageUrl="https://example.com/image.jpg"
+        />,
+      );
+
+      // Wait for image to load and show image container
+      const image = getByTestId('story-image');
+      fireEvent(image, 'onLoad');
+
+      await waitFor(() => {
+        const container = getByTestId('image-container');
+        expect(container).toBeTruthy();
+      });
+    });
+
+    test('should respect maximum height constraints', async () => {
+      // Mock very tall screen
+      mockDimensions.mockReturnValue({ width: 375, height: 2000 });
+
+      const { getByTestId } = render(
+        <StoryImageDisplay
+          {...mockProps}
+          imageUrl="https://example.com/image.jpg"
+        />,
+      );
+
+      // Wait for image to load and show image container
+      const image = getByTestId('story-image');
+      fireEvent(image, 'onLoad');
+
+      await waitFor(() => {
+        const container = getByTestId('image-container');
+        expect(container).toBeTruthy();
+      });
+    });
+  });
+
+  describe('Task 6.2: Implement image download functionality for mobile devices', () => {
+    test('should download image successfully', async () => {
+      mockRNFS.exists.mockResolvedValue(false);
+      mockRNFS.mkdir.mockResolvedValue(undefined);
+      mockRNFS.downloadFile.mockReturnValue({
+        promise: Promise.resolve({ statusCode: 200 }),
+      } as any);
+
+      const { getByText, getByTestId } = render(
+        <StoryImageDisplay
+          {...mockProps}
+          imageUrl="https://example.com/image.jpg"
+        />,
+      );
+
+      // Simulate image load to show action buttons
+      const image = getByTestId('story-image');
+      fireEvent(image, 'onLoad');
+
+      await waitFor(() => {
+        const downloadButton = getByText('Save to Device');
+        fireEvent.press(downloadButton);
+      });
+
+      await waitFor(() => {
+        expect(mockRNFS.downloadFile).toHaveBeenCalledWith(
+          expect.objectContaining({
+            fromUrl: 'https://example.com/image.jpg',
+            toFile: expect.stringContaining('story_test-session-123_'),
+          }),
+        );
+        expect(mockAlert).toHaveBeenCalledWith(
+          '🎉 Image Saved!',
+          expect.stringContaining('Your story illustration has been saved'),
+          expect.any(Array),
+        );
+      });
+    });
+
+    test('should handle download failure gracefully', async () => {
+      mockRNFS.exists.mockResolvedValue(false);
+      mockRNFS.mkdir.mockResolvedValue(undefined);
+      mockRNFS.downloadFile.mockReturnValue({
+        promise: Promise.resolve({ statusCode: 404 }),
+      } as any);
+
+      const { getByText } = render(
+        <StoryImageDisplay
+          {...mockProps}
+          imageUrl="https://example.com/image.jpg"
+        />,
+      );
+
+      // Simulate image load to show action buttons
+      const image = getByTestId('story-image');
+      fireEvent(image, 'onLoad');
+
+      await waitFor(() => {
+        const downloadButton = getByText('Save to Device');
+        fireEvent.press(downloadButton);
+      });
+
+      await waitFor(() => {
+        expect(mockAlert).toHaveBeenCalledWith(
+          '❌ Download Failed',
+          expect.stringContaining("We couldn't save your image"),
+          expect.any(Array),
+        );
+      });
+    });
+
+    test('should show download progress during download', async () => {
+      let progressCallback: any;
+      mockRNFS.exists.mockResolvedValue(false);
+      mockRNFS.mkdir.mockResolvedValue(undefined);
+      mockRNFS.downloadFile.mockImplementation((options: any) => {
+        progressCallback = options.progress;
+        return {
+          promise: new Promise(resolve => {
+            setTimeout(() => {
+              // Simulate download progress
+              progressCallback({ bytesWritten: 500, contentLength: 1000 });
+              resolve({ statusCode: 200 });
+            }, 100);
+          }),
+        } as any;
+      });
+
+      const { getByText } = render(
+        <StoryImageDisplay
+          {...mockProps}
+          imageUrl="https://example.com/image.jpg"
+        />,
+      );
+
+      // Simulate image load
+      const image = getByTestId('story-image');
+      fireEvent(image, 'onLoad');
+
+      await waitFor(() => {
+        const downloadButton = getByText('Save to Device');
+        fireEvent.press(downloadButton);
+      });
+
+      // Should show progress percentage
+      await waitFor(() => {
+        expect(getByText('50%')).toBeTruthy();
+      });
+    });
+  });
+
+  describe('Task 6.2-T: Test image download works on both iOS and Android', () => {
+    test('should create download directory if it does not exist', async () => {
+      mockRNFS.exists.mockResolvedValue(false);
+      mockRNFS.mkdir.mockResolvedValue(undefined);
+      mockRNFS.downloadFile.mockReturnValue({
+        promise: Promise.resolve({ statusCode: 200 }),
+      } as any);
+
+      const { getByText } = render(
+        <StoryImageDisplay
+          {...mockProps}
+          imageUrl="https://example.com/image.jpg"
+        />,
+      );
+
+      const image = getByTestId('story-image');
+      fireEvent(image, 'onLoad');
+
+      await waitFor(() => {
+        const downloadButton = getByText('Save to Device');
+        fireEvent.press(downloadButton);
+      });
+
+      await waitFor(() => {
+        expect(mockRNFS.exists).toHaveBeenCalledWith(
+          '/mock/documents/StoryImages',
+        );
+        expect(mockRNFS.mkdir).toHaveBeenCalledWith(
+          '/mock/documents/StoryImages',
+        );
+      });
+    });
+
+    test('should use existing directory if it exists', async () => {
+      mockRNFS.exists.mockResolvedValue(true);
+      mockRNFS.downloadFile.mockReturnValue({
+        promise: Promise.resolve({ statusCode: 200 }),
+      } as any);
+
+      const { getByText } = render(
+        <StoryImageDisplay
+          {...mockProps}
+          imageUrl="https://example.com/image.jpg"
+        />,
+      );
+
+      const image = getByTestId('story-image');
+      fireEvent(image, 'onLoad');
+
+      await waitFor(() => {
+        const downloadButton = getByText('Save to Device');
+        fireEvent.press(downloadButton);
+      });
+
+      await waitFor(() => {
+        expect(mockRNFS.exists).toHaveBeenCalled();
+        expect(mockRNFS.mkdir).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('Task 6.3: Add image storage linking to specific stories', () => {
+    test('should call onImageSaved callback with local path after successful download', async () => {
+      const onImageSaved = jest.fn();
+      mockRNFS.exists.mockResolvedValue(false);
+      mockRNFS.mkdir.mockResolvedValue(undefined);
+      mockRNFS.downloadFile.mockReturnValue({
+        promise: Promise.resolve({ statusCode: 200 }),
+      } as any);
+
+      const { getByText } = render(
+        <StoryImageDisplay
+          {...mockProps}
+          imageUrl="https://example.com/image.jpg"
+          onImageSaved={onImageSaved}
+        />,
+      );
+
+      const image = getByTestId('story-image');
+      fireEvent(image, 'onLoad');
+
+      await waitFor(() => {
+        const downloadButton = getByText('Save to Device');
+        fireEvent.press(downloadButton);
+      });
+
+      await waitFor(() => {
+        expect(onImageSaved).toHaveBeenCalledWith(
+          expect.stringContaining(
+            '/mock/documents/StoryImages/story_test-session-123_',
+          ),
+        );
+      });
+    });
+
+    test('should generate unique filename with session ID and timestamp', async () => {
+      mockRNFS.exists.mockResolvedValue(false);
+      mockRNFS.mkdir.mockResolvedValue(undefined);
+      mockRNFS.downloadFile.mockReturnValue({
+        promise: Promise.resolve({ statusCode: 200 }),
+      } as any);
+
+      const { getByText } = render(
+        <StoryImageDisplay
+          {...mockProps}
+          imageUrl="https://example.com/image.jpg"
+          sessionId="unique-session-456"
+        />,
+      );
+
+      const image = getByTestId('story-image');
+      fireEvent(image, 'onLoad');
+
+      await waitFor(() => {
+        const downloadButton = getByText('Save to Device');
+        fireEvent.press(downloadButton);
+      });
+
+      await waitFor(() => {
+        expect(mockRNFS.downloadFile).toHaveBeenCalledWith(
+          expect.objectContaining({
+            toFile: expect.stringContaining('story_unique-session-456_'),
+          }),
+        );
+      });
+    });
+  });
+
+  describe('Task 6.4: Create image placeholder and error state components', () => {
+    test('should show error state when image fails to load', async () => {
+      const { getByText, getByTestId } = render(
+        <StoryImageDisplay {...mockProps} imageUrl="https://invalid-url.jpg" />,
+      );
+
+      // Simulate image load error
+      const image = getByTestId('story-image');
+      fireEvent(image, 'onError');
+
+      await waitFor(() => {
+        expect(getByText('⚠️')).toBeTruthy();
+        expect(getByText('Image Load Failed')).toBeTruthy();
+        expect(
+          getByText(
+            "We couldn't load your story illustration. Please check your internet connection and try again.",
+          ),
+        ).toBeTruthy();
+      });
+    });
+
+    test('should provide retry functionality in error state', async () => {
+      const { getByText, getByTestId } = render(
+        <StoryImageDisplay {...mockProps} imageUrl="https://invalid-url.jpg" />,
+      );
+
+      // Simulate image load error
+      const image = getByTestId('story-image');
+      fireEvent(image, 'onError');
+
+      await waitFor(() => {
+        const retryButton = getByText('Retry');
+        expect(retryButton).toBeTruthy();
+
+        // Test retry functionality
+        fireEvent.press(retryButton);
+        expect(getByText('Loading your illustration...')).toBeTruthy();
+      });
+    });
+
+    test('should call onError callback when image load fails', async () => {
+      const onError = jest.fn();
+      const { getByTestId } = render(
+        <StoryImageDisplay
+          {...mockProps}
+          imageUrl="https://invalid-url.jpg"
+          onError={onError}
+        />,
+      );
+
+      // Simulate image load error
+      const image = getByTestId('story-image');
+      fireEvent(image, 'onError');
+
+      await waitFor(() => {
+        expect(onError).toHaveBeenCalledWith('Failed to load image');
+      });
+    });
+  });
+
+  describe('Task 6.5: Test image display across different screen sizes', () => {
+    test('should render correctly on small screen devices', () => {
+      // iPhone SE dimensions
+      mockDimensions.mockReturnValue({ width: 320, height: 568 });
+
+      const { getByText } = render(
+        <StoryImageDisplay
+          {...mockProps}
+          imageUrl="https://example.com/image.jpg"
+        />,
+      );
+
+      expect(getByText('Loading your illustration...')).toBeTruthy();
+    });
+
+    test('should render correctly on medium screen devices', () => {
+      // iPhone 12 dimensions
+      mockDimensions.mockReturnValue({ width: 390, height: 844 });
+
+      const { getByText } = render(
+        <StoryImageDisplay
+          {...mockProps}
+          imageUrl="https://example.com/image.jpg"
+        />,
+      );
+
+      expect(getByText('Loading your illustration...')).toBeTruthy();
+    });
+
+    test('should render correctly on large screen devices', () => {
+      // iPad Air dimensions
+      mockDimensions.mockReturnValue({ width: 820, height: 1180 });
+
+      const { getByText } = render(
+        <StoryImageDisplay
+          {...mockProps}
+          imageUrl="https://example.com/image.jpg"
+        />,
+      );
+
+      expect(getByText('Loading your illustration...')).toBeTruthy();
+    });
+  });
+
+  describe('Share functionality', () => {
+    test('should share image successfully', async () => {
+      mockShare.open.mockResolvedValue(true);
+
+      const { getByText, getByTestId } = render(
+        <StoryImageDisplay
+          {...mockProps}
+          imageUrl="https://example.com/image.jpg"
+        />,
+      );
+
+      // Simulate image load
+      const image = getByTestId('story-image');
+      fireEvent(image, 'onLoad');
+
+      await waitFor(() => {
+        const shareButton = getByText('Share');
+        fireEvent.press(shareButton);
+      });
+
+      expect(mockShare.open).toHaveBeenCalledWith({
+        url: 'https://example.com/image.jpg',
+        title: 'The Adventure Begins',
+        message:
+          'Check out this AI-generated illustration for my story: "The Adventure Begins" 🎨\n\nCreated with CreativeBridge',
+        type: 'image/jpeg',
+      });
+    });
+
+    test('should handle share cancellation gracefully', async () => {
+      mockShare.open.mockRejectedValue(new Error('User did not share'));
+
+      const { getByText, getByTestId } = render(
+        <StoryImageDisplay
+          {...mockProps}
+          imageUrl="https://example.com/image.jpg"
+        />,
+      );
+
+      // Simulate image load
+      const image = getByTestId('story-image');
+      fireEvent(image, 'onLoad');
+
+      await waitFor(() => {
+        const shareButton = getByText('Share');
+        fireEvent.press(shareButton);
+      });
+
+      // Should not show error alert for user cancellation
+      expect(mockAlert).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Component configuration', () => {
+    test('should hide download button when showDownloadButton is false', async () => {
+      const { queryByText, getByTestId } = render(
+        <StoryImageDisplay
+          {...mockProps}
+          imageUrl="https://example.com/image.jpg"
+          showDownloadButton={false}
+        />,
+      );
+
+      // Simulate image load
+      const image = getByTestId('story-image');
+      fireEvent(image, 'onLoad');
+
+      await waitFor(() => {
+        expect(queryByText('Save to Device')).toBeNull();
+      });
+    });
+
+    test('should hide share button when showShareButton is false', async () => {
+      const { queryByText, getByTestId } = render(
+        <StoryImageDisplay
+          {...mockProps}
+          imageUrl="https://example.com/image.jpg"
+          showShareButton={false}
+        />,
+      );
+
+      // Simulate image load
+      const image = getByTestId('story-image');
+      fireEvent(image, 'onLoad');
+
+      await waitFor(() => {
+        expect(queryByText('Share')).toBeNull();
+      });
+    });
+  });
+});

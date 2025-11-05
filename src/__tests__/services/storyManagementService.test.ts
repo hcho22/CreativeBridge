@@ -163,12 +163,10 @@ describe('StoryManagementService', () => {
         const mockQuery = {
           insert: jest.fn().mockReturnThis(),
           select: jest.fn().mockReturnThis(),
-          single: jest
-            .fn()
-            .mockResolvedValue({
-              data: null,
-              error: { message: 'Database error' },
-            }),
+          single: jest.fn().mockResolvedValue({
+            data: null,
+            error: { message: 'Database error' },
+          }),
         };
 
         mockSupabaseFrom.mockReturnValue(mockQuery);

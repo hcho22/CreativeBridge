@@ -246,7 +246,7 @@ class StoryGenerationService {
 
     // Analyze the imported story structure and style
     const storyAnalysis = this.analyzeImportedStory(importedStory, gradeLevel);
-    
+
     // Prepare enhanced context that includes style analysis
     const enhancedContext = this.prepareImportedStoryContext(
       importedStory,
@@ -323,29 +323,35 @@ class StoryGenerationService {
     console.log('🎨 Preparing imported story context for continuation');
 
     let context = `Continue this ${analysis.genre} story that has been imported. `;
-    
+
     // Include style guidance based on analysis
     if (analysis.tone) {
       context += `Maintain the ${analysis.tone} tone established in the original. `;
     }
-    
+
     if (analysis.tense) {
       context += `Continue in ${analysis.tense} tense as established. `;
     }
 
     // Character consistency
     if (analysis.characters.length > 0) {
-      context += `Continue featuring these characters: ${analysis.characters.join(', ')}. `;
+      context += `Continue featuring these characters: ${analysis.characters.join(
+        ', ',
+      )}. `;
     }
 
     // Setting consistency
     if (analysis.settings.length > 0) {
-      context += `Stay within the established settings: ${analysis.settings.join(', ')}. `;
+      context += `Stay within the established settings: ${analysis.settings.join(
+        ', ',
+      )}. `;
     }
 
     // Theme consistency
     if (analysis.themes.length > 0) {
-      context += `Continue exploring themes of: ${analysis.themes.join(', ')}. `;
+      context += `Continue exploring themes of: ${analysis.themes.join(
+        ', ',
+      )}. `;
     }
 
     // Writing style guidance
@@ -372,112 +378,193 @@ class StoryGenerationService {
     gradeLevel: GradeLevel,
   ): string {
     const baseChallenge = `Create a seamless continuation that maintains the ${analysis.genre} genre`;
-    
+
     let challenge = baseChallenge;
-    
+
     if (analysis.tone) {
       challenge += ` and ${analysis.tone} tone`;
     }
-    
+
     challenge += `. Continue with the same writing style complexity level (${analysis.complexity}).`;
-    
+
     // Add grade-specific continuation guidance
     const gradeGuidance = {
-      'K-2': 'Use simple, clear language with concrete imagery that young readers can visualize.',
+      'K-2':
+        'Use simple, clear language with concrete imagery that young readers can visualize.',
       '3-5': 'Include engaging plot development with problem-solving elements.',
-      '6-8': 'Develop character emotions and include age-appropriate challenges.',
+      '6-8':
+        'Develop character emotions and include age-appropriate challenges.',
       '9-12': 'Explore deeper themes and complex character development.',
     };
-    
+
     challenge += ` ${gradeGuidance[gradeLevel]}`;
-    
+
     return challenge;
   }
 
   private extractCharacters(storyContent: string): string[] {
     const characters = new Set<string>();
     const content = storyContent.toLowerCase();
-    
+
     // Common name patterns
     const namePattern = /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\b/g;
     const matches = storyContent.match(namePattern) || [];
-    
+
     // Filter for likely character names (not common nouns)
-    const commonNouns = ['The', 'This', 'That', 'Once', 'Then', 'Now', 'But', 'And', 'Or'];
-    
+    const commonNouns = [
+      'The',
+      'This',
+      'That',
+      'Once',
+      'Then',
+      'Now',
+      'But',
+      'And',
+      'Or',
+    ];
+
     matches.forEach(name => {
       if (!commonNouns.includes(name) && name.length > 2) {
         characters.add(name);
       }
     });
-    
+
     // Also check for pronouns that suggest characters
-    if (content.includes(' he ') || content.includes(' him ') || content.includes(' his ')) {
+    if (
+      content.includes(' he ') ||
+      content.includes(' him ') ||
+      content.includes(' his ')
+    ) {
       characters.add('male character');
     }
-    if (content.includes(' she ') || content.includes(' her ') || content.includes(' hers ')) {
+    if (
+      content.includes(' she ') ||
+      content.includes(' her ') ||
+      content.includes(' hers ')
+    ) {
       characters.add('female character');
     }
-    
+
     return Array.from(characters).slice(0, 5); // Limit to most relevant
   }
 
   private extractSettings(storyContent: string): string[] {
     const settings = new Set<string>();
     const content = storyContent.toLowerCase();
-    
+
     // Common setting indicators
     const settingWords = [
-      'forest', 'school', 'home', 'house', 'park', 'library', 'beach', 'mountain',
-      'city', 'village', 'castle', 'garden', 'room', 'kitchen', 'playground',
-      'classroom', 'hospital', 'restaurant', 'shop', 'farm', 'lake', 'river',
-      'island', 'cave', 'tower', 'building', 'street', 'field', 'valley'
+      'forest',
+      'school',
+      'home',
+      'house',
+      'park',
+      'library',
+      'beach',
+      'mountain',
+      'city',
+      'village',
+      'castle',
+      'garden',
+      'room',
+      'kitchen',
+      'playground',
+      'classroom',
+      'hospital',
+      'restaurant',
+      'shop',
+      'farm',
+      'lake',
+      'river',
+      'island',
+      'cave',
+      'tower',
+      'building',
+      'street',
+      'field',
+      'valley',
     ];
-    
+
     settingWords.forEach(setting => {
       if (content.includes(setting)) {
         settings.add(setting);
       }
     });
-    
+
     return Array.from(settings).slice(0, 3);
   }
 
   private extractThemes(storyContent: string): string[] {
     const themes = new Set<string>();
     const content = storyContent.toLowerCase();
-    
+
     // Theme indicators
     const themeMap = {
       friendship: ['friend', 'friendship', 'together', 'help', 'support'],
       adventure: ['adventure', 'explore', 'journey', 'quest', 'discover'],
       mystery: ['mystery', 'secret', 'hidden', 'clue', 'solve'],
       magic: ['magic', 'magical', 'spell', 'wizard', 'fairy', 'enchanted'],
-      family: ['family', 'mother', 'father', 'parent', 'sibling', 'brother', 'sister'],
+      family: [
+        'family',
+        'mother',
+        'father',
+        'parent',
+        'sibling',
+        'brother',
+        'sister',
+      ],
       courage: ['brave', 'courage', 'fear', 'scared', 'overcome'],
       learning: ['learn', 'school', 'teach', 'discover', 'understand'],
     };
-    
+
     Object.entries(themeMap).forEach(([theme, keywords]) => {
       if (keywords.some(keyword => content.includes(keyword))) {
         themes.add(theme);
       }
     });
-    
+
     return Array.from(themes).slice(0, 3);
   }
 
   private detectTense(storyContent: string): 'past' | 'present' | 'future' {
     const content = storyContent.toLowerCase();
-    
-    const pastIndicators = ['was', 'were', 'had', 'did', 'went', 'said', 'looked', 'walked', 'came', 'left'];
-    const presentIndicators = ['is', 'are', 'has', 'do', 'go', 'says', 'looks', 'walks', 'comes', 'leaves'];
+
+    const pastIndicators = [
+      'was',
+      'were',
+      'had',
+      'did',
+      'went',
+      'said',
+      'looked',
+      'walked',
+      'came',
+      'left',
+    ];
+    const presentIndicators = [
+      'is',
+      'are',
+      'has',
+      'do',
+      'go',
+      'says',
+      'looks',
+      'walks',
+      'comes',
+      'leaves',
+    ];
     const futureIndicators = ['will', 'shall', 'going to', 'gonna'];
-    
-    const pastCount = pastIndicators.filter(word => content.includes(` ${word} `)).length;
-    const presentCount = presentIndicators.filter(word => content.includes(` ${word} `)).length;
-    const futureCount = futureIndicators.filter(word => content.includes(word)).length;
-    
+
+    const pastCount = pastIndicators.filter(word =>
+      content.includes(` ${word} `),
+    ).length;
+    const presentCount = presentIndicators.filter(word =>
+      content.includes(` ${word} `),
+    ).length;
+    const futureCount = futureIndicators.filter(word =>
+      content.includes(word),
+    ).length;
+
     if (pastCount > presentCount && pastCount > futureCount) return 'past';
     if (futureCount > presentCount) return 'future';
     return 'present';
@@ -485,101 +572,152 @@ class StoryGenerationService {
 
   private detectGenre(storyContent: string): string {
     const content = storyContent.toLowerCase();
-    
+
     const genreKeywords = {
-      fantasy: ['magic', 'wizard', 'fairy', 'dragon', 'spell', 'enchanted', 'magical'],
+      fantasy: [
+        'magic',
+        'wizard',
+        'fairy',
+        'dragon',
+        'spell',
+        'enchanted',
+        'magical',
+      ],
       mystery: ['mystery', 'clue', 'solve', 'detective', 'secret', 'hidden'],
-      adventure: ['adventure', 'journey', 'quest', 'explore', 'treasure', 'danger'],
+      adventure: [
+        'adventure',
+        'journey',
+        'quest',
+        'explore',
+        'treasure',
+        'danger',
+      ],
       scifi: ['robot', 'space', 'alien', 'future', 'technology', 'computer'],
       realistic: ['school', 'home', 'family', 'friend', 'everyday'],
     };
-    
+
     let maxScore = 0;
     let detectedGenre = 'realistic';
-    
+
     Object.entries(genreKeywords).forEach(([genre, keywords]) => {
-      const score = keywords.filter(keyword => content.includes(keyword)).length;
+      const score = keywords.filter(keyword =>
+        content.includes(keyword),
+      ).length;
       if (score > maxScore) {
         maxScore = score;
         detectedGenre = genre;
       }
     });
-    
+
     return detectedGenre;
   }
 
   private detectTone(storyContent: string): string {
     const content = storyContent.toLowerCase();
-    
+
     const toneKeywords = {
-      cheerful: ['happy', 'joy', 'smile', 'laugh', 'bright', 'cheerful', 'excited'],
+      cheerful: [
+        'happy',
+        'joy',
+        'smile',
+        'laugh',
+        'bright',
+        'cheerful',
+        'excited',
+      ],
       serious: ['important', 'careful', 'serious', 'worried', 'concerned'],
       mysterious: ['dark', 'shadow', 'whisper', 'quiet', 'strange', 'eerie'],
       playful: ['fun', 'play', 'silly', 'giggle', 'bounce', 'skip'],
       calm: ['peaceful', 'gentle', 'soft', 'quiet', 'serene', 'tranquil'],
     };
-    
+
     let maxScore = 0;
     let detectedTone = 'neutral';
-    
+
     Object.entries(toneKeywords).forEach(([tone, keywords]) => {
-      const score = keywords.filter(keyword => content.includes(keyword)).length;
+      const score = keywords.filter(keyword =>
+        content.includes(keyword),
+      ).length;
       if (score > maxScore) {
         maxScore = score;
         detectedTone = tone;
       }
     });
-    
+
     return detectedTone;
   }
 
-  private assessComplexity(avgWordsPerSentence: number, gradeLevel: GradeLevel): string {
+  private assessComplexity(
+    avgWordsPerSentence: number,
+    gradeLevel: GradeLevel,
+  ): string {
     const gradeLimits = {
       'K-2': 12,
       '3-5': 16,
       '6-8': 20,
       '9-12': 25,
     };
-    
+
     const limit = gradeLimits[gradeLevel];
-    
+
     if (avgWordsPerSentence <= limit) return 'appropriate';
     if (avgWordsPerSentence <= limit * 1.2) return 'slightly complex';
     return 'complex';
   }
 
-  private analyzeWritingStyle(storyContent: string): { description: string; features: string[] } {
+  private analyzeWritingStyle(storyContent: string): {
+    description: string;
+    features: string[];
+  } {
     const features = [];
     const content = storyContent.toLowerCase();
-    
+
     // Analyze sentence variety
     const sentences = this.splitIntoSentences(storyContent);
-    const avgLength = sentences.reduce((sum, s) => sum + s.length, 0) / sentences.length;
-    
+    const avgLength =
+      sentences.reduce((sum, s) => sum + s.length, 0) / sentences.length;
+
     if (avgLength < 50) features.push('concise sentences');
     else if (avgLength > 100) features.push('detailed descriptions');
-    
+
     // Check for dialogue
     if (storyContent.includes('"') || storyContent.includes("'")) {
       features.push('includes dialogue');
     }
-    
+
     // Check for descriptive language
-    const descriptiveWords = ['beautiful', 'amazing', 'wonderful', 'mysterious', 'bright', 'dark', 'loud', 'quiet'];
+    const descriptiveWords = [
+      'beautiful',
+      'amazing',
+      'wonderful',
+      'mysterious',
+      'bright',
+      'dark',
+      'loud',
+      'quiet',
+    ];
     if (descriptiveWords.some(word => content.includes(word))) {
       features.push('descriptive language');
     }
-    
+
     // Check for action words
-    const actionWords = ['ran', 'jumped', 'flew', 'climbed', 'rushed', 'hurried'];
+    const actionWords = [
+      'ran',
+      'jumped',
+      'flew',
+      'climbed',
+      'rushed',
+      'hurried',
+    ];
     if (actionWords.some(word => content.includes(word))) {
       features.push('action-oriented');
     }
-    
-    const description = features.length > 0 
-      ? `Uses ${features.join(', ')}`
-      : 'Simple narrative style';
-    
+
+    const description =
+      features.length > 0
+        ? `Uses ${features.join(', ')}`
+        : 'Simple narrative style';
+
     return { description, features };
   }
 

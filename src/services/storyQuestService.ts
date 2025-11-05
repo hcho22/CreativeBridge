@@ -1,6 +1,6 @@
 /**
  * Story_Quest Integration Service
- * 
+ *
  * This service handles integration with the Story_Quest platform,
  * including authentication, user story fetching, and cross-platform
  * user matching for the story continuation feature.
@@ -11,7 +11,8 @@ import { supabase } from './supabase';
 // Story_Quest API Configuration
 const STORY_QUEST_API_BASE = 'http://localhost:5000/api'; // Development URL
 const STORY_QUEST_SUPABASE_URL = process.env.STORY_QUEST_SUPABASE_URL || '';
-const STORY_QUEST_SUPABASE_KEY = process.env.STORY_QUEST_SUPABASE_ANON_KEY || '';
+const STORY_QUEST_SUPABASE_KEY =
+  process.env.STORY_QUEST_SUPABASE_ANON_KEY || '';
 
 // Types for Story_Quest integration
 export interface StoryQuestUser {
@@ -84,14 +85,17 @@ class StoryQuestService {
         const { createClient } = await import('@supabase/supabase-js');
         this.storyQuestSupabase = createClient(
           STORY_QUEST_SUPABASE_URL,
-          STORY_QUEST_SUPABASE_KEY
+          STORY_QUEST_SUPABASE_KEY,
         );
         console.log('🔗 Story_Quest Supabase connection initialized');
       } else {
         console.warn('⚠️ Story_Quest Supabase credentials not configured');
       }
     } catch (error) {
-      console.error('❌ Failed to initialize Story_Quest Supabase connection:', error);
+      console.error(
+        '❌ Failed to initialize Story_Quest Supabase connection:',
+        error,
+      );
     }
   }
 
@@ -122,23 +126,30 @@ class StoryQuestService {
    * Authenticate with Story_Quest platform
    * Note: Story_Quest uses Supabase auth, so we'll attempt direct database connection
    */
-  async authenticate(credentials: AuthCredentials): Promise<StoryQuestApiResponse<StoryQuestUser>> {
+  async authenticate(
+    credentials: AuthCredentials,
+  ): Promise<StoryQuestApiResponse<StoryQuestUser>> {
     try {
       if (!this.storyQuestSupabase) {
         return {
           success: false,
-          error: 'Story_Quest database connection not available'
+          error: 'Story_Quest database connection not available',
         };
       }
 
       // First try to find user by email in Story_Quest user_profiles
-      const { data: profileData, error: profileError } = await this.storyQuestSupabase
-        .from('user_profiles')
-        .select('*')
-        .eq('username', credentials.username || credentials.email?.split('@')[0])
-        .single();
+      const { data: profileData, error: profileError } =
+        await this.storyQuestSupabase
+          .from('user_profiles')
+          .select('*')
+          .eq(
+            'username',
+            credentials.username || credentials.email?.split('@')[0],
+          )
+          .single();
 
-      if (profileError && profileError.code !== 'PGRST116') { // PGRST116 = no rows returned
+      if (profileError && profileError.code !== 'PGRST116') {
+        // PGRST116 = no rows returned
         throw new Error(`Database query error: ${profileError.message}`);
       }
 
@@ -147,21 +158,20 @@ class StoryQuestService {
           success: true,
           data: {
             ...profileData,
-            source: 'Story_Quest'
-          } as StoryQuestUser
+            source: 'Story_Quest',
+          } as StoryQuestUser,
         };
       }
 
       return {
         success: false,
-        error: 'User not found in Story_Quest platform'
+        error: 'User not found in Story_Quest platform',
       };
-
     } catch (error) {
       console.error('Story_Quest authentication error:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Authentication failed'
+        error: error instanceof Error ? error.message : 'Authentication failed',
       };
     }
   }
@@ -169,23 +179,26 @@ class StoryQuestService {
   /**
    * Fetch user stories from Story_Quest platform
    */
-  async fetchUserStories(userId: string): Promise<StoryQuestApiResponse<StoryQuestStory[]>> {
+  async fetchUserStories(
+    userId: string,
+  ): Promise<StoryQuestApiResponse<StoryQuestStory[]>> {
     try {
       if (!this.storyQuestSupabase) {
         return {
           success: false,
-          error: 'Story_Quest database connection not available'
+          error: 'Story_Quest database connection not available',
         };
       }
 
       // Fetch completed game sessions for the user
-      const { data: sessionsData, error: sessionsError } = await this.storyQuestSupabase
-        .from('game_sessions')
-        .select('*')
-        .eq('user_id', userId)
-        .not('story_content', 'is', null)
-        .not('completed_at', 'is', null)
-        .order('created_at', { ascending: false });
+      const { data: sessionsData, error: sessionsError } =
+        await this.storyQuestSupabase
+          .from('game_sessions')
+          .select('*')
+          .eq('user_id', userId)
+          .not('story_content', 'is', null)
+          .not('completed_at', 'is', null)
+          .order('created_at', { ascending: false });
 
       if (sessionsError) {
         throw new Error(`Failed to fetch stories: ${sessionsError.message}`);
@@ -204,19 +217,19 @@ class StoryQuestService {
         xp_earned: session.xp_earned || 0,
         created_at: session.created_at,
         completed_at: session.completed_at,
-        source: 'Story_Quest'
+        source: 'Story_Quest',
       }));
 
       return {
         success: true,
-        data: stories
+        data: stories,
       };
-
     } catch (error) {
       console.error('Error fetching Story_Quest stories:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to fetch stories'
+        error:
+          error instanceof Error ? error.message : 'Failed to fetch stories',
       };
     }
   }
@@ -230,18 +243,20 @@ class StoryQuestService {
         return {
           found: false,
           confidence: 'low',
-          matchedBy: 'email'
+          matchedBy: 'email',
         };
       }
 
       // Try to find user by extracting username from email
       const usernameFromEmail = email.split('@')[0].toLowerCase();
-      
+
       // Search for users with matching username or display name
       const { data: users, error } = await this.storyQuestSupabase
         .from('user_profiles')
         .select('*')
-        .or(`username.ilike.%${usernameFromEmail}%,display_name.ilike.%${usernameFromEmail}%`)
+        .or(
+          `username.ilike.%${usernameFromEmail}%,display_name.ilike.%${usernameFromEmail}%`,
+        )
         .limit(5);
 
       if (error) {
@@ -249,7 +264,7 @@ class StoryQuestService {
         return {
           found: false,
           confidence: 'low',
-          matchedBy: 'email'
+          matchedBy: 'email',
         };
       }
 
@@ -257,7 +272,7 @@ class StoryQuestService {
         return {
           found: false,
           confidence: 'low',
-          matchedBy: 'email'
+          matchedBy: 'email',
         };
       }
 
@@ -274,7 +289,7 @@ class StoryQuestService {
           matchedBy = 'username';
           break;
         }
-        
+
         // Display name contains username (medium confidence)
         if (user.display_name?.toLowerCase().includes(usernameFromEmail)) {
           bestMatch = user;
@@ -287,15 +302,14 @@ class StoryQuestService {
         found: true,
         user: bestMatch as StoryQuestUser,
         confidence,
-        matchedBy
+        matchedBy,
       };
-
     } catch (error) {
       console.error('Error matching user by email:', error);
       return {
         found: false,
         confidence: 'low',
-        matchedBy: 'email'
+        matchedBy: 'email',
       };
     }
   }
@@ -303,12 +317,14 @@ class StoryQuestService {
   /**
    * Test Story_Quest integration with sample data
    */
-  async testIntegration(): Promise<StoryQuestApiResponse<{
-    apiHealth: boolean;
-    databaseConnection: boolean;
-    sampleUserCount: number;
-    sampleStoryCount: number;
-  }>> {
+  async testIntegration(): Promise<
+    StoryQuestApiResponse<{
+      apiHealth: boolean;
+      databaseConnection: boolean;
+      sampleUserCount: number;
+      sampleStoryCount: number;
+    }>
+  > {
     try {
       // Test API health
       const apiHealth = await this.checkApiHealth();
@@ -321,19 +337,20 @@ class StoryQuestService {
       if (this.storyQuestSupabase) {
         try {
           // Test user_profiles table access
-          const { data: users, error: userError } = await this.storyQuestSupabase
-            .from('user_profiles')
-            .select('id')
-            .limit(1);
+          const { data: users, error: userError } =
+            await this.storyQuestSupabase
+              .from('user_profiles')
+              .select('id')
+              .limit(1);
 
           if (!userError) {
             databaseConnection = true;
-            
+
             // Count sample users
             const { count: userCount } = await this.storyQuestSupabase
               .from('user_profiles')
               .select('*', { count: 'exact', head: true });
-            
+
             sampleUserCount = userCount || 0;
 
             // Count sample stories
@@ -355,15 +372,15 @@ class StoryQuestService {
           apiHealth,
           databaseConnection,
           sampleUserCount,
-          sampleStoryCount
-        }
+          sampleStoryCount,
+        },
       };
-
     } catch (error) {
       console.error('Integration test failed:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Integration test failed'
+        error:
+          error instanceof Error ? error.message : 'Integration test failed',
       };
     }
   }
@@ -373,7 +390,7 @@ class StoryQuestService {
    */
   async importStoryToCreativeBridge(
     storyQuestStory: StoryQuestStory,
-    creativeBridgeUserId: string
+    creativeBridgeUserId: string,
   ): Promise<StoryQuestApiResponse<any>> {
     try {
       // Transform Story_Quest story to CreativeBridge format
@@ -392,11 +409,11 @@ class StoryQuestService {
           challenges_completed: storyQuestStory.challenges_completed,
           xp_earned: storyQuestStory.xp_earned,
           completed_at: storyQuestStory.completed_at,
-          source_platform: 'Story_Quest'
+          source_platform: 'Story_Quest',
         },
         grade_level: storyQuestStory.grade_level,
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       };
 
       // Save to CreativeBridge database
@@ -413,14 +430,14 @@ class StoryQuestService {
       return {
         success: true,
         data,
-        message: 'Story successfully imported from Story_Quest'
+        message: 'Story successfully imported from Story_Quest',
       };
-
     } catch (error) {
       console.error('Error importing Story_Quest story:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to import story'
+        error:
+          error instanceof Error ? error.message : 'Failed to import story',
       };
     }
   }
@@ -428,60 +445,69 @@ class StoryQuestService {
   /**
    * Get user's Story_Quest profile statistics
    */
-  async getUserStats(userId: string): Promise<StoryQuestApiResponse<{
-    totalStories: number;
-    totalXp: number;
-    averageScore: number;
-    longestStreak: number;
-    favoriteGradeLevel: string;
-  }>> {
+  async getUserStats(userId: string): Promise<
+    StoryQuestApiResponse<{
+      totalStories: number;
+      totalXp: number;
+      averageScore: number;
+      longestStreak: number;
+      favoriteGradeLevel: string;
+    }>
+  > {
     try {
       if (!this.storyQuestSupabase) {
         return {
           success: false,
-          error: 'Story_Quest database connection not available'
+          error: 'Story_Quest database connection not available',
         };
       }
 
       // Get user profile
-      const { data: profile, error: profileError } = await this.storyQuestSupabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
+      const { data: profile, error: profileError } =
+        await this.storyQuestSupabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', userId)
+          .single();
 
       if (profileError) {
         return {
           success: false,
-          error: 'User not found in Story_Quest'
+          error: 'User not found in Story_Quest',
         };
       }
 
       // Get user's stories to calculate averages
-      const { data: stories, error: storiesError } = await this.storyQuestSupabase
-        .from('game_sessions')
-        .select('grade_level, final_score')
-        .eq('user_id', userId)
-        .not('completed_at', 'is', null);
+      const { data: stories, error: storiesError } =
+        await this.storyQuestSupabase
+          .from('game_sessions')
+          .select('grade_level, final_score')
+          .eq('user_id', userId)
+          .not('completed_at', 'is', null);
 
       if (storiesError) {
         console.warn('Error fetching user stories for stats:', storiesError);
       }
 
       const totalStories = stories?.length || 0;
-      const averageScore = totalStories > 0 
-        ? stories.reduce((sum: number, story: any) => sum + (story.final_score || 0), 0) / totalStories 
-        : 0;
+      const averageScore =
+        totalStories > 0
+          ? stories.reduce(
+              (sum: number, story: any) => sum + (story.final_score || 0),
+              0,
+            ) / totalStories
+          : 0;
 
       // Find most used grade level
       const gradeLevelCounts: Record<string, number> = {};
       stories?.forEach((story: any) => {
-        gradeLevelCounts[story.grade_level] = (gradeLevelCounts[story.grade_level] || 0) + 1;
+        gradeLevelCounts[story.grade_level] =
+          (gradeLevelCounts[story.grade_level] || 0) + 1;
       });
 
-      const favoriteGradeLevel = Object.keys(gradeLevelCounts).reduce((a, b) => 
-        gradeLevelCounts[a] > gradeLevelCounts[b] ? a : b, 
-        profile.preferred_grade_level
+      const favoriteGradeLevel = Object.keys(gradeLevelCounts).reduce(
+        (a, b) => (gradeLevelCounts[a] > gradeLevelCounts[b] ? a : b),
+        profile.preferred_grade_level,
       );
 
       return {
@@ -491,15 +517,15 @@ class StoryQuestService {
           totalXp: profile.total_xp || 0,
           averageScore: Math.round(averageScore * 100) / 100,
           longestStreak: profile.longest_streak || 0,
-          favoriteGradeLevel
-        }
+          favoriteGradeLevel,
+        },
       };
-
     } catch (error) {
       console.error('Error fetching user stats:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to fetch user stats'
+        error:
+          error instanceof Error ? error.message : 'Failed to fetch user stats',
       };
     }
   }

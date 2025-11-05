@@ -39,6 +39,12 @@ export interface StorySession {
   xp_earned: number;
   story_content?: string;
 
+  // Image generation fields
+  generated_image_url?: string;
+  image_generation_timestamp?: string;
+  image_generation_cost?: number;
+  local_image_path?: string; // For downloaded images
+
   // Enhanced local fields for better UX
   contributions: StoryContribution[];
   isCompleted: boolean;
@@ -233,6 +239,13 @@ class StorySessionManager {
 
       // Convert Supabase GameSession to enhanced StorySession
       const dbSession = gameSession as any;
+      console.log('🔍 [DEBUG] Converting DB session to StorySession:', {
+        id: dbSession.id,
+        generated_image_url: dbSession.generated_image_url,
+        image_generation_timestamp: dbSession.image_generation_timestamp,
+        image_generation_cost: dbSession.image_generation_cost,
+      });
+
       const session: StorySession = {
         id: dbSession.id,
         user_id: dbSession.user_id,
@@ -245,6 +258,9 @@ class StorySessionManager {
         challenges_completed: dbSession.challenges_completed || 0,
         xp_earned: dbSession.xp_earned || 0,
         story_content: dbSession.story_content || '',
+        generated_image_url: dbSession.generated_image_url,
+        image_generation_timestamp: dbSession.image_generation_timestamp,
+        image_generation_cost: dbSession.image_generation_cost,
         isCompleted: !!dbSession.completed_at,
         contributions: existingContributions, // Preserve existing contributions or empty array
         sessionStats: {
@@ -287,6 +303,8 @@ class StorySessionManager {
         storyPreview: session.story_content?.substring(0, 100) + '...',
         userWords: session.sessionStats.userWords,
         aiWords: session.sessionStats.aiWords,
+        generated_image_url: session.generated_image_url,
+        hasGeneratedImageUrl: !!session.generated_image_url,
       });
 
       return session;
@@ -365,6 +383,9 @@ class StorySessionManager {
         final_score: session.final_score,
         xp_earned: session.xp_earned,
         completed_at: session.isCompleted ? new Date().toISOString() : null,
+        generated_image_url: session.generated_image_url || null,
+        image_generation_timestamp: session.image_generation_timestamp || null,
+        image_generation_cost: session.image_generation_cost || null,
       } as any;
 
       const { data: updatedSession, error } = await supabase
@@ -394,6 +415,12 @@ class StorySessionManager {
         challenges_completed: updatedDbSession.challenges_completed || 0,
         xp_earned: updatedDbSession.xp_earned || 0,
         story_content: updatedDbSession.story_content || '',
+        generated_image_url: updatedDbSession.generated_image_url || undefined,
+        image_generation_timestamp:
+          updatedDbSession.image_generation_timestamp || undefined,
+        image_generation_cost:
+          updatedDbSession.image_generation_cost || undefined,
+        local_image_path: session.local_image_path, // This is not stored in Supabase, only locally
         isCompleted: !!updatedDbSession.completed_at,
         contributions: session.contributions,
         sessionStats: session.sessionStats,
@@ -435,6 +462,83 @@ class StorySessionManager {
     }
 
     return updatedSession;
+  }
+
+  // Update session with generated image information
+  public async updateSessionWithImage(
+    sessionId: string,
+    imageUrl: string,
+    cost: number = 1000,
+    localPath?: string,
+  ): Promise<StorySession | null> {
+    const session = await this.getSession(sessionId);
+    if (!session) return null;
+
+    // Update image generation fields
+    session.generated_image_url = imageUrl;
+    session.image_generation_timestamp = new Date().toISOString();
+    session.image_generation_cost = cost;
+    if (localPath) {
+      session.local_image_path = localPath;
+    }
+
+    console.log('Updating session with image data:', {
+      sessionId,
+      imageUrl: imageUrl.substring(0, 50) + '...',
+      cost,
+      localPath,
+    });
+
+    // Update session in Supabase and local cache
+    const updatedSession = await this.updateSession(session);
+    return updatedSession;
+  }
+
+  // Update session with local image path after download
+  public async updateSessionWithLocalImage(
+    sessionId: string,
+    localPath: string,
+  ): Promise<StorySession | null> {
+    const session = await this.getSession(sessionId);
+    if (!session) return null;
+
+    session.local_image_path = localPath;
+
+    console.log('Updating session with local image path:', {
+      sessionId,
+      localPath,
+    });
+
+    // Update session in Supabase and local cache
+    const updatedSession = await this.updateSession(session);
+    return updatedSession;
+  }
+
+  // Get session with image data
+  public async getSessionWithImage(sessionId: string): Promise<{
+    session: StorySession | null;
+    hasGeneratedImage: boolean;
+    hasLocalImage: boolean;
+    imageUrl?: string;
+    localImagePath?: string;
+  }> {
+    const session = await this.getSession(sessionId);
+
+    if (!session) {
+      return {
+        session: null,
+        hasGeneratedImage: false,
+        hasLocalImage: false,
+      };
+    }
+
+    return {
+      session,
+      hasGeneratedImage: !!session.generated_image_url,
+      hasLocalImage: !!session.local_image_path,
+      imageUrl: session.generated_image_url,
+      localImagePath: session.local_image_path,
+    };
   }
 
   // Resume a session (set as current)

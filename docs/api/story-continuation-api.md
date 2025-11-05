@@ -15,13 +15,17 @@ This document outlines the API interfaces for the Story Continuation features in
 Imports a story from a text file.
 
 **Parameters:**
+
 - `fileUri` (string): URI of the file to import
 
 **Returns:** Promise resolving to an `ImportedStory` object
 
 **Example:**
+
 ```typescript
-const story = await storyImportService.importFromFile('file://path/to/story.txt');
+const story = await storyImportService.importFromFile(
+  'file://path/to/story.txt',
+);
 ```
 
 ##### `fetchUserStories(userId: string, options?: FetchOptions): Promise<Story[]>`
@@ -29,17 +33,19 @@ const story = await storyImportService.importFromFile('file://path/to/story.txt'
 Fetches stories from the user's database.
 
 **Parameters:**
+
 - `userId` (string): User identifier
 - `options` (FetchOptions, optional): Pagination and filtering options
 
 **Returns:** Promise resolving to an array of `Story` objects
 
 **Example:**
+
 ```typescript
 const stories = await storyImportService.fetchUserStories('user-123', {
   limit: 20,
   offset: 0,
-  source: 'CreativeBridge'
+  source: 'CreativeBridge',
 });
 ```
 
@@ -48,11 +54,13 @@ const stories = await storyImportService.fetchUserStories('user-123', {
 Validates story content for import.
 
 **Parameters:**
+
 - `content` (string): Story content to validate
 
 **Returns:** `ValidationResult` object with validation status
 
 **Example:**
+
 ```typescript
 const result = storyImportService.validateStoryContent(storyText);
 if (result.isValid) {
@@ -71,17 +79,19 @@ if (result.isValid) {
 Saves a story to the database.
 
 **Parameters:**
+
 - `story` (StoryInput): Story data to save
 
 **Returns:** Promise resolving to saved `Story` object
 
 **Example:**
+
 ```typescript
 const savedStory = await storyManagementService.saveStory({
   content: 'Story content',
   title: 'My Story',
   source: 'File',
-  userId: 'user-123'
+  userId: 'user-123',
 });
 ```
 
@@ -90,17 +100,19 @@ const savedStory = await storyManagementService.saveStory({
 Searches stories by content and metadata.
 
 **Parameters:**
+
 - `query` (string): Search query
 - `options` (SearchOptions, optional): Search parameters
 
 **Returns:** Promise resolving to array of `SearchResult` objects
 
 **Example:**
+
 ```typescript
 const results = await storyManagementService.searchStories('adventure', {
   limit: 10,
   includeContent: true,
-  sources: ['File', 'CreativeBridge']
+  sources: ['File', 'CreativeBridge'],
 });
 ```
 
@@ -109,16 +121,18 @@ const results = await storyManagementService.searchStories('adventure', {
 Updates an existing story.
 
 **Parameters:**
+
 - `storyId` (string): Story identifier
 - `updates` (StoryUpdate): Fields to update
 
 **Returns:** Promise resolving to updated `Story` object
 
 **Example:**
+
 ```typescript
 const updated = await storyManagementService.updateStory('story-123', {
   content: 'Updated content',
-  metadata: { wordCount: 150 }
+  metadata: { wordCount: 150 },
 });
 ```
 
@@ -127,11 +141,13 @@ const updated = await storyManagementService.updateStory('story-123', {
 Deletes a story from the database.
 
 **Parameters:**
+
 - `storyId` (string): Story identifier
 
 **Returns:** Promise resolving when deletion is complete
 
 **Example:**
+
 ```typescript
 await storyManagementService.deleteStory('story-123');
 ```
@@ -147,16 +163,18 @@ await storyManagementService.deleteStory('story-123');
 Tracks a story import event.
 
 **Parameters:**
+
 - `userId` (string): User identifier
 - `source` (ImportSource): Import source ('file' | 'database' | 'story_quest')
 - `success` (boolean): Whether import was successful
 - `metadata` (Record<string, any>, optional): Additional event data
 
 **Example:**
+
 ```typescript
 await analyticsService.trackStoryImport('user-123', 'file', true, {
   fileSize: 2048,
-  storyLength: 500
+  storyLength: 500,
 });
 ```
 
@@ -165,16 +183,18 @@ await analyticsService.trackStoryImport('user-123', 'file', true, {
 Tracks a story continuation event.
 
 **Parameters:**
+
 - `userId` (string): User identifier
 - `storyId` (string): Story identifier
 - `success` (boolean): Whether continuation was successful
 - `metadata` (Record<string, any>, optional): Additional event data
 
 **Example:**
+
 ```typescript
 await analyticsService.trackStoryContinuation('user-123', 'story-456', true, {
   generatedWords: 150,
-  aiModel: 'gpt-4'
+  aiModel: 'gpt-4',
 });
 ```
 
@@ -183,6 +203,7 @@ await analyticsService.trackStoryContinuation('user-123', 'story-456', true, {
 Retrieves usage metrics for a date range.
 
 **Parameters:**
+
 - `startDate` (string): Start date (ISO format)
 - `endDate` (string): End date (ISO format)
 - `userId` (string, optional): Filter by specific user
@@ -190,11 +211,12 @@ Retrieves usage metrics for a date range.
 **Returns:** Promise resolving to `UsageMetrics` object
 
 **Example:**
+
 ```typescript
 const metrics = await analyticsService.getUsageMetrics(
   '2024-01-01T00:00:00Z',
   '2024-01-31T23:59:59Z',
-  'user-123'
+  'user-123',
 );
 ```
 
@@ -203,12 +225,14 @@ const metrics = await analyticsService.getUsageMetrics(
 Generates an analytics report.
 
 **Parameters:**
+
 - `reportType` (ReportType): Type of report ('daily' | 'weekly' | 'monthly' | 'custom')
 - `dateRange` (DateRange, optional): Custom date range for 'custom' reports
 
 **Returns:** Promise resolving to `AnalyticsReport` object
 
 **Example:**
+
 ```typescript
 const report = await analyticsService.generateReport('weekly');
 ```
@@ -224,9 +248,11 @@ const report = await analyticsService.generateReport('weekly');
 Sets the user ID for synchronization.
 
 **Parameters:**
+
 - `userId` (string): User identifier
 
 **Example:**
+
 ```typescript
 syncService.setUserId('user-123');
 ```
@@ -236,18 +262,20 @@ syncService.setUserId('user-123');
 Updates a story on a specific device.
 
 **Parameters:**
+
 - `deviceId` (string): Device identifier
 - `storyId` (string): Story identifier
 - `content` (string): Story content
 - `metadata` (any, optional): Story metadata
 
 **Example:**
+
 ```typescript
 await syncService.updateStoryOnDevice(
   'device-123',
   'story-456',
   'Updated story content',
-  { wordCount: 100 }
+  { wordCount: 100 },
 );
 ```
 
@@ -256,9 +284,11 @@ await syncService.updateStoryOnDevice(
 Synchronizes stories across multiple devices.
 
 **Parameters:**
+
 - `deviceIds` (string[]): Array of device identifiers
 
 **Example:**
+
 ```typescript
 await syncService.syncAcrossDevices(['device-1', 'device-2', 'device-3']);
 ```
@@ -268,16 +298,18 @@ await syncService.syncAcrossDevices(['device-1', 'device-2', 'device-3']);
 Resolves conflicts between story versions.
 
 **Parameters:**
+
 - `storyId` (string): Story identifier
 - `conflictingEdits` (ConflictEdit[]): Array of conflicting edits
 
 **Returns:** Promise resolving to resolved `SyncStory` object
 
 **Example:**
+
 ```typescript
 const resolved = await syncService.resolveConflict('story-123', [
   { deviceId: 'device-1', content: 'Version A', timestamp: 1000 },
-  { deviceId: 'device-2', content: 'Version B', timestamp: 2000 }
+  { deviceId: 'device-2', content: 'Version B', timestamp: 2000 },
 ]);
 ```
 
@@ -286,9 +318,11 @@ const resolved = await syncService.resolveConflict('story-123', [
 Enables or disables offline mode.
 
 **Parameters:**
+
 - `enabled` (boolean): Whether to enable offline mode
 
 **Example:**
+
 ```typescript
 syncService.setOfflineMode(true);
 ```
@@ -300,6 +334,7 @@ Gets the current synchronization status.
 **Returns:** Promise resolving to `SyncStatus` object
 
 **Example:**
+
 ```typescript
 const status = await syncService.getSyncStatus();
 console.log(`Pending changes: ${status.pendingChanges}`);
@@ -316,16 +351,18 @@ console.log(`Pending changes: ${status.pendingChanges}`);
 Performs full-text search across story content.
 
 **Parameters:**
+
 - `query` (string): Search query
 - `options` (SearchOptions, optional): Search configuration
 
 **Returns:** Promise resolving to array of `SearchResult` objects
 
 **Example:**
+
 ```typescript
 const results = await advancedSearchService.fullTextSearch('dragon adventure', {
   limit: 20,
-  includeSnippets: true
+  includeSnippets: true,
 });
 ```
 
@@ -334,16 +371,18 @@ const results = await advancedSearchService.fullTextSearch('dragon adventure', {
 Searches stories by metadata fields.
 
 **Parameters:**
+
 - `metadata` (SearchMetadata): Metadata search criteria
 
 **Returns:** Promise resolving to array of `SearchResult` objects
 
 **Example:**
+
 ```typescript
 const results = await advancedSearchService.searchByMetadata({
   author: 'John Doe',
   genre: 'fantasy',
-  wordCountMin: 500
+  wordCountMin: 500,
 });
 ```
 
@@ -352,11 +391,13 @@ const results = await advancedSearchService.searchByMetadata({
 Gets search suggestions for partial queries.
 
 **Parameters:**
+
 - `partialQuery` (string): Partial search query
 
 **Returns:** Promise resolving to array of suggestion strings
 
 **Example:**
+
 ```typescript
 const suggestions = await advancedSearchService.getSuggestions('adven');
 // Returns: ['adventure', 'adventurous', 'adventures']

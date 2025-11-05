@@ -1,0 +1,227 @@
+/**
+ * Environment Configuration Service
+ * Manages environment variables for the CreativeBridge application
+ * with proper fallbacks and validation
+ */
+
+// Import environment variables using react-native-dotenv
+import {
+  SUPABASE_URL as ENV_SUPABASE_URL,
+  SUPABASE_ANON_KEY as ENV_SUPABASE_ANON_KEY,
+  OPENAI_API_KEY as ENV_OPENAI_API_KEY,
+  ELEVENLABS_API_KEY as ENV_ELEVENLABS_API_KEY,
+  REPLICATE_API_TOKEN as ENV_REPLICATE_API_TOKEN,
+  BACKUP_IMAGE_API_TOKEN as ENV_BACKUP_IMAGE_API_TOKEN,
+  IMAGE_GENERATION_ENABLED as ENV_IMAGE_GENERATION_ENABLED,
+  IMAGE_GENERATION_TIMEOUT_PRIMARY as ENV_IMAGE_GENERATION_TIMEOUT_PRIMARY,
+  IMAGE_GENERATION_TIMEOUT_BACKUP as ENV_IMAGE_GENERATION_TIMEOUT_BACKUP,
+  IMAGE_GENERATION_MAX_CONCURRENT as ENV_IMAGE_GENERATION_MAX_CONCURRENT,
+  IMAGE_GENERATION_XP_COST as ENV_IMAGE_GENERATION_XP_COST,
+  APP_NAME as ENV_APP_NAME,
+  APP_VERSION as ENV_APP_VERSION,
+} from '@env';
+
+export interface EnvironmentConfig {
+  // Supabase Configuration
+  SUPABASE_URL: string;
+  SUPABASE_ANON_KEY: string;
+
+  // OpenAI Configuration
+  OPENAI_API_KEY: string;
+
+  // ElevenLabs Voice AI (Optional)
+  ELEVENLABS_API_KEY?: string;
+
+  // Image Generation Configuration
+  REPLICATE_API_TOKEN: string;
+  BACKUP_IMAGE_API_TOKEN: string;
+  IMAGE_GENERATION_ENABLED: boolean;
+
+  // Image Generation Settings
+  IMAGE_GENERATION_TIMEOUT_PRIMARY: number;
+  IMAGE_GENERATION_TIMEOUT_BACKUP: number;
+  IMAGE_GENERATION_MAX_CONCURRENT: number;
+  IMAGE_GENERATION_XP_COST: number;
+
+  // App Configuration
+  APP_NAME: string;
+  APP_VERSION: string;
+}
+
+/**
+ * Load and validate environment configuration
+ * Provides fallbacks for development and ensures all required values are present
+ */
+const loadEnvironmentConfig = (): EnvironmentConfig => {
+  // Helper function to get environment variable with fallback
+  const getEnvVar = (value: string | undefined, fallback?: string): string => {
+    const result = value || fallback;
+    if (!result) {
+      console.warn(`⚠️ Environment variable is not set`);
+    }
+    return result || '';
+  };
+
+  // Helper function to get boolean environment variable
+  const getBooleanEnvVar = (
+    value: string | undefined,
+    fallback: boolean = false,
+  ): boolean => {
+    if (value === undefined || value === '') {
+      return fallback;
+    }
+    return value.toLowerCase() === 'true';
+  };
+
+  // Helper function to get number environment variable
+  const getNumberEnvVar = (
+    value: string | undefined,
+    fallback: number,
+  ): number => {
+    if (value === undefined || value === '') {
+      return fallback;
+    }
+    const parsed = parseInt(value, 10);
+    return isNaN(parsed) ? fallback : parsed;
+  };
+
+  return {
+    // Supabase Configuration
+    SUPABASE_URL: getEnvVar(
+      ENV_SUPABASE_URL,
+      'https://dzwcqfnvcaempqgkzkuz.supabase.co',
+    ),
+    SUPABASE_ANON_KEY: getEnvVar(
+      ENV_SUPABASE_ANON_KEY,
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6d2NxZm52Y2FlbXBxZ2t6a3V6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc3NzAxMzgsImV4cCI6MjA2MzM0NjEzOH0.a4TidZN02D6AAj88W08BdumMQv_LLihRqyYu4b_3TEo',
+    ),
+
+    // OpenAI Configuration
+    OPENAI_API_KEY: getEnvVar(ENV_OPENAI_API_KEY),
+
+    // ElevenLabs Voice AI (Optional)
+    ELEVENLABS_API_KEY: ENV_ELEVENLABS_API_KEY,
+
+    // Image Generation Configuration
+    REPLICATE_API_TOKEN: getEnvVar(ENV_REPLICATE_API_TOKEN),
+    BACKUP_IMAGE_API_TOKEN: getEnvVar(ENV_BACKUP_IMAGE_API_TOKEN),
+    IMAGE_GENERATION_ENABLED: getBooleanEnvVar(
+      ENV_IMAGE_GENERATION_ENABLED,
+      false,
+    ),
+
+    // Image Generation Settings
+    IMAGE_GENERATION_TIMEOUT_PRIMARY: getNumberEnvVar(
+      ENV_IMAGE_GENERATION_TIMEOUT_PRIMARY,
+      60000,
+    ),
+    IMAGE_GENERATION_TIMEOUT_BACKUP: getNumberEnvVar(
+      ENV_IMAGE_GENERATION_TIMEOUT_BACKUP,
+      45000,
+    ),
+    IMAGE_GENERATION_MAX_CONCURRENT: getNumberEnvVar(
+      ENV_IMAGE_GENERATION_MAX_CONCURRENT,
+      10,
+    ),
+    IMAGE_GENERATION_XP_COST: getNumberEnvVar(
+      ENV_IMAGE_GENERATION_XP_COST,
+      1000,
+    ),
+
+    // App Configuration
+    APP_NAME: getEnvVar(ENV_APP_NAME, 'CreativeBridge'),
+    APP_VERSION: getEnvVar(ENV_APP_VERSION, '1.0.0'),
+  };
+};
+
+/**
+ * Validate that all required environment variables are present
+ */
+const validateEnvironmentConfig = (config: EnvironmentConfig): void => {
+  const requiredFields: (keyof EnvironmentConfig)[] = [
+    'SUPABASE_URL',
+    'SUPABASE_ANON_KEY',
+    'OPENAI_API_KEY',
+    'REPLICATE_API_TOKEN',
+    'BACKUP_IMAGE_API_TOKEN',
+  ];
+
+  const missingFields = requiredFields.filter(field => !config[field]);
+
+  if (missingFields.length > 0) {
+    const errorMessage = `❌ Missing required environment variables: ${missingFields.join(
+      ', ',
+    )}`;
+    console.error(errorMessage);
+
+    if (!__DEV__) {
+      throw new Error(`Environment configuration error: ${errorMessage}`);
+    }
+  }
+
+  // Validate URL format
+  if (config.SUPABASE_URL && !config.SUPABASE_URL.startsWith('http')) {
+    const errorMessage = '❌ SUPABASE_URL must be a valid HTTP/HTTPS URL';
+    console.error(errorMessage);
+
+    if (!__DEV__) {
+      throw new Error(`Environment configuration error: ${errorMessage}`);
+    }
+  }
+
+  // Log configuration status in development (secure logging)
+  if (__DEV__) {
+    console.log('🔧 Environment Configuration Loaded:');
+    console.log(`   📱 App Name: ${config.APP_NAME} v${config.APP_VERSION}`);
+    console.log(`   🗄️  Supabase: ${config.SUPABASE_URL ? '✅' : '❌'}`);
+
+    // Use secure logging for API keys - never log actual keys
+    const maskKey = (key: string | undefined) => {
+      if (!key) return '❌';
+      return key.length > 8
+        ? `✅ ${key.substring(0, 6)}...${key.substring(key.length - 3)}`
+        : '✅ [CONFIGURED]';
+    };
+
+    console.log(`   🤖 OpenAI: ${maskKey(config.OPENAI_API_KEY)}`);
+    console.log(`   🎨 Replicate: ${maskKey(config.REPLICATE_API_TOKEN)}`);
+    console.log(
+      `   🔄 Backup Service: ${maskKey(config.BACKUP_IMAGE_API_TOKEN)}`,
+    );
+    console.log(
+      `   🎤 ElevenLabs: ${
+        config.ELEVENLABS_API_KEY
+          ? maskKey(config.ELEVENLABS_API_KEY)
+          : '➖ (Optional)'
+      }`,
+    );
+    console.log(
+      `   🖼️  Image Generation: ${
+        config.IMAGE_GENERATION_ENABLED ? '✅ Enabled' : '❌ Disabled'
+      }`,
+    );
+    console.log(`   🔒 Security: API key masking enabled`);
+  }
+};
+
+// Load and validate configuration
+export const env: EnvironmentConfig = loadEnvironmentConfig();
+validateEnvironmentConfig(env);
+
+// Export individual getters for convenience
+export const getEnvironmentConfig = (): EnvironmentConfig => env;
+
+export const isImageGenerationEnabled = (): boolean =>
+  env.IMAGE_GENERATION_ENABLED;
+
+export const getImageGenerationConfig = () => ({
+  primaryApiToken: env.REPLICATE_API_TOKEN,
+  backupApiToken: env.BACKUP_IMAGE_API_TOKEN,
+  timeoutPrimary: env.IMAGE_GENERATION_TIMEOUT_PRIMARY,
+  timeoutBackup: env.IMAGE_GENERATION_TIMEOUT_BACKUP,
+  maxConcurrent: env.IMAGE_GENERATION_MAX_CONCURRENT,
+  xpCost: env.IMAGE_GENERATION_XP_COST,
+  enabled: env.IMAGE_GENERATION_ENABLED,
+});
+
+export default env;

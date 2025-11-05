@@ -3,7 +3,14 @@
 
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
-import { Text, View, Button, TextInput, ScrollView, TouchableOpacity } from 'react-native';
+import {
+  Text,
+  View,
+  Button,
+  TextInput,
+  ScrollView,
+  TouchableOpacity,
+} from 'react-native';
 
 // Mock accessibility utilities
 const mockAccessibilityInfo = {
@@ -19,11 +26,11 @@ jest.mock('react-native', () => ({
 }));
 
 // Mock components with accessibility features
-const AccessibleStorySelectionModal = ({ 
-  stories, 
-  visible, 
-  onSelect, 
-  onClose 
+const AccessibleStorySelectionModal = ({
+  stories,
+  visible,
+  onSelect,
+  onClose,
 }: {
   stories: any[];
   visible: boolean;
@@ -34,7 +41,7 @@ const AccessibleStorySelectionModal = ({
   const [selectedIndex, setSelectedIndex] = React.useState(0);
 
   const filteredStories = stories.filter(story =>
-    story.content.toLowerCase().includes(searchTerm.toLowerCase())
+    story.content.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   if (!visible) return null;
@@ -46,13 +53,10 @@ const AccessibleStorySelectionModal = ({
       accessibilityLabel="Story selection modal"
       accessibilityHint="Choose a story to continue writing"
     >
-      <Text
-        accessibilityRole="header"
-        accessibilityLevel={1}
-      >
+      <Text accessibilityRole="header" accessibilityLevel={1}>
         Select a Story to Continue
       </Text>
-      
+
       <TextInput
         value={searchTerm}
         onChangeText={setSearchTerm}
@@ -62,7 +66,7 @@ const AccessibleStorySelectionModal = ({
         accessibilityRole="searchbox"
         clearButtonMode="while-editing"
       />
-      
+
       <ScrollView
         accessibilityLabel="Story list"
         accessibilityHint="Swipe to browse available stories"
@@ -78,13 +82,20 @@ const AccessibleStorySelectionModal = ({
             accessibilityState={{ selected: selectedIndex === index }}
             onFocus={() => setSelectedIndex(index)}
           >
-            <View style={{ backgroundColor: selectedIndex === index ? '#e6f3ff' : 'white' }}>
+            <View
+              style={{
+                backgroundColor: selectedIndex === index ? '#e6f3ff' : 'white',
+              }}
+            >
               <Text accessibilityRole="text">
                 {story.title || 'Untitled Story'}
               </Text>
-              <Text 
+              <Text
                 accessibilityRole="text"
-                accessibilityLabel={`Story preview: ${story.content.substring(0, 100)}`}
+                accessibilityLabel={`Story preview: ${story.content.substring(
+                  0,
+                  100,
+                )}`}
               >
                 {story.content.substring(0, 100)}...
               </Text>
@@ -97,7 +108,7 @@ const AccessibleStorySelectionModal = ({
           </TouchableOpacity>
         ))}
       </ScrollView>
-      
+
       <Button
         title="Cancel"
         onPress={onClose}
@@ -108,10 +119,10 @@ const AccessibleStorySelectionModal = ({
   );
 };
 
-const AccessibleStoryEditor = ({ 
-  story, 
-  onSave, 
-  onCancel 
+const AccessibleStoryEditor = ({
+  story,
+  onSave,
+  onCancel,
 }: {
   story: any;
   onSave: (content: string) => void;
@@ -123,7 +134,10 @@ const AccessibleStoryEditor = ({
 
   const handleContentChange = (newContent: string) => {
     setContent(newContent);
-    const words = newContent.trim().split(/\s+/).filter(word => word.length > 0);
+    const words = newContent
+      .trim()
+      .split(/\s+/)
+      .filter(word => word.length > 0);
     setWordCount(words.length);
   };
 
@@ -134,21 +148,12 @@ const AccessibleStoryEditor = ({
   };
 
   return (
-    <View
-      accessible={true}
-      accessibilityLabel="Story editor"
-    >
-      <Text
-        accessibilityRole="header"
-        accessibilityLevel={1}
-      >
+    <View accessible={true} accessibilityLabel="Story editor">
+      <Text accessibilityRole="header" accessibilityLevel={1}>
         {isEditing ? 'Editing Story' : 'Story Preview'}
       </Text>
-      
-      <View
-        accessibilityLabel="Story statistics"
-        accessibilityRole="text"
-      >
+
+      <View accessibilityLabel="Story statistics" accessibilityRole="text">
         <Text accessibilityLabel={`Word count: ${wordCount} words`}>
           {wordCount} words
         </Text>
@@ -173,10 +178,7 @@ const AccessibleStoryEditor = ({
           accessibilityLabel="Story content"
           accessibilityHint="Scroll to read the full story"
         >
-          <Text
-            accessibilityRole="text"
-            selectable={true}
-          >
+          <Text accessibilityRole="text" selectable={true}>
             {content}
           </Text>
         </ScrollView>
@@ -196,7 +198,9 @@ const AccessibleStoryEditor = ({
               onPress={() => {
                 setContent(story.content);
                 setIsEditing(false);
-                mockAccessibilityInfo.announceForAccessibility('Edit cancelled');
+                mockAccessibilityInfo.announceForAccessibility(
+                  'Edit cancelled',
+                );
               }}
               accessibilityLabel="Cancel editing"
               accessibilityHint="Discard changes and return to preview mode"
@@ -208,7 +212,9 @@ const AccessibleStoryEditor = ({
               title="Edit"
               onPress={() => {
                 setIsEditing(true);
-                mockAccessibilityInfo.announceForAccessibility('Editing mode enabled');
+                mockAccessibilityInfo.announceForAccessibility(
+                  'Editing mode enabled',
+                );
               }}
               accessibilityLabel="Edit story"
               accessibilityHint="Switch to editing mode to modify the story"
@@ -217,7 +223,9 @@ const AccessibleStoryEditor = ({
               title="Continue Story"
               onPress={() => {
                 // Navigate to story continuation
-                mockAccessibilityInfo.announceForAccessibility('Starting story continuation');
+                mockAccessibilityInfo.announceForAccessibility(
+                  'Starting story continuation',
+                );
               }}
               accessibilityLabel="Continue writing this story"
               accessibilityHint="Use AI to generate a continuation for this story"
@@ -235,25 +243,19 @@ const AccessibleStoryEditor = ({
   );
 };
 
-const AccessibleImportOptionsScreen = ({ 
-  onFileImport, 
-  onDatabaseImport 
+const AccessibleImportOptionsScreen = ({
+  onFileImport,
+  onDatabaseImport,
 }: {
   onFileImport: () => void;
   onDatabaseImport: () => void;
 }) => {
   return (
-    <View
-      accessible={true}
-      accessibilityLabel="Import options screen"
-    >
-      <Text
-        accessibilityRole="header"
-        accessibilityLevel={1}
-      >
+    <View accessible={true} accessibilityLabel="Import options screen">
+      <Text accessibilityRole="header" accessibilityLevel={1}>
         Import a Story to Continue
       </Text>
-      
+
       <Text
         accessibilityRole="text"
         accessibilityLabel="Choose how you want to import a story"
@@ -272,9 +274,7 @@ const AccessibleImportOptionsScreen = ({
         <Text style={{ fontSize: 18, fontWeight: 'bold' }}>
           📁 Import from File
         </Text>
-        <Text>
-          Choose a .txt file from your device
-        </Text>
+        <Text>Choose a .txt file from your device</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -285,22 +285,18 @@ const AccessibleImportOptionsScreen = ({
         accessibilityHint="Choose from your previously written stories"
         style={{ padding: 20, backgroundColor: '#f0f0f0', marginVertical: 10 }}
       >
-        <Text style={{ fontSize: 18, fontWeight: 'bold' }}>
-          📚 My Stories
-        </Text>
-        <Text>
-          Choose from your saved stories
-        </Text>
+        <Text style={{ fontSize: 18, fontWeight: 'bold' }}>📚 My Stories</Text>
+        <Text>Choose from your saved stories</Text>
       </TouchableOpacity>
     </View>
   );
 };
 
 // Error message component with accessibility
-const AccessibleErrorMessage = ({ 
-  error, 
-  onRetry, 
-  onDismiss 
+const AccessibleErrorMessage = ({
+  error,
+  onRetry,
+  onDismiss,
 }: {
   error: string | null;
   onRetry?: () => void;
@@ -321,7 +317,7 @@ const AccessibleErrorMessage = ({
       >
         Error: {error}
       </Text>
-      
+
       <View style={{ flexDirection: 'row', marginTop: 10 }}>
         {onRetry && (
           <Button
@@ -353,7 +349,8 @@ describe('Accessibility Testing', () => {
         {
           id: '1',
           title: 'Adventure Story',
-          content: 'Once upon a time, there was a brave knight who ventured into the forest.',
+          content:
+            'Once upon a time, there was a brave knight who ventured into the forest.',
           words_written: 15,
           source: 'File',
           created_at: '2024-01-01',
@@ -361,7 +358,8 @@ describe('Accessibility Testing', () => {
         {
           id: '2',
           title: 'Mystery Tale',
-          content: 'The detective examined the crime scene carefully, looking for clues.',
+          content:
+            'The detective examined the crime scene carefully, looking for clues.',
           words_written: 12,
           source: 'CreativeBridge',
           created_at: '2024-01-02',
@@ -374,20 +372,20 @@ describe('Accessibility Testing', () => {
           visible={true}
           onSelect={jest.fn()}
           onClose={jest.fn()}
-        />
+        />,
       );
 
       // Test main dialog accessibility
       expect(getByRole('dialog')).toBeTruthy();
       expect(getByLabelText('Story selection modal')).toBeTruthy();
-      
+
       // Test header accessibility
       expect(getByRole('header')).toBeTruthy();
-      
+
       // Test search accessibility
       expect(getByLabelText('Search stories')).toBeTruthy();
       expect(getByRole('searchbox')).toBeTruthy();
-      
+
       // Test story list accessibility
       expect(getByLabelText('Story list')).toBeTruthy();
       expect(getByLabelText('Story: Adventure Story')).toBeTruthy();
@@ -399,17 +397,17 @@ describe('Accessibility Testing', () => {
         <AccessibleImportOptionsScreen
           onFileImport={jest.fn()}
           onDatabaseImport={jest.fn()}
-        />
+        />,
       );
 
       const fileImportButton = getByLabelText('Import from file');
       const storiesButton = getByLabelText('Select from my stories');
 
       expect(fileImportButton.props.accessibilityHint).toBe(
-        'Select a text file from your device to import'
+        'Select a text file from your device to import',
       );
       expect(storiesButton.props.accessibilityHint).toBe(
-        'Choose from your previously written stories'
+        'Choose from your previously written stories',
       );
     });
 
@@ -426,7 +424,7 @@ describe('Accessibility Testing', () => {
           story={mockStory}
           onSave={jest.fn()}
           onCancel={jest.fn()}
-        />
+        />,
       );
 
       // Start editing
@@ -434,9 +432,9 @@ describe('Accessibility Testing', () => {
       fireEvent.press(editButton);
 
       await waitFor(() => {
-        expect(mockAccessibilityInfo.announceForAccessibility).toHaveBeenCalledWith(
-          'Editing mode enabled'
-        );
+        expect(
+          mockAccessibilityInfo.announceForAccessibility,
+        ).toHaveBeenCalledWith('Editing mode enabled');
       });
 
       // Save changes
@@ -444,9 +442,9 @@ describe('Accessibility Testing', () => {
       fireEvent.press(saveButton);
 
       await waitFor(() => {
-        expect(mockAccessibilityInfo.announceForAccessibility).toHaveBeenCalledWith(
-          'Story saved successfully'
-        );
+        expect(
+          mockAccessibilityInfo.announceForAccessibility,
+        ).toHaveBeenCalledWith('Story saved successfully');
       });
     });
 
@@ -456,7 +454,7 @@ describe('Accessibility Testing', () => {
           error="File format not supported. Please select a .txt file."
           onRetry={jest.fn()}
           onDismiss={jest.fn()}
-        />
+        />,
       );
 
       const alertElement = getByRole('alert');
@@ -471,9 +469,27 @@ describe('Accessibility Testing', () => {
   describe('Keyboard Navigation', () => {
     it('should support tab navigation through story list', () => {
       const mockStories = [
-        { id: '1', title: 'Story 1', content: 'Content 1', words_written: 5, source: 'File' },
-        { id: '2', title: 'Story 2', content: 'Content 2', words_written: 8, source: 'File' },
-        { id: '3', title: 'Story 3', content: 'Content 3', words_written: 12, source: 'File' },
+        {
+          id: '1',
+          title: 'Story 1',
+          content: 'Content 1',
+          words_written: 5,
+          source: 'File',
+        },
+        {
+          id: '2',
+          title: 'Story 2',
+          content: 'Content 2',
+          words_written: 8,
+          source: 'File',
+        },
+        {
+          id: '3',
+          title: 'Story 3',
+          content: 'Content 3',
+          words_written: 12,
+          source: 'File',
+        },
       ];
 
       const { getAllByRole } = render(
@@ -482,15 +498,15 @@ describe('Accessibility Testing', () => {
           visible={true}
           onSelect={jest.fn()}
           onClose={jest.fn()}
-        />
+        />,
       );
 
       const storyButtons = getAllByRole('button').filter(button =>
-        button.props.accessibilityLabel?.startsWith('Story:')
+        button.props.accessibilityLabel?.startsWith('Story:'),
       );
 
       expect(storyButtons).toHaveLength(3);
-      
+
       // Test that each story button can receive focus
       storyButtons.forEach((button, index) => {
         fireEvent.focus(button);
@@ -512,7 +528,7 @@ describe('Accessibility Testing', () => {
           story={mockStory}
           onSave={onSave}
           onCancel={jest.fn()}
-        />
+        />,
       );
 
       // Enter edit mode
@@ -522,7 +538,7 @@ describe('Accessibility Testing', () => {
       // Test that text input is accessible via keyboard
       const textInput = getByLabelText('Story content editor');
       expect(textInput.props.accessibilityRole).toBe('textbox');
-      
+
       // Test save functionality
       fireEvent.changeText(textInput, 'Updated content');
       const saveButton = getByLabelText('Save story changes');
@@ -536,7 +552,7 @@ describe('Accessibility Testing', () => {
         <AccessibleImportOptionsScreen
           onFileImport={jest.fn()}
           onDatabaseImport={jest.fn()}
-        />
+        />,
       );
 
       const fileImportButton = getByLabelText('Import from file');
@@ -559,7 +575,7 @@ describe('Accessibility Testing', () => {
           story={{ id: '1', content: 'Test', words_written: 1, source: 'File' }}
           onSave={jest.fn()}
           onCancel={jest.fn()}
-        />
+        />,
       );
 
       const header = getByRole('header');
@@ -569,26 +585,29 @@ describe('Accessibility Testing', () => {
     it('should provide sufficient color contrast information', () => {
       // This test ensures that accessibility labels convey information
       // that might otherwise be communicated through color alone
-      
+
       const { getByLabelText } = render(
         <AccessibleErrorMessage
           error="Invalid file format"
           onDismiss={jest.fn()}
-        />
+        />,
       );
 
       const errorElement = getByLabelText('Dismiss error');
       expect(errorElement).toBeTruthy();
-      
+
       // Error should be announced via screen reader, not just color
-      expect(mockAccessibilityInfo.announceForAccessibility).toHaveBeenCalledTimes(0);
+      expect(
+        mockAccessibilityInfo.announceForAccessibility,
+      ).toHaveBeenCalledTimes(0);
     });
 
     it('should support dynamic font sizing', () => {
       // Test that components work with larger text sizes
       const mockStory = {
         id: '1',
-        content: 'This is a test story that should work with larger font sizes.',
+        content:
+          'This is a test story that should work with larger font sizes.',
         words_written: 13,
         source: 'File',
       };
@@ -598,7 +617,7 @@ describe('Accessibility Testing', () => {
           story={mockStory}
           onSave={jest.fn()}
           onCancel={jest.fn()}
-        />
+        />,
       );
 
       // Text should be selectable for users who need to adjust reading
@@ -611,7 +630,7 @@ describe('Accessibility Testing', () => {
         <AccessibleImportOptionsScreen
           onFileImport={jest.fn()}
           onDatabaseImport={jest.fn()}
-        />
+        />,
       );
 
       // Icons should have descriptive labels, not just emoji
@@ -632,7 +651,7 @@ describe('Accessibility Testing', () => {
         <AccessibleImportOptionsScreen
           onFileImport={onFileImport}
           onDatabaseImport={onDatabaseImport}
-        />
+        />,
       );
 
       // Test voice control by label
@@ -649,7 +668,13 @@ describe('Accessibility Testing', () => {
 
     it('should provide voice-friendly search functionality', () => {
       const mockStories = [
-        { id: '1', title: 'Adventure', content: 'Adventure story', words_written: 2, source: 'File' },
+        {
+          id: '1',
+          title: 'Adventure',
+          content: 'Adventure story',
+          words_written: 2,
+          source: 'File',
+        },
       ];
 
       const { getByLabelText } = render(
@@ -658,15 +683,15 @@ describe('Accessibility Testing', () => {
           visible={true}
           onSelect={jest.fn()}
           onClose={jest.fn()}
-        />
+        />,
       );
 
       const searchInput = getByLabelText('Search stories');
-      
+
       // Test that search input accepts voice input
       expect(searchInput.props.accessibilityRole).toBe('searchbox');
       expect(searchInput.props.accessibilityHint).toContain('Type to filter');
-      
+
       // Voice dictation should work with this input
       fireEvent.changeText(searchInput, 'adventure');
     });
@@ -677,7 +702,13 @@ describe('Accessibility Testing', () => {
       // Test that all interactive elements can be activated via switch control
       const onSelect = jest.fn();
       const mockStories = [
-        { id: '1', title: 'Test Story', content: 'Content', words_written: 1, source: 'File' },
+        {
+          id: '1',
+          title: 'Test Story',
+          content: 'Content',
+          words_written: 1,
+          source: 'File',
+        },
       ];
 
       const { getByLabelText } = render(
@@ -686,11 +717,11 @@ describe('Accessibility Testing', () => {
           visible={true}
           onSelect={onSelect}
           onClose={jest.fn()}
-        />
+        />,
       );
 
       const storyButton = getByLabelText('Story: Test Story');
-      
+
       // Switch control would trigger onPress
       fireEvent.press(storyButton);
       expect(onSelect).toHaveBeenCalledWith(mockStories[0]);
@@ -711,7 +742,7 @@ describe('Accessibility Testing', () => {
           story={mockStory}
           onSave={onSave}
           onCancel={jest.fn()}
-        />
+        />,
       );
 
       // Enter edit mode
@@ -727,7 +758,7 @@ describe('Accessibility Testing', () => {
       // No timeout constraints on editing
       const textInput = getByLabelText('Story content editor');
       fireEvent.changeText(textInput, 'Modified content');
-      
+
       // Save should work regardless of how long editing took
       const saveButton = getByLabelText('Save story changes');
       fireEvent.press(saveButton);
@@ -749,14 +780,14 @@ describe('Accessibility Testing', () => {
           story={mockStory}
           onSave={jest.fn()}
           onCancel={jest.fn()}
-        />
+        />,
       );
 
       const storyContent = getByLabelText('Story content');
-      
+
       // Content should be in a ScrollView for zoom accessibility
       expect(storyContent).toBeTruthy();
-      
+
       // Text should be selectable for magnification tools
       expect(storyContent.props.selectable).toBe(true);
     });
