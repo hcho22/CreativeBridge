@@ -36,8 +36,8 @@ import ChallengeDisplay from '../components/common/ChallengeDisplay';
 import ImageGeneration from '../components/common/ImageGeneration';
 import StoryImageDisplay from '../components/common/StoryImageDisplay';
 import { storyDownloadService } from '../services/storyDownloadService';
-import RNFS from 'react-native-fs';
-import Share from 'react-native-share';
+import RNFS, { rnfsWrapper } from '../utils/rnfsWrapper';
+import Share from '../utils/shareWrapper';
 
 type HomeScreenNavigationProp = BottomTabNavigationProp<TabParamList, 'Home'>;
 
@@ -947,12 +947,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     // Simply show the story (already visible) and hide completion options
     setShowCompletionOptions(false);
     
-    // Scroll to top of story to give user a better view
-    Alert.alert(
-      '📖 Story View',
-      'Your completed story is displayed above. You can scroll to read it fully.\n\nTap the "Back to Options" button below to choose other actions.',
-      [{ text: 'OK' }]
-    );
+    // The story is now visible - user can scroll and read it
+    // "Back to Options" button is available if they want to return to options
   }, []);
 
   const handleImageGenerated = useCallback(
@@ -1128,39 +1124,65 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   }, []);
 
   const saveStoryWithLocationPicker = useCallback(async (fileContent: string, fileName: string) => {
+    let tempFilePath: string | undefined;
+    
     try {
-      // Create temporary file in app's Documents directory
-      const documentsPath = RNFS.DocumentDirectoryPath;
-      const tempFilePath = `${documentsPath}/${fileName}`;
-
-      // Write the file to temporary location
-      await RNFS.writeFile(tempFilePath, fileContent, 'utf8');
-
-      // Get file stats for sharing
-      const fileStat = await RNFS.stat(tempFilePath);
-      console.log('📁 File created successfully:', {
-        path: tempFilePath,
-        size: fileStat.size,
-        fileName: fileName
-      });
-
-      // Dismiss loading alert
-      // Note: React Native doesn't provide direct way to dismiss specific alerts
-      // The share sheet will naturally override the loading alert
-
-      // Use iOS share sheet to let user choose save location
-      const shareOptions = {
+      let shareOptions: any = {
         title: 'Save Story',
         message: 'Save your completed story',
-        url: `file://${tempFilePath}`,
         type: 'text/plain',
         filename: fileName,
         saveToFiles: true, // This enables "Save to Files" option on iOS
       };
 
+      // Handle simulator vs real device differently
+      if (rnfsWrapper.isSimulationMode) {
+        console.log('📁 [HomeScreen] Simulator mode detected - sharing content directly');
+        
+        // In simulator, share content directly instead of fake file paths
+        shareOptions.message = `Save your completed story: "${fileName}"\n\n${fileContent}`;
+        // Don't include fake file URL for simulator
+      } else {
+        console.log('📁 [HomeScreen] Device mode - creating temporary file');
+        
+        // On real device, create temporary file as before
+        const documentsPath = RNFS.DocumentDirectoryPath;
+        tempFilePath = `${documentsPath}/${fileName}`;
+
+        await RNFS.writeFile(tempFilePath, fileContent, 'utf8');
+
+        const fileStat = await RNFS.stat(tempFilePath);
+        console.log('📁 File created successfully:', {
+          path: tempFilePath,
+          size: fileStat.size,
+          fileName: fileName
+        });
+
+        shareOptions.url = `file://${tempFilePath}`;
+      }
+
       try {
         const shareResult = await Share.open(shareOptions);
         console.log('📁 Share result:', shareResult);
+
+        // Check if user cancelled - ShareWrapper returns {success: false, dismissedAction: true, message: 'User cancelled share'}
+        const isCancellation = shareResult.dismissedAction && 
+                               !shareResult.success && 
+                               shareResult.message?.toLowerCase().includes('cancel');
+        
+        if (isCancellation) {
+          console.log('📁 User cancelled share - no message shown');
+          // Clean up temporary file if needed
+          if (tempFilePath && !rnfsWrapper.isSimulationMode) {
+            try {
+              await RNFS.unlink(tempFilePath);
+              console.log('📁 Cleaned up temporary file after user cancellation');
+            } catch (cleanupError) {
+              console.log('📁 Could not clean up temporary file:', cleanupError);
+            }
+          }
+          return; // Don't show any message - user intentionally cancelled
+        }
 
         // Show success message based on share result
         if (shareResult.success) {
@@ -1175,6 +1197,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             ]
           );
         } else if (shareResult.dismissedAction) {
+          // User dismissed but it wasn't a cancellation (edge case)
           Alert.alert(
             'Story Ready',
             `Your story "${fileName}" is ready in the app's Documents folder.\n\nYou can also access it through the Files app.`,
@@ -1200,19 +1223,25 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           errorMessage.toLowerCase().includes('cancel')
         )) {
           // User cancelled - clean up the temporary file and don't show success message
-          try {
-            await RNFS.unlink(tempFilePath);
-            console.log('📁 Cleaned up temporary file after user cancellation');
-          } catch (cleanupError) {
-            console.log('📁 Could not clean up temporary file:', cleanupError);
+          if (tempFilePath && !rnfsWrapper.isSimulationMode) {
+            try {
+              await RNFS.unlink(tempFilePath);
+              console.log('📁 Cleaned up temporary file after user cancellation');
+            } catch (cleanupError) {
+              console.log('📁 Could not clean up temporary file:', cleanupError);
+            }
           }
           // Don't show any message - user intentionally cancelled
           return;
         } else {
-          // Other share errors - file is still saved locally as fallback
+          // Other share errors - provide appropriate feedback based on mode
+          const alertMessage = rnfsWrapper.isSimulationMode 
+            ? `Your story content was shared. In simulator mode, file location selection is limited.`
+            : `Your story "${fileName}" has been saved to the app's Documents folder.\n\nYou can access it through the Files app and move it to your preferred location.`;
+          
           Alert.alert(
-            'Story Saved Locally',
-            `Your story "${fileName}" has been saved to the app's Documents folder.\n\nYou can access it through the Files app and move it to your preferred location.`,
+            'Story Shared',
+            alertMessage,
             [
               { 
                 text: 'OK',
@@ -1224,17 +1253,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       }
 
       // Clean up temporary file after a delay (in case user wants to share again)
-      setTimeout(async () => {
-        try {
-          const fileExists = await RNFS.exists(tempFilePath);
-          if (fileExists) {
-            // Don't delete immediately - user might want to access it
-            console.log('📁 Keeping file for user access:', tempFilePath);
+      if (tempFilePath && !rnfsWrapper.isSimulationMode) {
+        setTimeout(async () => {
+          try {
+            const fileExists = await RNFS.exists(tempFilePath!);
+            if (fileExists) {
+              // Don't delete immediately - user might want to access it
+              console.log('📁 Keeping file for user access:', tempFilePath);
+            }
+          } catch (cleanupError) {
+            console.log('📁 Cleanup check failed:', cleanupError);
           }
-        } catch (cleanupError) {
-          console.log('📁 Cleanup check failed:', cleanupError);
-        }
-      }, 10000); // 10 second delay
+        }, 10000); // 10 second delay
+      }
 
     } catch (error) {
       console.error('❌ File save operation failed:', error);
@@ -1398,27 +1429,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     return (
       <View style={styles.container}>
         <View style={styles.gameContainer}>
-          {/* Game Header */}
-          <View style={styles.gameHeader}>
-            <TouchableOpacity
-              style={styles.exitButton}
-              onPress={handleExitGame}
-            >
-              <Text style={styles.exitButtonText}>← Exit</Text>
-            </TouchableOpacity>
-
-            {/* Game Info Section - Single row with three columns */}
-            <View style={styles.gameInfoContainer}>
-              <Text style={styles.gradeLevel}>{gradeLevel}</Text>
-              <Text style={styles.roundCounter}>
-                Round {currentRound}/{MAX_ROUNDS}
-              </Text>
-              <Text style={styles.userWordsCount}>
-                {currentSession?.sessionStats.userWords || 0} words
-              </Text>
-            </View>
-          </View>
-
           {/* Current Challenge Display */}
           {currentChallenge && !showCompletionOptions && (
             <ChallengeDisplay
@@ -1433,46 +1443,43 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           {/* Story Display - Book Format */}
           <View style={styles.storyBookContainer}>
             <View style={styles.storyBookHeader}>
-              <Text style={styles.storyBookTitle}>📖 Your Story</Text>
-              <View style={styles.storyBookButtons}>
-                <TouchableOpacity
-                  style={styles.imageGenButton}
-                  onPress={handleImageGeneration}
-                  disabled={!isGameCompleted || showImageGeneration}
-                >
-                  <Text style={styles.imageGenButtonText}>🎨</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.copyButton}
-                  onPress={() => {
-                    const storyContent =
-                      currentSession?.story_content ||
-                      currentSession?.contributions
-                        ?.map(c => c.content)
-                        .join('\n\n') ||
-                      '';
-                    if (storyContent.trim()) {
-                      Clipboard.setString(storyContent);
-                      Alert.alert('✅ Copied!', 'Story copied to clipboard', [
-                        { text: 'OK' },
-                      ]);
-                    } else {
-                      Alert.alert(
-                        '📝 No Story',
-                        'No story content to copy yet',
-                        [{ text: 'OK' }],
-                      );
-                    }
-                  }}
-                  disabled={
-                    !currentSession?.story_content &&
-                    (!currentSession?.contributions ||
-                      currentSession.contributions.length === 0)
-                  }
-                >
-                  <Text style={styles.copyButtonText}>📋 Copy</Text>
-                </TouchableOpacity>
+              <View style={styles.storyTitleRow}>
+                <Text style={styles.storyBookTitle}>📖 Your Story</Text>
+                <Text style={styles.gradeLevel}>{gradeLevel}</Text>
+                <Text style={styles.roundCounter}>
+                  Round {currentRound}/{MAX_ROUNDS}
+                </Text>
               </View>
+              <TouchableOpacity
+                style={styles.copyButton}
+                onPress={() => {
+                  const storyContent =
+                    currentSession?.story_content ||
+                    currentSession?.contributions
+                      ?.map(c => c.content)
+                      .join('\n\n') ||
+                    '';
+                  if (storyContent.trim()) {
+                    Clipboard.setString(storyContent);
+                    Alert.alert('✅ Copied!', 'Story copied to clipboard', [
+                      { text: 'OK' },
+                    ]);
+                  } else {
+                    Alert.alert(
+                      '📝 No Story',
+                      'No story content to copy yet',
+                      [{ text: 'OK' }],
+                    );
+                  }
+                }}
+                disabled={
+                  !currentSession?.story_content &&
+                  (!currentSession?.contributions ||
+                    currentSession.contributions.length === 0)
+                }
+              >
+                <Text style={styles.copyButtonText}>📋 Copy</Text>
+              </TouchableOpacity>
             </View>
             <ScrollView
               style={styles.storyBook}
@@ -1546,7 +1553,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             });
             return shouldShowImage;
           })() ? (
-            <View style={styles.imageDisplayContainerFullWidth}>
+            <View style={styles.imageDisplayContainerOverlay}>
               <StoryImageDisplay
                 imageUrl={
                   generatedImageUrl || currentSession?.generated_image_url || ''
@@ -1558,9 +1565,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                     .join(' ') || 'Your Story'
                 }...`}
                 sessionId={currentSession?.id || ''}
-                showBackButton={isGameCompleted}
-                displayMode="fullWidth"
-                enableFullScreen={true}
+                showBackButton={true}
+                displayMode="responsive"
+                enableFullScreen={false}
                 onBackToOptions={() => setShowCompletionOptions(true)}
                 onImageSaved={localPath => {
                   console.log('✅ [DEBUG] Image saved locally:', localPath);
@@ -1613,98 +1620,108 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
             {/* Game Action Buttons */}
             <View style={styles.gameButtonsContainer}>
-              {/* Read Story Button */}
-              <TouchableOpacity
-                style={styles.readStoryButton}
-                onPress={() =>
-                  currentSession?.story_content &&
-                  speakStoryContent(currentSession.story_content)
-                }
-                disabled={!currentSession?.story_content}
-              >
-                <Text style={styles.readStoryButtonText}>
-                  {isSpeaking ? '⏹️ Stop Reading' : '🔊 Read Story'}
-                </Text>
-              </TouchableOpacity>
+              <View style={styles.buttonRow}>
+                {/* Read Story Button - Emoji Only */}
+                <TouchableOpacity
+                  style={styles.readStoryButton}
+                  onPress={() =>
+                    currentSession?.story_content &&
+                    speakStoryContent(currentSession.story_content)
+                  }
+                  disabled={!currentSession?.story_content}
+                >
+                  <Text style={styles.emojiButtonText}>
+                    {isSpeaking ? '⏹️' : '🔊'}
+                  </Text>
+                </TouchableOpacity>
 
-              {/* Speak Button for Voice Input */}
-              <TouchableOpacity
-                style={[
-                  styles.speakButton,
-                  (!voiceInputEnabled || loadingState.isGenerating) &&
-                    styles.disabledButton,
-                ]}
-                onPress={() => {
-                  if (!voiceInputEnabled) {
+                {/* Speak Button for Voice Input - Emoji Only */}
+                <TouchableOpacity
+                  style={[
+                    styles.speakButton,
+                    (!voiceInputEnabled || loadingState.isGenerating) &&
+                      styles.disabledButton,
+                  ]}
+                  onPress={() => {
+                    if (!voiceInputEnabled) {
+                      Alert.alert(
+                        'Voice Input Disabled',
+                        'Please enable speech features in Settings to use voice input.',
+                        [{ text: 'OK' }],
+                      );
+                      return;
+                    }
+                    if (loadingState.isGenerating) {
+                      Alert.alert(
+                        'Please Wait',
+                        'Please wait for the current story generation to complete.',
+                        [{ text: 'OK' }],
+                      );
+                      return;
+                    }
+                    // Trigger voice input using the existing VoiceInput functionality
                     Alert.alert(
-                      'Voice Input Disabled',
-                      'Please enable speech features in Settings to use voice input.',
-                      [{ text: 'OK' }],
-                    );
-                    return;
-                  }
-                  if (loadingState.isGenerating) {
-                    Alert.alert(
-                      'Please Wait',
-                      'Please wait for the current story generation to complete.',
-                      [{ text: 'OK' }],
-                    );
-                    return;
-                  }
-                  // Trigger voice input using the existing VoiceInput functionality
-                  Alert.alert(
-                    'Voice Input',
-                    'Tap and hold to speak your story continuation. Release when finished.',
-                    [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Start Speaking',
-                        onPress: () => {
-                          // This would trigger voice recognition
-                          // For now, we'll add some sample text
-                          setUserInput(
-                            prev => prev + ' [Voice input would appear here]',
-                          );
+                      'Voice Input',
+                      'Tap and hold to speak your story continuation. Release when finished.',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Start Speaking',
+                          onPress: () => {
+                            // This would trigger voice recognition
+                            // For now, we'll add some sample text
+                            setUserInput(
+                              prev => prev + ' [Voice input would appear here]',
+                            );
+                          },
                         },
-                      },
-                    ],
-                  );
-                }}
-                disabled={!voiceInputEnabled || loadingState.isGenerating}
-              >
-                <Text style={styles.speakButtonText}>🎤 Speak</Text>
-              </TouchableOpacity>
+                      ],
+                    );
+                  }}
+                  disabled={!voiceInputEnabled || loadingState.isGenerating}
+                >
+                  <Text style={styles.emojiButtonText}>🎤</Text>
+                </TouchableOpacity>
 
-              {/* Continue Story Button */}
-              <TouchableOpacity
-                style={[
-                  styles.continueStoryButton,
-                  (!userInput.trim() ||
+                {/* Exit Button */}
+                <TouchableOpacity
+                  style={styles.exitButtonBottom}
+                  onPress={handleExitGame}
+                >
+                  <Text style={styles.exitButtonText}>← Exit</Text>
+                </TouchableOpacity>
+
+                {/* Continue Story Button */}
+                <TouchableOpacity
+                  style={[
+                    styles.continueStoryButton,
+                    (!userInput.trim() ||
+                      loadingState.isGenerating ||
+                      isGameCompleted) &&
+                      styles.disabledButton,
+                  ]}
+                  onPress={handleContinueStory}
+                  disabled={
+                    !userInput.trim() ||
                     loadingState.isGenerating ||
-                    isGameCompleted) &&
-                    styles.disabledButton,
-                ]}
-                onPress={handleContinueStory}
-                disabled={
-                  !userInput.trim() ||
-                  loadingState.isGenerating ||
-                  isGameCompleted
-                }
-              >
-                {loadingState.isGenerating ? (
-                  <ActivityIndicator color="#ffffff" size="small" />
-                ) : isGameCompleted ? (
-                  <Text style={styles.continueStoryButtonText}>
-                    Story Complete! 🎉
-                  </Text>
-                ) : (
-                  <Text style={styles.continueStoryButtonText}>
-                    {currentRound >= MAX_ROUNDS
-                      ? 'Final Round →'
-                      : 'Continue Story →'}
-                  </Text>
-                )}
-              </TouchableOpacity>
+                    isGameCompleted
+                  }
+                >
+                  {loadingState.isGenerating ? (
+                    <ActivityIndicator color="#ffffff" size="small" />
+                  ) : isGameCompleted ? (
+                    <Text style={styles.continueStoryButtonText}>
+                      Story Complete! 🎉
+                    </Text>
+                  ) : (
+                    <Text style={styles.continueStoryButtonText}>
+                      {currentRound >= MAX_ROUNDS
+                        ? 'Final Round →'
+                        : 'Continue Story →'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
 
             {(loadingState.isValidating ||
@@ -1944,6 +1961,7 @@ const styles = StyleSheet.create({
   },
   gameContainer: {
     padding: 8,
+    paddingTop: 60, // Add top padding to avoid dynamic island
     flex: 1,
   },
   welcomeSection: {
@@ -2070,34 +2088,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   // Game Screen Styles
-  gameHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-    paddingHorizontal: 4,
-  },
-  exitButton: {
-    backgroundColor: '#666',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-  },
-  exitButtonText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  gameInfoContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginLeft: 8,
-    paddingHorizontal: 4,
-  },
   gradeLevel: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: 'bold',
     color: '#4CAF50',
     backgroundColor: '#E8F5E8',
@@ -2114,19 +2106,8 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 8,
   },
-  userWordsCount: {
-    fontSize: 12,
-    color: '#2196F3',
-    fontWeight: '600',
-    backgroundColor: '#E3F2FD',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    textAlign: 'center',
-    minWidth: 60,
-  },
   roundCounter: {
-    fontSize: 13,
+    fontSize: 11,
     color: '#FF6B35',
     fontWeight: 'bold',
     backgroundColor: '#FFF3E0',
@@ -2147,6 +2128,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     paddingHorizontal: 4,
   },
+  storyTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
   storyBookTitle: {
     fontSize: 16,
     fontWeight: 'bold',
@@ -2162,23 +2149,6 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '600',
-  },
-  storyBookButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  imageGenButton: {
-    backgroundColor: '#6f42c1',
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    minWidth: 36,
-    alignItems: 'center',
-  },
-  imageGenButtonText: {
-    fontSize: 14,
-    color: '#ffffff',
   },
   storyBook: {
     backgroundColor: '#ffffff',
@@ -2394,31 +2364,44 @@ const styles = StyleSheet.create({
   // Game action buttons styles
   gameButtonsContainer: {
     marginBottom: 8,
+  },
+  buttonRow: {
+    flexDirection: 'row',
     gap: 6,
+    alignItems: 'center',
   },
   readStoryButton: {
     backgroundColor: '#2196F3',
     paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     borderRadius: 6,
     alignItems: 'center',
-  },
-  readStoryButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
+    justifyContent: 'center',
+    minWidth: 44,
   },
   speakButton: {
     backgroundColor: '#9C27B0',
     paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 44,
+  },
+  emojiButtonText: {
+    fontSize: 20,
+  },
+  exitButtonBottom: {
+    backgroundColor: '#666',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  speakButtonText: {
+  exitButtonText: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
   },
   continueStoryButton: {
@@ -2427,6 +2410,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 6,
     alignItems: 'center',
+    flex: 1,
   },
   continueStoryButtonText: {
     color: '#ffffff',
@@ -2439,6 +2423,11 @@ const styles = StyleSheet.create({
   imageDisplayContainerFullWidth: {
     marginVertical: 0, // Remove margins for edge-to-edge
     flex: 1, // Allow expansion
+  },
+  imageDisplayContainerOverlay: {
+    marginVertical: 8,
+    alignItems: 'center', // Center the overlay image
+    justifyContent: 'center',
   },
   // Story Completion Options Styles - Full Screen Modal
   completionModalOverlay: {

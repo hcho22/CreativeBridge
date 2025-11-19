@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '../utils/asyncStorageWrapper';
 import { supabase } from '../services/supabase';
 import type {
   UserProfile,
@@ -9,6 +9,11 @@ import type {
 } from '../types/database';
 import { RememberMeStorage } from '../utils/rememberMeStorage';
 import { xpEventTracker } from '../services/xpEventTracker';
+
+// Verify supabase is properly imported
+if (!supabase) {
+  console.error('❌ CRITICAL: Supabase client is not initialized at module load time');
+}
 
 interface SignUpData {
   username: string;
@@ -879,6 +884,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         console.log('🔄 Starting auth initialization...');
 
+        // Ensure supabase is initialized before use
+        if (!supabase) {
+          console.error('❌ Supabase client is not initialized');
+          setLoading(false);
+          return;
+        }
+
+        if (!supabase.auth) {
+          console.error('❌ Supabase auth is not available');
+          setLoading(false);
+          return;
+        }
+
         // Get initial session with error handling
         const {
           data: { session: initialSession },
@@ -919,7 +937,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.log('🎉 Auth initialization complete!');
         setLoading(false);
       } catch (error) {
-        console.error('❌ Error initializing auth:', error);
+        // Safely log the error without causing additional errors
+        try {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const errorStack = error instanceof Error ? error.stack : undefined;
+          console.error('❌ Error initializing auth:', errorMessage, errorStack);
+        } catch (logError) {
+          // Fallback if even logging fails
+          console.error('❌ Error initializing auth (logging failed):', String(error));
+        }
         setLoading(false);
       }
     };
@@ -930,6 +956,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         // Ensure Supabase is ready before setting up listener
         await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Ensure supabase is initialized before use
+        if (!supabase || !supabase.auth) {
+          console.error('❌ Supabase client is not initialized, cannot setup auth listener');
+          return;
+        }
 
         // Listen for auth changes
         const {
@@ -993,12 +1025,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
   }, []);
 
-  const refreshProfile = async (): Promise<void> => {
+  const refreshProfile = useCallback(async (): Promise<void> => {
     if (user?.id) {
       const profile = await fetchUserProfile(user.id);
       setUserProfile(profile);
     }
-  };
+  }, [user?.id]);
 
   const value: AuthContextType = {
     session,

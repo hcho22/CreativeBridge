@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef } from 'react';
-import NetInfo from '@react-native-community/netinfo';
+// Temporarily disabled NetInfo due to linking issues
+// import NetInfo from '@react-native-community/netinfo';
 import {
   View,
   Text,
@@ -19,9 +20,10 @@ import {
 //   withSpring,
 //   withTiming,
 // } from 'react-native-reanimated';
-import Share from 'react-native-share';
-import RNFS from 'react-native-fs';
+import Share from '../../utils/shareWrapper';
+import RNFS, { rnfsWrapper, retryNativeModuleInitialization } from '../../utils/rnfsWrapper';
 import FullScreenImageModal, { StoryImage } from './FullScreenImageModal';
+import FolderPickerUtil from '../../utils/folderPicker';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -129,16 +131,21 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
   // Track failed URLs to prevent infinite retry loops
   const failedUrlsRef = useRef<Set<string>>(new Set());
 
-  // Monitor network connectivity
+  // Monitor network connectivity - temporarily disabled due to NetInfo linking issues
   React.useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener(netState => {
-      setState(prev => ({
-        ...prev,
-        isConnected: netState.isConnected ?? false,
-      }));
-    });
-
-    return () => unsubscribe();
+    // Assume connected for now
+    setState(prev => ({
+      ...prev,
+      isConnected: true,
+    }));
+    
+    // const unsubscribe = NetInfo.addEventListener(netState => {
+    //   setState(prev => ({
+    //     ...prev,
+    //     isConnected: netState.isConnected ?? false,
+    //   }));
+    // });
+    // return () => unsubscribe();
   }, []);
 
   // Check if image URL is accessible - Story_Quest style approach
@@ -173,7 +180,7 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
 
         const response = await fetch(url, {
           method: 'HEAD',
-          signal: controller.signal,
+          signal: controller.signal as any,
           cache: 'no-cache', // Force fresh check
         });
         clearTimeout(timeoutId);
@@ -190,9 +197,19 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
           return { available: false, errorType: 'network' };
         }
         return { available: true };
-      } catch (error) {
+      } catch (error: any) {
         console.log('🖼️ [DEBUG] URL check failed:', error);
-        return { available: false, errorType: 'network' };
+        
+        // Better error type detection for 404 responses
+        if (error.message?.includes('404') || error.message?.includes('Not Found')) {
+          console.log('🖼️ [DEBUG] Detected 404 error - image likely expired or removed');
+          return { available: false, errorType: 'expired' };
+        } else if (error.name === 'AbortError') {
+          console.log('🖼️ [DEBUG] URL check timed out');
+          return { available: false, errorType: 'timeout' };
+        } else {
+          return { available: false, errorType: 'network' };
+        }
       }
     },
     [],
@@ -253,6 +270,12 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
   const downloadImageForDisplay = useCallback(
     async (url: string): Promise<string | null> => {
       if (!url) return null;
+
+      // Skip caching entirely when RNFS is in simulation mode
+      if (rnfsWrapper.isSimulationMode) {
+        console.log('🖼️ [DEBUG] RNFS in simulation mode - skipping caching, using original URL');
+        return null; // Return null to force direct URL usage
+      }
 
       console.log(
         '🖼️ [DEBUG] Downloading image for display:',
@@ -324,9 +347,23 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
     [],
   );
 
-  // Download image to device storage with location picker (user-initiated)
+  // Download image to device storage with enhanced directory selection
   const downloadImage = useCallback(async () => {
-    if (!imageUrl || state.isDownloading) return;
+    // Use current state to avoid closure issues
+    const currentLocalPath = state.localPath;
+    const currentIsDownloading = state.isDownloading;
+    
+    console.log('🖼️ [DEBUG] downloadImage called with:', {
+      hasImageUrl: !!imageUrl,
+      hasLocalPath: !!currentLocalPath,
+      localPath: currentLocalPath,
+      isDownloading: currentIsDownloading,
+    });
+
+    if ((!imageUrl && !currentLocalPath) || currentIsDownloading) {
+      console.log('🖼️ [DEBUG] downloadImage early return - no source or already downloading');
+      return;
+    }
 
     setState(prev => ({
       ...prev,
@@ -340,104 +377,158 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
       const filename = `story_image_${sessionId}_${timestamp}.jpg`;
       const tempPath = `${RNFS.DocumentDirectoryPath}/${filename}`;
 
-      // Download with progress tracking
-      const downloadProgress = (data: any) => {
-        const progress = (data.bytesWritten / data.contentLength) * 100;
-        setState(prev => ({
-          ...prev,
-          downloadProgress: Math.round(progress),
-        }));
-      };
+      console.log('🖼️ [DEBUG] Download setup:', {
+        filename,
+        tempPath,
+        localPath: currentLocalPath,
+      });
 
-      // Download to temporary location first
-      const downloadResult = await RNFS.downloadFile({
-        fromUrl: imageUrl,
-        toFile: tempPath,
-        progress: downloadProgress,
-      }).promise;
+      // Prepare source file (either from cache or download)
+      let sourceFilePath = tempPath;
+      let needsDownload = true;
+      
+      if (currentLocalPath) {
+        console.log('🖼️ [DEBUG] Checking if cached file exists:', currentLocalPath);
+        const fileExists = await RNFS.exists(currentLocalPath);
+        console.log('🖼️ [DEBUG] File exists result:', fileExists);
+        
+        if (fileExists) {
+          console.log('🖼️ [DEBUG] Using cached local file directly');
+          sourceFilePath = currentLocalPath;
+          needsDownload = false;
+          
+          // Simulate progress for UI consistency
+          setState(prev => ({
+            ...prev,
+            downloadProgress: 100,
+          }));
+        }
+      }
 
-      if (downloadResult.statusCode === 200) {
-        setState(prev => ({
-          ...prev,
-          isDownloading: false,
-          downloadProgress: 100,
-        }));
-
-        // Use share sheet to let user choose save location (same as story download)
-        const shareOptions = {
-          title: 'Save Story Image',
-          message: 'Save your story illustration',
-          url: `file://${tempPath}`,
-          type: 'image/jpeg',
-          filename: filename,
-          saveToFiles: true, // This enables "Save to Files" option on iOS
+      // Download if we don't have a cached file
+      if (needsDownload) {
+        if (!imageUrl) {
+          throw new Error('No image URL available for download and no valid cached file');
+        }
+        
+        console.log('🖼️ [DEBUG] Downloading from URL:', imageUrl);
+        
+        const downloadProgress = (data: any) => {
+          const progress = (data.bytesWritten / data.contentLength) * 100;
+          setState(prev => ({
+            ...prev,
+            downloadProgress: Math.round(progress),
+          }));
         };
 
-        try {
-          const shareResult = await Share.open(shareOptions);
-          console.log('📁 Image share result:', shareResult);
+        const downloadResult = await RNFS.downloadFile({
+          fromUrl: imageUrl,
+          toFile: tempPath,
+          progress: downloadProgress,
+        }).promise;
 
-          if (shareResult.success) {
-            Alert.alert(
-              '🎉 Image Saved!',
-              `Your story illustration "${filename}" has been saved successfully!\n\nYou can find it in the location you selected.`,
-              [{ text: 'Great!', style: 'default' }],
-            );
-          } else if (shareResult.dismissedAction) {
-            Alert.alert(
-              'Image Ready',
-              `Your story illustration "${filename}" is ready in the app's Documents folder.\n\nYou can also access it through the Files app.`,
-              [{ text: 'OK', style: 'default' }],
-            );
-          }
+        if (downloadResult.statusCode !== 200) {
+          throw new Error(`Download failed with status: ${downloadResult.statusCode}`);
+        }
+        
+        setState(prev => ({
+          ...prev,
+          downloadProgress: 100,
+        }));
+      }
 
-          onImageSaved?.(tempPath);
+      // Reset downloading state before showing save options
+      setState(prev => ({
+        ...prev,
+        isDownloading: false,
+      }));
 
-          // Track successful image download
-          console.log('📊 Analytics: Image downloaded successfully', {
+      // True folder selection using the folder picker utility
+      console.log('🖼️ [DEBUG] Starting folder selection process');
+      
+      try {
+        const saveOptions = {
+          sourceFilePath,
+          fileName: filename,
+          title: 'Choose Save Location',
+        };
+
+        console.log('📁 Opening folder picker for user selection');
+        const saveResult = await FolderPickerUtil.saveToUserSelectedFolder(saveOptions);
+        
+        console.log('📁 Folder save result:', saveResult);
+
+        if (saveResult.cancelled) {
+          // User cancelled - clean up temp file if we downloaded it
+          console.log('🖼️ [DEBUG] User cancelled folder selection');
+          return;
+        }
+
+        if (saveResult.success && saveResult.finalPath) {
+          // Success - file saved via Share Sheet
+          
+          Alert.alert(
+            '🎉 Image Saved!',
+            `Your story illustration "${filename}" has been saved successfully!\n\nYou can find it in your chosen location using the Files app.`,
+            [{ text: 'Perfect!', style: 'default' }],
+          );
+
+          onImageSaved?.(saveResult.finalPath);
+
+          // Track successful folder-based save
+          console.log('📊 Analytics: Image saved successfully', {
             sessionId,
             imageUrl,
-            localPath: tempPath,
+            filename,
+            finalPath: saveResult.finalPath,
             timestamp: new Date().toISOString(),
           });
-        } catch (shareError) {
-          console.log('📁 Share cancelled or failed:', shareError);
-          
-          // Handle user cancellation gracefully
-          const errorMessage = shareError instanceof Error ? shareError.message : String(shareError);
-          
-          // Check if user actually cancelled - if so, don't show any success message
-          if (errorMessage && (
-            errorMessage.includes('User did not share') || 
-            errorMessage.includes('cancelled') ||
-            errorMessage.includes('User cancelled') ||
-            errorMessage.toLowerCase().includes('cancel')
-          )) {
-            // User cancelled - clean up the temporary file and don't show success message
-            try {
-              await RNFS.unlink(tempPath);
-              console.log('📁 Cleaned up temporary file after user cancellation');
-            } catch (cleanupError) {
-              console.log('📁 Could not clean up temporary file:', cleanupError);
-            }
-            // Don't show any message - user intentionally cancelled
-            return;
-          } else {
-            // Other share errors - file is still saved locally as fallback
-            Alert.alert(
-              'Image Saved Locally',
-              `Your story illustration "${filename}" has been saved to the app's Documents folder.\n\nYou can access it through the Files app and move it to your preferred location.`,
-              [{ text: 'OK', style: 'default' }],
-            );
-          }
+
+        } else {
+          // Handle save errors
+          throw new Error(saveResult.error || 'Failed to save to selected folder');
         }
-      } else {
-        throw new Error(
-          `Download failed with status: ${downloadResult.statusCode}`,
+
+      } catch (folderError: any) {
+        console.error('Folder save failed:', folderError);
+        
+        // Don't show error if user cancelled
+        if (folderError.message && folderError.message.includes('CANCELLED')) {
+          console.log('📁 User cancelled save operation');
+          return;
+        }
+        
+        // Provide helpful error message
+        const errorMessage = folderError.message || 'Unknown error occurred';
+        
+        Alert.alert(
+          '❌ Save Failed',
+          `Could not save to the selected folder: ${errorMessage}\n\nPlease try a different location or check your device permissions.`,
+          [
+            { text: 'OK', style: 'default' },
+            { 
+              text: 'Try Again', 
+              onPress: () => {
+                // Retry the save operation
+                downloadImage();
+              }
+            },
+          ],
         );
       }
+
+      // Clean up temporary file if we downloaded it
+      if (needsDownload && tempPath !== sourceFilePath) {
+        try {
+          await RNFS.unlink(tempPath);
+          console.log('📁 Cleaned up temporary download file');
+        } catch (cleanupError) {
+          console.log('📁 Could not clean up temporary file:', cleanupError);
+        }
+      }
+
     } catch (error: any) {
-      console.error('Image download failed:', error);
+      console.error('Image download/save failed:', error);
 
       setState(prev => ({
         ...prev,
@@ -445,30 +536,142 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
         downloadProgress: 0,
       }));
 
-      const errorMessage = error.message || 'Failed to download image';
+      const errorMessage = error.message || 'Failed to save image';
       onError?.(errorMessage);
 
       Alert.alert(
-        '❌ Download Failed',
-        `We couldn't save your image: ${errorMessage}\n\nPlease try again or check your device storage.`,
+        '❌ Save Failed',
+        `We couldn't save your image: ${errorMessage}\n\nPlease try again or check your device storage and permissions.`,
         [{ text: 'OK', style: 'default' }],
       );
     }
-  }, [imageUrl, sessionId, state.isDownloading, onImageSaved, onError]);
+  }, [imageUrl, sessionId, state.isDownloading, state.localPath, onImageSaved, onError]);
 
   // Share image functionality
   const shareImage = useCallback(async () => {
     if (!imageUrl) return;
 
     try {
+      console.log('📤 Share button clicked');
+      console.log('📤 RNFS simulation mode:', rnfsWrapper.isSimulationMode);
+      console.log('📤 RNFS DocumentDirectoryPath:', RNFS.DocumentDirectoryPath);
+      console.log('📤 Image URL type:', imageUrl.startsWith('http') ? 'remote' : 'local');
+      
+      // Force initialize RNFS if in simulation mode
+      if (rnfsWrapper.isSimulationMode) {
+        console.log('📤 RNFS in simulation mode, attempting initialization...');
+        retryNativeModuleInitialization();
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // If still in simulation mode and we have a remote URL, use it directly
+        if (rnfsWrapper.isSimulationMode && imageUrl.startsWith('http')) {
+          console.log('📤 Native FS not available but have remote URL - sharing directly');
+          
+          const shareOptions = {
+            url: imageUrl,
+            title: storyTitle,
+            message: `Check out this AI-generated illustration for my story: "${storyTitle}" 🎨\n\nCreated with CreativeBridge`,
+            type: 'image/jpeg',
+            filename: `${sessionId}_illustration.jpg`,
+          };
+          
+          console.log('📤 Attempting direct URL share');
+          const result = await Share.open(shareOptions);
+          console.log('📤 Direct share result:', result);
+          
+          if (!result.dismissedAction) {
+            console.log('📊 Analytics: Image shared successfully (direct URL)');
+          }
+          return;
+        }
+        
+        // If we don't have a remote URL and FS isn't available, show error
+        if (rnfsWrapper.isSimulationMode) {
+          Alert.alert(
+            '⚠️ Share Not Available',
+            'This feature requires a physical device. File system is not available in the simulator.\n\nPlease test on a real iOS device.',
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+      }
+      
+      // Prepare the file for sharing - prefer local path if available
+      let shareUrl = imageUrl;
+      let needsCleanup = false;
+      
+      // If we have a local cached file, use it
+      if (state.localPath) {
+        console.log('📤 Checking cached file:', state.localPath);
+        const localExists = await RNFS.exists(state.localPath);
+        console.log('📤 Cached file exists:', localExists);
+        
+        if (localExists) {
+          shareUrl = state.localPath;
+          if (!shareUrl.startsWith('file://')) {
+            shareUrl = `file://${shareUrl}`;
+          }
+          console.log('📤 Using cached local file for sharing:', shareUrl);
+        }
+      } 
+      
+      // If imageUrl is a remote URL, download it first
+      if (imageUrl.startsWith('http')) {
+        console.log('📤 Downloading image for sharing from:', imageUrl);
+        const timestamp = new Date().getTime();
+        const filename = `share_temp_${sessionId}_${timestamp}.jpg`;
+        const tempPath = `${RNFS.DocumentDirectoryPath}/${filename}`;
+        
+        console.log('📤 Download target path:', tempPath);
+        
+        const downloadResult = await RNFS.downloadFile({
+          fromUrl: imageUrl,
+          toFile: tempPath,
+        }).promise;
+        
+        console.log('📤 Download result:', downloadResult);
+        
+        if (downloadResult.statusCode === 200) {
+          shareUrl = `file://${tempPath}`;
+          needsCleanup = true;
+          console.log('📤 Downloaded image to temporary file for sharing:', tempPath);
+        }
+      }
+
+      // Validate the file path before sharing
+      if (shareUrl.includes('/dev/null')) {
+        throw new Error('Invalid file path - file system not properly initialized');
+      }
+
       const shareOptions = {
-        url: imageUrl,
+        url: shareUrl,
         title: storyTitle,
         message: `Check out this AI-generated illustration for my story: "${storyTitle}" 🎨\n\nCreated with CreativeBridge`,
         type: 'image/jpeg',
+        filename: `${sessionId}_illustration.jpg`,
       };
 
-      await Share.open(shareOptions);
+      console.log('📤 Opening share sheet with options:', {
+        title: shareOptions.title,
+        type: shareOptions.type,
+        filename: shareOptions.filename,
+        url: shareUrl.length > 80 ? shareUrl.substring(0, 80) + '...' : shareUrl,
+      });
+
+      const result = await Share.open(shareOptions);
+      
+      console.log('📤 Share result:', result);
+
+      // Clean up temporary file if we created one
+      if (needsCleanup && shareUrl.startsWith('file://')) {
+        const cleanupPath = shareUrl.replace('file://', '');
+        try {
+          await RNFS.unlink(cleanupPath);
+          console.log('📤 Cleaned up temporary share file');
+        } catch (cleanupError) {
+          console.log('📤 Could not clean up temporary file:', cleanupError);
+        }
+      }
 
       // Track successful image share
       console.log('📊 Analytics: Image shared successfully', {
@@ -477,17 +680,30 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
         timestamp: new Date().toISOString(),
       });
     } catch (error: any) {
-      console.error('Share failed:', error);
+      console.error('📤 Share failed with error:', error);
+      console.error('📤 Error message:', error.message);
+      console.error('📤 Error stack:', error.stack);
+      
       // Don't show error if user just cancelled sharing
-      if (error.message !== 'User did not share') {
-        Alert.alert(
-          'Share Failed',
-          "We couldn't share your image. Please try again.",
-          [{ text: 'OK' }],
-        );
+      if (error.message && (
+        error.message.includes('User did not share') ||
+        error.message.includes('cancelled') ||
+        error.message === 'CANCELLED'
+      )) {
+        console.log('📤 User cancelled share');
+        return;
       }
+      
+      // Show detailed error for debugging
+      const errorDetails = error.message || 'Unknown error';
+      
+      Alert.alert(
+        '📤 Share Failed',
+        `Could not share your image.\n\nError: ${errorDetails}\n\nPlease check the logs for more details.`,
+        [{ text: 'OK' }],
+      );
     }
-  }, [imageUrl, storyTitle]);
+  }, [imageUrl, storyTitle, sessionId, state.localPath]);
 
   // Enhanced full-screen functionality
   const createStoryImageForModal = useCallback((): StoryImage => {
@@ -498,7 +714,12 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
       storyText,
       createdAt,
       sessionId,
-      metadata,
+      metadata: metadata ? {
+        localPath: undefined,
+        downloadedAt: undefined,
+        size: undefined,
+        dimensions: undefined,
+      } : undefined,
     };
   }, [sessionId, imageUrl, storyTitle, storyText, createdAt, metadata]);
 
@@ -657,7 +878,7 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
             icon: '🕒',
             title: 'Image Expired',
             message:
-              'This AI-generated image has expired from the server. This is normal for AI image services to save storage space.',
+              'This AI-generated image has expired from the server. This is normal for AI image services to save storage space. You can generate a new illustration for this story.',
             showUrl: false,
             showRetry: false,
           };
@@ -729,14 +950,25 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
                 <TouchableOpacity
                   style={styles.generateNewButton}
                   onPress={() => {
+                    // Instead of just showing an alert, provide a more helpful experience
                     Alert.alert(
-                      'Generate New Image',
-                      'This image has expired. You can generate a new illustration for your story using the image generation feature.',
-                      [{ text: 'OK', style: 'default' }],
+                      '🎨 Regenerate Image',
+                      'This AI-generated image has expired from the server. Would you like to generate a fresh illustration for your story?',
+                      [
+                        { text: 'Maybe Later', style: 'cancel' },
+                        { 
+                          text: 'Generate New Image', 
+                          style: 'default',
+                          onPress: () => {
+                            // Call the onBackToOptions callback and user can choose image generation
+                            onBackToOptions?.();
+                          }
+                        },
+                      ],
                     );
                   }}
                 >
-                  <Text style={styles.generateNewButtonText}>Generate New</Text>
+                  <Text style={styles.generateNewButtonText}>🎨 Generate New</Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
@@ -794,63 +1026,65 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
     </View>
   );
 
-  // Render action buttons
-  const renderActionButtons = () => {
+  // Render download/share action buttons
+  const renderDownloadShareButtons = () => {
     if (!imageUrl || state.hasError) return null;
 
     return (
-      <>
-        <View style={styles.actionButtonsContainer}>
-          {showDownloadButton && (
-            <TouchableOpacity
-              style={[
-                styles.actionButton,
-                styles.downloadButton,
-                state.isDownloading && styles.actionButtonDisabled,
-              ]}
-              onPress={downloadImage}
-              disabled={state.isDownloading}
-            >
-              {state.isDownloading ? (
-                <View style={styles.downloadingContent}>
-                  <ActivityIndicator size="small" color="#ffffff" />
-                  <Text style={styles.actionButtonText}>
-                    {state.downloadProgress}%
-                  </Text>
-                </View>
-              ) : (
-                <>
-                  <Text style={styles.actionButtonIcon}>📥</Text>
-                  <Text style={styles.actionButtonText}>Save to Device</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          )}
-
-          {showShareButton && (
-            <TouchableOpacity
-              style={[styles.actionButton, styles.shareButton]}
-              onPress={shareImage}
-            >
-              <Text style={styles.actionButtonIcon}>📤</Text>
-              <Text style={styles.actionButtonText}>Share</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Back to Options Button */}
-        {showBackButton && onBackToOptions && (
-          <View style={styles.backButtonContainer}>
-            <TouchableOpacity
-              style={styles.backToOptionsButton}
-              onPress={onBackToOptions}
-            >
-              <Text style={styles.backButtonIcon}>←</Text>
-              <Text style={styles.backButtonText}>Back to Options</Text>
-            </TouchableOpacity>
-          </View>
+      <View style={styles.actionButtonsContainer}>
+        {showDownloadButton && (
+          <TouchableOpacity
+            style={[
+              styles.actionButton,
+              styles.downloadButton,
+              state.isDownloading && styles.actionButtonDisabled,
+            ]}
+            onPress={downloadImage}
+            disabled={state.isDownloading}
+          >
+            {state.isDownloading ? (
+              <View style={styles.downloadingContent}>
+                <ActivityIndicator size="small" color="#ffffff" />
+                <Text style={styles.actionButtonText}>
+                  {state.downloadProgress}%
+                </Text>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.actionButtonIcon}>📥</Text>
+                <Text style={styles.actionButtonText}>Save Image</Text>
+              </>
+            )}
+          </TouchableOpacity>
         )}
-      </>
+
+        {showShareButton && (
+          <TouchableOpacity
+            style={[styles.actionButton, styles.shareButton]}
+            onPress={shareImage}
+          >
+            <Text style={styles.actionButtonIcon}>📤</Text>
+            <Text style={styles.actionButtonText}>Share</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
+  // Render back button (independent of image state)
+  const renderBackButton = () => {
+    if (!showBackButton || !onBackToOptions) return null;
+
+    return (
+      <View style={styles.backButtonContainer}>
+        <TouchableOpacity
+          style={styles.backToOptionsButton}
+          onPress={onBackToOptions}
+        >
+          <Text style={styles.backButtonIcon}>←</Text>
+          <Text style={styles.backButtonText}>Back to Options</Text>
+        </TouchableOpacity>
+      </View>
     );
   };
 
@@ -920,6 +1154,16 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
               hasError: false,
               localPath,
             }));
+          } else if (rnfsWrapper.isSimulationMode) {
+            console.log(
+              '🖼️ [DEBUG] Simulation mode - using original URL directly',
+            );
+            setState(prev => ({
+              ...prev,
+              isLoading: false,
+              hasError: false,
+              localPath: undefined, // Use original URL
+            }));
           } else {
             console.log(
               '🖼️ [DEBUG] Failed to cache image, marking as failed to prevent retries',
@@ -973,7 +1217,7 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
     return (
       <View style={[getContainerStyle(), style]}>
         {renderError()}
-        {renderActionButtons()}
+        {renderBackButton()}
       </View>
     );
   }
@@ -1077,7 +1321,8 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
             />
           </View>
         )}
-        {renderActionButtons()}
+        {renderDownloadShareButtons()}
+        {renderBackButton()}
       </View>
 
       {/* Full-Screen Modal */}
@@ -1293,9 +1538,9 @@ const styles = StyleSheet.create({
   // Action Buttons
   actionButtonsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    gap: 12,
-    paddingHorizontal: 16, // Add padding for edge-to-edge mode
+    justifyContent: 'space-between',
+    gap: 8,
+    paddingHorizontal: 16,
     paddingVertical: 12,
   },
   actionButton: {
@@ -1304,9 +1549,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     borderRadius: 8,
-    gap: 8,
+    gap: 6,
+    minHeight: 44,
   },
   actionButtonDisabled: {
     opacity: 0.6,
@@ -1322,8 +1568,9 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
+    textAlign: 'center',
   },
   downloadingContent: {
     flexDirection: 'row',

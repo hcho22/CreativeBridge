@@ -1,6 +1,41 @@
 import 'react-native-url-polyfill/auto';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Helper to safely get AsyncStorage with fallback (no import at module level)
+const getAsyncStorage = () => {
+  // In-memory storage implementation as fallback
+  const memoryStorage: { [key: string]: string } = {};
+  const fallbackStorage = {
+    getItem: async (key: string) => {
+      return memoryStorage[key] || null;
+    },
+    setItem: async (key: string, value: string) => {
+      memoryStorage[key] = value;
+    },
+    removeItem: async (key: string) => {
+      delete memoryStorage[key];
+    },
+    getAllKeys: async () => {
+      return Object.keys(memoryStorage);
+    },
+    clear: async () => {
+      Object.keys(memoryStorage).forEach(key => delete memoryStorage[key]);
+    },
+  };
+
+  try {
+    // Try to dynamically require AsyncStorage (not import)
+    const AsyncStorageModule = require('@react-native-async-storage/async-storage');
+    if (AsyncStorageModule?.default) {
+      console.log('✅ Using native AsyncStorage for Supabase');
+      return AsyncStorageModule.default;
+    }
+  } catch (error) {
+    console.warn('⚠️ AsyncStorage native module not available, using in-memory fallback for Supabase');
+  }
+  
+  return fallbackStorage;
+};
 
 // Supabase configuration
 // For development: Replace these with your actual Supabase credentials
@@ -66,7 +101,7 @@ export const supabase: SupabaseClient<Database> = createClient<Database>(
   supabaseAnonKey,
   {
     auth: {
-      storage: AsyncStorage,
+      storage: getAsyncStorage(),
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: false,

@@ -5,8 +5,8 @@
 
 import { StoryDownloadOptions, DownloadResult } from '../types/storyDownload';
 import { GameSession } from '../types/database';
-import * as RNFS from 'react-native-fs';
-import Share from 'react-native-share';
+import * as RNFS from '../utils/rnfsWrapper';
+import Share from '../utils/shareWrapper';
 import { enhancedErrorHandling } from './enhancedErrorHandling';
 import { networkMonitor } from './networkMonitor';
 import { downloadPerformanceMonitor } from './downloadPerformanceMonitor';

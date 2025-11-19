@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from './asyncStorageWrapper';
 
 const REMEMBER_ME_KEY = '@CreativeBridge:rememberMe';
 const USER_EMAIL_KEY = '@CreativeBridge:userEmail';

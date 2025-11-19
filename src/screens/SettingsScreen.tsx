@@ -12,7 +12,6 @@ import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useAuth } from '../context/AuthContext';
 import type { GradeLevel } from '../types/database';
 import { TabParamList } from '../navigation/AppNavigator';
-import TestErrorComponent from '../components/common/TestErrorComponent';
 
 type SettingsScreenNavigationProp = BottomTabNavigationProp<
   TabParamList,
@@ -119,9 +118,9 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.content}>
-        {/* Game Settings Section */}
+        {/* Settings Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🎮 Game Settings</Text>
+          <Text style={styles.sectionTitle}>⚙️ Settings</Text>
 
           {/* Grade Level Selection */}
           <View style={styles.settingItem}>
@@ -159,22 +158,20 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
           <Text style={styles.sectionTitle}>♿ Accessibility Settings</Text>
 
           {/* Speech Settings */}
-          <View style={styles.settingItem}>
-            <View style={styles.settingRow}>
-              <View style={styles.settingInfo}>
-                <Text style={styles.settingLabel}>🔊 Speech Features</Text>
-                <Text style={styles.settingDescription}>
-                  Enable voice input and text-to-speech for stories
-                </Text>
-              </View>
-              <Switch
-                trackColor={{ false: '#767577', true: '#4CAF50' }}
-                thumbColor={speechEnabled ? '#ffffff' : '#f4f3f4'}
-                ios_backgroundColor="#3e3e3e"
-                onValueChange={handleSpeechToggle}
-                value={speechEnabled}
-              />
+          <View style={styles.settingRow}>
+            <View style={styles.settingInfo} pointerEvents="box-none">
+              <Text style={styles.settingLabel}>🔊 Speech Features</Text>
+              <Text style={styles.settingDescription}>
+                Enable voice input and text-to-speech for stories
+              </Text>
             </View>
+            <Switch
+              trackColor={{ false: '#767577', true: '#4CAF50' }}
+              thumbColor={speechEnabled ? '#ffffff' : '#f4f3f4'}
+              ios_backgroundColor="#3e3e3e"
+              onValueChange={handleSpeechToggle}
+              value={speechEnabled}
+            />
           </View>
         </View>
 
@@ -221,16 +218,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
             </Text>
           </View>
         </View>
-
-        {/* Development Tools - Only shown in __DEV__ mode */}
-        {__DEV__ && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🛠️ Development Tools</Text>
-            <TestErrorComponent
-              onError={() => console.log('Test error triggered from Settings')}
-            />
-          </View>
-        )}
       </View>
     </ScrollView>
   );
@@ -338,4 +325,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default React.memo(SettingsScreen);
+export default SettingsScreen;

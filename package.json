@@ -30,6 +30,8 @@
     "test:image-generation": "jest --testPathPattern=imageGeneration",
     "test:image-generation-models": "npx ts-node scripts/test-image-generation-new-models.ts",
     "test:image-generation-simple": "node scripts/test-image-generation-simple.js",
+    "test:claude-skills": "jest --testPathPattern=claudeSkills",
+    "test:claude-skills-integration": "jest --testPathPattern=integration/claudeSkills",
     "validate:database": "npx ts-node scripts/validate-database-migrations.ts",
     "monitor:image-generation": "node scripts/monitor-rollout.js"
   },
@@ -59,6 +61,7 @@
     "react-native-image-picker": "^8.2.1",
     "react-native-image-zoom-viewer": "^3.0.1",
     "react-native-keyboard-aware-scroll-view": "^0.9.5",
+    "react-native-keychain": "^8.1.0",
     "react-native-linear-gradient": "^2.8.3",
     "react-native-permissions": "^5.4.2",
     "react-native-reanimated": "^3.19.3",

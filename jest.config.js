@@ -33,9 +33,11 @@ module.exports = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^react-native-device-info$':
-      '<rootDir>/src/__tests__/mocks/deviceInfoMock',
+      '<rootDir>/src/__tests__/__mocks__/react-native-device-info',
     '^@react-native-async-storage/async-storage$':
-      '<rootDir>/src/__tests__/mocks/reactNativeMocks',
+      '<rootDir>/src/__tests__/__mocks__/@react-native-async-storage/async-storage',
+    '^react-native-keychain$':
+      '<rootDir>/src/__tests__/__mocks__/react-native-keychain',
     '^@react-native-community/netinfo$':
       '<rootDir>/src/__tests__/mocks/reactNativeMocks',
     '^react-native-url-polyfill/auto$': 'identity-obj-proxy',

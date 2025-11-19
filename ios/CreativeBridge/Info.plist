@@ -24,18 +24,6 @@
 	<string>1.0.0</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>CreativeBridge needs microphone access for voice input to help you create stories.</string>
-	<key>NSCameraUsageDescription</key>
-	<string>CreativeBridge needs camera access to add photos to your stories.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>CreativeBridge needs photo library access to let you choose images for your stories.</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>CreativeBridge uses speech recognition to convert your voice into text for story creation.</string>
-	<key>NSDocumentsFolderUsageDescription</key>
-	<string>CreativeBridge needs access to save your completed stories as text files to your device.</string>
-	<key>NSDownloadsFolderUsageDescription</key>
-	<string>CreativeBridge needs access to save your completed stories to the Downloads folder.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
@@ -58,10 +46,22 @@
 			</dict>
 		</dict>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>CreativeBridge needs camera access to add photos to your stories.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>CreativeBridge needs access to save your completed stories as text files to your device.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>CreativeBridge needs access to save your completed stories to the Downloads folder.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string></string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>CreativeBridge needs microphone access for voice input to help you create stories.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>CreativeBridge needs photo library access to let you choose images for your stories.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>CreativeBridge uses speech recognition to convert your voice into text for story creation.</string>
 	<key>RCTNewArchEnabled</key>
-	<true/>
+	<false/>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
@@ -69,12 +69,12 @@
 	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
-	<key>UIStatusBarStyle</key>
-	<string>UIStatusBarStyleDefault</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>arm64</string>
 	</array>
+	<key>UIStatusBarStyle</key>
+	<string>UIStatusBarStyleDefault</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

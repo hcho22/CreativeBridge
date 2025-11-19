@@ -30,6 +30,7 @@ class PerformanceOptimizerService {
   private renderQueue: Array<() => void> = [];
   private backgroundTasks = new Set<string>();
   private memoryWarningListeners: Array<() => void> = [];
+  private resourceManagerIntegrated = false;
 
   constructor() {
     this.metrics = {
@@ -480,6 +481,37 @@ class PerformanceOptimizerService {
       this.batteryOptimized = false;
       this.adjustSettingsForDevice();
     }
+  }
+
+  // Enable resource manager integration
+  public enableResourceManagerIntegration(): void {
+    this.resourceManagerIntegrated = true;
+    console.log('Performance optimizer integrated with Dynamic Resource Manager');
+  }
+
+  // Update settings from resource manager
+  public updateSettings(newSettings: Partial<OptimizationSettings>): void {
+    this.settings = { ...this.settings, ...newSettings };
+    
+    // Log the changes if resource manager is integrated
+    if (this.resourceManagerIntegrated) {
+      console.log('Performance settings updated by Resource Manager:', newSettings);
+    }
+  }
+
+  // Check if resource manager integration is enabled
+  public isResourceManagerIntegrated(): boolean {
+    return this.resourceManagerIntegrated;
+  }
+
+  // Get current memory usage estimation
+  public getCurrentMemoryEstimate(): number {
+    return this.estimateMemoryUsage();
+  }
+
+  // Trigger memory cleanup on demand
+  public triggerMemoryCleanup(): void {
+    this.performMemoryCleanup();
   }
 
   // Reset to defaults

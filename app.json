@@ -1,4 +1,9 @@
 {
   "name": "CreativeBridge",
-  "displayName": "CreativeBridge"
+  "displayName": "CreativeBridge",
+  "extra": {
+    "eas": {
+      "projectId": "3212248a-37c8-4ca7-b054-bac5b7730c35"
+    }
+  }
 }

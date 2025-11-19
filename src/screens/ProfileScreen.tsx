@@ -32,9 +32,10 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   );
 
   React.useEffect(() => {
-    // Refresh profile data when screen loads
+    // Refresh profile data when screen loads (only once on mount)
     refreshProfile();
-  }, [refreshProfile]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array - only run on mount
 
   React.useEffect(() => {
     // Update local state when userProfile changes

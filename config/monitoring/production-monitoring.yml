@@ -1,0 +1,415 @@
+# Production Monitoring Configuration
+# Claude Skills Integration - CreativeBridge
+
+version: "1.0.0"
+environment: "production"
+created: "2024-11-08"
+
+# Core Application Monitoring
+application:
+  health_checks:
+    - name: "application_health"
+      endpoint: "/health/live"
+      interval: "30s"
+      timeout: "5s"
+      expected_status: 200
+      
+    - name: "application_readiness"
+      endpoint: "/health/ready"
+      interval: "60s"
+      timeout: "10s"
+      expected_status: 200
+      
+    - name: "claude_skills_health"
+      endpoint: "/health/claude"
+      interval: "60s"
+      timeout: "15s"
+      expected_status: 200
+
+  performance_metrics:
+    response_time:
+      p50_threshold: "500ms"
+      p95_threshold: "1500ms"
+      p99_threshold: "3000ms"
+      
+    throughput:
+      requests_per_minute: 1000
+      concurrent_users: 500
+      
+    error_rates:
+      total_error_rate_threshold: "0.1%"
+      claude_skills_error_threshold: "5%"
+      critical_error_threshold: "0.01%"
+
+# Claude Skills Specific Monitoring
+claude_skills:
+  integration_metrics:
+    - name: "skill_response_time"
+      metric: "claude_skills_response_duration"
+      threshold: "2s"
+      percentile: "95th"
+      
+    - name: "skill_success_rate"
+      metric: "claude_skills_success_rate"
+      threshold: "95%"
+      window: "5m"
+      
+    - name: "skill_availability"
+      metric: "claude_skills_availability"
+      threshold: "99%"
+      window: "15m"
+      
+    - name: "content_quality_score"
+      metric: "claude_skills_content_quality"
+      threshold: "95%"
+      window: "1h"
+
+  fallback_monitoring:
+    - name: "fallback_activation_rate"
+      metric: "fallback_activations_per_minute"
+      threshold: "10"
+      
+    - name: "fallback_success_rate"
+      metric: "fallback_success_rate"
+      threshold: "98%"
+      
+    - name: "context_preservation_rate"
+      metric: "error_context_preservation_rate"
+      threshold: "90%"
+
+# Performance Monitoring
+performance:
+  memory_usage:
+    - name: "app_memory_usage"
+      metric: "app_memory_usage_mb"
+      thresholds:
+        low_end_devices: "512MB"
+        mid_range_devices: "1024MB"
+        high_end_devices: "2048MB"
+        
+    - name: "memory_optimization_ratio"
+      metric: "memory_optimization_percentage"
+      threshold: "40%" # Minimum optimization target
+      
+  cache_performance:
+    - name: "cache_hit_ratio"
+      metric: "cache_hit_ratio"
+      threshold: "70%"
+      window: "5m"
+      
+    - name: "cache_memory_usage"
+      metric: "cache_memory_mb"
+      adaptive_threshold: true # Based on device capability
+      
+    - name: "predictive_cache_accuracy"
+      metric: "predictive_cache_accuracy"
+      threshold: "75%"
+      
+  cpu_utilization:
+    - name: "cpu_usage"
+      metric: "cpu_utilization_percentage"
+      threshold: "80%"
+      window: "5m"
+      
+    - name: "battery_impact"
+      metric: "additional_battery_consumption"
+      threshold: "5%"
+
+# Security Monitoring
+security:
+  authentication:
+    - name: "failed_auth_attempts"
+      metric: "auth_failures_per_minute"
+      threshold: "50"
+      
+    - name: "credential_rotation_status"
+      metric: "days_since_credential_rotation"
+      threshold: "89" # Within 90-day policy
+      
+    - name: "suspicious_api_access"
+      metric: "anomalous_api_patterns"
+      threshold: "5" # Anomaly score
+      
+  data_protection:
+    - name: "encryption_verification"
+      metric: "encryption_verification_failures"
+      threshold: "0"
+      
+    - name: "data_leakage_detection"
+      metric: "potential_data_leaks"
+      threshold: "0"
+      
+    - name: "privacy_compliance_score"
+      metric: "privacy_compliance_score"
+      threshold: "100%"
+
+# Business Metrics
+business:
+  user_engagement:
+    - name: "session_completion_rate"
+      metric: "user_session_completion_rate"
+      threshold: "65%" # 45% improvement target
+      
+    - name: "story_generation_success"
+      metric: "story_generation_first_try_success"
+      threshold: "95%"
+      
+    - name: "user_satisfaction_score"
+      metric: "user_satisfaction_rating"
+      threshold: "4.5" # Out of 5
+      
+  educational_outcomes:
+    - name: "learning_objective_achievement"
+      metric: "learning_objectives_met_percentage"
+      threshold: "85%"
+      
+    - name: "age_appropriateness_accuracy"
+      metric: "content_age_appropriateness_score"
+      threshold: "95%"
+      
+    - name: "cultural_sensitivity_score"
+      metric: "cultural_sensitivity_compliance"
+      threshold: "100%"
+
+# Alert Configuration
+alerts:
+  critical:
+    - name: "application_down"
+      condition: "up == 0"
+      for: "1m"
+      labels:
+        severity: "critical"
+      annotations:
+        summary: "CreativeBridge application is down"
+        description: "Application has been down for {{ $value }} minutes"
+      actions:
+        - "pager"
+        - "email"
+        - "slack:critical"
+        
+    - name: "high_error_rate"
+      condition: "rate(http_requests_total{status=~\"5..\"}[5m]) > 0.01"
+      for: "2m"
+      labels:
+        severity: "critical"
+      annotations:
+        summary: "High error rate detected"
+        description: "Error rate is {{ $value }} which is above the 1% threshold"
+      actions:
+        - "pager"
+        - "email"
+        
+    - name: "claude_skills_failure"
+      condition: "claude_skills_success_rate < 0.80"
+      for: "5m"
+      labels:
+        severity: "critical"
+      annotations:
+        summary: "Claude Skills integration failure"
+        description: "Claude Skills success rate is {{ $value }}, below 80% threshold"
+      actions:
+        - "pager"
+        - "email"
+        - "auto_fallback"
+
+  warning:
+    - name: "performance_degradation"
+      condition: "http_request_duration_seconds{quantile=\"0.95\"} > 2"
+      for: "10m"
+      labels:
+        severity: "warning"
+      annotations:
+        summary: "Performance degradation detected"
+        description: "95th percentile response time is {{ $value }}s"
+      actions:
+        - "email"
+        - "slack:warnings"
+        
+    - name: "cache_performance_low"
+      condition: "cache_hit_ratio < 0.60"
+      for: "15m"
+      labels:
+        severity: "warning"
+      annotations:
+        summary: "Cache hit ratio below optimal"
+        description: "Cache hit ratio is {{ $value }}, below 60% threshold"
+      actions:
+        - "email"
+        
+    - name: "memory_usage_high"
+      condition: "memory_usage_percentage > 0.85"
+      for: "10m"
+      labels:
+        severity: "warning"
+      annotations:
+        summary: "High memory usage detected"
+        description: "Memory usage is {{ $value }}%, above 85% threshold"
+      actions:
+        - "email"
+        - "slack:warnings"
+
+  info:
+    - name: "deployment_started"
+      condition: "deployment_in_progress == 1"
+      for: "0m"
+      labels:
+        severity: "info"
+      annotations:
+        summary: "Deployment in progress"
+        description: "New deployment has started"
+      actions:
+        - "slack:deployments"
+        
+    - name: "ab_test_results"
+      condition: "ab_test_significance_achieved == 1"
+      for: "0m"
+      labels:
+        severity: "info"
+      annotations:
+        summary: "A/B test results ready"
+        description: "A/B test has achieved statistical significance"
+      actions:
+        - "email"
+        - "slack:analytics"
+
+# Dashboard Configuration
+dashboards:
+  system_overview:
+    title: "CreativeBridge System Overview"
+    panels:
+      - name: "Application Health"
+        type: "status"
+        metrics: ["application_health", "application_readiness"]
+        
+      - name: "Response Time"
+        type: "graph"
+        metrics: ["http_request_duration_seconds"]
+        timeframe: "1h"
+        
+      - name: "Error Rate"
+        type: "graph"
+        metrics: ["http_requests_total"]
+        filters: ["status=~\"5..\""]
+        
+      - name: "Throughput"
+        type: "graph"
+        metrics: ["http_requests_per_second"]
+
+  claude_skills:
+    title: "Claude Skills Integration"
+    panels:
+      - name: "Claude Skills Health"
+        type: "status"
+        metrics: ["claude_skills_health", "claude_skills_availability"]
+        
+      - name: "Skill Performance"
+        type: "graph"
+        metrics: ["claude_skills_response_duration", "claude_skills_success_rate"]
+        
+      - name: "Content Quality"
+        type: "gauge"
+        metrics: ["claude_skills_content_quality"]
+        
+      - name: "Fallback Activity"
+        type: "graph"
+        metrics: ["fallback_activations_per_minute", "fallback_success_rate"]
+
+  performance:
+    title: "Performance Metrics"
+    panels:
+      - name: "Memory Usage by Device Tier"
+        type: "graph"
+        metrics: ["app_memory_usage_mb"]
+        groupBy: ["device_tier"]
+        
+      - name: "Cache Performance"
+        type: "graph"
+        metrics: ["cache_hit_ratio", "predictive_cache_accuracy"]
+        
+      - name: "Battery Impact"
+        type: "gauge"
+        metrics: ["additional_battery_consumption"]
+
+  security:
+    title: "Security Dashboard"
+    panels:
+      - name: "Authentication Status"
+        type: "status"
+        metrics: ["auth_failures_per_minute", "credential_rotation_status"]
+        
+      - name: "Data Protection"
+        type: "status"
+        metrics: ["encryption_verification_failures", "privacy_compliance_score"]
+        
+      - name: "Anomaly Detection"
+        type: "graph"
+        metrics: ["anomalous_api_patterns"]
+
+  business:
+    title: "Business Metrics"
+    panels:
+      - name: "User Engagement"
+        type: "gauge"
+        metrics: ["user_session_completion_rate", "user_satisfaction_rating"]
+        
+      - name: "Educational Outcomes"
+        type: "graph"
+        metrics: ["learning_objectives_met_percentage", "content_age_appropriateness_score"]
+        
+      - name: "A/B Test Results"
+        type: "table"
+        metrics: ["ab_test_results"]
+
+# Data Retention
+data_retention:
+  high_frequency_metrics: "7d"   # 1-minute resolution
+  medium_frequency_metrics: "30d" # 5-minute resolution
+  low_frequency_metrics: "90d"    # 1-hour resolution
+  raw_logs: "30d"
+  aggregated_reports: "1y"
+
+# Integration Settings
+integrations:
+  prometheus:
+    endpoint: "https://prometheus.creativebridge.app"
+    retention: "15d"
+    scrape_interval: "15s"
+    
+  grafana:
+    endpoint: "https://grafana.creativebridge.app"
+    organization: "creativebridge"
+    
+  pagerduty:
+    integration_key: "${PAGERDUTY_INTEGRATION_KEY}"
+    escalation_policy: "creativebridge-critical"
+    
+  slack:
+    webhook_url: "${SLACK_WEBHOOK_URL}"
+    channels:
+      critical: "#alerts-critical"
+      warnings: "#alerts-warnings"
+      deployments: "#deployments"
+      analytics: "#analytics"
+      
+  datadog:
+    api_key: "${DATADOG_API_KEY}"
+    app_key: "${DATADOG_APP_KEY}"
+    service: "creativebridge"
+    environment: "production"
+
+# Compliance Monitoring
+compliance:
+  coppa:
+    data_collection_monitoring: true
+    consent_tracking: true
+    data_retention_verification: true
+    
+  ferpa:
+    educational_record_protection: true
+    access_logging: true
+    third_party_disclosure_monitoring: true
+    
+  gdpr:
+    data_processing_monitoring: true
+    user_rights_tracking: true
+    breach_detection: true

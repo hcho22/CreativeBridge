@@ -479,6 +479,18 @@ class StoryCacheService {
     return Array.from(this.cache.keys());
   }
 
+  public updateConfig(updates: Partial<CacheConfig>): void {
+    this.config = { ...this.config, ...updates };
+    // Adjust cache size if maxSize changed
+    if (updates.maxSize !== undefined) {
+      this.ensureSpaceAvailable();
+    }
+  }
+
+  public getConfig(): CacheConfig {
+    return { ...this.config };
+  }
+
   public async prefetchPatterns(patterns: StoryPattern[]): Promise<void> {
     // Placeholder for prefetching common patterns
     console.log('Prefetching patterns:', patterns.length);

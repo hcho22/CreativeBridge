@@ -66,7 +66,24 @@ if (__DEV__) {
   };
 
   console.error = (...args: unknown[]) => {
-    reactotron.error?.(args.join(' '), '');
+    try {
+      // Safely serialize arguments to avoid circular reference issues
+      const safeArgs = args.map(arg => {
+        if (arg instanceof Error) {
+          return arg.message || String(arg);
+        }
+        try {
+          return typeof arg === 'object' ? JSON.stringify(arg) : String(arg);
+        } catch {
+          return String(arg);
+        }
+      });
+      reactotron.error?.(safeArgs.join(' '), '');
+    } catch (logError) {
+      // If Reactotron logging fails, just use original console.error
+      originalError(...args);
+      return;
+    }
     originalError(...args);
   };
 }

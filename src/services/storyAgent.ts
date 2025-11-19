@@ -8,6 +8,8 @@ import {
   GradeLevel,
 } from '../types';
 import { storyGenerationService } from './storyGenerationService';
+import { contentQualityService, QualityAssessmentResult } from './contentQuality';
+import { SkillManager } from '../types/claudeSkills';
 
 interface StoryStarterRequest {
   gradeLevel: GradeLevel;
@@ -46,11 +48,24 @@ class StoryAgentService {
   private personalities: Record<string, AgentPersonality>;
   private qualityThresholds: Record<GradeLevel, number>;
   private safetyKeywords: Record<GradeLevel, string[]>;
+  private skillManager?: SkillManager;
+  private claudeQualityEnabled: boolean = false;
 
   constructor() {
     this.personalities = this.initializePersonalities();
     this.qualityThresholds = this.initializeQualityThresholds();
     this.safetyKeywords = this.initializeSafetyKeywords();
+  }
+
+  /**
+   * Initialize Claude-powered quality assessment
+   */
+  public initializeClaudeQuality(skillManager: SkillManager): void {
+    this.skillManager = skillManager;
+    this.claudeQualityEnabled = true;
+    
+    // Initialize content quality service with skill manager
+    (contentQualityService as any).skillManager = skillManager;
   }
 
   private initializePersonalities(): Record<string, AgentPersonality> {
@@ -151,10 +166,32 @@ class StoryAgentService {
         return response;
       }
 
-      const qualityCheck = this.assessStoryQuality(
-        response.story,
-        request.gradeLevel,
-      );
+      // Use Claude-powered quality assessment if available
+      let qualityAssessment: QualityAssessmentResult | null = null;
+      let qualityPassed = true;
+      
+      if (this.claudeQualityEnabled) {
+        try {
+          // Get user ID for adaptive thresholds (could be passed in request in future)
+          const userId = 'anonymous-user'; // TODO: Get from request context when available
+          
+          qualityAssessment = await contentQualityService.assessContent(
+            response, 
+            { gradeLevel: request.gradeLevel, userInput: '' },
+            true,
+            userId
+          );
+          qualityPassed = qualityAssessment.passed;
+        } catch (error) {
+          console.warn('Claude quality assessment failed, falling back to legacy assessment');
+          qualityPassed = this.assessStoryQuality(response.story, request.gradeLevel).overall >= this.qualityThresholds[request.gradeLevel];
+        }
+      } else {
+        // Legacy quality assessment
+        const qualityCheck = this.assessStoryQuality(response.story, request.gradeLevel);
+        qualityPassed = qualityCheck.overall >= this.qualityThresholds[request.gradeLevel];
+      }
+
       const safetyCheck = this.performSafetyCheck(
         response.story,
         request.gradeLevel,
@@ -168,7 +205,7 @@ class StoryAgentService {
         };
       }
 
-      if (qualityCheck.overall < this.qualityThresholds[request.gradeLevel]) {
+      if (!qualityPassed) {
         // Use the enhanced storyGenerationService fallback instead of old static fallback
         const enhancedFallbackRequest = {
           gradeLevel: request.gradeLevel,
@@ -234,7 +271,36 @@ class StoryAgentService {
         return await this.generateDirectFallback(request);
       }
 
-      // Skip quality checks that might be too strict - accept the generated story
+      // Apply Claude-powered quality assessment if available
+      if (this.claudeQualityEnabled && response.success) {
+        try {
+          // Get user ID for adaptive thresholds (could be passed in request in future)
+          const userId = 'anonymous-user'; // TODO: Get from request context when available
+          
+          const qualityAssessment = await contentQualityService.assessContent(
+            response, 
+            request,
+            true,
+            userId
+          );
+          
+          console.log('🔍 Claude quality assessment:', {
+            passed: qualityAssessment.passed,
+            overallScore: qualityAssessment.metrics.overallScore,
+            confidence: qualityAssessment.confidence,
+            issueCount: qualityAssessment.issues.length,
+            adaptiveThresholdsUsed: true
+          });
+          
+          // Log quality metrics but don't block story generation for user experience
+          if (!qualityAssessment.passed) {
+            console.log('⚠️ Quality assessment concerns:', qualityAssessment.issues);
+          }
+        } catch (error) {
+          console.warn('Claude quality assessment failed during continuation:', error);
+        }
+      }
+
       console.log('✅ Story generated successfully, returning result');
       return response;
     } catch (error) {

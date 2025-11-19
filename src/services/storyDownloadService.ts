@@ -6,8 +6,8 @@
 
 import { StoryDownloadOptions, DownloadResult } from '../types/storyDownload';
 import { GameSession } from '../types/database';
-import * as RNFS from 'react-native-fs';
-import Share from 'react-native-share';
+import * as RNFS from '../utils/rnfsWrapper';
+import Share from '../utils/shareWrapper';
 import { enhancedErrorHandling } from './enhancedErrorHandling';
 import { networkMonitor } from './networkMonitor';
 
@@ -323,7 +323,44 @@ export class StoryDownloadService {
     try {
       const finalFileName = fileName || this.generateFileName();
       
-      // Create temporary file in app's Documents directory
+      // Check if RNFS is in simulation mode
+      if (RNFS.isSimulationMode) {
+        console.log('📁 [StoryDownload] RNFS in simulation mode - sharing content directly');
+        
+        // In simulation mode, share content directly without file system
+        const shareOptions = {
+          title: 'Save Story',
+          message: 'Save your completed story',
+          filename: finalFileName,
+          type: 'text/plain',
+          saveToFiles: true,
+          // Use data URL for direct content sharing
+          url: `data:text/plain;charset=utf-8;base64,${btoa(content)}`
+        };
+
+        try {
+          await Share.open(shareOptions);
+          
+          return {
+            success: true,
+            fileName: finalFileName,
+            filePath: 'shared_directly', // No file path in simulation mode
+          };
+        } catch (shareError) {
+          const errorMessage = shareError instanceof Error ? shareError.message : String(shareError);
+          if (errorMessage && errorMessage.includes('User did not share')) {
+            return {
+              success: true,
+              cancelled: true,
+              fileName: finalFileName,
+              filePath: 'shared_directly',
+            };
+          }
+          throw shareError;
+        }
+      }
+      
+      // For real device: Create temporary file in app's Documents directory
       const documentsPath = RNFS.DocumentDirectoryPath;
       const tempFilePath = `${documentsPath}/${finalFileName}`;
 

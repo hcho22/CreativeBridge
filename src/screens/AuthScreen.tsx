@@ -984,24 +984,20 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
                 </Text>
               </TouchableOpacity>
             </View>
-          </View>
 
-          {/* Features Section */}
-          <View style={styles.featuresSection}>
-            <Text style={styles.featuresTitle}>✨ What You'll Get</Text>
-            <View style={styles.featuresList}>
-              <Text style={styles.featureItem}>
-                🤖 AI-powered story collaboration
-              </Text>
-              <Text style={styles.featureItem}>
-                📚 Grade-level appropriate content
-              </Text>
-              <Text style={styles.featureItem}>
-                🎯 Writing challenges and achievements
-              </Text>
-              <Text style={styles.featureItem}>
-                🔊 Voice input and accessibility features
-              </Text>
+            {/* Legal Links */}
+            <View style={styles.legalLinksContainer}>
+              <TouchableOpacity disabled={loading}>
+                <Text style={styles.legalLinkText}>Privacy Policy</Text>
+              </TouchableOpacity>
+              <Text style={styles.legalDivider}>•</Text>
+              <TouchableOpacity disabled={loading}>
+                <Text style={styles.legalLinkText}>Terms of Service</Text>
+              </TouchableOpacity>
+              <Text style={styles.legalDivider}>•</Text>
+              <TouchableOpacity disabled={loading}>
+                <Text style={styles.legalLinkText}>EULA</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -1017,7 +1013,7 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flexGrow: 1,
-    justifyContent: 'center',
+    paddingTop: 60, // Add top padding to avoid Dynamic Island
   },
   content: {
     width: '100%',
@@ -1039,15 +1035,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   formSection: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 25,
+    width: '100%',
     marginBottom: 30,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
   formTitle: {
     fontSize: 24,
@@ -1149,31 +1138,24 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     fontWeight: '600',
   },
-  featuresSection: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  featuresTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 15,
-  },
-  featuresList: {
+  legalLinksContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
+    marginTop: 20,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
   },
-  featureItem: {
-    fontSize: 14,
+  legalLinkText: {
+    fontSize: 12,
     color: '#666',
-    marginBottom: 8,
-    textAlign: 'center',
+    textDecorationLine: 'underline',
+  },
+  legalDivider: {
+    fontSize: 12,
+    color: '#666',
+    marginHorizontal: 8,
   },
   // Email validation styles
   emailInputWrapper: {

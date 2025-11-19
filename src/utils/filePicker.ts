@@ -103,10 +103,10 @@ export class FilePickerUtils {
         metadata: fileContent.metadata,
       };
     } catch (error) {
-      console.error('Error in pickTextFile:', error);
-
-      // Handle specific document picker errors
+      // Handle specific document picker errors first
       if (isCancel(error)) {
+        // User cancelled - this is not an error, just return silently
+        console.log('📁 User cancelled file picker');
         return {
           success: false,
           cancelled: true,
@@ -114,11 +114,15 @@ export class FilePickerUtils {
       }
 
       if (isInProgress(error)) {
+        console.warn('File picker is already in progress');
         return {
           success: false,
           error: 'File picker is already in progress',
         };
       }
+
+      // Only log as error if it's not a cancellation
+      console.error('Error in pickTextFile:', error);
 
       return {
         success: false,
