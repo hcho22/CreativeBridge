@@ -20,6 +20,8 @@ export interface VoiceProfile {
 
 // Mock TTS implementation for simulators
 class MockTTSService {
+  private mockPausedState: boolean = false;
+
   async getInitStatus(): Promise<void> {
     throw new Error('Mock TTS - not available in simulator');
   }
@@ -30,22 +32,30 @@ class MockTTSService {
 
   async speak(text: string): Promise<void> {
     console.log('🎤 [MOCK TTS] Would speak:', text);
+    this.mockPausedState = false;
   }
 
   async stop(): Promise<void> {
     console.log('🛑 [MOCK TTS] Would stop');
+    this.mockPausedState = false;
   }
 
   async pause(): Promise<void> {
     console.log('⏸️ [MOCK TTS] Would pause');
+    this.mockPausedState = true;
   }
 
   async resume(): Promise<void> {
     console.log('▶️ [MOCK TTS] Would resume');
+    this.mockPausedState = false;
   }
 
   async isSpeaking(): Promise<boolean> {
     return false;
+  }
+
+  isPaused(): boolean {
+    return this.mockPausedState;
   }
 
   async setDefaultRate(rate: number): Promise<void> {
@@ -64,7 +74,7 @@ class MockTTSService {
     console.log('🗣️ [MOCK TTS] Would set voice:', voiceId);
   }
 
-  addEventListener(event: string, callback: () => void): void {
+  addEventListener(event: string, _callback: () => void): void {
     console.log('👂 [MOCK TTS] Would add listener for:', event);
   }
 
@@ -106,6 +116,8 @@ class IsolatedTextToSpeechService {
     pitch: 1.0,
     language: 'en-US',
   };
+  // State tracking for pause/resume functionality
+  private isPausedState: boolean = false;
 
   public async initialize(): Promise<void> {
     if (this.isInitialized) return;
@@ -236,6 +248,9 @@ class IsolatedTextToSpeechService {
     }
 
     try {
+      // Reset pause state when starting new speech
+      this.isPausedState = false;
+
       if (options) {
         const tempOptions = { ...this.currentOptions, ...options };
         await this.applySpeechSettings(tempOptions);
@@ -245,6 +260,7 @@ class IsolatedTextToSpeechService {
       await this.ttsModule.speak(cleanText);
     } catch (error) {
       console.error('❌ Speech failed:', error);
+      this.isPausedState = false; // Reset on error
     }
   }
 
@@ -253,28 +269,95 @@ class IsolatedTextToSpeechService {
 
     try {
       await this.ttsModule.stop();
+      // Reset pause state when stopping
+      this.isPausedState = false;
     } catch (error) {
       console.error('Stop failed:', error);
+      this.isPausedState = false; // Reset on error
     }
   }
 
   public async pause(): Promise<void> {
     if (!this.ttsModule) return;
 
+    // Check if we're actually speaking before attempting to pause
+    const speaking = await this.isSpeaking();
+    if (!speaking) {
+      console.log('⚠️ Cannot pause - not currently speaking');
+      return;
+    }
+
     try {
-      await this.ttsModule.pause();
+      // Platform-specific pause handling
+      if (Platform.OS === 'ios') {
+        // iOS TTS pause support
+        await this.ttsModule.pause();
+        this.isPausedState = true;
+        console.log('⏸️ Speech paused');
+      } else if (Platform.OS === 'android') {
+        // Android TTS pause support
+        await this.ttsModule.pause();
+        this.isPausedState = true;
+        console.log('⏸️ Speech paused');
+      } else {
+        // Fallback for other platforms
+        console.warn('⚠️ Pause not supported on this platform');
+        this.isPausedState = false;
+      }
     } catch (error) {
-      console.error('Pause failed:', error);
+      console.error('❌ Pause failed:', error);
+      // On error, try to determine if pause actually worked
+      // Some platforms may not support pause, so we'll reset state
+      this.isPausedState = false;
+
+      // If pause is not supported, log a warning but don't throw
+      if (
+        error.message?.includes('not supported') ||
+        error.message?.includes('not available')
+      ) {
+        console.warn('⚠️ Pause functionality not available on this device');
+      }
     }
   }
 
   public async resume(): Promise<void> {
     if (!this.ttsModule) return;
 
+    // Check if we're actually paused before attempting to resume
+    if (!this.isPausedState) {
+      console.log('⚠️ Cannot resume - not currently paused');
+      return;
+    }
+
     try {
-      await this.ttsModule.resume();
+      // Platform-specific resume handling
+      if (Platform.OS === 'ios') {
+        // iOS TTS resume support
+        await this.ttsModule.resume();
+        this.isPausedState = false;
+        console.log('▶️ Speech resumed');
+      } else if (Platform.OS === 'android') {
+        // Android TTS resume support
+        await this.ttsModule.resume();
+        this.isPausedState = false;
+        console.log('▶️ Speech resumed');
+      } else {
+        // Fallback for other platforms
+        console.warn('⚠️ Resume not supported on this platform');
+        this.isPausedState = false;
+      }
     } catch (error) {
-      console.error('Resume failed:', error);
+      console.error('❌ Resume failed:', error);
+      // Reset pause state on error
+      this.isPausedState = false;
+
+      // If resume is not supported, log a warning but don't throw
+      if (
+        error.message?.includes('not supported') ||
+        error.message?.includes('not available')
+      ) {
+        console.warn('⚠️ Resume functionality not available on this device');
+      }
     }
   }
 
@@ -287,6 +370,11 @@ class IsolatedTextToSpeechService {
       console.error('isSpeaking check failed:', error);
       return false;
     }
+  }
+
+  // Check if speech is currently paused
+  public isPaused(): boolean {
+    return this.isPausedState;
   }
 
   public getAvailableVoices(): VoiceProfile[] {
@@ -365,21 +453,53 @@ class IsolatedTextToSpeechService {
     onFinish?: () => void;
     onCancel?: () => void;
     onError?: (error: any) => void;
+    onPause?: () => void;
+    onResume?: () => void;
   }): void {
     if (!this.ttsModule || this.ttsModule instanceof MockTTSService) return;
 
     try {
       if (callbacks.onStart) {
-        this.ttsModule.addEventListener('tts-start', callbacks.onStart);
+        this.ttsModule.addEventListener('tts-start', () => {
+          this.isPausedState = false; // Reset pause state on start
+          callbacks.onStart?.();
+        });
       }
       if (callbacks.onFinish) {
-        this.ttsModule.addEventListener('tts-finish', callbacks.onFinish);
+        this.ttsModule.addEventListener('tts-finish', () => {
+          this.isPausedState = false; // Reset pause state on finish
+          callbacks.onFinish?.();
+        });
       }
       if (callbacks.onCancel) {
-        this.ttsModule.addEventListener('tts-cancel', callbacks.onCancel);
+        this.ttsModule.addEventListener('tts-cancel', () => {
+          this.isPausedState = false; // Reset pause state on cancel
+          callbacks.onCancel?.();
+        });
       }
       if (callbacks.onError) {
-        this.ttsModule.addEventListener('tts-error', callbacks.onError);
+        this.ttsModule.addEventListener('tts-error', (error: any) => {
+          this.isPausedState = false; // Reset pause state on error
+          callbacks.onError?.(error);
+        });
+      }
+      // Note: react-native-tts may not have pause/resume events
+      // We track pause state manually in pause()/resume() methods
+      if (callbacks.onPause) {
+        // If the library supports pause events, add listener
+        // Otherwise, this will be handled manually
+        try {
+          this.ttsModule.addEventListener('tts-pause', callbacks.onPause);
+        } catch {
+          // Event not supported, will be handled manually
+        }
+      }
+      if (callbacks.onResume) {
+        try {
+          this.ttsModule.addEventListener('tts-resume', callbacks.onResume);
+        } catch {
+          // Event not supported, will be handled manually
+        }
       }
     } catch (error) {
       console.warn('Could not set up TTS event listeners:', error);
@@ -394,6 +514,13 @@ class IsolatedTextToSpeechService {
       this.ttsModule.removeAllListeners('tts-finish');
       this.ttsModule.removeAllListeners('tts-cancel');
       this.ttsModule.removeAllListeners('tts-error');
+      // Try to remove pause/resume listeners if they exist
+      try {
+        this.ttsModule.removeAllListeners('tts-pause');
+        this.ttsModule.removeAllListeners('tts-resume');
+      } catch {
+        // Events may not be supported, ignore
+      }
     } catch (error) {
       console.warn('Could not remove TTS listeners:', error);
     }

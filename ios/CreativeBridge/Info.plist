@@ -55,7 +55,7 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string></string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>CreativeBridge needs microphone access for voice input to help you create stories.</string>
+	<string>CreativeBridge needs access to your microphone to enable voice input for stories.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>CreativeBridge needs photo library access to let you choose images for your stories.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>

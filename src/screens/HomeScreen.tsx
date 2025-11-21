@@ -30,6 +30,7 @@ import {
 import { GradeLevel } from '../types';
 import { textToSpeechService } from '../services/textToSpeechIsolated';
 import { StoryInputDebouncer } from '../utils/debounceUtils';
+import { extractLatestContinuation } from '../utils/storyUtils';
 import { challengeService } from '../services/challengeService';
 import { Challenge, ChallengeProgress } from '../types/challenges';
 import ChallengeDisplay from '../components/common/ChallengeDisplay';
@@ -37,6 +38,7 @@ import ImageGeneration from '../components/common/ImageGeneration';
 import StoryImageDisplay from '../components/common/StoryImageDisplay';
 import { storyDownloadService } from '../services/storyDownloadService';
 import RNFS, { rnfsWrapper } from '../utils/rnfsWrapper';
+import { VoiceInput } from '../components/common/VoiceInput';
 import Share from '../utils/shareWrapper';
 
 type HomeScreenNavigationProp = BottomTabNavigationProp<TabParamList, 'Home'>;
@@ -79,8 +81,21 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [spinValue] = useState(new Animated.Value(0));
   const [fadeValue] = useState(new Animated.Value(1));
   // Removed quality metrics for cleaner book format
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  // Speaker button state: 'idle' | 'speaking' | 'paused'
+  const [speakerState, setSpeakerState] = useState<
+    'idle' | 'speaking' | 'paused'
+  >('idle');
+  // Keep isSpeaking for backward compatibility (derived from speakerState)
+  // const isSpeaking = speakerState === 'speaking' || speakerState === 'paused'; // Currently unused
   const [voiceInputEnabled, setVoiceInputEnabled] = useState(true);
+
+  // Service availability state
+  const [ttsServiceAvailable, setTtsServiceAvailable] = useState<
+    boolean | null
+  >(null);
+  const [_sttServiceAvailable, _setSttServiceAvailable] = useState<
+    boolean | null
+  >(null);
 
   // Challenge system state
   const [currentChallenge, setCurrentChallenge] = useState<Challenge | null>(
@@ -272,30 +287,97 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     };
   }, [gradeLevel, currentSession]);
 
+  // Check service availability
+  const checkServiceAvailability = useCallback(async () => {
+    // Check TTS service availability
+    try {
+      if (!textToSpeechService.isServiceAvailable()) {
+        // Try to initialize if not already initialized
+        await textToSpeechService.initialize();
+      }
+      const ttsAvailable = textToSpeechService.isServiceAvailable();
+      setTtsServiceAvailable(ttsAvailable);
+
+      if (!ttsAvailable) {
+        console.log('⚠️ TTS service is not available');
+      }
+    } catch (error) {
+      console.error('Error checking TTS availability:', error);
+      setTtsServiceAvailable(false);
+    }
+
+    // STT service availability is handled by VoiceInput component
+    // We'll assume it's available unless VoiceInput reports otherwise
+    // VoiceInput component handles its own availability checks
+  }, []);
+
   // Initialize TTS and check voice input preferences
   useEffect(() => {
     const initializeAudio = async () => {
       try {
         await textToSpeechService.initialize();
 
-        if (textToSpeechService.isServiceAvailable()) {
+        // Check TTS availability after initialization
+        const ttsAvailable = textToSpeechService.isServiceAvailable();
+        setTtsServiceAvailable(ttsAvailable);
+
+        if (ttsAvailable) {
           await textToSpeechService.setGradeLevelOptions(gradeLevel);
 
-          // Set up TTS event listeners
+          // Set up TTS event listeners with pause/resume state tracking
           textToSpeechService.setupEventListeners({
-            onStart: () => setIsSpeaking(true),
-            onFinish: () => setIsSpeaking(false),
-            onCancel: () => setIsSpeaking(false),
+            onStart: () => {
+              console.log('🔊 TTS started');
+              setSpeakerState('speaking');
+              // Announce state change for screen readers
+              const { AccessibilityInfo } = require('react-native');
+              AccessibilityInfo.announceForAccessibility(
+                'Story playback started',
+              );
+            },
+            onFinish: () => {
+              console.log('✅ TTS finished');
+              setSpeakerState('idle');
+              // Announce completion for screen readers
+              const { AccessibilityInfo } = require('react-native');
+              AccessibilityInfo.announceForAccessibility(
+                'Story playback finished',
+              );
+            },
+            onCancel: () => {
+              console.log('🛑 TTS cancelled');
+              setSpeakerState('idle');
+            },
             onError: error => {
-              console.error('TTS Error:', error);
-              setIsSpeaking(false);
+              console.error('❌ TTS Error:', error);
+              setSpeakerState('idle');
+            },
+            // Note: react-native-tts may not support pause/resume events natively
+            // We'll track pause/resume state manually in pause()/resume() methods
+            onPause: () => {
+              console.log('⏸️ TTS paused');
+              setSpeakerState('paused');
+              // Announce pause for screen readers
+              const { AccessibilityInfo } = require('react-native');
+              AccessibilityInfo.announceForAccessibility(
+                'Story playback paused',
+              );
+            },
+            onResume: () => {
+              console.log('▶️ TTS resumed');
+              setSpeakerState('speaking');
+              // Announce resume for screen readers
+              const { AccessibilityInfo } = require('react-native');
+              AccessibilityInfo.announceForAccessibility(
+                'Story playback resumed',
+              );
             },
           });
 
           console.log('✅ TTS service initialized successfully');
         } else {
           console.log(
-            '⚠️ TTS service not available - continuing without speech features',
+            '⚠️ TTS service not available - speaker button will be disabled',
           );
         }
 
@@ -305,45 +387,188 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         }
       } catch (error) {
         console.error('❌ Failed to initialize audio services:', error);
+        setTtsServiceAvailable(false);
         // Continue without throwing - graceful degradation
       }
     };
 
     if (user) {
       initializeAudio();
+      // Check service availability on mount
+      checkServiceAvailability();
     }
 
     return () => {
       textToSpeechService.removeAllListeners();
     };
-  }, [user, userProfile?.speech_enabled, gradeLevel]);
+  }, [user, userProfile?.speech_enabled, gradeLevel, checkServiceAvailability]);
 
-  // Removed voice input handlers - using simplified voice button
+  // Periodically check service availability (e.g., when app comes to foreground)
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      checkServiceAvailability();
+    }, 30000); // Check every 30 seconds
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [checkServiceAvailability]);
+
+  // Voice input handler - appends transcribed text to existing input
+  // Also known as handleVoiceTranscription for task documentation
+  // Optimized to process text asynchronously to avoid blocking UI thread
+  const handleVoiceResult = useCallback((text: string) => {
+    // Handle empty transcriptions gracefully
+    if (!text || !text.trim()) {
+      console.log('Empty transcription received, ignoring');
+      return;
+    }
+
+    // Process text cleaning asynchronously to avoid blocking UI
+    requestAnimationFrame(() => {
+      // Clean transcribed text: trim whitespace and normalize
+      const cleanedText = text.trim().replace(/\s+/g, ' '); // Normalize multiple spaces to single space
+
+      // Append transcribed text to existing input (don't replace)
+      // Add space if there's existing text
+      setUserInput(prev => {
+        const trimmedPrev = prev.trim();
+
+        if (!trimmedPrev) {
+          // No existing text, just use the cleaned transcribed text
+          return cleanedText;
+        }
+
+        // Check if previous text ends with punctuation or space
+        // If it does, don't add extra space
+        const lastChar = trimmedPrev[trimmedPrev.length - 1];
+        const needsSpace =
+          !/[.!?,;:]\s*$/.test(trimmedPrev) && lastChar !== ' ';
+
+        // Append with space separator if needed
+        return needsSpace
+          ? `${trimmedPrev} ${cleanedText}`
+          : `${trimmedPrev}${cleanedText}`;
+      });
+    });
+  }, []);
+
+  // Voice input error handler
+  const handleVoiceError = useCallback((error: string) => {
+    // Only log, don't show alert for expected errors (permission denied, unavailable in simulator, etc.)
+    // The VoiceInput component already handles showing alerts appropriately
+    console.log('Voice input error:', error);
+    // Only show alert for unexpected errors (not permission, not unavailable in simulator)
+    const errorLower = error.toLowerCase();
+    if (
+      !errorLower.includes('permission') &&
+      !errorLower.includes('denied') &&
+      !errorLower.includes('not available') &&
+      !errorLower.includes('unavailable')
+    ) {
+      Alert.alert('Voice Input Error', error, [{ text: 'OK' }]);
+    }
+  }, []);
 
   // TTS functions
-  const speakStoryContent = useCallback(
-    async (content: string) => {
-      if (!textToSpeechService.isServiceAvailable()) {
-        console.log(
-          '📢 TTS not available - would speak:',
-          content.substring(0, 50) + '...',
-        );
-        return;
-      }
+  const speakStoryContent = useCallback(async (content: string) => {
+    if (!textToSpeechService.isServiceAvailable()) {
+      console.log(
+        '📢 TTS not available - would speak:',
+        content.substring(0, 50) + '...',
+      );
+      return;
+    }
 
-      try {
-        if (isSpeaking) {
-          await textToSpeechService.stop();
+    try {
+      // Start speaking (idle state)
+      await textToSpeechService.speakStoryContent(content, 'narrative');
+      // State will be updated to 'speaking' via onStart event listener
+    } catch (error) {
+      console.error('Error speaking content:', error);
+      setSpeakerState('idle');
+    }
+  }, []);
+
+  // Speaker button tap handler with pause/resume logic
+  const handleSpeakerButtonPress = useCallback(async () => {
+    // Check if TTS service is available
+    const isAvailable = textToSpeechService.isServiceAvailable();
+    if (!isAvailable) {
+      // Don't show alert for simulator - just log and disable button
+      console.log(
+        '⚠️ TTS service is not available (simulator or unsupported device)',
+      );
+      // Update availability state
+      setTtsServiceAvailable(false);
+      // Only show alert if this is the first time we're discovering it's unavailable
+      // and we're not in a simulator (we can't detect simulator, so just show once)
+      if (ttsServiceAvailable !== false) {
+        Alert.alert(
+          'Text-to-Speech Unavailable',
+          'Text-to-speech is not available on this device. This may be because you are using a simulator or the service is not supported. You can still read the story by viewing it on screen.',
+          [{ text: 'OK' }],
+        );
+      }
+      return;
+    }
+
+    // Check if we have story content
+    if (!currentSession?.story_content?.trim()) {
+      Alert.alert('No Story Content', 'There is no story content to read.', [
+        { text: 'OK' },
+      ]);
+      return;
+    }
+
+    try {
+      // Handle different states
+      if (speakerState === 'idle') {
+        // Extract latest continuation (not full story)
+        const latestContinuation = extractLatestContinuation(
+          currentSession.story_content,
+          currentSession,
+        );
+
+        if (!latestContinuation.trim()) {
+          Alert.alert('No Content', 'No continuation found to read.', [
+            { text: 'OK' },
+          ]);
           return;
         }
 
-        await textToSpeechService.speakStoryContent(content, 'narrative');
-      } catch (error) {
-        console.error('Error speaking content:', error);
+        // Start reading latest continuation
+        console.log('🔊 Starting to read latest continuation');
+        await textToSpeechService.speakStoryContent(
+          latestContinuation,
+          'narrative',
+        );
+        // State will be updated to 'speaking' via onStart event listener
+      } else if (speakerState === 'speaking') {
+        // Pause current speech
+        console.log('⏸️ Pausing speech');
+        await textToSpeechService.pause();
+        // Manually update state since pause event may not be available
+        setSpeakerState('paused');
+      } else if (speakerState === 'paused') {
+        // Resume paused speech
+        console.log('▶️ Resuming speech');
+        await textToSpeechService.resume();
+        // Manually update state since resume event may not be available
+        setSpeakerState('speaking');
       }
-    },
-    [isSpeaking],
-  );
+    } catch (error) {
+      console.error('❌ Error in speaker button handler:', error);
+      Alert.alert(
+        'Error',
+        'An error occurred while controlling speech playback. Please try again.',
+        [{ text: 'OK' }],
+      );
+      // Reset to idle state on error
+      setSpeakerState('idle');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [speakerState, currentSession]); // ttsServiceAvailable not used in this callback
 
   const provideContinuationFeedback = useCallback(async () => {
     if (!textToSpeechService.isServiceAvailable()) return;
@@ -353,7 +578,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     } catch (error) {
       console.error('Error providing audio feedback:', error);
     }
-  }, []);
+  }, []); // isServiceAvailable() is a method call, not dependent on state
 
   const checkForExistingSession = useCallback(async () => {
     try {
@@ -466,7 +691,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         );
       }
     },
-    [currentChallenge],
+    [currentChallenge, challengeProgress, gradeLevel],
   );
 
   const handleContinueStoryOption = useCallback(() => {
@@ -938,15 +1163,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     setShowCompletionOptions(false); // Hide completion options while generating
   }, []);
 
-  const handleBackToCompletionOptions = useCallback(() => {
-    setShowCompletionOptions(true);
-    setShowImageGeneration(false);
-  }, []);
-
   const handleViewStory = useCallback(() => {
     // Simply show the story (already visible) and hide completion options
     setShowCompletionOptions(false);
-    
+
     // The story is now visible - user can scroll and read it
     // "Back to Options" button is available if they want to return to options
   }, []);
@@ -981,7 +1201,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       }
 
       // Image generated successfully - no popup needed, user will see the image directly
-      
+
       console.log('✅ [DEBUG] handleImageGenerated completed');
     },
     [currentSession],
@@ -990,7 +1210,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const handleImageGenerationError = useCallback((error: string) => {
     console.error('❌ Image generation failed:', error);
     setShowImageGeneration(false);
-    
+
     // Return to completion options after showing error
     Alert.alert(
       '❌ Image Generation Failed',
@@ -998,9 +1218,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       [
         {
           text: 'OK',
-          onPress: () => setShowCompletionOptions(true)
-        }
-      ]
+          onPress: () => setShowCompletionOptions(true),
+        },
+      ],
     );
   }, []);
 
@@ -1009,16 +1229,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       Alert.alert(
         'No Story Available',
         'There is no story to download. Please complete a story first.',
-        [{ text: 'OK' }]
+        [{ text: 'OK' }],
       );
       return;
     }
 
     try {
       // Create download options directly from story content
-      const storyContent = currentSession.story_content || 
-        currentSession.contributions?.map(c => c.content).join('\n\n') || '';
-      
+      const storyContent =
+        currentSession.story_content ||
+        currentSession.contributions?.map(c => c.content).join('\n\n') ||
+        '';
+
       if (!storyContent.trim()) {
         Alert.alert(
           'Empty Story',
@@ -1030,20 +1252,23 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               onPress: () => {
                 // Keep user in the story to add content
                 console.log('User wants to continue writing');
-              }
-            }
-          ]
+              },
+            },
+          ],
         );
         return;
       }
 
-      const downloadOptions = storyDownloadService.createDownloadOptionsFromContent(
-        currentSession.id,
-        storyContent
-      );
-      
+      const downloadOptions =
+        storyDownloadService.createDownloadOptionsFromContent(
+          currentSession.id,
+          storyContent,
+        );
+
       // Validate the story content with enhanced feedback
-      const validation = storyDownloadService.validateStoryContent(downloadOptions.content);
+      const validation = storyDownloadService.validateStoryContent(
+        downloadOptions.content,
+      );
       if (!validation.isValid) {
         const errorDetails = validation.errors.join('\n• ');
         Alert.alert(
@@ -1058,263 +1283,291 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 const fileName = storyDownloadService.generateFileName();
                 const fileContent = storyContent; // Use raw content
                 saveStoryWithLocationPicker(fileContent, fileName);
-              }
-            }
-          ]
+              },
+            },
+          ],
         );
         return;
       }
 
       // Check estimated file size and warn for very large files
       const stats = storyDownloadService.generateDownloadStats(downloadOptions);
-      if (stats.estimatedFileSize > 500000) { // 500KB
+      if (stats.estimatedFileSize > 500000) {
+        // 500KB
         Alert.alert(
           'Large Story File',
-          `Your story is quite large (${Math.round(stats.estimatedFileSize / 1024)}KB, ${stats.wordCount} words).\n\nThis may take longer to process and share. Continue?`,
+          `Your story is quite large (${Math.round(
+            stats.estimatedFileSize / 1024,
+          )}KB, ${
+            stats.wordCount
+          } words).\n\nThis may take longer to process and share. Continue?`,
           [
             { text: 'Cancel', style: 'cancel' },
             {
               text: 'Continue',
-              onPress: () => proceedWithDownload(downloadOptions)
-            }
-          ]
+              onPress: () => proceedWithDownload(downloadOptions),
+            },
+          ],
         );
         return;
       }
 
       await proceedWithDownload(downloadOptions);
-
     } catch (error) {
       console.error('❌ Download preparation failed:', error);
       const errorMsg = error instanceof Error ? error.message : String(error);
-      
+
       Alert.alert(
         'Download Failed',
         `Sorry, we couldn't prepare your story for download.\n\nError: ${errorMsg}\n\nWould you like to try again?`,
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Retry', onPress: handleDownloadStory }
-        ]
+          { text: 'Retry', onPress: handleDownloadStory },
+        ],
       );
     }
-  }, [currentSession]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSession]); // proceedWithDownload and saveStoryWithLocationPicker defined later, circular dependency
 
-  const proceedWithDownload = useCallback(async (downloadOptions: any) => {
-    try {
-      // Generate the file content with loading indication
-      const fileContent = storyDownloadService.generateStoryFile(downloadOptions);
-      const fileName = storyDownloadService.generateFileName();
+  const proceedWithDownload = useCallback(
+    async (downloadOptions: any) => {
+      try {
+        // Generate the file content with loading indication
+        const fileContent =
+          storyDownloadService.generateStoryFile(downloadOptions);
+        const fileName = storyDownloadService.generateFileName();
 
-      // Save file and let user choose location through share sheet (no loading popup needed)
-      await saveStoryWithLocationPicker(fileContent, fileName);
+        // Save file and let user choose location through share sheet (no loading popup needed)
+        await saveStoryWithLocationPicker(fileContent, fileName);
+      } catch (error) {
+        console.error('❌ Download processing failed:', error);
+        const errorMsg = error instanceof Error ? error.message : String(error);
 
-    } catch (error) {
-      console.error('❌ Download processing failed:', error);
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      
-      Alert.alert(
-        'Processing Failed',
-        `Failed to process your story for download.\n\nError: ${errorMsg}\n\nThis might be due to the story content or a temporary issue.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Retry', onPress: () => proceedWithDownload(downloadOptions) }
-        ]
-      );
-    }
-  }, []);
-
-  const saveStoryWithLocationPicker = useCallback(async (fileContent: string, fileName: string) => {
-    let tempFilePath: string | undefined;
-    
-    try {
-      let shareOptions: any = {
-        title: 'Save Story',
-        message: 'Save your completed story',
-        type: 'text/plain',
-        filename: fileName,
-        saveToFiles: true, // This enables "Save to Files" option on iOS
-      };
-
-      // Handle simulator vs real device differently
-      if (rnfsWrapper.isSimulationMode) {
-        console.log('📁 [HomeScreen] Simulator mode detected - sharing content directly');
-        
-        // In simulator, share content directly instead of fake file paths
-        shareOptions.message = `Save your completed story: "${fileName}"\n\n${fileContent}`;
-        // Don't include fake file URL for simulator
-      } else {
-        console.log('📁 [HomeScreen] Device mode - creating temporary file');
-        
-        // On real device, create temporary file as before
-        const documentsPath = RNFS.DocumentDirectoryPath;
-        tempFilePath = `${documentsPath}/${fileName}`;
-
-        await RNFS.writeFile(tempFilePath, fileContent, 'utf8');
-
-        const fileStat = await RNFS.stat(tempFilePath);
-        console.log('📁 File created successfully:', {
-          path: tempFilePath,
-          size: fileStat.size,
-          fileName: fileName
-        });
-
-        shareOptions.url = `file://${tempFilePath}`;
+        Alert.alert(
+          'Processing Failed',
+          `Failed to process your story for download.\n\nError: ${errorMsg}\n\nThis might be due to the story content or a temporary issue.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Retry',
+              onPress: () => proceedWithDownload(downloadOptions),
+            },
+          ],
+        );
       }
+    },
+    [saveStoryWithLocationPicker],
+  );
+
+  const saveStoryWithLocationPicker = useCallback(
+    async (fileContent: string, fileName: string) => {
+      let tempFilePath: string | undefined;
 
       try {
-        const shareResult = await Share.open(shareOptions);
-        console.log('📁 Share result:', shareResult);
+        let shareOptions: any = {
+          title: 'Save Story',
+          message: 'Save your completed story',
+          type: 'text/plain',
+          filename: fileName,
+          saveToFiles: true, // This enables "Save to Files" option on iOS
+        };
 
-        // Check if user cancelled - ShareWrapper returns {success: false, dismissedAction: true, message: 'User cancelled share'}
-        const isCancellation = shareResult.dismissedAction && 
-                               !shareResult.success && 
-                               shareResult.message?.toLowerCase().includes('cancel');
-        
-        if (isCancellation) {
-          console.log('📁 User cancelled share - no message shown');
-          // Clean up temporary file if needed
-          if (tempFilePath && !rnfsWrapper.isSimulationMode) {
-            try {
-              await RNFS.unlink(tempFilePath);
-              console.log('📁 Cleaned up temporary file after user cancellation');
-            } catch (cleanupError) {
-              console.log('📁 Could not clean up temporary file:', cleanupError);
-            }
-          }
-          return; // Don't show any message - user intentionally cancelled
-        }
+        // Handle simulator vs real device differently
+        if (rnfsWrapper.isSimulationMode) {
+          console.log(
+            '📁 [HomeScreen] Simulator mode detected - sharing content directly',
+          );
 
-        // Show success message based on share result
-        if (shareResult.success) {
-          Alert.alert(
-            '✅ Story Saved!',
-            `Your story "${fileName}" has been saved successfully!\n\nYou can find it in the location you selected.`,
-            [
-              { 
-                text: 'Great!',
-                onPress: () => setShowCompletionOptions(true)
-              }
-            ]
-          );
-        } else if (shareResult.dismissedAction) {
-          // User dismissed but it wasn't a cancellation (edge case)
-          Alert.alert(
-            'Story Ready',
-            `Your story "${fileName}" is ready in the app's Documents folder.\n\nYou can also access it through the Files app.`,
-            [
-              { 
-                text: 'OK',
-                onPress: () => setShowCompletionOptions(true)
-              }
-            ]
-          );
-        }
-      } catch (shareError) {
-        console.log('📁 Share cancelled or failed:', shareError);
-        
-        // Handle user cancellation gracefully
-        const errorMessage = shareError instanceof Error ? shareError.message : String(shareError);
-        
-        // Check if user actually cancelled - if so, don't show any success message
-        if (errorMessage && (
-          errorMessage.includes('User did not share') || 
-          errorMessage.includes('cancelled') ||
-          errorMessage.includes('User cancelled') ||
-          errorMessage.toLowerCase().includes('cancel')
-        )) {
-          // User cancelled - clean up the temporary file and don't show success message
-          if (tempFilePath && !rnfsWrapper.isSimulationMode) {
-            try {
-              await RNFS.unlink(tempFilePath);
-              console.log('📁 Cleaned up temporary file after user cancellation');
-            } catch (cleanupError) {
-              console.log('📁 Could not clean up temporary file:', cleanupError);
-            }
-          }
-          // Don't show any message - user intentionally cancelled
-          return;
+          // In simulator, share content directly instead of fake file paths
+          shareOptions.message = `Save your completed story: "${fileName}"\n\n${fileContent}`;
+          // Don't include fake file URL for simulator
         } else {
-          // Other share errors - provide appropriate feedback based on mode
-          const alertMessage = rnfsWrapper.isSimulationMode 
-            ? `Your story content was shared. In simulator mode, file location selection is limited.`
-            : `Your story "${fileName}" has been saved to the app's Documents folder.\n\nYou can access it through the Files app and move it to your preferred location.`;
-          
-          Alert.alert(
-            'Story Shared',
-            alertMessage,
-            [
-              { 
-                text: 'OK',
-                onPress: () => setShowCompletionOptions(true)
-              }
-            ]
-          );
+          console.log('📁 [HomeScreen] Device mode - creating temporary file');
+
+          // On real device, create temporary file as before
+          const documentsPath = RNFS.DocumentDirectoryPath;
+          tempFilePath = `${documentsPath}/${fileName}`;
+
+          await RNFS.writeFile(tempFilePath, fileContent, 'utf8');
+
+          const fileStat = await RNFS.stat(tempFilePath);
+          console.log('📁 File created successfully:', {
+            path: tempFilePath,
+            size: fileStat.size,
+            fileName: fileName,
+          });
+
+          shareOptions.url = `file://${tempFilePath}`;
         }
-      }
 
-      // Clean up temporary file after a delay (in case user wants to share again)
-      if (tempFilePath && !rnfsWrapper.isSimulationMode) {
-        setTimeout(async () => {
-          try {
-            const fileExists = await RNFS.exists(tempFilePath!);
-            if (fileExists) {
-              // Don't delete immediately - user might want to access it
-              console.log('📁 Keeping file for user access:', tempFilePath);
+        try {
+          const shareResult = await Share.open(shareOptions);
+          console.log('📁 Share result:', shareResult);
+
+          // Check if user cancelled - ShareWrapper returns {success: false, dismissedAction: true, message: 'User cancelled share'}
+          const isCancellation =
+            shareResult.dismissedAction &&
+            !shareResult.success &&
+            shareResult.message?.toLowerCase().includes('cancel');
+
+          if (isCancellation) {
+            console.log('📁 User cancelled share - no message shown');
+            // Clean up temporary file if needed
+            if (tempFilePath && !rnfsWrapper.isSimulationMode) {
+              try {
+                await RNFS.unlink(tempFilePath);
+                console.log(
+                  '📁 Cleaned up temporary file after user cancellation',
+                );
+              } catch (cleanupError) {
+                console.log(
+                  '📁 Could not clean up temporary file:',
+                  cleanupError,
+                );
+              }
             }
-          } catch (cleanupError) {
-            console.log('📁 Cleanup check failed:', cleanupError);
+            return; // Don't show any message - user intentionally cancelled
           }
-        }, 10000); // 10 second delay
-      }
 
-    } catch (error) {
-      console.error('❌ File save operation failed:', error);
-      
-      // Provide specific error messages based on error type
-      let errorMessage = 'An unexpected error occurred while saving your story.';
-      let suggestion = 'Please try again.';
+          // Show success message based on share result
+          if (shareResult.success) {
+            Alert.alert(
+              '✅ Story Saved!',
+              `Your story "${fileName}" has been saved successfully!\n\nYou can find it in the location you selected.`,
+              [
+                {
+                  text: 'Great!',
+                  onPress: () => setShowCompletionOptions(true),
+                },
+              ],
+            );
+          } else if (shareResult.dismissedAction) {
+            // User dismissed but it wasn't a cancellation (edge case)
+            Alert.alert(
+              'Story Ready',
+              `Your story "${fileName}" is ready in the app's Documents folder.\n\nYou can also access it through the Files app.`,
+              [
+                {
+                  text: 'OK',
+                  onPress: () => setShowCompletionOptions(true),
+                },
+              ],
+            );
+          }
+        } catch (shareError) {
+          console.log('📁 Share cancelled or failed:', shareError);
 
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      if (errorMsg?.includes('ENOSPC')) {
-        errorMessage = 'Not enough storage space available.';
-        suggestion = 'Please free up some space and try again.';
-      } else if (errorMsg?.includes('EACCES')) {
-        errorMessage = 'Permission denied to write file.';
-        suggestion = 'Please check app permissions in Settings.';
-      } else if (errorMsg?.includes('ENOENT')) {
-        errorMessage = 'Directory not accessible.';
-        suggestion = 'Please restart the app and try again.';
-      }
+          // Handle user cancellation gracefully
+          const errorMessage =
+            shareError instanceof Error
+              ? shareError.message
+              : String(shareError);
 
-      Alert.alert(
-        'Save Failed',
-        `${errorMessage}\n\n${suggestion}`,
-        [
+          // Check if user actually cancelled - if so, don't show any success message
+          if (
+            errorMessage &&
+            (errorMessage.includes('User did not share') ||
+              errorMessage.includes('cancelled') ||
+              errorMessage.includes('User cancelled') ||
+              errorMessage.toLowerCase().includes('cancel'))
+          ) {
+            // User cancelled - clean up the temporary file and don't show success message
+            if (tempFilePath && !rnfsWrapper.isSimulationMode) {
+              try {
+                await RNFS.unlink(tempFilePath);
+                console.log(
+                  '📁 Cleaned up temporary file after user cancellation',
+                );
+              } catch (cleanupError) {
+                console.log(
+                  '📁 Could not clean up temporary file:',
+                  cleanupError,
+                );
+              }
+            }
+            // Don't show any message - user intentionally cancelled
+            return;
+          } else {
+            // Other share errors - provide appropriate feedback based on mode
+            const alertMessage = rnfsWrapper.isSimulationMode
+              ? `Your story content was shared. In simulator mode, file location selection is limited.`
+              : `Your story "${fileName}" has been saved to the app's Documents folder.\n\nYou can access it through the Files app and move it to your preferred location.`;
+
+            Alert.alert('Story Shared', alertMessage, [
+              {
+                text: 'OK',
+                onPress: () => setShowCompletionOptions(true),
+              },
+            ]);
+          }
+        }
+
+        // Clean up temporary file after a delay (in case user wants to share again)
+        if (tempFilePath && !rnfsWrapper.isSimulationMode) {
+          setTimeout(async () => {
+            try {
+              const fileExists = await RNFS.exists(tempFilePath!);
+              if (fileExists) {
+                // Don't delete immediately - user might want to access it
+                console.log('📁 Keeping file for user access:', tempFilePath);
+              }
+            } catch (cleanupError) {
+              console.log('📁 Cleanup check failed:', cleanupError);
+            }
+          }, 10000); // 10 second delay
+        }
+      } catch (error) {
+        console.error('❌ File save operation failed:', error);
+
+        // Provide specific error messages based on error type
+        let errorMessage =
+          'An unexpected error occurred while saving your story.';
+        let suggestion = 'Please try again.';
+
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        if (errorMsg?.includes('ENOSPC')) {
+          errorMessage = 'Not enough storage space available.';
+          suggestion = 'Please free up some space and try again.';
+        } else if (errorMsg?.includes('EACCES')) {
+          errorMessage = 'Permission denied to write file.';
+          suggestion = 'Please check app permissions in Settings.';
+        } else if (errorMsg?.includes('ENOENT')) {
+          errorMessage = 'Directory not accessible.';
+          suggestion = 'Please restart the app and try again.';
+        }
+
+        Alert.alert('Save Failed', `${errorMessage}\n\n${suggestion}`, [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Retry', onPress: () => saveStoryWithLocationPicker(fileContent, fileName) },
+          {
+            text: 'Retry',
+            onPress: () => saveStoryWithLocationPicker(fileContent, fileName),
+          },
           {
             text: 'Help',
-            onPress: () => showDownloadTroubleshooting(errorMsg)
-          }
-        ]
-      );
-    }
-  }, []);
+            onPress: () => showDownloadTroubleshooting(errorMsg),
+          },
+        ]);
+      }
+    },
+    [showDownloadTroubleshooting],
+  ); // saveStoryWithLocationPicker not used in this callback
 
   const showDownloadTroubleshooting = useCallback((errorDetails: string) => {
     let troubleshootingSteps = '';
     let additionalActions: any[] = [];
 
     if (errorDetails?.includes('ENOSPC')) {
-      troubleshootingSteps = `Storage Space Issue:\n\n1. Delete unused photos, videos, or apps\n2. Clear app caches in Settings\n3. Move files to iCloud or external storage\n4. Restart your device\n\nYour story needs about ${Math.round(errorDetails.length / 1024)}KB of space.`;
+      troubleshootingSteps = `Storage Space Issue:\n\n1. Delete unused photos, videos, or apps\n2. Clear app caches in Settings\n3. Move files to iCloud or external storage\n4. Restart your device\n\nYour story needs about ${Math.round(
+        errorDetails.length / 1024,
+      )}KB of space.`;
       additionalActions = [
         {
           text: 'Open Settings',
           onPress: () => {
             console.log('User wants to open device settings');
             // On iOS, we can suggest but can't directly open specific settings
-          }
-        }
+          },
+        },
       ];
     } else if (errorDetails?.includes('EACCES')) {
       troubleshootingSteps = `Permission Issue:\n\n1. Go to Settings > Privacy & Security\n2. Find "CreativeBridge" in the apps list\n3. Enable "Files and Folders" permission\n4. Restart the app\n5. Try downloading again\n\nIf the issue persists, try restarting your device.`;
@@ -1325,10 +1578,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             Alert.alert(
               'Restart Required',
               'Please close and reopen the app to refresh permissions, then try downloading again.',
-              [{ text: 'OK' }]
+              [{ text: 'OK' }],
             );
-          }
-        }
+          },
+        },
       ];
     } else if (errorDetails?.includes('ENOENT')) {
       troubleshootingSteps = `Directory Access Issue:\n\n1. Restart the CreativeBridge app\n2. If that doesn't work, restart your device\n3. Ensure iOS is up to date\n4. Try downloading again\n\nThis is usually a temporary issue that resolves after restarting.`;
@@ -1338,88 +1591,102 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           onPress: () => {
             Alert.alert(
               'iOS Version Check',
-              'Please ensure you\'re running iOS 14.0 or later for best compatibility.\n\nGo to Settings > General > About to check your iOS version.',
-              [{ text: 'OK' }]
+              "Please ensure you're running iOS 14.0 or later for best compatibility.\n\nGo to Settings > General > About to check your iOS version.",
+              [{ text: 'OK' }],
             );
-          }
-        }
+          },
+        },
       ];
     } else {
-      troubleshootingSteps = `General Troubleshooting:\n\n1. Ensure you have a stable internet connection\n2. Close other apps to free up memory\n3. Restart the CreativeBridge app\n4. Try downloading at a different time\n5. Contact support if the issue persists\n\nError details: ${errorDetails.substring(0, 100)}...`;
+      troubleshootingSteps = `General Troubleshooting:\n\n1. Ensure you have a stable internet connection\n2. Close other apps to free up memory\n3. Restart the CreativeBridge app\n4. Try downloading at a different time\n5. Contact support if the issue persists\n\nError details: ${errorDetails.substring(
+        0,
+        100,
+      )}...`;
       additionalActions = [
         {
           text: 'Contact Support',
           onPress: () => {
             Alert.alert(
               'Contact Support',
-              'If this issue continues, please contact our support team with the error details:\n\n' + errorDetails,
+              'If this issue continues, please contact our support team with the error details:\n\n' +
+                errorDetails,
               [
                 { text: 'OK' },
                 {
                   text: 'Copy Error',
                   onPress: () => {
-                    console.log('Error details copied to clipboard:', errorDetails);
-                    Alert.alert('Error Copied', 'Error details copied to clipboard for support.');
-                  }
-                }
-              ]
+                    console.log(
+                      'Error details copied to clipboard:',
+                      errorDetails,
+                    );
+                    Alert.alert(
+                      'Error Copied',
+                      'Error details copied to clipboard for support.',
+                    );
+                  },
+                },
+              ],
             );
-          }
-        }
+          },
+        },
       ];
     }
 
-    Alert.alert(
-      'Download Troubleshooting',
-      troubleshootingSteps,
-      [
-        { text: 'OK', style: 'cancel' },
-        ...additionalActions
-      ]
-    );
+    Alert.alert('Download Troubleshooting', troubleshootingSteps, [
+      { text: 'OK', style: 'cancel' },
+      ...additionalActions,
+    ]);
   }, []);
 
-  const retryDownloadWithFallback = useCallback(async (fileContent: string, fileName: string, attemptCount = 1) => {
-    if (attemptCount > 3) {
-      Alert.alert(
-        'Multiple Failures',
-        'The download has failed multiple times. Your story will be saved locally in the app\'s Documents folder.\n\nYou can access it later through the Files app.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-
-    try {
-      // Add exponential backoff delay
-      if (attemptCount > 1) {
-        const delayMs = Math.pow(2, attemptCount - 1) * 1000; // 1s, 2s, 4s
+  const retryDownloadWithFallback = useCallback(
+    async (fileContent: string, fileName: string, attemptCount = 1) => {
+      if (attemptCount > 3) {
         Alert.alert(
-          `Retry Attempt ${attemptCount}`,
-          `Waiting ${delayMs / 1000} seconds before retrying...`,
-          [],
-          { cancelable: false }
+          'Multiple Failures',
+          "The download has failed multiple times. Your story will be saved locally in the app's Documents folder.\n\nYou can access it later through the Files app.",
+          [{ text: 'OK' }],
         );
-        await new Promise(resolve => setTimeout(resolve, delayMs));
+        return;
       }
 
-      await saveStoryWithLocationPicker(fileContent, fileName);
-    } catch (error) {
-      console.error(`❌ Retry attempt ${attemptCount} failed:`, error);
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      
-      Alert.alert(
-        `Retry ${attemptCount} Failed`,
-        `Attempt ${attemptCount} unsuccessful.\n\nError: ${errorMsg}\n\nTry again?`,
-        [
-          { text: 'Give Up', style: 'cancel' },
-          {
-            text: `Retry (${attemptCount + 1}/3)`,
-            onPress: () => retryDownloadWithFallback(fileContent, fileName, attemptCount + 1)
-          }
-        ]
-      );
-    }
-  }, []);
+      try {
+        // Add exponential backoff delay
+        if (attemptCount > 1) {
+          const delayMs = Math.pow(2, attemptCount - 1) * 1000; // 1s, 2s, 4s
+          Alert.alert(
+            `Retry Attempt ${attemptCount}`,
+            `Waiting ${delayMs / 1000} seconds before retrying...`,
+            [],
+            { cancelable: false },
+          );
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+
+        await saveStoryWithLocationPicker(fileContent, fileName);
+      } catch (error) {
+        console.error(`❌ Retry attempt ${attemptCount} failed:`, error);
+        const errorMsg = error instanceof Error ? error.message : String(error);
+
+        Alert.alert(
+          `Retry ${attemptCount} Failed`,
+          `Attempt ${attemptCount} unsuccessful.\n\nError: ${errorMsg}\n\nTry again?`,
+          [
+            { text: 'Give Up', style: 'cancel' },
+            {
+              text: `Retry (${attemptCount + 1}/3)`,
+              onPress: () =>
+                retryDownloadWithFallback(
+                  fileContent,
+                  fileName,
+                  attemptCount + 1,
+                ),
+            },
+          ],
+        );
+      }
+    },
+    [saveStoryWithLocationPicker],
+  );
 
   // Removed handleGameCompletion function - replaced with completion options screen
 
@@ -1465,11 +1732,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                       { text: 'OK' },
                     ]);
                   } else {
-                    Alert.alert(
-                      '📝 No Story',
-                      'No story content to copy yet',
-                      [{ text: 'OK' }],
-                    );
+                    Alert.alert('📝 No Story', 'No story content to copy yet', [
+                      { text: 'OK' },
+                    ]);
                   }
                 }}
                 disabled={
@@ -1587,22 +1852,27 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             </View>
           ) : null}
 
-
           {/* Back to Options Button - Show when game is completed but options are hidden, image generation is not active, and no generated image is displayed */}
-          {isGameCompleted && !showCompletionOptions && !showImageGeneration && !(generatedImageUrl || currentSession?.generated_image_url) && (
-            <View style={styles.backToOptionsContainer}>
-              <TouchableOpacity
-                style={styles.backToOptionsButton}
-                onPress={() => setShowCompletionOptions(true)}
-              >
-                <Text style={styles.backToOptionsText}>← Back to Options</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          {isGameCompleted &&
+            !showCompletionOptions &&
+            !showImageGeneration &&
+            !(generatedImageUrl || currentSession?.generated_image_url) && (
+              <View style={styles.backToOptionsContainer}>
+                <TouchableOpacity
+                  style={styles.backToOptionsButton}
+                  onPress={() => setShowCompletionOptions(true)}
+                >
+                  <Text style={styles.backToOptionsText}>
+                    ← Back to Options
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
           {/* User Input Section */}
           <View style={styles.inputSection}>
             <TextInput
+              testID="story-input"
               style={styles.storyInput}
               value={userInput}
               onChangeText={text => {
@@ -1623,65 +1893,62 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               <View style={styles.buttonRow}>
                 {/* Read Story Button - Emoji Only */}
                 <TouchableOpacity
-                  style={styles.readStoryButton}
-                  onPress={() =>
-                    currentSession?.story_content &&
-                    speakStoryContent(currentSession.story_content)
+                  testID="speaker-button"
+                  style={[
+                    styles.readStoryButton,
+                    (!currentSession?.story_content ||
+                      ttsServiceAvailable === false) &&
+                      styles.disabledButton,
+                  ]}
+                  onPress={handleSpeakerButtonPress}
+                  disabled={
+                    !currentSession?.story_content ||
+                    ttsServiceAvailable === false
                   }
-                  disabled={!currentSession?.story_content}
+                  accessibilityLabel={
+                    ttsServiceAvailable === false
+                      ? 'Read story (disabled - TTS unavailable)'
+                      : !currentSession?.story_content
+                      ? 'Read story (disabled - no content)'
+                      : speakerState === 'idle'
+                      ? 'Read story'
+                      : speakerState === 'speaking'
+                      ? 'Pause story playback'
+                      : 'Resume story playback'
+                  }
+                  accessibilityHint={
+                    ttsServiceAvailable === false
+                      ? 'Text-to-speech is not available on this device. You can still read the story on screen.'
+                      : !currentSession?.story_content
+                      ? 'Story content is required to read'
+                      : speakerState === 'idle'
+                      ? 'Tap to start reading the latest story continuation'
+                      : speakerState === 'speaking'
+                      ? 'Tap to pause the story playback'
+                      : 'Tap to resume the story playback'
+                  }
+                  accessibilityRole="button"
+                  accessibilityState={{
+                    disabled: !currentSession?.story_content,
+                  }}
                 >
                   <Text style={styles.emojiButtonText}>
-                    {isSpeaking ? '⏹️' : '🔊'}
+                    {speakerState === 'idle' ? '🔊' : '⏹️'}
                   </Text>
                 </TouchableOpacity>
 
-                {/* Speak Button for Voice Input - Emoji Only */}
-                <TouchableOpacity
-                  style={[
-                    styles.speakButton,
-                    (!voiceInputEnabled || loadingState.isGenerating) &&
-                      styles.disabledButton,
-                  ]}
-                  onPress={() => {
-                    if (!voiceInputEnabled) {
-                      Alert.alert(
-                        'Voice Input Disabled',
-                        'Please enable speech features in Settings to use voice input.',
-                        [{ text: 'OK' }],
-                      );
-                      return;
-                    }
-                    if (loadingState.isGenerating) {
-                      Alert.alert(
-                        'Please Wait',
-                        'Please wait for the current story generation to complete.',
-                        [{ text: 'OK' }],
-                      );
-                      return;
-                    }
-                    // Trigger voice input using the existing VoiceInput functionality
-                    Alert.alert(
-                      'Voice Input',
-                      'Tap and hold to speak your story continuation. Release when finished.',
-                      [
-                        { text: 'Cancel', style: 'cancel' },
-                        {
-                          text: 'Start Speaking',
-                          onPress: () => {
-                            // This would trigger voice recognition
-                            // For now, we'll add some sample text
-                            setUserInput(
-                              prev => prev + ' [Voice input would appear here]',
-                            );
-                          },
-                        },
-                      ],
-                    );
+                {/* Voice Input Component */}
+                <VoiceInput
+                  onSpeechResult={handleVoiceResult}
+                  isEnabled={voiceInputEnabled && !loadingState.isGenerating}
+                  onError={handleVoiceError}
+                  buttonText={{
+                    idle: '🎤',
+                    listening: '🔴',
+                    processing: '⏳',
                   }}
-                  disabled={!voiceInputEnabled || loadingState.isGenerating}
-                >
-                  <Text style={styles.emojiButtonText}>🎤</Text>
-                </TouchableOpacity>
+                  style={styles.speakButton}
+                />
 
                 {/* Exit Button */}
                 <TouchableOpacity
@@ -1693,6 +1960,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
                 {/* Continue Story Button */}
                 <TouchableOpacity
+                  testID="continue-story-button"
                   style={[
                     styles.continueStoryButton,
                     (!userInput.trim() ||
@@ -1800,7 +2068,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         {/* Story Completion Options Screen - Full Screen Overlay */}
         {showCompletionOptions && (
           <View style={styles.completionModalOverlay}>
-            <ScrollView 
+            <ScrollView
               style={styles.completionScrollView}
               contentContainerStyle={styles.completionScrollContent}
               showsVerticalScrollIndicator={false}
@@ -1809,29 +2077,35 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 <View style={styles.completionOptionsHeader}>
                   <Text style={styles.completionTitle}>🎉 Story Complete!</Text>
                   <Text style={styles.completionSubtitle}>
-                    Congratulations! You've completed your {MAX_ROUNDS}-round story adventure!
+                    Congratulations! You've completed your {MAX_ROUNDS}-round
+                    story adventure!
                   </Text>
                   <View style={styles.completionStats}>
                     <Text style={styles.completionStat}>
-                      📝 Words Written: {currentSession?.sessionStats.userWords || 0}
+                      📝 Words Written:{' '}
+                      {currentSession?.sessionStats.userWords || 0}
                     </Text>
                     <Text style={styles.completionStat}>
-                      🎯 Challenges Completed: {challengeProgress.filter(p => p.isCompleted).length}
+                      🎯 Challenges Completed:{' '}
+                      {challengeProgress.filter(p => p.isCompleted).length}
                     </Text>
                     <Text style={styles.completionStat}>
-                      📚 Story Length: {currentSession?.story_content?.length || 0} characters
+                      📚 Story Length:{' '}
+                      {currentSession?.story_content?.length || 0} characters
                     </Text>
                   </View>
                 </View>
-                
+
                 <View style={styles.completionOptionsButtons}>
                   <TouchableOpacity
                     style={styles.completionOptionButton}
                     onPress={handleViewStory}
                   >
-                    <Text style={styles.completionOptionText}>📖 View Story</Text>
+                    <Text style={styles.completionOptionText}>
+                      📖 View Story
+                    </Text>
                   </TouchableOpacity>
-                  
+
                   <TouchableOpacity
                     style={styles.completionOptionButton}
                     onPress={() => {
@@ -1839,18 +2113,25 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                       handleDownloadStory();
                     }}
                   >
-                    <Text style={styles.completionOptionText}>⬇️ Download Story</Text>
+                    <Text style={styles.completionOptionText}>
+                      ⬇️ Download Story
+                    </Text>
                   </TouchableOpacity>
-                  
+
                   <TouchableOpacity
                     style={styles.completionOptionButton}
                     onPress={handleImageGeneration}
                   >
-                    <Text style={styles.completionOptionText}>🎨 Generate Image</Text>
+                    <Text style={styles.completionOptionText}>
+                      🎨 Generate Image
+                    </Text>
                   </TouchableOpacity>
-                  
+
                   <TouchableOpacity
-                    style={[styles.completionOptionButton, styles.secondaryOptionButton]}
+                    style={[
+                      styles.completionOptionButton,
+                      styles.secondaryOptionButton,
+                    ]}
                     onPress={() => {
                       exitGame();
                       setTimeout(() => {
@@ -1858,14 +2139,21 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                       }, 500);
                     }}
                   >
-                    <Text style={styles.completionOptionText}>✨ New Story</Text>
+                    <Text style={styles.completionOptionText}>
+                      ✨ New Story
+                    </Text>
                   </TouchableOpacity>
-                  
+
                   <TouchableOpacity
-                    style={[styles.completionOptionButton, styles.exitOptionButton]}
+                    style={[
+                      styles.completionOptionButton,
+                      styles.exitOptionButton,
+                    ]}
                     onPress={() => exitGame()}
                   >
-                    <Text style={styles.completionOptionText}>🏠 Main Menu</Text>
+                    <Text style={styles.completionOptionText}>
+                      🏠 Main Menu
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>
