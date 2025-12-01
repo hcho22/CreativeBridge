@@ -15,6 +15,7 @@ import {
   Alert,
   Animated,
   Easing,
+  Platform,
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -81,10 +82,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [spinValue] = useState(new Animated.Value(0));
   const [fadeValue] = useState(new Animated.Value(1));
   // Removed quality metrics for cleaner book format
-  // Speaker button state: 'idle' | 'speaking' | 'paused'
+  // Speaker button state: 'idle' | 'starting' | 'speaking' | 'paused'
+  // 'starting' is used to prevent race conditions between button press and TTS start
   const [speakerState, setSpeakerState] = useState<
-    'idle' | 'speaking' | 'paused'
+    'idle' | 'starting' | 'speaking' | 'paused'
   >('idle');
+  // Speaker button enabled state - disabled by default, toggles on press
+  const [speakerButtonEnabled, setSpeakerButtonEnabled] = useState(false);
   // Keep isSpeaking for backward compatibility (derived from speakerState)
   // const isSpeaking = speakerState === 'speaking' || speakerState === 'paused'; // Currently unused
   const [voiceInputEnabled, setVoiceInputEnabled] = useState(true);
@@ -315,29 +319,55 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   useEffect(() => {
     const initializeAudio = async () => {
       try {
+        if (__DEV__) {
+          console.log('🔊 [HomeScreen] Initializing TTS service...');
+        }
         await textToSpeechService.initialize();
 
         // Check TTS availability after initialization
         const ttsAvailable = textToSpeechService.isServiceAvailable();
+        if (__DEV__) {
+          console.log('🔊 [HomeScreen] TTS availability check result:', {
+            ttsAvailable,
+            platform: Platform.OS,
+            isDev: __DEV__,
+          });
+        }
         setTtsServiceAvailable(ttsAvailable);
 
         if (ttsAvailable) {
           await textToSpeechService.setGradeLevelOptions(gradeLevel);
 
           // Set up TTS event listeners with pause/resume state tracking
+          // IMPORTANT: Use functional state updates to check current state
+          // This prevents race conditions where stop() is called but onStart fires later
           textToSpeechService.setupEventListeners({
             onStart: () => {
-              console.log('🔊 TTS started');
-              setSpeakerState('speaking');
-              // Announce state change for screen readers
-              const { AccessibilityInfo } = require('react-native');
-              AccessibilityInfo.announceForAccessibility(
-                'Story playback started',
-              );
+              console.log('🔊 TTS started event received');
+              // Only update to 'speaking' if we're in 'starting' state
+              // If we're already 'idle' (stop was called), ignore this event
+              setSpeakerState(currentState => {
+                if (currentState === 'starting') {
+                  console.log('🔊 TTS started - transitioning to speaking');
+                  // Announce state change for screen readers
+                  const { AccessibilityInfo } = require('react-native');
+                  AccessibilityInfo.announceForAccessibility(
+                    'Story playback started',
+                  );
+                  return 'speaking';
+                }
+                console.log(
+                  '🔊 TTS started but state is',
+                  currentState,
+                  '- ignoring (stop was requested)',
+                );
+                return currentState;
+              });
             },
             onFinish: () => {
               console.log('✅ TTS finished');
               setSpeakerState('idle');
+              setSpeakerButtonEnabled(false); // Disable button when speech finishes
               // Announce completion for screen readers
               const { AccessibilityInfo } = require('react-native');
               AccessibilityInfo.announceForAccessibility(
@@ -347,30 +377,44 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             onCancel: () => {
               console.log('🛑 TTS cancelled');
               setSpeakerState('idle');
+              setSpeakerButtonEnabled(false); // Disable button when speech is cancelled
             },
             onError: error => {
               console.error('❌ TTS Error:', error);
               setSpeakerState('idle');
+              setSpeakerButtonEnabled(false); // Disable button on error
             },
             // Note: react-native-tts may not support pause/resume events natively
             // We'll track pause/resume state manually in pause()/resume() methods
             onPause: () => {
               console.log('⏸️ TTS paused');
-              setSpeakerState('paused');
-              // Announce pause for screen readers
-              const { AccessibilityInfo } = require('react-native');
-              AccessibilityInfo.announceForAccessibility(
-                'Story playback paused',
-              );
+              // Only update if we're currently speaking
+              setSpeakerState(currentState => {
+                if (currentState === 'speaking') {
+                  // Announce pause for screen readers
+                  const { AccessibilityInfo } = require('react-native');
+                  AccessibilityInfo.announceForAccessibility(
+                    'Story playback paused',
+                  );
+                  return 'paused';
+                }
+                return currentState;
+              });
             },
             onResume: () => {
               console.log('▶️ TTS resumed');
-              setSpeakerState('speaking');
-              // Announce resume for screen readers
-              const { AccessibilityInfo } = require('react-native');
-              AccessibilityInfo.announceForAccessibility(
-                'Story playback resumed',
-              );
+              // Only update if we're currently paused
+              setSpeakerState(currentState => {
+                if (currentState === 'paused') {
+                  // Announce resume for screen readers
+                  const { AccessibilityInfo } = require('react-native');
+                  AccessibilityInfo.announceForAccessibility(
+                    'Story playback resumed',
+                  );
+                  return 'speaking';
+                }
+                return currentState;
+              });
             },
           });
 
@@ -416,40 +460,40 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   // Voice input handler - appends transcribed text to existing input
   // Also known as handleVoiceTranscription for task documentation
-  // Optimized to process text asynchronously to avoid blocking UI thread
   const handleVoiceResult = useCallback((text: string) => {
+    console.log('🎤 handleVoiceResult called with text:', text);
     // Handle empty transcriptions gracefully
     if (!text || !text.trim()) {
-      console.log('Empty transcription received, ignoring');
+      console.log('⚠️ Empty transcription received, ignoring');
       return;
     }
 
-    // Process text cleaning asynchronously to avoid blocking UI
-    requestAnimationFrame(() => {
-      // Clean transcribed text: trim whitespace and normalize
-      const cleanedText = text.trim().replace(/\s+/g, ' '); // Normalize multiple spaces to single space
+    // Clean transcribed text: trim whitespace and normalize
+    const cleanedText = text.trim().replace(/\s+/g, ' '); // Normalize multiple spaces to single space
+    console.log('✅ Cleaned text:', cleanedText);
 
-      // Append transcribed text to existing input (don't replace)
-      // Add space if there's existing text
-      setUserInput(prev => {
-        const trimmedPrev = prev.trim();
+    // Append transcribed text to existing input (don't replace)
+    // Update state immediately to ensure text appears in textbox
+    setUserInput(prev => {
+      const trimmedPrev = prev.trim();
 
-        if (!trimmedPrev) {
-          // No existing text, just use the cleaned transcribed text
-          return cleanedText;
-        }
+      if (!trimmedPrev) {
+        // No existing text, just use the cleaned transcribed text
+        console.log('✅ Setting new text:', cleanedText);
+        return cleanedText;
+      }
 
-        // Check if previous text ends with punctuation or space
-        // If it does, don't add extra space
-        const lastChar = trimmedPrev[trimmedPrev.length - 1];
-        const needsSpace =
-          !/[.!?,;:]\s*$/.test(trimmedPrev) && lastChar !== ' ';
+      // Check if previous text ends with punctuation or space
+      // If it does, don't add extra space
+      const lastChar = trimmedPrev[trimmedPrev.length - 1];
+      const needsSpace = !/[.!?,;:]\s*$/.test(trimmedPrev) && lastChar !== ' ';
 
-        // Append with space separator if needed
-        return needsSpace
-          ? `${trimmedPrev} ${cleanedText}`
-          : `${trimmedPrev}${cleanedText}`;
-      });
+      // Append with space separator if needed
+      const newText = needsSpace
+        ? `${trimmedPrev} ${cleanedText}`
+        : `${trimmedPrev}${cleanedText}`;
+      console.log('✅ Appending text, result:', newText);
+      return newText;
     });
   }, []);
 
@@ -470,59 +514,77 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     }
   }, []);
 
-  // TTS functions
-  const speakStoryContent = useCallback(async (content: string) => {
-    if (!textToSpeechService.isServiceAvailable()) {
-      console.log(
-        '📢 TTS not available - would speak:',
-        content.substring(0, 50) + '...',
-      );
-      return;
-    }
-
-    try {
-      // Start speaking (idle state)
-      await textToSpeechService.speakStoryContent(content, 'narrative');
-      // State will be updated to 'speaking' via onStart event listener
-    } catch (error) {
-      console.error('Error speaking content:', error);
-      setSpeakerState('idle');
-    }
-  }, []);
+  // Guard to prevent multiple simultaneous button presses
+  const [isHandlingPress, setIsHandlingPress] = useState(false);
 
   // Speaker button tap handler with pause/resume logic
   const handleSpeakerButtonPress = useCallback(async () => {
-    // Check if TTS service is available
-    const isAvailable = textToSpeechService.isServiceAvailable();
-    if (!isAvailable) {
-      // Don't show alert for simulator - just log and disable button
-      console.log(
-        '⚠️ TTS service is not available (simulator or unsupported device)',
-      );
-      // Update availability state
-      setTtsServiceAvailable(false);
-      // Only show alert if this is the first time we're discovering it's unavailable
-      // and we're not in a simulator (we can't detect simulator, so just show once)
-      if (ttsServiceAvailable !== false) {
-        Alert.alert(
-          'Text-to-Speech Unavailable',
-          'Text-to-speech is not available on this device. This may be because you are using a simulator or the service is not supported. You can still read the story by viewing it on screen.',
-          [{ text: 'OK' }],
+    // Prevent multiple simultaneous calls
+    if (isHandlingPress) {
+      if (__DEV__) {
+        console.log(
+          '🔊 [DEBUG] Button press already being handled, ignoring duplicate press',
         );
       }
       return;
     }
 
-    // Check if we have story content
-    if (!currentSession?.story_content?.trim()) {
-      Alert.alert('No Story Content', 'There is no story content to read.', [
-        { text: 'OK' },
-      ]);
-      return;
+    if (__DEV__) {
+      console.log('🔊 [DEBUG] Speaker button pressed!', {
+        speakerState,
+        speakerButtonEnabled,
+        hasCurrentSession: !!currentSession,
+        hasStoryContent: !!currentSession?.story_content,
+        storyContentLength: currentSession?.story_content?.length || 0,
+        ttsServiceAvailable,
+        isHandlingPress,
+      });
+    }
+
+    setIsHandlingPress(true);
+
+    // Check if TTS service is available
+    const isAvailable = textToSpeechService.isServiceAvailable();
+    if (__DEV__) {
+      console.log('🔊 [DEBUG] TTS service availability check:', {
+        isAvailable,
+        ttsServiceAvailableState: ttsServiceAvailable,
+      });
     }
 
     try {
+      if (!isAvailable) {
+        // Update availability state
+        setTtsServiceAvailable(false);
+        // Disable button again since TTS is not available
+        setSpeakerButtonEnabled(false);
+        // Only show alert if this is the first time we're discovering it's unavailable
+        // (i.e., if it was previously null or true, not already false)
+        if (ttsServiceAvailable !== false) {
+          Alert.alert(
+            'Text-to-Speech Unavailable',
+            'Text-to-speech is not available on this device. This may be because you are using a simulator or the service is not supported. You can still read the story by viewing it on screen.',
+            [{ text: 'OK' }],
+          );
+        }
+        return;
+      }
+
+      // Check if we have story content
+      if (!currentSession?.story_content?.trim()) {
+        if (__DEV__) {
+          console.log('⚠️ [DEBUG] No story content to read');
+        }
+        Alert.alert('No Story Content', 'There is no story content to read.', [
+          { text: 'OK' },
+        ]);
+        return;
+      }
+
       // Handle different states
+      if (__DEV__) {
+        console.log('🔊 [DEBUG] Handling speaker state:', speakerState);
+      }
       if (speakerState === 'idle') {
         // Extract latest continuation (not full story)
         const latestContinuation = extractLatestContinuation(
@@ -530,55 +592,149 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           currentSession,
         );
 
+        if (__DEV__) {
+          console.log('🔊 [DEBUG] Extracted continuation:', {
+            continuationLength: latestContinuation.length,
+            preview: latestContinuation.substring(0, 50) + '...',
+          });
+        }
+
         if (!latestContinuation.trim()) {
+          if (__DEV__) {
+            console.log('⚠️ [DEBUG] No continuation found to read');
+          }
           Alert.alert('No Content', 'No continuation found to read.', [
             { text: 'OK' },
           ]);
           return;
         }
 
+        // IMMEDIATELY set state to 'starting' to prevent race conditions
+        // This ensures pressing the button again will trigger stop, not another start
+        setSpeakerState('starting');
+        setSpeakerButtonEnabled(true);
+
+        // Clear any potentially queued utterances before starting new speech
+        // This prevents buildup of queued speech that causes the "completes before stopping" issue
+        try {
+          await textToSpeechService.stop();
+          if (__DEV__) {
+            console.log('🔊 [DEBUG] Cleared TTS queue before starting');
+          }
+        } catch (clearError) {
+          // Ignore clear errors - may not have anything to clear
+          if (__DEV__) {
+            console.log('🔊 [DEBUG] TTS queue clear (no-op):', clearError);
+          }
+        }
+
         // Start reading latest continuation
-        console.log('🔊 Starting to read latest continuation');
+        if (__DEV__) {
+          console.log('🔊 Starting to read latest continuation');
+        }
         await textToSpeechService.speakStoryContent(
           latestContinuation,
           'narrative',
         );
         // State will be updated to 'speaking' via onStart event listener
-      } else if (speakerState === 'speaking') {
-        // Pause current speech
-        console.log('⏸️ Pausing speech');
-        await textToSpeechService.pause();
-        // Manually update state since pause event may not be available
-        setSpeakerState('paused');
+        if (__DEV__) {
+          console.log(
+            '🔊 [DEBUG] Called speakStoryContent, waiting for onStart event',
+          );
+        }
+      } else if (speakerState === 'speaking' || speakerState === 'starting') {
+        // Stop current speech immediately (handles both 'speaking' and 'starting' states)
+        if (__DEV__) {
+          console.log(
+            '🛑 Stopping speech - calling stop() directly, state was:',
+            speakerState,
+          );
+        }
+
+        // Call stop FIRST before updating UI state
+        try {
+          await textToSpeechService.stop();
+          if (__DEV__) {
+            console.log('🛑 [DEBUG] TTS stop() call completed successfully');
+          }
+        } catch (stopError: any) {
+          // Stop failed - log but continue
+          console.warn('⚠️ stop() failed:', stopError?.message || stopError);
+        }
+
+        // Update UI state after stop attempt
+        setSpeakerState('idle');
+        setSpeakerButtonEnabled(false);
+        if (__DEV__) {
+          console.log('🛑 [DEBUG] UI state updated to idle');
+        }
       } else if (speakerState === 'paused') {
-        // Resume paused speech
-        console.log('▶️ Resuming speech');
-        await textToSpeechService.resume();
-        // Manually update state since resume event may not be available
+        // Resume paused speech - update UI immediately
+        if (__DEV__) {
+          console.log('▶️ Resuming speech - updating UI immediately');
+        }
+        // Optimistically update state immediately
         setSpeakerState('speaking');
+
+        // Then attempt to resume TTS in the background
+        try {
+          await textToSpeechService.resume();
+          if (__DEV__) {
+            console.log('▶️ [DEBUG] TTS resume() call completed');
+          }
+        } catch (resumeError) {
+          console.error('❌ Resume failed:', resumeError);
+          // If resume fails, reset to idle and allow user to start fresh
+          setSpeakerState('idle');
+          setSpeakerButtonEnabled(false);
+          Alert.alert(
+            'Resume Failed',
+            'Could not resume speech. Please start playback again.',
+            [{ text: 'OK' }],
+          );
+        }
       }
     } catch (error) {
       console.error('❌ Error in speaker button handler:', error);
-      Alert.alert(
-        'Error',
-        'An error occurred while controlling speech playback. Please try again.',
-        [{ text: 'OK' }],
-      );
-      // Reset to idle state on error
+      // Don't show alert for every error - might be too frequent
+      // Just log and reset state
       setSpeakerState('idle');
+      setSpeakerButtonEnabled(false);
+    } finally {
+      // Always release the lock
+      setIsHandlingPress(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [speakerState, currentSession]); // ttsServiceAvailable not used in this callback
+  }, [speakerState, speakerButtonEnabled, currentSession, isHandlingPress]); // ttsServiceAvailable not used in this callback
 
-  const provideContinuationFeedback = useCallback(async () => {
-    if (!textToSpeechService.isServiceAvailable()) return;
-
-    try {
-      await textToSpeechService.addAudioCue('ai_turn');
-    } catch (error) {
-      console.error('Error providing audio feedback:', error);
+  // Handler for long-press to stop speech completely
+  const handleSpeakerButtonLongPress = useCallback(async () => {
+    if (speakerState === 'idle') {
+      return; // Nothing to stop
     }
-  }, []); // isServiceAvailable() is a method call, not dependent on state
+
+    if (__DEV__) {
+      console.log(
+        '🛑 [DEBUG] Speaker button long-pressed - stopping speech completely',
+      );
+    }
+
+    // Update UI state immediately for instant feedback
+    setSpeakerState('idle');
+    setSpeakerButtonEnabled(false);
+
+    // Then attempt to stop TTS in the background
+    try {
+      await textToSpeechService.stop();
+      if (__DEV__) {
+        console.log('🛑 [DEBUG] TTS stop() call completed');
+      }
+    } catch (stopError) {
+      console.error('❌ Stop failed on long-press:', stopError);
+      // State already updated, which is fine - user sees immediate feedback
+      // On iOS, stop() might not work, but UI is already updated
+    }
+  }, [speakerState]);
 
   const checkForExistingSession = useCallback(async () => {
     try {
@@ -766,17 +922,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           // Initialize challenge system
           initializeChallengeSystem();
 
-          // Provide audio feedback for new story
-          if (voiceInputEnabled) {
-            await textToSpeechService.addAudioCue('story_start');
-
-            // Auto-read the story starter
-            setTimeout(async () => {
-              if (starterResponse.story) {
-                await speakStoryContent(starterResponse.story);
-              }
-            }, 2000);
-          }
+          // Audio feedback removed - user must manually enable speaker button
+          // if (voiceInputEnabled) {
+          //   await textToSpeechService.addAudioCue('story_start');
+          //   setTimeout(async () => {
+          //     if (starterResponse.story) {
+          //       await speakStoryContent(starterResponse.story);
+          //     }
+          //   }, 2000);
+          // }
         }
       } else {
         // Fallback to basic starter if AI fails
@@ -992,16 +1146,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           }
 
           // Provide audio feedback and optionally read the AI response
-          if (voiceInputEnabled) {
-            await provideContinuationFeedback();
-
-            // Auto-read AI response if user has speech enabled
-            setTimeout(async () => {
-              if (aiResponse.story) {
-                await speakStoryContent(aiResponse.story);
-              }
-            }, 1000);
-          }
+          // Auto-read removed - user must manually enable speaker button
+          // if (voiceInputEnabled) {
+          //   await provideContinuationFeedback();
+          //   setTimeout(async () => {
+          //     if (aiResponse.story) {
+          //       await speakStoryContent(aiResponse.story);
+          //     }
+          //   }, 1000);
+          // }
         }
       } else {
         // If AI response failed but story generation service should have fallbacks
@@ -1892,50 +2045,136 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <View style={styles.gameButtonsContainer}>
               <View style={styles.buttonRow}>
                 {/* Read Story Button - Emoji Only */}
-                <TouchableOpacity
-                  testID="speaker-button"
-                  style={[
-                    styles.readStoryButton,
-                    (!currentSession?.story_content ||
-                      ttsServiceAvailable === false) &&
-                      styles.disabledButton,
-                  ]}
-                  onPress={handleSpeakerButtonPress}
-                  disabled={
-                    !currentSession?.story_content ||
-                    ttsServiceAvailable === false
+                {(() => {
+                  // Button is disabled if:
+                  // 1. No story content exists, OR
+                  // 2. No continuation exists (only starter, no AI response yet)
+                  const hasStoryContent =
+                    !!currentSession?.story_content?.trim();
+                  const hasContinuation =
+                    hasStoryContent &&
+                    (() => {
+                      // Check if there's at least one AI contribution (continuation)
+                      if (
+                        currentSession?.contributions &&
+                        currentSession.contributions.length > 0
+                      ) {
+                        return currentSession.contributions.some(
+                          c => c.type === 'ai',
+                        );
+                      }
+                      // Fallback: check if we can extract a continuation (more than just starter)
+                      const latestContinuation = extractLatestContinuation(
+                        currentSession?.story_content,
+                        currentSession,
+                      );
+                      return latestContinuation.trim().length > 0;
+                    })();
+
+                  // Button is always pressable when there's content, regardless of speaking state
+                  // This allows users to stop TTS even while it's speaking
+                  const canUseSpeaker = hasStoryContent && hasContinuation;
+                  // Only visually disable if there's no content - button should work when speaking to allow stopping
+                  const isVisuallyDisabled = !canUseSpeaker;
+
+                  if (__DEV__) {
+                    console.log('🔊 [DEBUG] Speaker button render:', {
+                      hasCurrentSession: !!currentSession,
+                      hasStoryContent,
+                      hasContinuation,
+                      storyContentLength:
+                        currentSession?.story_content?.length || 0,
+                      contributionsCount:
+                        currentSession?.contributions?.length || 0,
+                      ttsServiceAvailable,
+                      speakerButtonEnabled,
+                      canUseSpeaker,
+                      isVisuallyDisabled,
+                      speakerState,
+                    });
                   }
-                  accessibilityLabel={
-                    ttsServiceAvailable === false
-                      ? 'Read story (disabled - TTS unavailable)'
-                      : !currentSession?.story_content
-                      ? 'Read story (disabled - no content)'
-                      : speakerState === 'idle'
-                      ? 'Read story'
-                      : speakerState === 'speaking'
-                      ? 'Pause story playback'
-                      : 'Resume story playback'
-                  }
-                  accessibilityHint={
-                    ttsServiceAvailable === false
-                      ? 'Text-to-speech is not available on this device. You can still read the story on screen.'
-                      : !currentSession?.story_content
-                      ? 'Story content is required to read'
-                      : speakerState === 'idle'
-                      ? 'Tap to start reading the latest story continuation'
-                      : speakerState === 'speaking'
-                      ? 'Tap to pause the story playback'
-                      : 'Tap to resume the story playback'
-                  }
-                  accessibilityRole="button"
-                  accessibilityState={{
-                    disabled: !currentSession?.story_content,
-                  }}
-                >
-                  <Text style={styles.emojiButtonText}>
-                    {speakerState === 'idle' ? '🔊' : '⏹️'}
-                  </Text>
-                </TouchableOpacity>
+                  return (
+                    <TouchableOpacity
+                      testID="speaker-button"
+                      style={[
+                        styles.readStoryButton,
+                        isVisuallyDisabled && styles.disabledButton,
+                        // Show visual indication if TTS is unavailable but button is still enabled
+                        !isVisuallyDisabled &&
+                          ttsServiceAvailable === false &&
+                          styles.warningButton,
+                      ]}
+                      onPress={() => {
+                        if (__DEV__) {
+                          console.log(
+                            '🔊 [DEBUG] TouchableOpacity onPress triggered!',
+                            {
+                              hasCurrentSession: !!currentSession,
+                              hasStoryContent: !!currentSession?.story_content,
+                              ttsServiceAvailable,
+                              speakerButtonEnabled,
+                              canUseSpeaker,
+                              isVisuallyDisabled,
+                            },
+                          );
+                        }
+                        // Only handle press if there's content to read
+                        if (!canUseSpeaker) {
+                          Alert.alert(
+                            'No Content',
+                            'No continuation found to read.',
+                            [{ text: 'OK' }],
+                          );
+                          return;
+                        }
+                        handleSpeakerButtonPress();
+                      }}
+                      onLongPress={() => {
+                        if (
+                          canUseSpeaker &&
+                          (speakerState === 'speaking' ||
+                            speakerState === 'paused')
+                        ) {
+                          handleSpeakerButtonLongPress();
+                        }
+                      }}
+                      disabled={!canUseSpeaker} // Only disable if no content, not for enabled state
+                      activeOpacity={isVisuallyDisabled ? 1 : 0.7}
+                      accessibilityLabel={
+                        ttsServiceAvailable === false
+                          ? 'Read story (disabled - TTS unavailable)'
+                          : !currentSession?.story_content
+                          ? 'Read story (disabled - no content)'
+                          : speakerState === 'idle'
+                          ? 'Read story'
+                          : speakerState === 'speaking' ||
+                            speakerState === 'starting'
+                          ? 'Stop story playback'
+                          : 'Resume story playback'
+                      }
+                      accessibilityHint={
+                        ttsServiceAvailable === false
+                          ? 'Text-to-speech is not available on this device. You can still read the story on screen.'
+                          : !currentSession?.story_content
+                          ? 'Story content is required to read'
+                          : speakerState === 'idle'
+                          ? 'Tap to start reading the latest story continuation'
+                          : speakerState === 'speaking' ||
+                            speakerState === 'starting'
+                          ? 'Tap to stop the story playback immediately'
+                          : 'Tap to resume the story playback'
+                      }
+                      accessibilityRole="button"
+                      accessibilityState={{
+                        disabled: !canUseSpeaker,
+                      }}
+                    >
+                      <Text style={styles.emojiButtonText}>
+                        {speakerState === 'idle' ? '🔊' : '⏹️'}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })()}
 
                 {/* Voice Input Component */}
                 <VoiceInput
@@ -2551,6 +2790,12 @@ const styles = StyleSheet.create({
   // Removed old continueButton styles - replaced with continueStoryButton
   disabledButton: {
     backgroundColor: '#cccccc',
+  },
+  warningButton: {
+    // Visual indication that TTS is unavailable but button still works
+    opacity: 0.8,
+    borderWidth: 1,
+    borderColor: '#ff9800',
   },
   // Removed old continueButtonText - replaced with continueStoryButtonText
   // Removed stats display for cleaner book format
