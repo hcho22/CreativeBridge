@@ -92,7 +92,8 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
         if (rememberMeData?.isEnabled && rememberMeData.userEmail) {
           setEmail(rememberMeData.userEmail);
           setRememberMe(true);
-          // Don't set emailTouched to true to avoid validation on load
+          // Set emailTouched to true so validation runs for the loaded email
+          setEmailTouched(true);
         }
       } catch (error) {
         console.error('Error loading saved preferences:', error);
@@ -183,6 +184,19 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
     if (!email.trim() || !password.trim()) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
+    }
+
+    // If validation is in progress, wait for it to complete
+    if (emailValidating) {
+      // Wait for validation to complete (debounce is 500ms, so wait a bit longer)
+      await new Promise(resolve => setTimeout(resolve, 600));
+    }
+
+    // If email is touched but validation hasn't completed yet, wait a bit more
+    // This can happen if the email was just loaded from storage
+    if (emailTouched && !emailValidation && !emailValidating) {
+      // Wait for the debounced validation to complete
+      await new Promise(resolve => setTimeout(resolve, 600));
     }
 
     // Check email validation result
