@@ -3,6 +3,7 @@ import React, {
   useEffect,
   useCallback,
   useLayoutEffect,
+  useRef,
 } from 'react';
 import {
   View,
@@ -16,6 +17,8 @@ import {
   Animated,
   Easing,
   Platform,
+  Keyboard,
+  KeyboardEvent,
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -110,6 +113,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   >([]);
   const [inputDebouncer, setInputDebouncer] =
     useState<StoryInputDebouncer | null>(null);
+
+  // Keyboard animation refs
+  const keyboardHeight = useRef(new Animated.Value(0)).current;
+  const gameScrollViewRef = useRef<ScrollView>(null);
 
   // Game round tracking
   const [currentRound, setCurrentRound] = useState(1);
@@ -290,6 +297,45 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       debouncer.cancel();
     };
   }, [gradeLevel, currentSession]);
+
+  // Animated keyboard handling - smooth slide up when keyboard appears
+  useEffect(() => {
+    const keyboardWillShowListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (event: KeyboardEvent) => {
+        // Animate content up with spring animation for natural feel
+        Animated.spring(keyboardHeight, {
+          toValue: event.endCoordinates.height,
+          useNativeDriver: false,
+          tension: 100,
+          friction: 10,
+        }).start();
+
+        // Scroll to input after a brief delay to ensure layout is updated
+        setTimeout(() => {
+          gameScrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      },
+    );
+
+    const keyboardWillHideListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        // Animate content back down with spring animation
+        Animated.spring(keyboardHeight, {
+          toValue: 0,
+          useNativeDriver: false,
+          tension: 100,
+          friction: 10,
+        }).start();
+      },
+    );
+
+    return () => {
+      keyboardWillShowListener.remove();
+      keyboardWillHideListener.remove();
+    };
+  }, [keyboardHeight]);
 
   // Check service availability
   const checkServiceAvailability = useCallback(async () => {
@@ -1848,557 +1894,578 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   if (isGameActive) {
     return (
       <View style={styles.container}>
-        <View style={styles.gameContainer}>
-          {/* Current Challenge Display */}
-          {currentChallenge && !showCompletionOptions && (
-            <ChallengeDisplay
-              challenge={currentChallenge}
-              progress={challengeProgress.find(
-                p => p.challengeId === currentChallenge.id,
-              )}
-              compact={true}
-            />
-          )}
-
-          {/* Story Display - Book Format */}
-          <View style={styles.storyBookContainer}>
-            <View style={styles.storyBookHeader}>
-              <View style={styles.storyTitleRow}>
-                <Text style={styles.storyBookTitle}>📖 Your Story</Text>
-                <Text style={styles.gradeLevel}>{gradeLevel}</Text>
-                <Text style={styles.roundCounter}>
-                  Round {currentRound}/{MAX_ROUNDS}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.copyButton}
-                onPress={() => {
-                  const storyContent =
-                    currentSession?.story_content ||
-                    currentSession?.contributions
-                      ?.map(c => c.content)
-                      .join('\n\n') ||
-                    '';
-                  if (storyContent.trim()) {
-                    Clipboard.setString(storyContent);
-                    Alert.alert('✅ Copied!', 'Story copied to clipboard', [
-                      { text: 'OK' },
-                    ]);
-                  } else {
-                    Alert.alert('📝 No Story', 'No story content to copy yet', [
-                      { text: 'OK' },
-                    ]);
-                  }
-                }}
-                disabled={
-                  !currentSession?.story_content &&
-                  (!currentSession?.contributions ||
-                    currentSession.contributions.length === 0)
-                }
-              >
-                <Text style={styles.copyButtonText}>📋 Copy</Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView
-              style={styles.storyBook}
-              contentContainerStyle={styles.storyBookContent}
-            >
-              {currentSession?.contributions &&
-              currentSession.contributions.length > 0 ? (
-                currentSession.contributions.map((contribution, index) => (
-                  <View
-                    key={`${contribution.timestamp}-${index}`}
-                    style={styles.compactContributionContainer}
-                  >
-                    <View style={styles.compactContributionHeader}>
-                      <Text
-                        style={[
-                          styles.compactContributionLabel,
-                          contribution.type === 'ai'
-                            ? styles.aiLabel
-                            : styles.userLabel,
-                        ]}
-                      >
-                        {contribution.type === 'ai' ? '🤖' : '✍️'}
-                      </Text>
-                      <Text style={styles.compactWordCount}>
-                        {contribution.wordCount}w
-                      </Text>
-                    </View>
-                    <Text
-                      style={[styles.storyText, styles.selectableText]}
-                      selectable={true}
-                    >
-                      {contribution.content}
-                    </Text>
-                  </View>
-                ))
-              ) : (
-                <Text
-                  style={[styles.storyText, styles.selectableText]}
-                  selectable={true}
-                >
-                  {currentSession?.story_content || 'Loading story...'}
-                </Text>
-              )}
-            </ScrollView>
-          </View>
-
-          {/* Image Generation Section */}
-          {showImageGeneration && currentSession && (
-            <ImageGeneration
-              storyContent={currentSession.story_content || ''}
-              sessionId={currentSession.id}
-              gradeLevel={gradeLevel}
-              wordCount={currentSession.sessionStats.userWords}
-              onImageGenerated={handleImageGenerated}
-              onError={handleImageGenerationError}
-              disabled={!isGameCompleted}
-            />
-          )}
-
-          {/* Generated Image Display */}
-          {(() => {
-            const shouldShowImage =
-              (generatedImageUrl || currentSession?.generated_image_url) &&
-              currentSession;
-            console.log('🖼️ [DEBUG] Image display check:', {
-              generatedImageUrl: generatedImageUrl?.substring(0, 50) + '...',
-              sessionImageUrl:
-                currentSession?.generated_image_url?.substring(0, 50) + '...',
-              hasCurrentSession: !!currentSession,
-              shouldShowImage,
-            });
-            return shouldShowImage;
-          })() ? (
-            <View style={styles.imageDisplayContainerOverlay}>
-              <StoryImageDisplay
-                imageUrl={
-                  generatedImageUrl || currentSession?.generated_image_url || ''
-                }
-                storyTitle={`${
-                  currentSession?.story_content
-                    ?.split(' ')
-                    .slice(0, 6)
-                    .join(' ') || 'Your Story'
-                }...`}
-                sessionId={currentSession?.id || ''}
-                showBackButton={true}
-                displayMode="responsive"
-                enableFullScreen={false}
-                onBackToOptions={() => setShowCompletionOptions(true)}
-                onImageSaved={localPath => {
-                  console.log('✅ [DEBUG] Image saved locally:', localPath);
-                  // Update session with local image path
-                  if (currentSession?.id) {
-                    storySessionManager.updateSessionWithLocalImage(
-                      currentSession.id,
-                      localPath,
-                    );
-                  }
-                }}
-                onError={error => {
-                  console.error('❌ [DEBUG] Image display error:', error);
-                  // Error is already handled gracefully by StoryImageDisplay component
-                }}
+        <ScrollView
+          ref={gameScrollViewRef}
+          style={styles.gameScrollContainer}
+          contentContainerStyle={styles.gameScrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Animated.View
+            style={[
+              styles.gameContainer,
+              { paddingBottom: Animated.add(keyboardHeight, 20) },
+            ]}
+          >
+            {/* Current Challenge Display */}
+            {currentChallenge && !showCompletionOptions && (
+              <ChallengeDisplay
+                challenge={currentChallenge}
+                progress={challengeProgress.find(
+                  p => p.challengeId === currentChallenge.id,
+                )}
+                compact={true}
               />
-            </View>
-          ) : null}
-
-          {/* Back to Options Button - Show when game is completed but options are hidden, image generation is not active, and no generated image is displayed */}
-          {isGameCompleted &&
-            !showCompletionOptions &&
-            !showImageGeneration &&
-            !(generatedImageUrl || currentSession?.generated_image_url) && (
-              <View style={styles.backToOptionsContainer}>
-                <TouchableOpacity
-                  style={styles.backToOptionsButton}
-                  onPress={() => setShowCompletionOptions(true)}
-                >
-                  <Text style={styles.backToOptionsText}>
-                    ← Back to Options
-                  </Text>
-                </TouchableOpacity>
-              </View>
             )}
 
-          {/* User Input Section */}
-          <View style={styles.inputSection}>
-            <TextInput
-              testID="story-input"
-              style={styles.storyInput}
-              value={userInput}
-              onChangeText={text => {
-                setUserInput(text);
-                // Use debouncing for real-time validation and auto-generation
-                if (inputDebouncer) {
-                  inputDebouncer.handleInput(text);
-                }
-              }}
-              placeholder="Continue the story..."
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-            />
-
-            {/* Game Action Buttons */}
-            <View style={styles.gameButtonsContainer}>
-              <View style={styles.buttonRow}>
-                {/* Read Story Button - Emoji Only */}
-                {(() => {
-                  // Button is disabled if:
-                  // 1. No story content exists, OR
-                  // 2. No continuation exists (only starter, no AI response yet)
-                  const hasStoryContent =
-                    !!currentSession?.story_content?.trim();
-                  const hasContinuation =
-                    hasStoryContent &&
-                    (() => {
-                      // Check if there's at least one AI contribution (continuation)
-                      if (
-                        currentSession?.contributions &&
-                        currentSession.contributions.length > 0
-                      ) {
-                        return currentSession.contributions.some(
-                          c => c.type === 'ai',
-                        );
-                      }
-                      // Fallback: check if we can extract a continuation (more than just starter)
-                      const latestContinuation = extractLatestContinuation(
-                        currentSession?.story_content,
-                        currentSession,
+            {/* Story Display - Book Format */}
+            <View style={styles.storyBookContainer}>
+              <View style={styles.storyBookHeader}>
+                <View style={styles.storyTitleRow}>
+                  <Text style={styles.storyBookTitle}>📖 Your Story</Text>
+                  <Text style={styles.gradeLevel}>{gradeLevel}</Text>
+                  <Text style={styles.roundCounter}>
+                    Round {currentRound}/{MAX_ROUNDS}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.copyButton}
+                  onPress={() => {
+                    const storyContent =
+                      currentSession?.story_content ||
+                      currentSession?.contributions
+                        ?.map(c => c.content)
+                        .join('\n\n') ||
+                      '';
+                    if (storyContent.trim()) {
+                      Clipboard.setString(storyContent);
+                      Alert.alert('✅ Copied!', 'Story copied to clipboard', [
+                        { text: 'OK' },
+                      ]);
+                    } else {
+                      Alert.alert(
+                        '📝 No Story',
+                        'No story content to copy yet',
+                        [{ text: 'OK' }],
                       );
-                      return latestContinuation.trim().length > 0;
-                    })();
-
-                  // Button is always pressable when there's content, regardless of speaking state
-                  // This allows users to stop TTS even while it's speaking
-                  const canUseSpeaker = hasStoryContent && hasContinuation;
-                  // Only visually disable if there's no content - button should work when speaking to allow stopping
-                  const isVisuallyDisabled = !canUseSpeaker;
-
-                  if (__DEV__) {
-                    console.log('🔊 [DEBUG] Speaker button render:', {
-                      hasCurrentSession: !!currentSession,
-                      hasStoryContent,
-                      hasContinuation,
-                      storyContentLength:
-                        currentSession?.story_content?.length || 0,
-                      contributionsCount:
-                        currentSession?.contributions?.length || 0,
-                      ttsServiceAvailable,
-                      speakerButtonEnabled,
-                      canUseSpeaker,
-                      isVisuallyDisabled,
-                      speakerState,
-                    });
-                  }
-                  return (
-                    <TouchableOpacity
-                      testID="speaker-button"
-                      style={[
-                        styles.readStoryButton,
-                        isVisuallyDisabled && styles.disabledButton,
-                        // Show visual indication if TTS is unavailable but button is still enabled
-                        !isVisuallyDisabled &&
-                          ttsServiceAvailable === false &&
-                          styles.warningButton,
-                      ]}
-                      onPress={() => {
-                        if (__DEV__) {
-                          console.log(
-                            '🔊 [DEBUG] TouchableOpacity onPress triggered!',
-                            {
-                              hasCurrentSession: !!currentSession,
-                              hasStoryContent: !!currentSession?.story_content,
-                              ttsServiceAvailable,
-                              speakerButtonEnabled,
-                              canUseSpeaker,
-                              isVisuallyDisabled,
-                            },
-                          );
-                        }
-                        // Only handle press if there's content to read
-                        if (!canUseSpeaker) {
-                          Alert.alert(
-                            'No Content',
-                            'No continuation found to read.',
-                            [{ text: 'OK' }],
-                          );
-                          return;
-                        }
-                        handleSpeakerButtonPress();
-                      }}
-                      onLongPress={() => {
-                        if (
-                          canUseSpeaker &&
-                          (speakerState === 'speaking' ||
-                            speakerState === 'paused')
-                        ) {
-                          handleSpeakerButtonLongPress();
-                        }
-                      }}
-                      disabled={!canUseSpeaker} // Only disable if no content, not for enabled state
-                      activeOpacity={isVisuallyDisabled ? 1 : 0.7}
-                      accessibilityLabel={
-                        ttsServiceAvailable === false
-                          ? 'Read story (disabled - TTS unavailable)'
-                          : !currentSession?.story_content
-                          ? 'Read story (disabled - no content)'
-                          : speakerState === 'idle'
-                          ? 'Read story'
-                          : speakerState === 'speaking' ||
-                            speakerState === 'starting'
-                          ? 'Stop story playback'
-                          : 'Resume story playback'
-                      }
-                      accessibilityHint={
-                        ttsServiceAvailable === false
-                          ? 'Text-to-speech is not available on this device. You can still read the story on screen.'
-                          : !currentSession?.story_content
-                          ? 'Story content is required to read'
-                          : speakerState === 'idle'
-                          ? 'Tap to start reading the latest story continuation'
-                          : speakerState === 'speaking' ||
-                            speakerState === 'starting'
-                          ? 'Tap to stop the story playback immediately'
-                          : 'Tap to resume the story playback'
-                      }
-                      accessibilityRole="button"
-                      accessibilityState={{
-                        disabled: !canUseSpeaker,
-                      }}
-                    >
-                      <Text style={styles.emojiButtonText}>
-                        {speakerState === 'idle' ? '🔊' : '⏹️'}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })()}
-
-                {/* Voice Input Component */}
-                <VoiceInput
-                  onSpeechResult={handleVoiceResult}
-                  isEnabled={voiceInputEnabled && !loadingState.isGenerating}
-                  onError={handleVoiceError}
-                  buttonText={{
-                    idle: '🎤',
-                    listening: '🔴',
-                    processing: '⏳',
+                    }
                   }}
-                  style={styles.speakButton}
-                />
-
-                {/* Exit Button */}
-                <TouchableOpacity
-                  style={styles.exitButtonBottom}
-                  onPress={handleExitGame}
-                >
-                  <Text style={styles.exitButtonText}>← Exit</Text>
-                </TouchableOpacity>
-
-                {/* Continue Story Button */}
-                <TouchableOpacity
-                  testID="continue-story-button"
-                  style={[
-                    styles.continueStoryButton,
-                    (!userInput.trim() ||
-                      loadingState.isGenerating ||
-                      isGameCompleted) &&
-                      styles.disabledButton,
-                  ]}
-                  onPress={handleContinueStory}
                   disabled={
-                    !userInput.trim() ||
-                    loadingState.isGenerating ||
-                    isGameCompleted
+                    !currentSession?.story_content &&
+                    (!currentSession?.contributions ||
+                      currentSession.contributions.length === 0)
                   }
                 >
-                  {loadingState.isGenerating ? (
-                    <ActivityIndicator color="#ffffff" size="small" />
-                  ) : isGameCompleted ? (
-                    <Text style={styles.continueStoryButtonText}>
-                      Story Complete! 🎉
-                    </Text>
-                  ) : (
-                    <Text style={styles.continueStoryButtonText}>
-                      {currentRound >= MAX_ROUNDS
-                        ? 'Final Round →'
-                        : 'Continue Story →'}
-                    </Text>
-                  )}
+                  <Text style={styles.copyButtonText}>📋 Copy</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-
-            {(loadingState.isValidating ||
-              loadingState.isSaving ||
-              loadingState.isGenerating) && (
-              <View style={styles.loadingIndicator}>
-                <Animated.View
-                  style={{
-                    transform: [
-                      {
-                        rotate: spinValue.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: ['0deg', '360deg'],
-                        }),
-                      },
-                    ],
-                  }}
-                >
-                  <Text style={styles.loadingSpinner}>⚡</Text>
-                </Animated.View>
-                <View style={styles.loadingTextContainer}>
-                  <Text style={styles.loadingText}>
-                    {loadingState.currentTask ||
-                      (loadingState.isValidating
-                        ? 'Validating content...'
-                        : loadingState.isSaving
-                        ? 'Saving...'
-                        : 'Processing...')}
-                  </Text>
-                  {loadingState.generationProgress > 0 && (
-                    <View style={styles.progressContainer}>
-                      <View style={styles.progressBar}>
-                        <View
+              <ScrollView
+                style={styles.storyBook}
+                contentContainerStyle={styles.storyBookContent}
+              >
+                {currentSession?.contributions &&
+                currentSession.contributions.length > 0 ? (
+                  currentSession.contributions.map((contribution, index) => (
+                    <View
+                      key={`${contribution.timestamp}-${index}`}
+                      style={styles.compactContributionContainer}
+                    >
+                      <View style={styles.compactContributionHeader}>
+                        <Text
                           style={[
-                            styles.progressFill,
-                            { width: `${loadingState.generationProgress}%` },
+                            styles.compactContributionLabel,
+                            contribution.type === 'ai'
+                              ? styles.aiLabel
+                              : styles.userLabel,
                           ]}
-                        />
+                        >
+                          {contribution.type === 'ai' ? '🤖' : '✍️'}
+                        </Text>
+                        <Text style={styles.compactWordCount}>
+                          {contribution.wordCount}w
+                        </Text>
                       </View>
-                      <Text style={styles.progressText}>
-                        {loadingState.generationProgress}%
+                      <Text
+                        style={[styles.storyText, styles.selectableText]}
+                        selectable={true}
+                      >
+                        {contribution.content}
                       </Text>
                     </View>
-                  )}
-                </View>
-              </View>
+                  ))
+                ) : (
+                  <Text
+                    style={[styles.storyText, styles.selectableText]}
+                    selectable={true}
+                  >
+                    {currentSession?.story_content || 'Loading story...'}
+                  </Text>
+                )}
+              </ScrollView>
+            </View>
+
+            {/* Image Generation Section */}
+            {showImageGeneration && currentSession && (
+              <ImageGeneration
+                storyContent={currentSession.story_content || ''}
+                sessionId={currentSession.id}
+                gradeLevel={gradeLevel}
+                wordCount={currentSession.sessionStats.userWords}
+                onImageGenerated={handleImageGenerated}
+                onError={handleImageGenerationError}
+                disabled={!isGameCompleted}
+              />
             )}
 
-            {generationError && (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorIcon}>⚠️</Text>
-                <View style={styles.errorTextContainer}>
-                  <Text style={styles.errorTitle}>
-                    {generationError.message}
-                  </Text>
-                  <Text style={styles.errorSuggestion}>
-                    {generationError.suggestion}
-                  </Text>
-                  {generationError.retryable && (
-                    <TouchableOpacity
-                      style={styles.retryButton}
-                      onPress={() => {
-                        setGenerationError(null);
-                        handleContinueStory();
-                      }}
-                    >
-                      <Text style={styles.retryButtonText}>Try Again</Text>
-                    </TouchableOpacity>
-                  )}
+            {/* Generated Image Display */}
+            {(() => {
+              const shouldShowImage =
+                (generatedImageUrl || currentSession?.generated_image_url) &&
+                currentSession;
+              console.log('🖼️ [DEBUG] Image display check:', {
+                generatedImageUrl: generatedImageUrl?.substring(0, 50) + '...',
+                sessionImageUrl:
+                  currentSession?.generated_image_url?.substring(0, 50) + '...',
+                hasCurrentSession: !!currentSession,
+                shouldShowImage,
+              });
+              return shouldShowImage;
+            })() ? (
+              <View style={styles.imageDisplayContainerOverlay}>
+                <StoryImageDisplay
+                  imageUrl={
+                    generatedImageUrl ||
+                    currentSession?.generated_image_url ||
+                    ''
+                  }
+                  storyTitle={`${
+                    currentSession?.story_content
+                      ?.split(' ')
+                      .slice(0, 6)
+                      .join(' ') || 'Your Story'
+                  }...`}
+                  sessionId={currentSession?.id || ''}
+                  showBackButton={true}
+                  displayMode="responsive"
+                  enableFullScreen={false}
+                  onBackToOptions={() => setShowCompletionOptions(true)}
+                  onImageSaved={localPath => {
+                    console.log('✅ [DEBUG] Image saved locally:', localPath);
+                    // Update session with local image path
+                    if (currentSession?.id) {
+                      storySessionManager.updateSessionWithLocalImage(
+                        currentSession.id,
+                        localPath,
+                      );
+                    }
+                  }}
+                  onError={error => {
+                    console.error('❌ [DEBUG] Image display error:', error);
+                    // Error is already handled gracefully by StoryImageDisplay component
+                  }}
+                />
+              </View>
+            ) : null}
+
+            {/* Back to Options Button - Show when game is completed but options are hidden, image generation is not active, and no generated image is displayed */}
+            {isGameCompleted &&
+              !showCompletionOptions &&
+              !showImageGeneration &&
+              !(generatedImageUrl || currentSession?.generated_image_url) && (
+                <View style={styles.backToOptionsContainer}>
+                  <TouchableOpacity
+                    style={styles.backToOptionsButton}
+                    onPress={() => setShowCompletionOptions(true)}
+                  >
+                    <Text style={styles.backToOptionsText}>
+                      ← Back to Options
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+            {/* User Input Section */}
+            <View style={styles.inputSection}>
+              <TextInput
+                testID="story-input"
+                style={styles.storyInput}
+                value={userInput}
+                onChangeText={text => {
+                  setUserInput(text);
+                  // Use debouncing for real-time validation and auto-generation
+                  if (inputDebouncer) {
+                    inputDebouncer.handleInput(text);
+                  }
+                }}
+                placeholder="Continue the story..."
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+              />
+
+              {/* Game Action Buttons */}
+              <View style={styles.gameButtonsContainer}>
+                <View style={styles.buttonRow}>
+                  {/* Read Story Button - Emoji Only */}
+                  {(() => {
+                    // Button is disabled if:
+                    // 1. No story content exists, OR
+                    // 2. No continuation exists (only starter, no AI response yet)
+                    const hasStoryContent =
+                      !!currentSession?.story_content?.trim();
+                    const hasContinuation =
+                      hasStoryContent &&
+                      (() => {
+                        // Check if there's at least one AI contribution (continuation)
+                        if (
+                          currentSession?.contributions &&
+                          currentSession.contributions.length > 0
+                        ) {
+                          return currentSession.contributions.some(
+                            c => c.type === 'ai',
+                          );
+                        }
+                        // Fallback: check if we can extract a continuation (more than just starter)
+                        const latestContinuation = extractLatestContinuation(
+                          currentSession?.story_content,
+                          currentSession,
+                        );
+                        return latestContinuation.trim().length > 0;
+                      })();
+
+                    // Button is always pressable when there's content, regardless of speaking state
+                    // This allows users to stop TTS even while it's speaking
+                    const canUseSpeaker = hasStoryContent && hasContinuation;
+                    // Only visually disable if there's no content - button should work when speaking to allow stopping
+                    const isVisuallyDisabled = !canUseSpeaker;
+
+                    if (__DEV__) {
+                      console.log('🔊 [DEBUG] Speaker button render:', {
+                        hasCurrentSession: !!currentSession,
+                        hasStoryContent,
+                        hasContinuation,
+                        storyContentLength:
+                          currentSession?.story_content?.length || 0,
+                        contributionsCount:
+                          currentSession?.contributions?.length || 0,
+                        ttsServiceAvailable,
+                        speakerButtonEnabled,
+                        canUseSpeaker,
+                        isVisuallyDisabled,
+                        speakerState,
+                      });
+                    }
+                    return (
+                      <TouchableOpacity
+                        testID="speaker-button"
+                        style={[
+                          styles.readStoryButton,
+                          isVisuallyDisabled && styles.disabledButton,
+                          // Show visual indication if TTS is unavailable but button is still enabled
+                          !isVisuallyDisabled &&
+                            ttsServiceAvailable === false &&
+                            styles.warningButton,
+                        ]}
+                        onPress={() => {
+                          if (__DEV__) {
+                            console.log(
+                              '🔊 [DEBUG] TouchableOpacity onPress triggered!',
+                              {
+                                hasCurrentSession: !!currentSession,
+                                hasStoryContent:
+                                  !!currentSession?.story_content,
+                                ttsServiceAvailable,
+                                speakerButtonEnabled,
+                                canUseSpeaker,
+                                isVisuallyDisabled,
+                              },
+                            );
+                          }
+                          // Only handle press if there's content to read
+                          if (!canUseSpeaker) {
+                            Alert.alert(
+                              'No Content',
+                              'No continuation found to read.',
+                              [{ text: 'OK' }],
+                            );
+                            return;
+                          }
+                          handleSpeakerButtonPress();
+                        }}
+                        onLongPress={() => {
+                          if (
+                            canUseSpeaker &&
+                            (speakerState === 'speaking' ||
+                              speakerState === 'paused')
+                          ) {
+                            handleSpeakerButtonLongPress();
+                          }
+                        }}
+                        disabled={!canUseSpeaker} // Only disable if no content, not for enabled state
+                        activeOpacity={isVisuallyDisabled ? 1 : 0.7}
+                        accessibilityLabel={
+                          ttsServiceAvailable === false
+                            ? 'Read story (disabled - TTS unavailable)'
+                            : !currentSession?.story_content
+                            ? 'Read story (disabled - no content)'
+                            : speakerState === 'idle'
+                            ? 'Read story'
+                            : speakerState === 'speaking' ||
+                              speakerState === 'starting'
+                            ? 'Stop story playback'
+                            : 'Resume story playback'
+                        }
+                        accessibilityHint={
+                          ttsServiceAvailable === false
+                            ? 'Text-to-speech is not available on this device. You can still read the story on screen.'
+                            : !currentSession?.story_content
+                            ? 'Story content is required to read'
+                            : speakerState === 'idle'
+                            ? 'Tap to start reading the latest story continuation'
+                            : speakerState === 'speaking' ||
+                              speakerState === 'starting'
+                            ? 'Tap to stop the story playback immediately'
+                            : 'Tap to resume the story playback'
+                        }
+                        accessibilityRole="button"
+                        accessibilityState={{
+                          disabled: !canUseSpeaker,
+                        }}
+                      >
+                        <Text style={styles.emojiButtonText}>
+                          {speakerState === 'idle' ? '🔊' : '⏹️'}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })()}
+
+                  {/* Voice Input Component */}
+                  <VoiceInput
+                    onSpeechResult={handleVoiceResult}
+                    isEnabled={voiceInputEnabled && !loadingState.isGenerating}
+                    onError={handleVoiceError}
+                    buttonText={{
+                      idle: '🎤',
+                      listening: '🔴',
+                      processing: '⏳',
+                    }}
+                    style={styles.speakButton}
+                  />
+
+                  {/* Exit Button */}
+                  <TouchableOpacity
+                    style={styles.exitButtonBottom}
+                    onPress={handleExitGame}
+                  >
+                    <Text style={styles.exitButtonText}>← Exit</Text>
+                  </TouchableOpacity>
+
+                  {/* Continue Story Button */}
+                  <TouchableOpacity
+                    testID="continue-story-button"
+                    style={[
+                      styles.continueStoryButton,
+                      (!userInput.trim() ||
+                        loadingState.isGenerating ||
+                        isGameCompleted) &&
+                        styles.disabledButton,
+                    ]}
+                    onPress={handleContinueStory}
+                    disabled={
+                      !userInput.trim() ||
+                      loadingState.isGenerating ||
+                      isGameCompleted
+                    }
+                  >
+                    {loadingState.isGenerating ? (
+                      <ActivityIndicator color="#ffffff" size="small" />
+                    ) : isGameCompleted ? (
+                      <Text style={styles.continueStoryButtonText}>
+                        Story Complete! 🎉
+                      </Text>
+                    ) : (
+                      <Text style={styles.continueStoryButtonText}>
+                        {currentRound >= MAX_ROUNDS
+                          ? 'Final Round →'
+                          : 'Continue Story →'}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
                 </View>
               </View>
-            )}
-          </View>
-        </View>
 
-        {/* Story Completion Options Screen - Full Screen Overlay */}
-        {showCompletionOptions && (
-          <View style={styles.completionModalOverlay}>
-            <ScrollView
-              style={styles.completionScrollView}
-              contentContainerStyle={styles.completionScrollContent}
-              showsVerticalScrollIndicator={false}
-            >
-              <View style={styles.completionOptionsContainer}>
-                <View style={styles.completionOptionsHeader}>
-                  <Text style={styles.completionTitle}>🎉 Story Complete!</Text>
-                  <Text style={styles.completionSubtitle}>
-                    Congratulations! You've completed your {MAX_ROUNDS}-round
-                    story adventure!
-                  </Text>
-                  <View style={styles.completionStats}>
-                    <Text style={styles.completionStat}>
-                      📝 Words Written:{' '}
-                      {currentSession?.sessionStats.userWords || 0}
+              {(loadingState.isValidating ||
+                loadingState.isSaving ||
+                loadingState.isGenerating) && (
+                <View style={styles.loadingIndicator}>
+                  <Animated.View
+                    style={{
+                      transform: [
+                        {
+                          rotate: spinValue.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: ['0deg', '360deg'],
+                          }),
+                        },
+                      ],
+                    }}
+                  >
+                    <Text style={styles.loadingSpinner}>⚡</Text>
+                  </Animated.View>
+                  <View style={styles.loadingTextContainer}>
+                    <Text style={styles.loadingText}>
+                      {loadingState.currentTask ||
+                        (loadingState.isValidating
+                          ? 'Validating content...'
+                          : loadingState.isSaving
+                          ? 'Saving...'
+                          : 'Processing...')}
                     </Text>
-                    <Text style={styles.completionStat}>
-                      🎯 Challenges Completed:{' '}
-                      {challengeProgress.filter(p => p.isCompleted).length}
-                    </Text>
-                    <Text style={styles.completionStat}>
-                      📚 Story Length:{' '}
-                      {currentSession?.story_content?.length || 0} characters
-                    </Text>
+                    {loadingState.generationProgress > 0 && (
+                      <View style={styles.progressContainer}>
+                        <View style={styles.progressBar}>
+                          <View
+                            style={[
+                              styles.progressFill,
+                              { width: `${loadingState.generationProgress}%` },
+                            ]}
+                          />
+                        </View>
+                        <Text style={styles.progressText}>
+                          {loadingState.generationProgress}%
+                        </Text>
+                      </View>
+                    )}
                   </View>
                 </View>
+              )}
 
-                <View style={styles.completionOptionsButtons}>
-                  <TouchableOpacity
-                    style={styles.completionOptionButton}
-                    onPress={handleViewStory}
-                  >
-                    <Text style={styles.completionOptionText}>
-                      📖 View Story
+              {generationError && (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorIcon}>⚠️</Text>
+                  <View style={styles.errorTextContainer}>
+                    <Text style={styles.errorTitle}>
+                      {generationError.message}
                     </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.completionOptionButton}
-                    onPress={() => {
-                      setShowCompletionOptions(false);
-                      handleDownloadStory();
-                    }}
-                  >
-                    <Text style={styles.completionOptionText}>
-                      ⬇️ Download Story
+                    <Text style={styles.errorSuggestion}>
+                      {generationError.suggestion}
                     </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.completionOptionButton}
-                    onPress={handleImageGeneration}
-                  >
-                    <Text style={styles.completionOptionText}>
-                      🎨 Generate Image
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.completionOptionButton,
-                      styles.secondaryOptionButton,
-                    ]}
-                    onPress={() => {
-                      exitGame();
-                      setTimeout(() => {
-                        handleStartNewGame();
-                      }, 500);
-                    }}
-                  >
-                    <Text style={styles.completionOptionText}>
-                      ✨ New Story
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.completionOptionButton,
-                      styles.exitOptionButton,
-                    ]}
-                    onPress={() => exitGame()}
-                  >
-                    <Text style={styles.completionOptionText}>
-                      🏠 Main Menu
-                    </Text>
-                  </TouchableOpacity>
+                    {generationError.retryable && (
+                      <TouchableOpacity
+                        style={styles.retryButton}
+                        onPress={() => {
+                          setGenerationError(null);
+                          handleContinueStory();
+                        }}
+                      >
+                        <Text style={styles.retryButtonText}>Try Again</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
+              )}
+            </View>
+
+            {/* Story Completion Options Screen - Full Screen Overlay */}
+            {showCompletionOptions && (
+              <View style={styles.completionModalOverlay}>
+                <ScrollView
+                  style={styles.completionScrollView}
+                  contentContainerStyle={styles.completionScrollContent}
+                  showsVerticalScrollIndicator={false}
+                >
+                  <View style={styles.completionOptionsContainer}>
+                    <View style={styles.completionOptionsHeader}>
+                      <Text style={styles.completionTitle}>
+                        🎉 Story Complete!
+                      </Text>
+                      <Text style={styles.completionSubtitle}>
+                        Congratulations! You've completed your {MAX_ROUNDS}
+                        -round story adventure!
+                      </Text>
+                      <View style={styles.completionStats}>
+                        <Text style={styles.completionStat}>
+                          📝 Words Written:{' '}
+                          {currentSession?.sessionStats.userWords || 0}
+                        </Text>
+                        <Text style={styles.completionStat}>
+                          🎯 Challenges Completed:{' '}
+                          {challengeProgress.filter(p => p.isCompleted).length}
+                        </Text>
+                        <Text style={styles.completionStat}>
+                          📚 Story Length:{' '}
+                          {currentSession?.story_content?.length || 0}{' '}
+                          characters
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.completionOptionsButtons}>
+                      <TouchableOpacity
+                        style={styles.completionOptionButton}
+                        onPress={handleViewStory}
+                      >
+                        <Text style={styles.completionOptionText}>
+                          📖 View Story
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.completionOptionButton}
+                        onPress={() => {
+                          setShowCompletionOptions(false);
+                          handleDownloadStory();
+                        }}
+                      >
+                        <Text style={styles.completionOptionText}>
+                          ⬇️ Download Story
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.completionOptionButton}
+                        onPress={handleImageGeneration}
+                      >
+                        <Text style={styles.completionOptionText}>
+                          🎨 Generate Image
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.completionOptionButton,
+                          styles.secondaryOptionButton,
+                        ]}
+                        onPress={() => {
+                          exitGame();
+                          setTimeout(() => {
+                            handleStartNewGame();
+                          }, 500);
+                        }}
+                      >
+                        <Text style={styles.completionOptionText}>
+                          ✨ New Story
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.completionOptionButton,
+                          styles.exitOptionButton,
+                        ]}
+                        onPress={() => exitGame()}
+                      >
+                        <Text style={styles.completionOptionText}>
+                          🏠 Main Menu
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </ScrollView>
               </View>
-            </ScrollView>
-          </View>
-        )}
+            )}
+          </Animated.View>
+        </ScrollView>
       </View>
     );
   }
@@ -2486,10 +2553,16 @@ const styles = StyleSheet.create({
     padding: 40,
     alignItems: 'center',
   },
+  gameScrollContainer: {
+    flex: 1,
+  },
+  gameScrollContent: {
+    flexGrow: 1,
+  },
   gameContainer: {
     padding: 8,
     paddingTop: 60, // Add top padding to avoid dynamic island
-    flex: 1,
+    minHeight: '100%',
   },
   welcomeSection: {
     marginBottom: 60,
