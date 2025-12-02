@@ -19,13 +19,20 @@ import {
   AppState,
   AccessibilityInfo,
 } from 'react-native';
+import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import Voice, {
   SpeechResultsEvent,
   SpeechErrorEvent,
   SpeechStartEvent,
   SpeechEndEvent,
 } from '@react-native-voice/voice';
+import DeviceInfo from 'react-native-device-info';
 import { theme } from '../../constants/theme';
+import { nativeSpeechRecognizer } from '../../services/nativeSpeechRecognizer';
+
+// Determine if we should use native iOS speech recognizer
+const useNativeIOSSpeechRecognizer =
+  Platform.OS === 'ios' && nativeSpeechRecognizer.isModuleAvailable();
 
 interface VoiceInputProps {
   onSpeechResult: (text: string) => void;
@@ -67,6 +74,9 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
     const pendingResultRef = useRef<string | null>(null);
     const partialResultCountRef = useRef<number>(0); // Track partial results to detect noise
     const lastPartialResultTimeRef = useRef<number>(0); // Track timing of partial results
+    const retryCountRef = useRef<number>(0); // Track retry attempts for retryable errors
+    const retryTimerRef = useRef<NodeJS.Timeout | null>(null); // Timer for automatic retries
+    const lastErrorTimeRef = useRef<number>(0); // Track when last error occurred to detect rapid failures
 
     // Check and request microphone permissions
     const checkPermissions = useCallback(async (): Promise<boolean> => {
@@ -168,17 +178,203 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
           console.error('Error checking microphone permissions:', error);
           return false;
         }
+      } else if (Platform.OS === 'ios') {
+        // iOS: Check microphone and speech recognition permissions
+        try {
+          // Check microphone permission
+          const micStatus = await check(PERMISSIONS.IOS.MICROPHONE);
+
+          if (micStatus === RESULTS.GRANTED) {
+            // Check speech recognition permission
+            const speechStatus = await check(
+              PERMISSIONS.IOS.SPEECH_RECOGNITION,
+            );
+
+            if (speechStatus === RESULTS.GRANTED) {
+              return true;
+            } else if (speechStatus === RESULTS.DENIED) {
+              // Request speech recognition permission
+              const requestResult = await request(
+                PERMISSIONS.IOS.SPEECH_RECOGNITION,
+              );
+              return requestResult === RESULTS.GRANTED;
+            } else {
+              // Blocked or unavailable
+              return false;
+            }
+          } else if (micStatus === RESULTS.DENIED) {
+            // Request microphone permission first
+            const micRequestResult = await request(PERMISSIONS.IOS.MICROPHONE);
+
+            if (micRequestResult === RESULTS.GRANTED) {
+              // Now request speech recognition
+              const speechRequestResult = await request(
+                PERMISSIONS.IOS.SPEECH_RECOGNITION,
+              );
+              return speechRequestResult === RESULTS.GRANTED;
+            }
+            return false;
+          } else {
+            // Blocked or unavailable
+            return false;
+          }
+        } catch (error) {
+          console.error('Error checking iOS permissions:', error);
+          return false;
+        }
       }
-      // iOS permissions are handled automatically by the system
-      // The system shows the permission dialog on first use
-      return true;
+      return false;
     }, []);
+
+    // Native iOS Speech Recognizer event unsubscribers
+    const nativeEventUnsubscribers = useRef<(() => void)[]>([]);
 
     // Initialize Voice listeners
     useEffect(() => {
       const initializeVoice = async () => {
+        console.log('🎤 [VoiceInput] Initializing voice recognition...');
+        console.log(
+          '🎤 [VoiceInput] Using native iOS recognizer:',
+          useNativeIOSSpeechRecognizer,
+        );
+
         try {
+          // iOS: Use native SFSpeechRecognizer
+          if (useNativeIOSSpeechRecognizer) {
+            console.log(
+              '🎤 [VoiceInput] Setting up native iOS speech recognizer...',
+            );
+
+            // Check if native module is available
+            const isAvailable = await nativeSpeechRecognizer.isAvailable();
+            console.log(
+              '🎤 [VoiceInput] Native iOS recognizer available:',
+              isAvailable,
+            );
+
+            if (!isAvailable) {
+              console.warn(
+                '⚠️ [VoiceInput] Native iOS speech recognizer not available',
+              );
+              setHasPermission(false);
+              onError?.('Speech recognition is not available on this device.');
+              return;
+            }
+
+            // Check/request permissions
+            const permissions = await nativeSpeechRecognizer.checkPermissions();
+            console.log('🎤 [VoiceInput] iOS permissions:', permissions);
+
+            if (!permissions.granted) {
+              // Request permissions
+              const requestedPermissions =
+                await nativeSpeechRecognizer.requestPermissions();
+              if (!requestedPermissions.granted) {
+                setHasPermission(false);
+                const errorMessage =
+                  'Microphone and speech recognition permissions are required for voice input.';
+                onError?.(errorMessage);
+                Alert.alert('Permission Required', errorMessage, [
+                  { text: 'OK' },
+                ]);
+                return;
+              }
+            }
+
+            setHasPermission(true);
+
+            // Set up native event listeners
+            const unsubResult = nativeSpeechRecognizer.onResult(event => {
+              console.log('🎤 [VoiceInput] Native iOS result:', event.text);
+              onSpeechResult(event.text);
+              setVoiceState('idle');
+              pendingResultRef.current = null;
+              lastPartialResultRef.current = null;
+
+              // Show success feedback
+              setShowSuccessFeedback(true);
+              setTimeout(() => setShowSuccessFeedback(false), 1500);
+
+              AccessibilityInfo.announceForAccessibility(
+                `Transcription complete. ${event.text.length} characters transcribed.`,
+              );
+            });
+
+            const unsubPartial = nativeSpeechRecognizer.onPartialResult(
+              event => {
+                console.log('🎤 [VoiceInput] Native iOS partial:', event.text);
+                lastPartialResultRef.current = event.text;
+                pendingResultRef.current = event.text;
+              },
+            );
+
+            const unsubError = nativeSpeechRecognizer.onError(event => {
+              console.error(
+                '❌ [VoiceInput] Native iOS error:',
+                event.code,
+                event.message,
+              );
+              setVoiceState('error');
+              onError?.(event.message);
+              setTimeout(() => setVoiceState('idle'), 3000);
+            });
+
+            const unsubState = nativeSpeechRecognizer.onStateChange(event => {
+              console.log(
+                '🎤 [VoiceInput] Native iOS state change:',
+                event.state,
+              );
+              if (event.state === 'listening') {
+                setVoiceState('listening');
+                AccessibilityInfo.announceForAccessibility(
+                  'Voice input started, listening',
+                );
+              } else if (event.state === 'processing') {
+                setVoiceState('processing');
+                AccessibilityInfo.announceForAccessibility(
+                  'Processing your speech',
+                );
+              } else if (event.state === 'idle') {
+                setVoiceState('idle');
+              }
+            });
+
+            nativeEventUnsubscribers.current = [
+              unsubResult,
+              unsubPartial,
+              unsubError,
+              unsubState,
+            ];
+            console.log(
+              '✅ [VoiceInput] Native iOS speech recognizer initialized',
+            );
+            return;
+          }
+
+          // Android/fallback: Use @react-native-voice/voice
+          // Check if Voice module is available
+          console.log('🎤 [VoiceInput] Checking Voice module availability...');
+          console.log(
+            '🎤 [VoiceInput] Voice object:',
+            Voice ? 'exists' : 'missing',
+          );
+          console.log('🎤 [VoiceInput] Voice.start type:', typeof Voice?.start);
+
+          if (!Voice || typeof Voice.start !== 'function') {
+            console.error('❌ [VoiceInput] Voice module is not available');
+            setHasPermission(false);
+            onError?.('Voice recognition is not available on this device.');
+            return;
+          }
+
+          console.log(
+            '✅ [VoiceInput] Voice module is available, checking permissions...',
+          );
           const permissionGranted = await checkPermissions();
+          console.log(
+            '🎤 [VoiceInput] Permission check result:',
+            permissionGranted,
+          );
           setHasPermission(permissionGranted);
 
           if (!permissionGranted) {
@@ -210,9 +406,10 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
             return;
           }
 
-          // Set up Voice event listeners
+          // Set up Voice event listeners (Android only now)
+          console.log('🎤 [VoiceInput] Setting up Voice event listeners...');
           Voice.onSpeechStart = (e: SpeechStartEvent) => {
-            console.log('Speech started:', e);
+            console.log('🎤 [VoiceInput] ✅ Speech started event received:', e);
             setVoiceState('listening');
             // Announce state change for screen readers
             AccessibilityInfo.announceForAccessibility(
@@ -221,7 +418,7 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
           };
 
           Voice.onSpeechEnd = (e: SpeechEndEvent) => {
-            console.log('Speech ended:', e);
+            console.log('🎤 [VoiceInput] Speech ended event received:', e);
             setVoiceState('processing');
             // Announce state change for screen readers
             AccessibilityInfo.announceForAccessibility(
@@ -230,82 +427,101 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
           };
 
           Voice.onSpeechResults = (e: SpeechResultsEvent) => {
-            console.log('Speech results:', e.value);
+            console.log(
+              '🎤 [VoiceInput] ✅ Speech results event received:',
+              e.value,
+            );
             // Clear silence timer when final results arrive
             if (silenceTimerRef.current) {
               clearTimeout(silenceTimerRef.current);
               silenceTimerRef.current = null;
             }
 
-            // Process results asynchronously to avoid blocking UI thread
-            requestAnimationFrame(() => {
-              if (e.value && e.value[0]) {
-                const speechText = e.value[0];
-                // Use final result (more accurate than partial)
-                // Show transcribed text even if it seems incomplete (handles noise)
-                onSpeechResult(speechText);
+            // Reset retry counter on successful speech results (actual success, not just Voice.start())
+            retryCountRef.current = 0;
+
+            // Process results - call callback immediately to ensure text appears
+            if (e.value && e.value[0]) {
+              const speechText = e.value[0];
+              console.log(
+                '✅ [VoiceInput] Final speech text received:',
+                speechText,
+              );
+              // Use final result (more accurate than partial)
+              // Call callback immediately to ensure text appears in input field
+              onSpeechResult(speechText);
+              setVoiceState('idle');
+              pendingResultRef.current = null;
+              lastPartialResultRef.current = null;
+              partialResultCountRef.current = 0;
+
+              // Show visual success feedback
+              setShowSuccessFeedback(true);
+              setTimeout(() => {
+                setShowSuccessFeedback(false);
+              }, 1500); // Show for 1.5 seconds
+
+              // Announce completion for screen readers (non-blocking)
+              AccessibilityInfo.announceForAccessibility(
+                `Transcription complete. ${speechText.length} characters transcribed. You can edit the text in the input field.`,
+              );
+            } else if (
+              pendingResultRef.current ||
+              lastPartialResultRef.current
+            ) {
+              // Fallback to partial result if final is empty
+              // This handles cases where noise prevents final results
+              const fallbackText =
+                pendingResultRef.current || lastPartialResultRef.current || '';
+              if (fallbackText.trim()) {
+                console.log('✅ Using fallback partial text:', fallbackText);
+                // Show incomplete transcription - user can edit to fix noise-related errors
+                onSpeechResult(fallbackText);
                 setVoiceState('idle');
                 pendingResultRef.current = null;
                 lastPartialResultRef.current = null;
                 partialResultCountRef.current = 0;
 
-                // Show visual success feedback
+                // Show visual success feedback (even if incomplete)
                 setShowSuccessFeedback(true);
                 setTimeout(() => {
                   setShowSuccessFeedback(false);
-                }, 1500); // Show for 1.5 seconds
+                }, 1500);
 
-                // Announce completion for screen readers (non-blocking)
-                AccessibilityInfo.announceForAccessibility(
-                  `Transcription complete. ${speechText.length} characters transcribed. You can edit the text in the input field.`,
-                );
-              } else if (
-                pendingResultRef.current ||
-                lastPartialResultRef.current
-              ) {
-                // Fallback to partial result if final is empty
-                // This handles cases where noise prevents final results
-                const fallbackText =
-                  pendingResultRef.current ||
-                  lastPartialResultRef.current ||
-                  '';
-                if (fallbackText.trim()) {
-                  // Show incomplete transcription - user can edit to fix noise-related errors
-                  onSpeechResult(fallbackText);
-                  setVoiceState('idle');
-                  pendingResultRef.current = null;
-                  lastPartialResultRef.current = null;
-                  partialResultCountRef.current = 0;
-
-                  // Show visual success feedback (even if incomplete)
-                  setShowSuccessFeedback(true);
-                  setTimeout(() => {
-                    setShowSuccessFeedback(false);
-                  }, 1500);
-
-                  // Hint that user can edit if needed
-                  if (showRecordingTips) {
-                    console.log(
-                      '💡 Tip: Transcription may be incomplete. You can edit it in the input field.',
-                    );
-                  }
-                  // Announce incomplete transcription for screen readers (non-blocking)
-                  AccessibilityInfo.announceForAccessibility(
-                    'Transcription may be incomplete. You can edit the text in the input field.',
+                // Hint that user can edit if needed
+                if (showRecordingTips) {
+                  console.log(
+                    '💡 Tip: Transcription may be incomplete. You can edit it in the input field.',
                   );
                 }
+                // Announce incomplete transcription for screen readers (non-blocking)
+                AccessibilityInfo.announceForAccessibility(
+                  'Transcription may be incomplete. You can edit the text in the input field.',
+                );
+              } else {
+                console.log('⚠️ No speech text available in results');
               }
-            });
+            } else {
+              console.log('⚠️ No speech results and no pending results');
+            }
           };
 
           Voice.onSpeechPartialResults = (e: SpeechResultsEvent) => {
             // Process partial results asynchronously to avoid blocking UI thread
             requestAnimationFrame(() => {
-              console.log('Partial results:', e.value);
+              console.log('🎤 [VoiceInput] Partial results received:', e.value);
               // Track partial results for silence detection and noise detection
               if (e.value && e.value[0]) {
                 const partialText = e.value[0];
                 const currentTime = Date.now();
+
+                // Reset retry counter on partial results - this indicates recognition is working
+                if (retryCountRef.current > 0) {
+                  console.log(
+                    '✅ Got partial results - recognition is working, resetting retry counter',
+                  );
+                  retryCountRef.current = 0;
+                }
 
                 // Calculate time since last result (before updating)
                 const previousTime =
@@ -346,29 +562,30 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
                     lastPartialResultRef.current ||
                     '';
                   if (finalText.trim()) {
-                    // Process asynchronously to avoid blocking
-                    requestAnimationFrame(() => {
-                      // Show transcribed text even if incomplete (handles noise-related issues)
-                      onSpeechResult(finalText);
-                      setVoiceState('idle');
-                      pendingResultRef.current = null;
-                      lastPartialResultRef.current = null;
-                      partialResultCountRef.current = 0;
+                    console.log(
+                      '✅ Silence detected, finalizing with text:',
+                      finalText,
+                    );
+                    // Call callback immediately to ensure text appears
+                    onSpeechResult(finalText);
+                    setVoiceState('idle');
+                    pendingResultRef.current = null;
+                    lastPartialResultRef.current = null;
+                    partialResultCountRef.current = 0;
 
-                      // Show visual success feedback
-                      setShowSuccessFeedback(true);
-                      setTimeout(() => {
-                        setShowSuccessFeedback(false);
-                      }, 1500);
+                    // Show visual success feedback
+                    setShowSuccessFeedback(true);
+                    setTimeout(() => {
+                      setShowSuccessFeedback(false);
+                    }, 1500);
 
-                      // If we detected potential noise, show a helpful hint
-                      if (isRapidUpdates && showRecordingTips) {
-                        // Subtle hint - user can edit the text if needed
-                        console.log(
-                          '💡 Tip: If transcription seems incorrect, you can edit it in the input field.',
-                        );
-                      }
-                    });
+                    // If we detected potential noise, show a helpful hint
+                    if (isRapidUpdates && showRecordingTips) {
+                      // Subtle hint - user can edit the text if needed
+                      console.log(
+                        '💡 Tip: If transcription seems incorrect, you can edit it in the input field.',
+                      );
+                    }
                   }
                   silenceTimerRef.current = null;
                 }, adaptiveTimeout);
@@ -376,26 +593,27 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
             });
           };
 
-          Voice.onSpeechError = (e: SpeechErrorEvent) => {
+          Voice.onSpeechError = async (e: SpeechErrorEvent) => {
             const errorCode = e.error?.code || '';
             const errorMessageText = e.error?.message?.toLowerCase() || '';
+            const errorMessageRaw = e.error?.message || '';
 
-            // Log error (but use console.log for expected errors like permission denied)
-            if (
-              errorMessageText.includes('denied') ||
-              errorMessageText.includes('permission')
-            ) {
-              console.log('⚠️ Speech recognition permission denied:', e.error);
-            } else {
-              console.error('Speech recognition error:', e.error);
-            }
-
-            setVoiceState('error');
+            // Log initial error info (use console.log to avoid spamming during retries)
+            console.log('🎤 [VoiceInput] Speech error event received:', {
+              code: errorCode,
+              message: errorMessageRaw,
+            });
 
             // Clear silence timer on error
             if (silenceTimerRef.current) {
               clearTimeout(silenceTimerRef.current);
               silenceTimerRef.current = null;
+            }
+
+            // Clear any pending retry timer
+            if (retryTimerRef.current) {
+              clearTimeout(retryTimerRef.current);
+              retryTimerRef.current = null;
             }
 
             // Check for permission errors FIRST and handle them gracefully
@@ -409,8 +627,15 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
               errorMessageText.includes('user denied');
 
             if (isPermissionError) {
+              console.log(
+                '⚠️ [VoiceInput] Speech recognition permission denied:',
+                e.error,
+              );
               // Update permission state
               setHasPermission(false);
+              // Reset retry count on permission error
+              retryCountRef.current = 0;
+              setVoiceState('error');
               // Don't call onError for permission errors - they're expected in simulator
               // Just reset state after a delay
               setTimeout(() => {
@@ -419,9 +644,199 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
               return; // Exit early to avoid duplicate alerts
             }
 
+            // Handle "already started" error gracefully
+            // This occurs when Voice.start() is called while recognition is already running
+            const isAlreadyStartedError =
+              errorMessageText.includes('already started') ||
+              errorMessageText.includes('already listening') ||
+              errorMessageText.includes('recognition is running');
+
+            if (isAlreadyStartedError) {
+              console.log(
+                '⚠️ [VoiceInput] Speech recognition already running, ignoring duplicate start',
+              );
+              // If we're already listening, just keep the current state
+              if (voiceState === 'listening') {
+                return; // Already listening, nothing to do
+              }
+              // If we're in a different state, try to cancel and reset
+              try {
+                await Voice.cancel();
+                await new Promise(resolve => setTimeout(resolve, 200));
+              } catch (cancelError) {
+                console.log(
+                  'Note: Voice.cancel() during already-started handling:',
+                  cancelError,
+                );
+              }
+              // Reset to idle and let user try again
+              setVoiceState('idle');
+              retryCountRef.current = 0;
+              return; // Exit early - not a real error
+            }
+
+            // Check for retryable errors (recognition_fail with 203/Retry or similar)
+            // Error 203 on iOS means "Speech recognition service temporarily unavailable"
+            let isRetryableError =
+              errorCode === 'recognition_fail' ||
+              errorMessageRaw.includes('203') ||
+              errorMessageRaw.includes('Retry') ||
+              (errorCode === 'recognition' &&
+                errorMessageText.includes('retry'));
+
+            // Maximum retry attempts (3 retries)
+            const MAX_RETRIES = 3;
+            const RETRY_DELAY = 1000; // 1 second delay between retries
+
+            // Detect rapid failures (errors happening very quickly after start)
+            // This might indicate the service is fundamentally broken (e.g., simulator issue)
+            const currentTime = Date.now();
+            const timeSinceLastError = currentTime - lastErrorTimeRef.current;
+            const isRapidFailure =
+              timeSinceLastError < 500 && lastErrorTimeRef.current > 0; // Error within 500ms of previous
+
+            // Check if we're in a simulator/emulator using DeviceInfo
+            let isEmulator = false;
+            try {
+              isEmulator = await DeviceInfo.isEmulator();
+            } catch {
+              // Fallback: assume not emulator if detection fails
+              isEmulator = false;
+            }
+
+            // Also consider rapid failures as simulator-like behavior
+            const isSimulatorLike =
+              isEmulator || (isRapidFailure && retryCountRef.current >= 1);
+
+            if (isSimulatorLike && errorCode === 'recognition_fail') {
+              // If we're in simulator/emulator or getting rapid failures, likely a fundamental issue
+              const reason = isEmulator
+                ? 'Simulator/Emulator limitation'
+                : 'service unavailable';
+              console.warn(
+                `⚠️ [VoiceInput] Speech recognition not available - ${reason}. Stopping retries.`,
+              );
+              retryCountRef.current = MAX_RETRIES; // Force stop retries
+              isRetryableError = false; // Treat as non-retryable
+
+              // Show helpful message for simulator/emulator
+              if (isEmulator) {
+                const errorMessage =
+                  'Voice recognition is not available in the Simulator/Emulator. Please test on a physical device to use voice input.';
+                setVoiceState('error');
+                onError?.(errorMessage);
+                setTimeout(() => {
+                  setVoiceState('idle');
+                }, 2000);
+                return; // Exit early
+              }
+            }
+
+            lastErrorTimeRef.current = currentTime;
+
+            if (isRetryableError && retryCountRef.current < MAX_RETRIES) {
+              // Increment retry counter BEFORE the retry attempt
+              retryCountRef.current += 1;
+
+              // Log as info during retries - not an error yet
+              console.log(
+                `🔄 [VoiceInput] Retrying voice recognition (attempt ${retryCountRef.current}/${MAX_RETRIES})...`,
+                `Reason: ${errorCode} - ${errorMessageRaw}`,
+              );
+
+              // Don't set error state during retries - stay in processing/listening mode
+              setVoiceState('processing');
+
+              // Automatically retry after a short delay
+              retryTimerRef.current = setTimeout(async () => {
+                try {
+                  // Check if we should still retry (permissions and enabled state)
+                  if (!hasPermission || !isEnabled) {
+                    console.log(
+                      '⚠️ Cannot retry: permissions or enabled state changed',
+                    );
+                    retryCountRef.current = 0; // Reset retry count
+                    setVoiceState('idle');
+                    return;
+                  }
+
+                  // Reset state to idle before retrying
+                  setVoiceState('idle');
+
+                  // Small delay to ensure state is reset and give the service time to recover
+                  await new Promise(resolve => setTimeout(resolve, 200));
+
+                  // Attempt to start listening again
+                  try {
+                    // Cancel any existing recognition first to avoid "already started" conflicts
+                    // Voice.cancel() is more robust than Voice.stop() as it immediately stops
+                    try {
+                      await Voice.cancel();
+                      await new Promise(resolve => setTimeout(resolve, 150));
+                    } catch (cancelError) {
+                      // Ignore cancel errors - might not be running
+                      console.log(
+                        'Note: Voice.cancel() during retry:',
+                        cancelError,
+                      );
+                    }
+
+                    await Voice.start(language);
+                    setVoiceState('listening');
+                    console.log(
+                      `✅ Retry ${retryCountRef.current}/${MAX_RETRIES} - Voice.start() succeeded, waiting for results...`,
+                    );
+                    // DO NOT reset retry count here - only reset on actual successful results
+                    // The retry count will be reset when we get speech results or when max retries is reached
+                  } catch (retryError) {
+                    // If retry fails, the error handler will be called again
+                    // which will either retry again (if under MAX_RETRIES) or show error
+                    console.warn(
+                      `⚠️ Retry ${retryCountRef.current}/${MAX_RETRIES} failed:`,
+                      retryError,
+                    );
+                    // The error will be handled by onSpeechError being called again
+                  }
+                } catch (retryError) {
+                  console.warn('⚠️ Error during retry:', retryError);
+                  // If retry completely fails, don't reset counter yet - let it try again
+                  setVoiceState('idle');
+                }
+              }, RETRY_DELAY);
+
+              // Don't show error message yet - wait for retries to complete
+              return;
+            }
+
+            // If we get here, either it's not retryable or retries are exhausted
+            // NOW we set the error state and log the error
+            setVoiceState('error');
+
+            // Reset retry counter if we've exhausted retries or it's not a retryable error
+            // But don't reset if we detected rapid failures (keep it at MAX_RETRIES to prevent further retries)
+            const shouldResetRetryCount =
+              !isRapidFailure &&
+              (!isRetryableError || retryCountRef.current >= MAX_RETRIES);
+
+            // Log final error (only after retries exhausted or non-retryable)
+            if (retryCountRef.current >= MAX_RETRIES) {
+              console.error(
+                '❌ [VoiceInput] Speech recognition failed after all retries:',
+                e.error,
+              );
+            } else if (!isRetryableError) {
+              console.error(
+                '❌ [VoiceInput] Non-retryable speech recognition error:',
+                e.error,
+              );
+            }
+
+            if (shouldResetRetryCount) {
+              retryCountRef.current = 0;
+            }
+
             // Map error types to user-friendly messages (for non-permission errors)
             let errorMessage = 'Voice recognition failed. Please try again.';
-            // let errorTitle = 'Voice Input Error'; // Not used, errorMessage is sufficient
 
             // Network errors
             if (
@@ -430,33 +845,44 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
               errorMessageText.includes('connection') ||
               errorMessageText.includes('timeout')
             ) {
-              // errorTitle = 'Network Error'; // Not used, errorMessage is sufficient
               errorMessage =
                 'Network error. Please check your connection and try again.';
             }
-            // Recognition errors
+            // Recognition errors (including recognition_fail)
             else if (
               errorCode === 'recognition' ||
+              errorCode === 'recognition_fail' ||
               errorMessageText.includes('recognition') ||
               errorMessageText.includes('not available') ||
               errorMessageText.includes('unavailable')
             ) {
-              // errorTitle = 'Recognition Error'; // Not used, errorMessage is sufficient
-              errorMessage =
-                'Voice recognition is not available. Please try again or type your input.';
+              if (isEmulator) {
+                errorMessage =
+                  'Voice recognition is not available in the Simulator/Emulator. Please test on a physical device to use voice input.';
+              } else if (isRapidFailure) {
+                errorMessage =
+                  'Voice recognition service is not available. Please check your internet connection and try again, or type your input.';
+              } else if (
+                retryCountRef.current >= MAX_RETRIES ||
+                (isRetryableError && shouldResetRetryCount)
+              ) {
+                errorMessage =
+                  'Voice recognition failed after multiple attempts. Please check your internet connection and try again, or type your input.';
+              } else {
+                errorMessage =
+                  'Voice recognition is not available. Please try again or type your input.';
+              }
             }
             // Audio errors
             else if (
               errorCode === 'audio' ||
               errorMessageText.includes('audio')
             ) {
-              // errorTitle = 'Audio Error'; // Not used, errorMessage is sufficient
               errorMessage =
                 'Audio recording error. Please check your microphone and try again.';
             }
             // Generic errors
             else {
-              // errorTitle = 'Voice Input Error'; // Not used, errorMessage is sufficient
               errorMessage =
                 'Something went wrong with voice recognition. Please try again or type your input.';
             }
@@ -477,10 +903,15 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
               });
               pendingResultRef.current = null;
               lastPartialResultRef.current = null;
+              retryCountRef.current = 0; // Reset retry count on final error
             }, 3000);
           };
+
+          console.log(
+            '✅ [VoiceInput] Voice event listeners initialized successfully',
+          );
         } catch (error) {
-          console.error('Error initializing voice:', error);
+          console.error('❌ [VoiceInput] Error initializing voice:', error);
           setHasPermission(false);
 
           const errorMessage =
@@ -497,6 +928,7 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
         }
       };
 
+      console.log('🎤 [VoiceInput] Calling initializeVoice()...');
       initializeVoice();
 
       // Re-check permissions when app comes to foreground (in case user enabled in settings)
@@ -525,30 +957,53 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
           silenceTimerRef.current = null;
         }
 
+        // Clear retry timer on unmount
+        if (retryTimerRef.current) {
+          clearTimeout(retryTimerRef.current);
+          retryTimerRef.current = null;
+        }
+
         // Clear success feedback timer if active
         setShowSuccessFeedback(false);
 
         // Remove app state subscription
         appStateSubscription.remove();
 
-        // Clean up Voice listeners and destroy instance
-        // Use async cleanup but don't block unmount
-        Voice.destroy()
-          .then(() => {
-            Voice.removeAllListeners();
-          })
-          .catch(error => {
-            console.warn('Error during Voice cleanup:', error);
-            // Still try to remove listeners even if destroy fails
-            Voice.removeAllListeners();
+        // Clean up native iOS listeners if using native module
+        if (useNativeIOSSpeechRecognizer) {
+          nativeEventUnsubscribers.current.forEach(unsub => {
+            try {
+              unsub();
+            } catch (error) {
+              // Ignore cleanup errors
+            }
           });
+          nativeEventUnsubscribers.current = [];
+          nativeSpeechRecognizer.removeAllListeners();
+        } else {
+          // Clean up Voice listeners and destroy instance (Android)
+          // Use async cleanup but don't block unmount
+          Voice.destroy()
+            .then(() => {
+              Voice.removeAllListeners();
+            })
+            .catch(error => {
+              console.warn('Error during Voice cleanup:', error);
+              // Still try to remove listeners even if destroy fails
+              Voice.removeAllListeners();
+            });
+        }
 
         // Clear all refs to prevent memory leaks
         pendingResultRef.current = null;
         lastPartialResultRef.current = null;
         partialResultCountRef.current = 0;
         lastPartialResultTimeRef.current = 0;
+        retryCountRef.current = 0;
+        lastErrorTimeRef.current = 0;
       };
+      // voiceState is intentionally omitted - it's set inside the effect, not used as input
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
       checkPermissions,
       onError,
@@ -556,36 +1011,125 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
       silenceTimeout,
       hasPermission,
       showRecordingTips,
+      isEnabled,
+      language,
     ]);
 
     const startListening = useCallback(async () => {
+      console.log('🎤 [VoiceInput] startListening called', {
+        isEnabled,
+        hasPermission,
+        voiceState,
+      });
+
       if (!isEnabled || !hasPermission || voiceState !== 'idle') {
+        console.log('🎤 [VoiceInput] ⚠️ Cannot start listening:', {
+          isEnabled,
+          hasPermission,
+          voiceState,
+        });
         return;
       }
 
-      // Check if Voice service is available
+      // Prevent multiple simultaneous start attempts
+      if (voiceState === 'listening' || voiceState === 'processing') {
+        console.log('🎤 [VoiceInput] ⚠️ Already listening or processing');
+        return;
+      }
+
       try {
-        // Voice service availability is checked by attempting to start
-        // If Voice module is not available, the error will be caught below
-      } catch (error) {
-        console.error('Voice service not available:', error);
-        const errorMessage =
-          'Speech recognition is not available on this device. You can still type your input.';
-        onError?.(errorMessage);
-        Alert.alert(
-          'Speech Recognition Unavailable',
-          errorMessage,
-          [{ text: 'OK' }],
-          { cancelable: true },
+        console.log('🎤 [VoiceInput] Starting voice recognition...');
+        // Reset retry count and error tracking when starting a new listening session
+        retryCountRef.current = 0;
+        lastErrorTimeRef.current = 0;
+
+        // Clear any pending retry timer
+        if (retryTimerRef.current) {
+          clearTimeout(retryTimerRef.current);
+          retryTimerRef.current = null;
+        }
+
+        // iOS: Use native SFSpeechRecognizer
+        if (useNativeIOSSpeechRecognizer) {
+          console.log('🎤 [VoiceInput] Using native iOS speech recognizer...');
+          setVoiceState('listening');
+          try {
+            await nativeSpeechRecognizer.startDictation(language);
+            console.log('✅ [VoiceInput] Native iOS dictation started');
+          } catch (nativeError: any) {
+            console.error(
+              '❌ [VoiceInput] Native iOS dictation error:',
+              nativeError,
+            );
+            setVoiceState('idle');
+            throw nativeError;
+          }
+          return;
+        }
+
+        // Android: Use @react-native-voice/voice
+        // Add defensive check to ensure Voice module is available
+        if (!Voice || typeof Voice.start !== 'function') {
+          console.error(
+            '❌ [VoiceInput] Voice module not available in startListening',
+          );
+          throw new Error('Voice recognition module is not available');
+        }
+
+        console.log(
+          '🎤 [VoiceInput] Setting state to listening and calling Voice.start()...',
         );
-        return;
-      }
 
-      try {
+        // Cancel any existing recognition to prevent "already started" errors
+        // This handles edge cases where state is out of sync with native module
+        try {
+          await Voice.cancel();
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (cancelError) {
+          // Ignore cancel errors - might not be running
+          console.log('Note: Voice.cancel() before start:', cancelError);
+        }
+
         setVoiceState('listening');
         // Start voice recognition asynchronously to avoid blocking UI
-        await Voice.start(language);
-      } catch (error) {
+        // Wrap in try-catch to handle native crashes gracefully
+        try {
+          console.log(
+            '🎤 [VoiceInput] Calling Voice.start() with language:',
+            language,
+          );
+          await Voice.start(language);
+          console.log('✅ [VoiceInput] Voice.start() completed successfully');
+        } catch (voiceError: any) {
+          console.error(
+            '❌ [VoiceInput] Voice.start() threw error:',
+            voiceError,
+          );
+          console.error('Voice.start() error:', voiceError);
+          // Reset state immediately to prevent UI lock
+          setVoiceState('idle');
+
+          // Check for specific error types
+          const errorMessage = voiceError?.message || String(voiceError);
+          if (
+            errorMessage.includes('permission') ||
+            errorMessage.includes('Permission')
+          ) {
+            throw new Error(
+              'Microphone or speech recognition permission is required',
+            );
+          } else if (
+            errorMessage.includes('not available') ||
+            errorMessage.includes('unavailable')
+          ) {
+            throw new Error(
+              'Speech recognition is not available on this device',
+            );
+          } else {
+            throw voiceError;
+          }
+        }
+      } catch (error: any) {
         console.error('Error starting voice recognition:', error);
         setVoiceState('error');
 
@@ -636,6 +1180,35 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
           silenceTimerRef.current = null;
         }
 
+        // iOS: Use native SFSpeechRecognizer
+        if (useNativeIOSSpeechRecognizer) {
+          console.log('🎤 [VoiceInput] Stopping native iOS dictation...');
+          setVoiceState('processing');
+          await nativeSpeechRecognizer.stopDictation();
+          // Native module will send final result via event
+          // If we have pending partial results, use them as fallback
+          const finalText =
+            pendingResultRef.current || lastPartialResultRef.current || '';
+          if (finalText.trim()) {
+            console.log('✅ iOS Manual stop, using partial text:', finalText);
+            setTimeout(() => {
+              onSpeechResult(finalText);
+              setVoiceState('idle');
+              pendingResultRef.current = null;
+              lastPartialResultRef.current = null;
+              setShowSuccessFeedback(true);
+              setTimeout(() => setShowSuccessFeedback(false), 1500);
+            }, 100);
+          }
+          return;
+        }
+
+        // Android: Use @react-native-voice/voice
+        // Add defensive check to ensure Voice module is available
+        if (!Voice || typeof Voice.stop !== 'function') {
+          throw new Error('Voice recognition module is not available');
+        }
+
         await Voice.stop();
         setVoiceState('processing');
 
@@ -644,7 +1217,8 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
         const finalText =
           pendingResultRef.current || lastPartialResultRef.current || '';
         if (finalText.trim()) {
-          // Small delay to ensure Voice.stop() completes
+          console.log('✅ Manual stop, using text:', finalText);
+          // Small delay to ensure Voice.stop() completes, then call callback
           setTimeout(() => {
             // Show transcribed text even if incomplete - user can edit to fix noise-related errors
             onSpeechResult(finalText);
@@ -660,6 +1234,7 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
             }, 1500);
           }, 100);
         } else {
+          console.log('⚠️ Manual stop but no text available');
           setVoiceState('idle');
           partialResultCountRef.current = 0;
         }
@@ -728,7 +1303,14 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
     }, [voiceState, isEnabled, hasPermission, showSuccessFeedback, style]);
 
     const handlePress = async () => {
+      console.log('🎤 [VoiceInput] Button pressed!', {
+        isEnabled,
+        hasPermission,
+        voiceState,
+      });
+
       if (!isEnabled) {
+        console.log('🎤 [VoiceInput] ⚠️ Voice input is disabled');
         Alert.alert(
           'Voice Input Disabled',
           'Voice input is disabled in your profile settings. You can enable it in Settings or continue typing your story contributions.',
@@ -752,6 +1334,7 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
       }
 
       if (hasPermission === false) {
+        console.log('🎤 [VoiceInput] ⚠️ Permission denied');
         // Permission was denied - offer to open settings
         Alert.alert(
           'Microphone Permission Required',
@@ -786,15 +1369,23 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
 
       switch (voiceState) {
         case 'idle':
+          console.log(
+            '🎤 [VoiceInput] State is idle, calling startListening()...',
+          );
           startListening();
           break;
         case 'listening':
+          console.log(
+            '🎤 [VoiceInput] State is listening, calling stopListening()...',
+          );
           stopListening();
           break;
         case 'processing':
+          console.log('🎤 [VoiceInput] State is processing, cannot interrupt');
           // Cannot interrupt processing
           break;
         case 'error':
+          console.log('🎤 [VoiceInput] State is error, resetting to idle');
           setVoiceState('idle');
           break;
       }
