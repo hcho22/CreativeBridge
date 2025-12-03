@@ -81,4 +81,5 @@ yarn-error.log
 
 # iOS Pods
 ios/Pods/
-Podfile.lock
+# Note: Podfile.lock should be committed for reproducible builds
+# Podfile.lock

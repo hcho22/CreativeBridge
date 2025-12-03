@@ -2,26 +2,28 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
-	<string>en</string>
-	<key>CFBundleDisplayName</key>
-	<string>CreativeBridge</string>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.yourcompany.creativebridge</string>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>CreativeBridge</string>
+	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
-	<string>APPL</string>
+	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0.0</string>
+	<string>1.0</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleVersion</key>
-	<string>1.0.0</string>
+	<string>3</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>12.0</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>
@@ -30,45 +32,11 @@
 		<false/>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
-		<key>NSExceptionDomains</key>
-		<dict>
-			<key>story-quest.onrender.com</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-				<key>NSExceptionMinimumTLSVersion</key>
-				<string>TLSv1.0</string>
-			</dict>
-			<key>your-backend-domain.com</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-			</dict>
-		</dict>
 	</dict>
-	<key>NSCameraUsageDescription</key>
-	<string>CreativeBridge needs camera access to add photos to your stories.</string>
-	<key>NSDocumentsFolderUsageDescription</key>
-	<string>CreativeBridge needs access to save your completed stories as text files to your device.</string>
-	<key>NSDownloadsFolderUsageDescription</key>
-	<string>CreativeBridge needs access to save your completed stories to the Downloads folder.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string></string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>CreativeBridge needs access to your microphone to enable voice input for stories.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>CreativeBridge needs photo library access to let you choose images for your stories.</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>CreativeBridge uses speech recognition to convert your voice into text for story creation.</string>
 	<key>RCTNewArchEnabled</key>
-	<false/>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>audio</string>
-		<string>background-processing</string>
-	</array>
+	<true/>
 	<key>UILaunchStoryboardName</key>
-	<string>LaunchScreen</string>
+	<string>SplashScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>arm64</string>
@@ -78,16 +46,26 @@
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
-	</array>
-	<key>UISupportedInterfaceOrientations~ipad</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>CreativeBridge needs access to your microphone to enable voice input for stories. This allows you to speak your story contributions instead of typing.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>CreativeBridge needs access to speech recognition to transcribe your voice input into text for story contributions.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>CreativeBridge needs access to your local network to connect to the development server for hot reloading during development.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>CreativeBridge needs access to your photo library to allow you to select images for your stories.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>CreativeBridge needs permission to save generated story images to your photo library.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>CreativeBridge needs access to your camera to allow you to take photos for your stories.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 </dict>
 </plist>

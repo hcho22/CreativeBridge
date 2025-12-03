@@ -1,9 +1,47 @@
 {
-  "name": "CreativeBridge",
-  "displayName": "CreativeBridge",
-  "extra": {
-    "eas": {
-      "projectId": "3212248a-37c8-4ca7-b054-bac5b7730c35"
-    }
+  "expo": {
+    "name": "CreativeBridge",
+    "slug": "creativebridge",
+    "version": "0.0.1",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#4CAF50"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "org.name.CreativeBridge",
+      "buildNumber": "3"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#4CAF50"
+      },
+      "package": "com.creativebridge",
+      "versionCode": 1
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-dev-client"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "3212248a-37c8-4ca7-b054-bac5b7730c35"
+      }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/3212248a-37c8-4ca7-b054-bac5b7730c35"
+    },
+    "runtimeVersion": "0.0.1",
+    "owner": "hcho22"
   }
 }
