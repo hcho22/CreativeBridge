@@ -782,41 +782,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     }
   }, [speakerState]);
 
-  const checkForExistingSession = useCallback(async () => {
-    try {
-      // Check for existing session and load it if available
-      const existingSession = await storySessionManager.getCurrentSession();
-      if (existingSession && !existingSession.isCompleted) {
-        console.log('Loading existing session:', existingSession.id);
-        setCurrentSession(existingSession);
-        setIsGameActive(true);
-        setCurrentRound(existingSession.sessionStats.contributionCount + 1);
-
-        // Check if session has a generated image
-        if (existingSession.generated_image_url) {
-          setGeneratedImageUrl(existingSession.generated_image_url);
-          console.log(
-            'Loaded existing image:',
-            existingSession.generated_image_url,
-          );
-        }
-
-        // Set completion state if needed
-        if (existingSession.sessionStats.contributionCount >= MAX_ROUNDS) {
-          setIsGameCompleted(true);
-        }
-      }
-    } catch (error) {
-      console.error('Error checking for existing session:', error);
-    }
-  }, []);
-
-  // Clear any existing session on component mount
-  useEffect(() => {
-    if (user) {
-      checkForExistingSession();
-    }
-  }, [user, checkForExistingSession]);
+  // Removed automatic session restoration - app should always start from home screen
+  // Users can manually continue their story via the "Continue Story" button if needed
+  // The checkForExistingSession function was removed as it's no longer needed
 
   // Challenge system functions
   const selectNewChallenge = useCallback(() => {

@@ -46,6 +46,7 @@ const HomeStack = createStackNavigator<HomeStackParamList>();
 const HomeStackNavigator: React.FC = () => {
   return (
     <HomeStack.Navigator
+      initialRouteName="Home"
       screenOptions={{
         headerStyle: {
           backgroundColor: '#f0f2f5',

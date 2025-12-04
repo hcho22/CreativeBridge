@@ -30,7 +30,7 @@ export const ImportOptionsScreen: React.FC<ImportOptionsScreenProps> = ({
   navigation,
   onFileImport,
   onStoryLibraryImport,
-  onBack,
+  onBack: _onBack,
 }) => {
   const nav = useNavigation<ImportOptionsNavigationProp>();
   const activeNavigation = navigation || nav;
@@ -109,33 +109,11 @@ export const ImportOptionsScreen: React.FC<ImportOptionsScreenProps> = ({
     }
   };
 
-  const handleBack = () => {
-    if (onBack) {
-      onBack();
-    } else if (activeNavigation.canGoBack()) {
-      activeNavigation.goBack();
-    } else {
-      // Fallback navigation to Home
-      try {
-        activeNavigation.navigate('Home');
-      } catch (error) {
-        console.warn('Navigation back not available:', error);
-      }
-    }
-  };
+  // Removed handleBack function - back button was removed from the header
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
-
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-          <Text style={styles.backButtonText}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Continue Your Story</Text>
-        <View style={styles.headerSpacer} />
-      </View>
 
       {/* Main Content */}
       <View style={styles.content}>
@@ -199,8 +177,7 @@ export const ImportOptionsScreen: React.FC<ImportOptionsScreenProps> = ({
             <View style={styles.optionContent}>
               <Text style={styles.optionTitle}>My Stories</Text>
               <Text style={styles.optionDescription}>
-                Continue from your previously created stories in CreativeBridge
-                or Story_Quest.
+                Continue from your previously created stories in CreativeBridge.
               </Text>
               <View style={styles.optionFeatures}>
                 <Text style={styles.featureText}>
@@ -218,24 +195,6 @@ export const ImportOptionsScreen: React.FC<ImportOptionsScreenProps> = ({
               <Text style={styles.arrowText}>→</Text>
             </View>
           </TouchableOpacity>
-        </View>
-
-        {/* Help Section */}
-        <View style={styles.helpSection}>
-          <View style={styles.helpHeader}>
-            <Text style={styles.helpTitle}>Need Help?</Text>
-            <TouchableOpacity
-              onPress={FilePickerUtils.showFileImportHelp}
-              style={styles.helpButton}
-            >
-              <Text style={styles.helpButtonText}>ℹ️</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.helpText}>
-            Not sure which option to choose? Use "Import from File" if you have
-            a story saved as a text file, or "My Stories" to continue from
-            stories you've already created in this app.
-          </Text>
         </View>
       </View>
     </SafeAreaView>
@@ -371,38 +330,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#007AFF',
     fontWeight: '600',
-  },
-  helpSection: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 20,
-    borderLeftWidth: 4,
-    borderLeftColor: '#007AFF',
-  },
-  helpHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  helpTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  helpButton: {
-    padding: 4,
-    borderRadius: 12,
-    backgroundColor: '#f0f8ff',
-  },
-  helpButtonText: {
-    fontSize: 16,
-  },
-  helpText: {
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
   },
 });
 
