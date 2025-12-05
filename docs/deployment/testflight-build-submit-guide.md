@@ -75,14 +75,14 @@ Verify the bundle identifier is consistent across all configuration files:
 ```bash
 # Check app.json
 cat app.json | grep bundleIdentifier
-# Should show: "bundleIdentifier": "com.hcho22.creativebridge"
+# Should show: "bundleIdentifier": "org.name.CreativeBridge"
 
 # Check Xcode project (Debug and Release)
 grep PRODUCT_BUNDLE_IDENTIFIER ios/CreativeBridge.xcodeproj/project.pbxproj
-# Should show: PRODUCT_BUNDLE_IDENTIFIER = com.hcho22.creativebridge;
+# Should show: PRODUCT_BUNDLE_IDENTIFIER = org.name.CreativeBridge;
 ```
 
-**Expected Value**: `com.hcho22.creativebridge`
+**Expected Value**: `org.name.CreativeBridge`
 
 ### 2. Version and Build Number
 
@@ -132,7 +132,7 @@ Verify the app exists in App Store Connect:
 
 1. Go to [App Store Connect](https://appstoreconnect.apple.com)
 2. Navigate to **My Apps**
-3. Confirm **CreativeBridge** app exists with Bundle ID: `com.hcho22.creativebridge`
+3. Confirm **CreativeBridge** app exists with Bundle ID: `org.name.CreativeBridge`
 4. **Important**: If you see "CreativeBridge (67212d)" or any duplicate, use the original "CreativeBridge" app
 
 ### 6. Apple Developer Credentials
@@ -390,7 +390,7 @@ In TestFlight, verify:
 - **Version**: Matches your expected version
 - **Build Number**: Incremented correctly
 - **Status**: Should show "Processing" initially, then "Ready to Test"
-- **Bundle ID**: `com.hcho22.creativebridge`
+- **Bundle ID**: `org.name.CreativeBridge`
 
 ### Step 3: Processing Time
 
@@ -480,7 +480,7 @@ eas submit --platform ios --profile production --latest --wait --verbose
 
 **Solution**:
 
-1. Verify bundle identifier in `app.json`: `com.hcho22.creativebridge`
+1. Verify bundle identifier in `app.json`: `org.name.CreativeBridge`
 2. Check App Store Connect for the correct app (use "CreativeBridge", not "CreativeBridge (67212d)")
 3. Ensure you're using the same Apple Developer account
 
@@ -617,7 +617,7 @@ npm run eas:submit:testflight     # Submit with retry logic
 
 ### Key Identifiers
 
-- **Bundle ID**: `com.hcho22.creativebridge`
+- **Bundle ID**: `org.name.CreativeBridge`
 - **EAS Project ID**: `3212248a-37c8-4ca7-b054-bac5b7730c35`
 - **App Name**: CreativeBridge
 - **Owner**: hcho22
@@ -683,4 +683,4 @@ After submission, check App Store Connect:
 
 _Last Updated: December 2024_
 _Project: CreativeBridge_
-_Bundle ID: com.hcho22.creativebridge_
+_Bundle ID: org.name.CreativeBridge_

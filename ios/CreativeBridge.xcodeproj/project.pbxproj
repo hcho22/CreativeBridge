@@ -8,13 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		19A564AEDC114EDA18C43DB2 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62EEE89C3B12FA2BB546FEAA /* ExpoModulesProvider.swift */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		5A412460F30C8EAD7FE30B73 /* libPods-CreativeBridge.a in Frameworks */ = {isa = PBXBuildFile; fileRef = D87AA702215E0A12A2FC4384 /* libPods-CreativeBridge.a */; };
-		5DD0C72BA86B2A4DD4591D2B /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F84BD376927780AAA31C7252 /* ExpoModulesProvider.swift */; };
-		714D05990B62750F791B8AF1 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = DC2FC34ADCDAA29AA37DAAEA /* PrivacyInfo.xcprivacy */; };
-		A1B2C3D4E5F6A7B8C9D0E1F2 /* SpeechRecognizerModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F3 /* SpeechRecognizerModule.swift */; };
-		A1B2C3D4E5F6A7B8C9D0E1F4 /* SpeechRecognizerModule.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F5 /* SpeechRecognizerModule.m */; };
-		A1B2C3D4E5F6A7B8C9D0E1F6 /* Speech.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F7 /* Speech.framework */; };
+		7A65B9C5C60356321C117301 /* libPods-CreativeBridge.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 9B0B9157C198FBB2C1BE8C85 /* libPods-CreativeBridge.a */; };
+		B6DE00F5EE01D4F1413D53C9 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 8ECE788EEE17CED3CF858F5E /* PrivacyInfo.xcprivacy */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
@@ -23,19 +20,16 @@
 		13B07F961A680F5B00A75B9A /* CreativeBridge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CreativeBridge.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = CreativeBridge/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = CreativeBridge/Info.plist; sourceTree = "<group>"; };
-		49580E9B09342A37ABB694DD /* Pods-CreativeBridge.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CreativeBridge.release.xcconfig"; path = "Target Support Files/Pods-CreativeBridge/Pods-CreativeBridge.release.xcconfig"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6A7B8C9D0E1F3 /* SpeechRecognizerModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SpeechRecognizerModule.swift; path = CreativeBridge/SpeechRecognizerModule.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6A7B8C9D0E1F5 /* SpeechRecognizerModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = SpeechRecognizerModule.m; path = CreativeBridge/SpeechRecognizerModule.m; sourceTree = "<group>"; };
-		A1B2C3D4E5F6A7B8C9D0E1F7 /* Speech.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Speech.framework; path = System/Library/Frameworks/Speech.framework; sourceTree = SDKROOT; };
+		306989DDC74F8C1A6DB09B00 /* Pods-CreativeBridge.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CreativeBridge.debug.xcconfig"; path = "Target Support Files/Pods-CreativeBridge/Pods-CreativeBridge.debug.xcconfig"; sourceTree = "<group>"; };
+		62EEE89C3B12FA2BB546FEAA /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-CreativeBridge/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		812BB8923863759C25E510E3 /* Pods-CreativeBridge.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CreativeBridge.release.xcconfig"; path = "Target Support Files/Pods-CreativeBridge/Pods-CreativeBridge.release.xcconfig"; sourceTree = "<group>"; };
+		8ECE788EEE17CED3CF858F5E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = CreativeBridge/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		9B0B9157C198FBB2C1BE8C85 /* libPods-CreativeBridge.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-CreativeBridge.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = CreativeBridge/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		D7DABB68EFCD88DA7D69B823 /* Pods-CreativeBridge.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CreativeBridge.debug.xcconfig"; path = "Target Support Files/Pods-CreativeBridge/Pods-CreativeBridge.debug.xcconfig"; sourceTree = "<group>"; };
-		D87AA702215E0A12A2FC4384 /* libPods-CreativeBridge.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-CreativeBridge.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		DC2FC34ADCDAA29AA37DAAEA /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = CreativeBridge/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = CreativeBridge/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* CreativeBridge-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "CreativeBridge-Bridging-Header.h"; path = "CreativeBridge/CreativeBridge-Bridging-Header.h"; sourceTree = "<group>"; };
-		F84BD376927780AAA31C7252 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-CreativeBridge/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -43,8 +37,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				5A412460F30C8EAD7FE30B73 /* libPods-CreativeBridge.a in Frameworks */,
-				A1B2C3D4E5F6A7B8C9D0E1F6 /* Speech.framework in Frameworks */,
+				7A65B9C5C60356321C117301 /* libPods-CreativeBridge.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -56,13 +49,11 @@
 			children = (
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
 				F11748442D0722820044C1D9 /* CreativeBridge-Bridging-Header.h */,
-				A1B2C3D4E5F6A7B8C9D0E1F3 /* SpeechRecognizerModule.swift */,
-				A1B2C3D4E5F6A7B8C9D0E1F5 /* SpeechRecognizerModule.m */,
 				BB2F792B24A3F905000567C9 /* Supporting */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				DC2FC34ADCDAA29AA37DAAEA /* PrivacyInfo.xcprivacy */,
+				8ECE788EEE17CED3CF858F5E /* PrivacyInfo.xcprivacy */,
 			);
 			name = CreativeBridge;
 			sourceTree = "<group>";
@@ -71,27 +62,25 @@
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				D87AA702215E0A12A2FC4384 /* libPods-CreativeBridge.a */,
-				A1B2C3D4E5F6A7B8C9D0E1F7 /* Speech.framework */,
+				9B0B9157C198FBB2C1BE8C85 /* libPods-CreativeBridge.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		40485E30CECCB8DA6EC409A1 /* Pods */ = {
+		3BD25A27911F77300DEBD66B /* ExpoModulesProviders */ = {
 			isa = PBXGroup;
 			children = (
-				D7DABB68EFCD88DA7D69B823 /* Pods-CreativeBridge.debug.xcconfig */,
-				49580E9B09342A37ABB694DD /* Pods-CreativeBridge.release.xcconfig */,
-			);
-			path = Pods;
-			sourceTree = "<group>";
-		};
-		6E2E2853928171F94E0FC393 /* ExpoModulesProviders */ = {
-			isa = PBXGroup;
-			children = (
-				F259ED79C2501FA0214D1971 /* CreativeBridge */,
+				74E1C225BDFE12B60404701B /* CreativeBridge */,
 			);
 			name = ExpoModulesProviders;
+			sourceTree = "<group>";
+		};
+		74E1C225BDFE12B60404701B /* CreativeBridge */ = {
+			isa = PBXGroup;
+			children = (
+				62EEE89C3B12FA2BB546FEAA /* ExpoModulesProvider.swift */,
+			);
+			name = CreativeBridge;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -108,8 +97,8 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				40485E30CECCB8DA6EC409A1 /* Pods */,
-				6E2E2853928171F94E0FC393 /* ExpoModulesProviders */,
+				F832304A9C2BA72E553019EB /* Pods */,
+				3BD25A27911F77300DEBD66B /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -133,12 +122,14 @@
 			path = CreativeBridge/Supporting;
 			sourceTree = "<group>";
 		};
-		F259ED79C2501FA0214D1971 /* CreativeBridge */ = {
+		F832304A9C2BA72E553019EB /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				F84BD376927780AAA31C7252 /* ExpoModulesProvider.swift */,
+				306989DDC74F8C1A6DB09B00 /* Pods-CreativeBridge.debug.xcconfig */,
+				812BB8923863759C25E510E3 /* Pods-CreativeBridge.release.xcconfig */,
 			);
-			name = CreativeBridge;
+			name = Pods;
+			path = Pods;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -149,13 +140,13 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "CreativeBridge" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				50E22F86A6C3A1EA44F1DC9D /* [Expo] Configure project */,
+				539793DA48142EAA3590ACA1 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				43265C5FE4E48F8384ED15F8 /* [CP] Embed Pods Frameworks */,
+				35A7DE22680787AD40AA27A7 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -205,7 +196,7 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				714D05990B62750F791B8AF1 /* PrivacyInfo.xcprivacy in Resources */,
+				B6DE00F5EE01D4F1413D53C9 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -251,7 +242,7 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		43265C5FE4E48F8384ED15F8 /* [CP] Embed Pods Frameworks */ = {
+		35A7DE22680787AD40AA27A7 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -273,7 +264,7 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-CreativeBridge/Pods-CreativeBridge-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		50E22F86A6C3A1EA44F1DC9D /* [Expo] Configure project */ = {
+		539793DA48142EAA3590ACA1 /* [Expo] Configure project */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -284,6 +275,7 @@
 			inputPaths = (
 				"$(SRCROOT)/.xcode.env",
 				"$(SRCROOT)/.xcode.env.local",
+				"$(SRCROOT)/CreativeBridge/CreativeBridge.entitlements",
 				"$(SRCROOT)/Pods/Target Support Files/Pods-CreativeBridge/expo-configure-project.sh",
 			);
 			name = "[Expo] Configure project";
@@ -384,9 +376,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				5DD0C72BA86B2A4DD4591D2B /* ExpoModulesProvider.swift in Sources */,
-				A1B2C3D4E5F6A7B8C9D0E1F2 /* SpeechRecognizerModule.swift in Sources */,
-				A1B2C3D4E5F6A7B8C9D0E1F4 /* SpeechRecognizerModule.m in Sources */,
+				19A564AEDC114EDA18C43DB2 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -395,12 +385,12 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = D7DABB68EFCD88DA7D69B823 /* Pods-CreativeBridge.debug.xcconfig */;
+			baseConfigurationReference = 306989DDC74F8C1A6DB09B00 /* Pods-CreativeBridge.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = CreativeBridge/CreativeBridge.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = QH9S83CX4Y;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -412,7 +402,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.;
+				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -424,18 +414,19 @@
 				SWIFT_OBJC_BRIDGING_HEADER = "CreativeBridge/CreativeBridge-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Debug;
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 49580E9B09342A37ABB694DD /* Pods-CreativeBridge.release.xcconfig */;
+			baseConfigurationReference = 812BB8923863759C25E510E3 /* Pods-CreativeBridge.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = CreativeBridge/CreativeBridge.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = QH9S83CX4Y;
 				INFOPLIST_FILE = CreativeBridge/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -453,6 +444,7 @@
 				PRODUCT_NAME = CreativeBridge;
 				SWIFT_OBJC_BRIDGING_HEADER = "CreativeBridge/CreativeBridge-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Release;

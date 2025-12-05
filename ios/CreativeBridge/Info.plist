@@ -27,7 +27,7 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>com.hcho22.creativebridge</string>
+          <string>org.name.CreativeBridge</string>
         </array>
       </dict>
       <dict>
