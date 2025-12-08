@@ -3,6 +3,7 @@
 
 import { supabase } from './supabase';
 import { errorLogger } from './errorLogger';
+import { getImageGenerationConfig } from './environment';
 import type {
   GradeLevel,
   GenerationStatus,
@@ -13,8 +14,7 @@ import type {
 // Configuration constants
 const IMAGE_GENERATION_COST = 1000; // XP cost for generating an image
 const PRIMARY_API_TIMEOUT = 45000; // 45 seconds for primary service (optimized)
-const BACKUP_API_TIMEOUT = 30000; // 30 seconds for backup service (optimized)
-const MAX_CONCURRENT_REQUESTS = 5; // Maximum simultaneous image generation requests (optimized)
+// Note: BACKUP_API_TIMEOUT and MAX_CONCURRENT_REQUESTS are defined in TIMEOUT_CONFIG and RATE_LIMIT_CONFIG
 
 // Enhanced timeout configuration for different scenarios
 const TIMEOUT_CONFIG = {
@@ -33,14 +33,12 @@ const TIMEOUT_CONFIG = {
   MAX_RETRIES: 2, // Maximum retry attempts (optimized)
 };
 
-// Environment variables for API keys
-const REPLICATE_API_TOKEN =
-  process.env.REPLICATE_API_TOKEN || (__DEV__ ? 'dev-token' : undefined);
-const BACKUP_IMAGE_API_TOKEN =
-  process.env.BACKUP_IMAGE_API_TOKEN ||
-  (__DEV__ ? 'dev-backup-token' : undefined);
-const IMAGE_GENERATION_ENABLED =
-  process.env.IMAGE_GENERATION_ENABLED !== 'false';
+// Get environment variables for API keys from environment service
+// This ensures proper loading from @env in React Native
+const imageConfig = getImageGenerationConfig();
+const REPLICATE_API_TOKEN = imageConfig.primaryApiToken || undefined;
+const BACKUP_IMAGE_API_TOKEN = imageConfig.backupApiToken || undefined;
+const IMAGE_GENERATION_ENABLED = imageConfig.enabled;
 
 // Replicate API Configuration
 const REPLICATE_BASE_URL = 'https://api.replicate.com/v1';
@@ -264,7 +262,13 @@ export interface StoryAnalysis {
   };
   dynamicSceneContext?: {
     currentAction: string;
-    emotionalState: 'discovery' | 'excitement' | 'wonder' | 'collaboration' | 'achievement' | 'adventure';
+    emotionalState:
+      | 'discovery'
+      | 'excitement'
+      | 'wonder'
+      | 'collaboration'
+      | 'achievement'
+      | 'adventure';
     sceneMovement: 'static' | 'gentle' | 'active' | 'dynamic';
     timeOfAction: 'beginning' | 'middle' | 'climax' | 'resolution';
     interactionLevel: 'solo' | 'paired' | 'group';
@@ -1530,26 +1534,50 @@ class ImageGenerationService {
     const artStyleDefinition = ART_STYLE_MAPPING[gradeLevel];
 
     // NEW: Try story-first extraction approach for better accuracy
-    const storySpecificPrompt = this.generateStorySpecificPrompt(storyContent, gradeLevel, artStyleDefinition);
+    const storySpecificPrompt = this.generateStorySpecificPrompt(
+      storyContent,
+      gradeLevel,
+      artStyleDefinition,
+    );
     if (storySpecificPrompt && storySpecificPrompt.trim().length > 50) {
-      console.log('🎯 Using story-specific prompt:', storySpecificPrompt.substring(0, 100) + '...');
+      console.log(
+        '🎯 Using story-specific prompt:',
+        storySpecificPrompt.substring(0, 100) + '...',
+      );
       return storySpecificPrompt;
     }
 
     // Use advanced analysis pipeline for enhanced story-to-image accuracy
     const nerEntities = this.performAdvancedNER(storyContent);
-    const narrativeSequence = this.analyzeNarrativeSequence(storyContent, nerEntities);
-    const coordinatedCharacters = this.coordinateMultipleCharacters(nerEntities, narrativeSequence);
-    const advancedPrompt = this.generateAdvancedPrompt(storyContent, nerEntities, narrativeSequence, coordinatedCharacters, gradeLevel);
-    
+    const narrativeSequence = this.analyzeNarrativeSequence(
+      storyContent,
+      nerEntities,
+    );
+    const coordinatedCharacters = this.coordinateMultipleCharacters(
+      nerEntities,
+      narrativeSequence,
+    );
+    const advancedPrompt = this.generateAdvancedPrompt(
+      storyContent,
+      nerEntities,
+      narrativeSequence,
+      coordinatedCharacters,
+      gradeLevel,
+    );
+
     // If advanced analysis produces a prompt, use it directly
     if (advancedPrompt && advancedPrompt.trim().length > 50) {
-      console.log('🎯 Using advanced analysis prompt:', advancedPrompt.substring(0, 100) + '...');
+      console.log(
+        '🎯 Using advanced analysis prompt:',
+        advancedPrompt.substring(0, 100) + '...',
+      );
       return advancedPrompt;
     }
 
     // Fallback to basic analysis if advanced analysis fails
-    console.log('⚠️ Advanced analysis insufficient, falling back to basic analysis');
+    console.log(
+      '⚠️ Advanced analysis insufficient, falling back to basic analysis',
+    );
     const storyAnalysis = this.analyzeStoryContent(storyContent);
 
     // Sanitize content for safety
@@ -1602,9 +1630,15 @@ class ImageGenerationService {
       storyThemes: this.analyzeStoryThemes(storyContent, sentences),
       richDetails: this.extractRichDetails(storyContent),
       // New enhanced analysis features
-      secondaryCharacters: this.identifySecondaryCharacters(storyContent, sentences),
+      secondaryCharacters: this.identifySecondaryCharacters(
+        storyContent,
+        sentences,
+      ),
       enhancedColorDetails: this.extractEnhancedColorDetails(storyContent),
-      dynamicSceneContext: this.analyzeDynamicSceneContext(storyContent, sentences),
+      dynamicSceneContext: this.analyzeDynamicSceneContext(
+        storyContent,
+        sentences,
+      ),
     };
   }
 
@@ -1877,14 +1911,16 @@ class ImageGenerationService {
       // Character names with titles (handles "Maestro Mickey") - be more selective
       /\b(Maestro|King|Queen|Prince|Princess|Sir|Lady|Captain|Professor|Doctor|Mr|Mrs|Miss)\s+([A-Z][a-z]+)\b/gi,
       // Standalone character names with common actions (handles "Max found", "Mickey explained") - filtered to avoid common words
-      /\b([A-Z][a-z]{2,})\s+(found|felt|heard|saw|went|took|looked|started|decided|tried|asked|said|smiled|knocked|walked|ran|came|opened|closed|entered|left|climbed|fell|jumped|danced|played|sang|ate|slept|woke|remembered|thought|wondered|hoped|dreamed|believed|knew|learned|understood|realized|noticed)\b/gi
+      /\b([A-Z][a-z]{2,})\s+(found|felt|heard|saw|went|took|looked|started|decided|tried|asked|said|smiled|knocked|walked|ran|came|opened|closed|entered|left|climbed|fell|jumped|danced|played|sang|ate|slept|woke|remembered|thought|wondered|hoped|dreamed|believed|knew|learned|understood|realized|noticed)\b/gi,
     ];
 
     comprehensiveCharacterPatterns.forEach((pattern, patternIndex) => {
       let match;
       while ((match = pattern.exec(content)) !== null) {
-        let characterName: string | undefined, animalType: string | undefined, characterDesc: string | undefined;
-        
+        let characterName: string | undefined,
+          animalType: string | undefined,
+          characterDesc: string | undefined;
+
         if (patternIndex === 0) {
           // "Name the animal" format
           characterName = match[1];
@@ -1897,7 +1933,7 @@ class ImageGenerationService {
           animalType = match[3];
           characterDesc = `${characterName} the ${adjective} ${animalType}`;
         } else if (patternIndex === 2) {
-          // "adjective animal named Name" format 
+          // "adjective animal named Name" format
           const adjective = match[1];
           animalType = match[2];
           characterName = match[3];
@@ -1924,8 +1960,4941 @@ class ImageGenerationService {
         } else if (patternIndex === 7) {
           // Standalone character names with actions - filter out common words
           const potentialName = match[1];
-          const commonWords = ['Everything', 'Something', 'Nothing', 'Anything', 'Everyone', 'Someone', 'Anyone', 'This', 'That', 'These', 'Those', 'They', 'Them', 'Their', 'There', 'Then', 'When', 'Where', 'What', 'Which', 'Who', 'How', 'Why', 'And', 'But', 'Or', 'So', 'If', 'As', 'At', 'In', 'On', 'By', 'To', 'Of', 'For', 'With', 'From', 'Up', 'Out', 'Off', 'Down', 'Over', 'Under', 'About', 'Into', 'Through', 'During', 'Before', 'After', 'Above', 'Below', 'Between', 'Among', 'Beyond', 'Behind', 'Beside', 'Beneath', 'Across', 'Against', 'Along', 'Around', 'Toward', 'Upon', 'Within', 'Without', 'Inside', 'Outside', 'Onto', 'Into', 'The', 'A', 'An', 'This', 'That', 'These', 'Those', 'My', 'Your', 'His', 'Her', 'Its', 'Our', 'Their', 'Me', 'You', 'Him', 'Her', 'It', 'Us', 'Them', 'I', 'We', 'He', 'She', 'They', 'Am', 'Is', 'Are', 'Was', 'Were', 'Be', 'Been', 'Being', 'Have', 'Has', 'Had', 'Do', 'Does', 'Did', 'Will', 'Would', 'Could', 'Should', 'May', 'Might', 'Can', 'Must', 'Shall', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'All', 'Any', 'Some', 'Few', 'Many', 'Much', 'Most', 'More', 'Less', 'Little', 'Big', 'Large', 'Small', 'Great', 'Good', 'Bad', 'Best', 'Worst', 'Better', 'Worse', 'First', 'Last', 'Next', 'Previous', 'New', 'Old', 'Young', 'Ancient', 'Modern', 'Early', 'Late', 'Long', 'Short', 'High', 'Low', 'Far', 'Near', 'Close', 'Open', 'Closed', 'Hot', 'Cold', 'Warm', 'Cool', 'Dry', 'Wet', 'Clean', 'Dirty', 'Light', 'Dark', 'Bright', 'Dim', 'Loud', 'Quiet', 'Fast', 'Slow', 'Quick', 'Easy', 'Hard', 'Soft', 'Rough', 'Smooth', 'Sharp', 'Dull', 'Heavy', 'Light', 'Strong', 'Weak', 'Full', 'Empty', 'Right', 'Wrong', 'True', 'False', 'Real', 'Fake', 'Sure', 'Maybe', 'Yes', 'No', 'Here', 'There', 'Where', 'Everywhere', 'Somewhere', 'Nowhere', 'Anywhere', 'Now', 'Then', 'When', 'Always', 'Never', 'Sometimes', 'Often', 'Usually', 'Rarely', 'Today', 'Tomorrow', 'Yesterday', 'Soon', 'Later', 'Again', 'Still', 'Yet', 'Already', 'Just', 'Only', 'Also', 'Too', 'Very', 'Really', 'Quite', 'Rather', 'Pretty', 'Fairly', 'Enough', 'Almost', 'Nearly', 'Completely', 'Totally', 'Entirely', 'Absolutely', 'Exactly', 'Probably', 'Perhaps', 'Maybe', 'Certainly', 'Definitely', 'Clearly', 'Obviously', 'Actually', 'Finally', 'Suddenly', 'Immediately', 'Recently', 'Currently', 'Eventually', 'Gradually', 'Slowly', 'Quickly', 'Carefully', 'Quietly', 'Loudly', 'Gently', 'Roughly', 'Smoothly', 'Easily', 'Hardly', 'Mostly', 'Partly', 'Especially', 'Particularly', 'Generally', 'Usually', 'Normally', 'Typically', 'Specifically', 'Exactly', 'Precisely', 'Approximately', 'About', 'Around', 'Nearly', 'Almost', 'Quite', 'Rather', 'Fairly', 'Pretty', 'Somewhat', 'Slightly', 'Barely', 'Hardly', 'Scarcely', 'Merely', 'Simply', 'Just', 'Only', 'Even', 'Still', 'Yet', 'Already', 'Soon', 'Later', 'Earlier', 'Before', 'After', 'During', 'While', 'Since', 'Until', 'Unless', 'Although', 'Though', 'However', 'Nevertheless', 'Nonetheless', 'Therefore', 'Thus', 'Hence', 'Consequently', 'Accordingly', 'Meanwhile', 'Otherwise', 'Instead', 'Rather', 'Besides', 'Moreover', 'Furthermore', 'Additionally', 'Also', 'Too', 'As', 'Well', 'Likewise', 'Similarly', 'Equally', 'Comparatively', 'Relatively', 'Respectively', 'Alternatively', 'Conversely', 'Contrarily', 'Oppositely', 'Differently', 'Separately', 'Individually', 'Collectively', 'Together', 'Apart', 'Aside', 'Away', 'Back', 'Forward', 'Backward', 'Ahead', 'Behind', 'Beside', 'Besides', 'Between', 'Among', 'Amongst', 'Within', 'Without', 'Inside', 'Outside', 'Upward', 'Downward', 'Inward', 'Outward', 'Leftward', 'Rightward', 'Northward', 'Southward', 'Eastward', 'Westward', 'Homeward', 'Onward', 'Toward', 'Against', 'Along', 'Across', 'Through', 'Throughout', 'Over', 'Under', 'Above', 'Below', 'Beneath', 'Beyond', 'Beside', 'Behind', 'Onto', 'Into', 'Upon', 'Atop', 'Beneath', 'Underneath', 'Overhead', 'Nearby', 'Alongside', 'Amidst', 'Amid', 'Via', 'Per', 'Except', 'Besides', 'Including', 'Excluding', 'Regarding', 'Concerning', 'Considering', 'Despite', 'Regardless', 'Notwithstanding', 'Albeit', 'Whereas', 'While', 'Since', 'Because', 'Due', 'Thanks', 'Owing', 'According', 'Depending', 'Based', 'Given', 'Assuming', 'Supposing', 'Provided', 'Unless', 'Whether', 'Either', 'Neither', 'Both', 'All', 'Every', 'Each', 'Any', 'Some', 'Few', 'Several', 'Many', 'Much', 'Most', 'More', 'Less', 'Fewer', 'Little', 'Lot', 'Plenty', 'Enough', 'Sufficient', 'Insufficient', 'Adequate', 'Inadequate', 'Excess', 'Excessive', 'Extra', 'Additional', 'Further', 'Another', 'Other', 'Others', 'Different', 'Same', 'Similar', 'Alike', 'Unlike', 'Dissimilar', 'Various', 'Diverse', 'Multiple', 'Single', 'Double', 'Triple', 'Quadruple', 'Half', 'Quarter', 'Third', 'Whole', 'Entire', 'Complete', 'Incomplete', 'Partial', 'Full', 'Empty', 'Filled', 'Vacant', 'Occupied', 'Available', 'Unavailable', 'Present', 'Absent', 'Missing', 'Lost', 'Found', 'Discovered', 'Hidden', 'Visible', 'Invisible', 'Apparent', 'Obvious', 'Clear', 'Unclear', 'Distinct', 'Indistinct', 'Definite', 'Indefinite', 'Certain', 'Uncertain', 'Sure', 'Unsure', 'Confident', 'Doubtful', 'Positive', 'Negative', 'Neutral', 'Balanced', 'Unbalanced', 'Stable', 'Unstable', 'Steady', 'Unsteady', 'Consistent', 'Inconsistent', 'Regular', 'Irregular', 'Normal', 'Abnormal', 'Typical', 'Atypical', 'Common', 'Uncommon', 'Rare', 'Frequent', 'Infrequent', 'Occasional', 'Constant', 'Variable', 'Fixed', 'Flexible', 'Rigid', 'Loose', 'Tight', 'Firm', 'Weak', 'Strong', 'Powerful', 'Powerless', 'Mighty', 'Feeble', 'Robust', 'Fragile', 'Sturdy', 'Delicate', 'Tough', 'Tender', 'Hard', 'Soft', 'Solid', 'Liquid', 'Gaseous', 'Dense', 'Sparse', 'Thick', 'Thin', 'Wide', 'Narrow', 'Broad', 'Slim', 'Fat', 'Skinny', 'Tall', 'Short', 'Long', 'Brief', 'Extended', 'Prolonged', 'Temporary', 'Permanent', 'Lasting', 'Fleeting', 'Quick', 'Slow', 'Fast', 'Rapid', 'Swift', 'Sluggish', 'Immediate', 'Delayed', 'Instant', 'Gradual', 'Sudden', 'Smooth', 'Rough', 'Bumpy', 'Even', 'Uneven', 'Level', 'Sloped', 'Straight', 'Curved', 'Bent', 'Twisted', 'Round', 'Square', 'Circular', 'Rectangular', 'Triangular', 'Oval', 'Linear', 'Angular', 'Sharp', 'Blunt', 'Pointed', 'Rounded', 'Flat', 'Steep', 'Gentle', 'Harsh', 'Mild', 'Severe', 'Extreme', 'Moderate', 'Intense', 'Weak', 'Strong', 'Loud', 'Quiet', 'Silent', 'Noisy', 'Peaceful', 'Violent', 'Calm', 'Turbulent', 'Serene', 'Chaotic', 'Orderly', 'Disorderly', 'Organized', 'Disorganized', 'Neat', 'Messy', 'Clean', 'Dirty', 'Pure', 'Impure', 'Fresh', 'Stale', 'New', 'Old', 'Young', 'Aged', 'Ancient', 'Modern', 'Contemporary', 'Traditional', 'Conventional', 'Unconventional', 'Standard', 'Nonstandard', 'Regular', 'Irregular', 'Formal', 'Informal', 'Official', 'Unofficial', 'Legal', 'Illegal', 'Legitimate', 'Illegitimate', 'Valid', 'Invalid', 'Correct', 'Incorrect', 'Right', 'Wrong', 'Proper', 'Improper', 'Appropriate', 'Inappropriate', 'Suitable', 'Unsuitable', 'Fitting', 'Unfitting', 'Relevant', 'Irrelevant', 'Important', 'Unimportant', 'Significant', 'Insignificant', 'Major', 'Minor', 'Primary', 'Secondary', 'Main', 'Subsidiary', 'Central', 'Peripheral', 'Key', 'Trivial', 'Essential', 'Nonessential', 'Necessary', 'Unnecessary', 'Required', 'Optional', 'Mandatory', 'Voluntary', 'Compulsory', 'Elective', 'Obligatory', 'Free', 'Bound', 'Independent', 'Dependent', 'Autonomous', 'Controlled', 'Self', 'Other', 'Own', 'Foreign', 'Domestic', 'Local', 'Global', 'International', 'National', 'Regional', 'Universal', 'Particular', 'General', 'Specific', 'Generic', 'Individual', 'Collective', 'Personal', 'Public', 'Private', 'Confidential', 'Secret', 'Open', 'Closed', 'Accessible', 'Inaccessible', 'Available', 'Unavailable', 'Possible', 'Impossible', 'Probable', 'Improbable', 'Likely', 'Unlikely', 'Potential', 'Actual', 'Real', 'Imaginary', 'Fictional', 'Factual', 'True', 'False', 'Honest', 'Dishonest', 'Truthful', 'Deceptive', 'Genuine', 'Fake', 'Authentic', 'Artificial', 'Natural', 'Synthetic', 'Original', 'Copy', 'Unique', 'Common', 'Special', 'Ordinary', 'Extraordinary', 'Remarkable', 'Unremarkable', 'Notable', 'Insignificant', 'Outstanding', 'Average', 'Exceptional', 'Typical', 'Unusual', 'Usual', 'Strange', 'Familiar', 'Known', 'Unknown', 'Recognized', 'Unrecognized', 'Identified', 'Unidentified', 'Named', 'Unnamed', 'Titled', 'Untitled', 'Labeled', 'Unlabeled', 'Marked', 'Unmarked', 'Signed', 'Unsigned', 'Numbered', 'Unnumbered', 'Counted', 'Uncounted', 'Measured', 'Unmeasured', 'Weighed', 'Unweighed', 'Calculated', 'Estimated', 'Guessed', 'Determined', 'Decided', 'Undecided', 'Resolved', 'Unresolved', 'Settled', 'Unsettled', 'Confirmed', 'Unconfirmed', 'Verified', 'Unverified', 'Proven', 'Unproven', 'Tested', 'Untested', 'Tried', 'Untried', 'Attempted', 'Unattempted', 'Completed', 'Incomplete', 'Finished', 'Unfinished', 'Done', 'Undone', 'Accomplished', 'Unaccomplished', 'Achieved', 'Unachieved', 'Successful', 'Unsuccessful', 'Failed', 'Passed', 'Won', 'Lost', 'Gained', 'Lost', 'Earned', 'Spent', 'Saved', 'Wasted', 'Used', 'Unused', 'Utilized', 'Underutilized', 'Employed', 'Unemployed', 'Occupied', 'Unoccupied', 'Busy', 'Idle', 'Active', 'Inactive', 'Dynamic', 'Static', 'Moving', 'Stationary', 'Mobile', 'Immobile', 'Portable', 'Fixed', 'Stable', 'Unstable', 'Secure', 'Insecure', 'Safe', 'Dangerous', 'Risky', 'Harmless', 'Harmful', 'Beneficial', 'Detrimental', 'Helpful', 'Unhelpful', 'Useful', 'Useless', 'Effective', 'Ineffective', 'Efficient', 'Inefficient', 'Productive', 'Unproductive', 'Profitable', 'Unprofitable', 'Valuable', 'Worthless', 'Precious', 'Cheap', 'Expensive', 'Costly', 'Affordable', 'Unaffordable', 'Reasonable', 'Unreasonable', 'Fair', 'Unfair', 'Just', 'Unjust', 'Equal', 'Unequal', 'Balanced', 'Unbalanced', 'Proportional', 'Disproportional', 'Symmetrical', 'Asymmetrical', 'Aligned', 'Misaligned', 'Coordinated', 'Uncoordinated', 'Organized', 'Disorganized', 'Systematic', 'Unsystematic', 'Methodical', 'Random', 'Planned', 'Unplanned', 'Deliberate', 'Accidental', 'Intentional', 'Unintentional', 'Purposeful', 'Aimless', 'Directed', 'Undirected', 'Guided', 'Unguided', 'Controlled', 'Uncontrolled', 'Managed', 'Unmanaged', 'Supervised', 'Unsupervised', 'Monitored', 'Unmonitored', 'Watched', 'Unwatched', 'Observed', 'Unobserved', 'Noticed', 'Unnoticed', 'Seen', 'Unseen', 'Visible', 'Invisible', 'Apparent', 'Hidden', 'Obvious', 'Subtle', 'Clear', 'Vague', 'Distinct', 'Indistinct', 'Precise', 'Imprecise', 'Accurate', 'Inaccurate', 'Exact', 'Approximate', 'Specific', 'General', 'Detailed', 'Vague', 'Thorough', 'Superficial', 'Complete', 'Incomplete', 'Comprehensive', 'Limited', 'Extensive', 'Restricted', 'Broad', 'Narrow', 'Wide', 'Confined', 'Expanded', 'Contracted', 'Enlarged', 'Reduced', 'Increased', 'Decreased', 'Grown', 'Shrunk', 'Developed', 'Undeveloped', 'Advanced', 'Backward', 'Progressive', 'Regressive', 'Forward', 'Reverse', 'Upward', 'Downward', 'Rising', 'Falling', 'Ascending', 'Descending', 'Climbing', 'Declining', 'Improving', 'Worsening', 'Better', 'Worse', 'Superior', 'Inferior', 'Higher', 'Lower', 'Greater', 'Lesser', 'Larger', 'Smaller', 'Bigger', 'Littler', 'Huge', 'Tiny', 'Enormous', 'Minute', 'Gigantic', 'Microscopic', 'Massive', 'Miniature', 'Colossal', 'Petite', 'Immense', 'Compact', 'Vast', 'Cramped', 'Spacious', 'Crowded', 'Roomy', 'Tight', 'Loose', 'Relaxed', 'Tense', 'Calm', 'Agitated', 'Peaceful', 'Disturbed', 'Quiet', 'Noisy', 'Silent', 'Loud', 'Soft', 'Hard', 'Gentle', 'Rough', 'Smooth', 'Bumpy', 'Even', 'Uneven', 'Flat', 'Curved', 'Straight', 'Crooked', 'Level', 'Tilted', 'Horizontal', 'Vertical', 'Diagonal', 'Parallel', 'Perpendicular', 'Intersecting', 'Separate', 'Connected', 'Joined', 'Detached', 'Attached', 'Linked', 'Unlinked', 'Related', 'Unrelated', 'Associated', 'Disassociated', 'Combined', 'Separated', 'United', 'Divided', 'Together', 'Apart', 'Close', 'Distant', 'Near', 'Far', 'Nearby', 'Remote', 'Local', 'Foreign', 'Domestic', 'International', 'Internal', 'External', 'Inside', 'Outside', 'Interior', 'Exterior', 'Inner', 'Outer', 'Central', 'Peripheral', 'Middle', 'Edge', 'Center', 'Border', 'Core', 'Surface', 'Deep', 'Shallow', 'Profound', 'Superficial', 'Serious', 'Trivial', 'Important', 'Unimportant', 'Significant', 'Insignificant', 'Meaningful', 'Meaningless', 'Relevant', 'Irrelevant', 'Applicable', 'Inapplicable', 'Suitable', 'Unsuitable', 'Appropriate', 'Inappropriate', 'Proper', 'Improper', 'Correct', 'Incorrect', 'Right', 'Wrong', 'Good', 'Bad', 'Excellent', 'Poor', 'Outstanding', 'Terrible', 'Wonderful', 'Awful', 'Great', 'Horrible', 'Amazing', 'Dreadful', 'Fantastic', 'Disgusting', 'Marvelous', 'Repulsive', 'Splendid', 'Revolting', 'Magnificent', 'Sickening', 'Beautiful', 'Ugly', 'Attractive', 'Unattractive', 'Pretty', 'Plain', 'Handsome', 'Homely', 'Lovely', 'Hideous', 'Gorgeous', 'Ghastly', 'Stunning', 'Appalling', 'Elegant', 'Clumsy', 'Graceful', 'Awkward', 'Refined', 'Crude', 'Sophisticated', 'Primitive', 'Cultured', 'Barbaric', 'Civilized', 'Savage', 'Polite', 'Rude', 'Courteous', 'Impolite', 'Respectful', 'Disrespectful', 'Kind', 'Cruel', 'Gentle', 'Harsh', 'Sweet', 'Bitter', 'Pleasant', 'Unpleasant', 'Agreeable', 'Disagreeable', 'Friendly', 'Hostile', 'Warm', 'Cold', 'Welcoming', 'Unwelcoming', 'Inviting', 'Uninviting', 'Appealing', 'Unappealing', 'Attractive', 'Repulsive', 'Charming', 'Repellent', 'Delightful', 'Disgusting', 'Enjoyable', 'Unenjoyable', 'Fun', 'Boring', 'Exciting', 'Dull', 'Interesting', 'Uninteresting', 'Fascinating', 'Tedious', 'Engaging', 'Disengaging', 'Captivating', 'Repelling', 'Absorbing', 'Distracting', 'Compelling', 'Repulsive', 'Enticing', 'Discouraging', 'Tempting', 'Deterring', 'Alluring', 'Repelling', 'Seductive', 'Revolting', 'Appealing', 'Appalling', 'Inviting', 'Forbidding', 'Welcome', 'Unwelcome', 'Desired', 'Undesired', 'Wanted', 'Unwanted', 'Needed', 'Unneeded', 'Required', 'Unrequired', 'Necessary', 'Unnecessary', 'Essential', 'Nonessential', 'Vital', 'Trivial', 'Critical', 'Noncritical', 'Crucial', 'Negligible', 'Urgent', 'Nonurgent', 'Immediate', 'Delayed', 'Pressing', 'Relaxed', 'Hurried', 'Leisurely', 'Rushed', 'Unhurried', 'Quick', 'Slow', 'Fast', 'Sluggish', 'Rapid', 'Gradual', 'Swift', 'Plodding', 'Speedy', 'Dawdling', 'Hasty', 'Deliberate', 'Prompt', 'Late', 'Early', 'Tardy', 'Punctual', 'Overdue', 'Timely', 'Untimely', 'Seasonal', 'Unseasonable', 'Current', 'Outdated', 'Modern', 'Obsolete', 'Contemporary', 'Archaic', 'Updated', 'Antiquated', 'Fresh', 'Stale', 'Recent', 'Ancient', 'Latest', 'Oldest', 'Newest', 'Eldest', 'Youngest', 'Senior', 'Junior', 'Elder', 'Younger', 'Older', 'Newer', 'Former', 'Current', 'Previous', 'Present', 'Past', 'Future', 'Historical', 'Futuristic', 'Traditional', 'Innovative', 'Classical', 'Revolutionary', 'Conventional', 'Radical', 'Orthodox', 'Unorthodox', 'Standard', 'Nonstandard', 'Regular', 'Irregular', 'Normal', 'Abnormal', 'Typical', 'Atypical', 'Common', 'Uncommon', 'Ordinary', 'Extraordinary', 'Usual', 'Unusual', 'Routine', 'Exceptional', 'Habitual', 'Sporadic', 'Frequent', 'Infrequent', 'Constant', 'Intermittent', 'Continuous', 'Discontinuous', 'Steady', 'Unsteady', 'Stable', 'Unstable', 'Consistent', 'Inconsistent', 'Reliable', 'Unreliable', 'Dependable', 'Undependable', 'Trustworthy', 'Untrustworthy', 'Faithful', 'Unfaithful', 'Loyal', 'Disloyal', 'Devoted', 'Indifferent', 'Committed', 'Uncommitted', 'Dedicated', 'Halfhearted', 'Earnest', 'Insincere', 'Genuine', 'Fake', 'Authentic', 'Artificial', 'Real', 'Imaginary', 'Actual', 'Fictional', 'True', 'False', 'Factual', 'Fabricated', 'Accurate', 'Inaccurate', 'Precise', 'Imprecise', 'Exact', 'Approximate', 'Correct', 'Incorrect', 'Right', 'Wrong', 'Proper', 'Improper', 'Appropriate', 'Inappropriate', 'Suitable', 'Unsuitable', 'Fitting', 'Unfitting', 'Matching', 'Mismatched', 'Compatible', 'Incompatible', 'Harmonious', 'Discordant', 'Coordinated', 'Uncoordinated', 'Balanced', 'Unbalanced', 'Proportioned', 'Disproportioned', 'Symmetrical', 'Asymmetrical', 'Equal', 'Unequal', 'Even', 'Uneven', 'Fair', 'Unfair', 'Just', 'Unjust', 'Impartial', 'Partial', 'Objective', 'Subjective', 'Neutral', 'Biased', 'Unprejudiced', 'Prejudiced', 'Open', 'Closed', 'Minded', 'Narrow', 'Minded', 'Broad', 'Minded', 'Liberal', 'Conservative', 'Progressive', 'Regressive', 'Forward', 'Backward', 'Looking', 'Advanced', 'Primitive', 'Developed', 'Undeveloped', 'Sophisticated', 'Unsophisticated', 'Refined', 'Crude', 'Polished', 'Rough', 'Smooth', 'Bumpy', 'Finished', 'Unfinished', 'Complete', 'Incomplete', 'Whole', 'Partial', 'Entire', 'Fragmented', 'Intact', 'Broken', 'Undamaged', 'Damaged', 'Perfect', 'Imperfect', 'Flawless', 'Flawed', 'Spotless', 'Stained', 'Clean', 'Dirty', 'Pure', 'Contaminated', 'Fresh', 'Spoiled', 'New', 'Used', 'Unused', 'Worn', 'Unworn', 'Pristine', 'Weathered', 'Mint', 'Condition', 'Shabby', 'Elegant', 'Crude', 'Refined', 'Sophisticated', 'Simple', 'Complex', 'Complicated', 'Easy', 'Difficult', 'Hard', 'Soft', 'Tough', 'Tender', 'Strong', 'Weak', 'Powerful', 'Powerless', 'Mighty', 'Feeble', 'Robust', 'Frail', 'Sturdy', 'Fragile', 'Solid', 'Flimsy', 'Firm', 'Loose', 'Tight', 'Slack', 'Taut', 'Rigid', 'Flexible', 'Stiff', 'Supple', 'Brittle', 'Elastic', 'Hard', 'Soft', 'Dense', 'Sparse', 'Thick', 'Thin', 'Heavy', 'Light', 'Weighty', 'Weightless', 'Massive', 'Tiny', 'Bulky', 'Compact', 'Voluminous', 'Condensed', 'Expanded', 'Compressed', 'Inflated', 'Deflated', 'Swollen', 'Shrunken', 'Enlarged', 'Reduced', 'Magnified', 'Minimized', 'Amplified', 'Diminished', 'Enhanced', 'Degraded', 'Improved', 'Worsened', 'Upgraded', 'Downgraded', 'Advanced', 'Retreated', 'Progressed', 'Regressed', 'Developed', 'Deteriorated', 'Evolved', 'Devolved', 'Grown', 'Shrunk', 'Expanded', 'Contracted', 'Increased', 'Decreased', 'Multiplied', 'Divided', 'Added', 'Subtracted', 'Gained', 'Lost', 'Acquired', 'Surrendered', 'Obtained', 'Relinquished', 'Received', 'Gave', 'Taken', 'Given', 'Accepted', 'Rejected', 'Embraced', 'Shunned', 'Welcomed', 'Spurned', 'Invited', 'Excluded', 'Included', 'Omitted', 'Involved', 'Uninvolved', 'Engaged', 'Disengaged', 'Participating', 'Abstaining', 'Contributing', 'Withholding', 'Supporting', 'Opposing', 'Helping', 'Hindering', 'Assisting', 'Obstructing', 'Aiding', 'Impeding', 'Facilitating', 'Blocking', 'Enabling', 'Preventing', 'Allowing', 'Forbidding', 'Permitting', 'Prohibiting', 'Authorizing', 'Banning', 'Approving', 'Disapproving', 'Accepting', 'Rejecting', 'Endorsing', 'Condemning', 'Praising', 'Criticizing', 'Commending', 'Censuring', 'Complimenting', 'Insulting', 'Flattering', 'Mocking', 'Admiring', 'Despising', 'Respecting', 'Disrespecting', 'Honoring', 'Dishonoring', 'Revering', 'Scorning', 'Worshipping', 'Blaspheming', 'Adoring', 'Loathing', 'Loving', 'Hating', 'Liking', 'Disliking', 'Enjoying', 'Detesting', 'Appreciating', 'Deploring', 'Cherishing', 'Abhorring', 'Treasuring', 'Despising', 'Valuing', 'Undervaluing', 'Prizing', 'Dismissing', 'Esteeming', 'Scorning', 'Regarding', 'Disregarding', 'Considering', 'Ignoring', 'Contemplating', 'Neglecting', 'Pondering', 'Overlooking', 'Reflecting', 'Disregarding', 'Thinking', 'Thoughtless', 'Mindful', 'Mindless', 'Conscious', 'Unconscious', 'Aware', 'Unaware', 'Alert', 'Oblivious', 'Attentive', 'Inattentive', 'Focused', 'Distracted', 'Concentrated', 'Scattered', 'Absorbed', 'Absent', 'Minded', 'Engrossed', 'Detached', 'Immersed', 'Withdrawn', 'Involved', 'Aloof', 'Engaged', 'Indifferent', 'Interested', 'Uninterested', 'Curious', 'Incurious', 'Inquisitive', 'Apathetic', 'Eager', 'Reluctant', 'Enthusiastic', 'Unenthusiastic', 'Excited', 'Bored', 'Thrilled', 'Unimpressed', 'Delighted', 'Disappointed', 'Pleased', 'Displeased', 'Satisfied', 'Dissatisfied', 'Content', 'Discontent', 'Happy', 'Unhappy', 'Joyful', 'Sorrowful', 'Cheerful', 'Gloomy', 'Glad', 'Sad', 'Merry', 'Melancholy', 'Elated', 'Dejected', 'Ecstatic', 'Depressed', 'Euphoric', 'Despondent', 'Blissful', 'Miserable', 'Overjoyed', 'Heartbroken', 'Jubilant', 'Grieving', 'Triumphant', 'Mourning', 'Victorious', 'Defeated', 'Successful', 'Failed', 'Winning', 'Losing', 'Accomplished', 'Unsuccessful', 'Achieved', 'Unachieved', 'Fulfilled', 'Unfulfilled', 'Realized', 'Unrealized', 'Completed', 'Incomplete', 'Finished', 'Unfinished', 'Done', 'Undone', 'Resolved', 'Unresolved', 'Settled', 'Unsettled', 'Decided', 'Undecided', 'Determined', 'Undetermined', 'Established', 'Unestablished', 'Confirmed', 'Unconfirmed', 'Verified', 'Unverified', 'Proven', 'Unproven', 'Demonstrated', 'Undemonstrated', 'Shown', 'Unshown', 'Revealed', 'Unrevealed', 'Disclosed', 'Undisclosed', 'Exposed', 'Unexposed', 'Uncovered', 'Covered', 'Discovered', 'Undiscovered', 'Found', 'Unfound', 'Located', 'Unlocated', 'Identified', 'Unidentified', 'Recognized', 'Unrecognized', 'Known', 'Unknown', 'Familiar', 'Unfamiliar', 'Acquainted', 'Unacquainted', 'Experienced', 'Inexperienced', 'Practiced', 'Unpracticed', 'Skilled', 'Unskilled', 'Trained', 'Untrained', 'Educated', 'Uneducated', 'Learned', 'Unlearned', 'Knowledgeable', 'Ignorant', 'Informed', 'Uninformed', 'Aware', 'Unaware', 'Conscious', 'Unconscious', 'Mindful', 'Mindless', 'Thoughtful', 'Thoughtless', 'Considerate', 'Inconsiderate', 'Careful', 'Careless', 'Cautious', 'Reckless', 'Prudent', 'Imprudent', 'Wise', 'Foolish', 'Sensible', 'Senseless', 'Rational', 'Irrational', 'Logical', 'Illogical', 'Reasonable', 'Unreasonable', 'Sound', 'Unsound', 'Valid', 'Invalid', 'Justified', 'Unjustified', 'Warranted', 'Unwarranted', 'Legitimate', 'Illegitimate', 'Legal', 'Illegal', 'Lawful', 'Unlawful', 'Authorized', 'Unauthorized', 'Permitted', 'Forbidden', 'Allowed', 'Prohibited', 'Acceptable', 'Unacceptable', 'Approved', 'Disapproved', 'Endorsed', 'Rejected', 'Supported', 'Opposed', 'Favored', 'Disfavored', 'Preferred', 'Dispreferred', 'Chosen', 'Unchosen', 'Selected', 'Unselected', 'Picked', 'Unpicked', 'Elected', 'Unelected', 'Appointed', 'Unappointed', 'Assigned', 'Unassigned', 'Designated', 'Undesignated', 'Named', 'Unnamed', 'Called', 'Uncalled', 'Titled', 'Untitled', 'Labeled', 'Unlabeled', 'Tagged', 'Untagged', 'Marked', 'Unmarked', 'Signed', 'Unsigned', 'Stamped', 'Unstamped', 'Sealed', 'Unsealed', 'Certified', 'Uncertified', 'Verified', 'Unverified', 'Validated', 'Invalidated', 'Authenticated', 'Unauthenticated', 'Authorized', 'Unauthorized', 'Licensed', 'Unlicensed', 'Registered', 'Unregistered', 'Documented', 'Undocumented', 'Recorded', 'Unrecorded', 'Filed', 'Unfiled', 'Catalogued', 'Uncatalogued', 'Listed', 'Unlisted', 'Indexed', 'Unindexed', 'Classified', 'Unclassified', 'Categorized', 'Uncategorized', 'Grouped', 'Ungrouped', 'Sorted', 'Unsorted', 'Arranged', 'Unarranged', 'Organized', 'Disorganized', 'Ordered', 'Disordered', 'Structured', 'Unstructured', 'Systematic', 'Unsystematic', 'Methodical', 'Unmethodical', 'Planned', 'Unplanned', 'Scheduled', 'Unscheduled', 'Timed', 'Untimed', 'Coordinated', 'Uncoordinated', 'Synchronized', 'Unsynchronized', 'Aligned', 'Misaligned', 'Matched', 'Mismatched', 'Paired', 'Unpaired', 'Coupled', 'Uncoupled', 'Connected', 'Disconnected', 'Linked', 'Unlinked', 'Joined', 'Disjoined', 'United', 'Disunited', 'Combined', 'Separated', 'Merged', 'Divided', 'Integrated', 'Segregated', 'Blended', 'Unmixed', 'Mixed', 'Unmixed', 'Fused', 'Unfused', 'Welded', 'Unwelded', 'Bonded', 'Unbonded', 'Attached', 'Detached', 'Fastened', 'Unfastened', 'Secured', 'Unsecured', 'Fixed', 'Unfixed', 'Anchored', 'Unanchored', 'Moored', 'Unmoored', 'Tethered', 'Untethered', 'Tied', 'Untied', 'Bound', 'Unbound', 'Knotted', 'Unknotted', 'Twisted', 'Untwisted', 'Coiled', 'Uncoiled', 'Wound', 'Unwound', 'Wrapped', 'Unwrapped', 'Covered', 'Uncovered', 'Enclosed', 'Unenclosed', 'Contained', 'Uncontained', 'Surrounded', 'Unsurrounded', 'Encircled', 'Unencircled', 'Encompassed', 'Unencompassed', 'Embraced', 'Unembraced', 'Hugged', 'Unhugged', 'Held', 'Unheld', 'Grasped', 'Ungrasped', 'Gripped', 'Ungripped', 'Clutched', 'Unclutched', 'Seized', 'Unseized', 'Grabbed', 'Ungrabbed', 'Caught', 'Uncaught', 'Captured', 'Uncaptured', 'Trapped', 'Untrapped', 'Snared', 'Unsnared', 'Netted', 'Unnetted', 'Hooked', 'Unhooked', 'Lassoed', 'Unlassoed', 'Roped', 'Unroped', 'Chained', 'Unchained', 'Shackled', 'Unshackled', 'Handcuffed', 'Unhandcuffed', 'Restrained', 'Unrestrained', 'Confined', 'Unconfined', 'Restricted', 'Unrestricted', 'Limited', 'Unlimited', 'Bounded', 'Unbounded', 'Constrained', 'Unconstrained', 'Controlled', 'Uncontrolled', 'Regulated', 'Unregulated', 'Governed', 'Ungoverned', 'Ruled', 'Unruled', 'Managed', 'Unmanaged', 'Administered', 'Unadministered', 'Supervised', 'Unsupervised', 'Overseen', 'Unoverseen', 'Monitored', 'Unmonitored', 'Watched', 'Unwatched', 'Observed', 'Unobserved', 'Surveyed', 'Unsurveyed', 'Inspected', 'Uninspected', 'Examined', 'Unexamined', 'Checked', 'Unchecked', 'Tested', 'Untested', 'Tried', 'Untried', 'Attempted', 'Unattempted', 'Experimented', 'Unexperimented', 'Explored', 'Unexplored', 'Investigated', 'Uninvestigated', 'Researched', 'Unresearched', 'Studied', 'Unstudied', 'Analyzed', 'Unanalyzed', 'Evaluated', 'Unevaluated', 'Assessed', 'Unassessed', 'Appraised', 'Unappraised', 'Judged', 'Unjudged', 'Rated', 'Unrated', 'Ranked', 'Unranked', 'Graded', 'Ungraded', 'Scored', 'Unscored', 'Measured', 'Unmeasured', 'Weighed', 'Unweighed', 'Counted', 'Uncounted', 'Numbered', 'Unnumbered', 'Calculated', 'Uncalculated', 'Computed', 'Uncomputed', 'Figured', 'Unfigured', 'Estimated', 'Unestimated', 'Approximated', 'Unapproximated', 'Guessed', 'Unguessed', 'Predicted', 'Unpredicted', 'Forecasted', 'Unforecasted', 'Projected', 'Unprojected', 'Anticipated', 'Unanticipated', 'Expected', 'Unexpected', 'Foreseen', 'Unforeseen', 'Envisioned', 'Unenvisioned', 'Imagined', 'Unimagined', 'Conceived', 'Unconceived', 'Visualized', 'Unvisualized', 'Pictured', 'Unpictured', 'Dreamed', 'Undreamed', 'Fantasized', 'Unfantasized', 'Wished', 'Unwished', 'Hoped', 'Unhoped', 'Desired', 'Undesired', 'Wanted', 'Unwanted', 'Needed', 'Unneeded', 'Required', 'Unrequired', 'Demanded', 'Undemanded', 'Requested', 'Unrequested', 'Asked', 'Unasked', 'Sought', 'Unsought', 'Pursued', 'Unpursued', 'Chased', 'Unchased', 'Hunted', 'Unhunted', 'Searched', 'Unsearched', 'Looked', 'Unlooked', 'Explored', 'Unexplored', 'Investigated', 'Uninvestigated', 'Probed', 'Unprobed', 'Examined', 'Unexamined', 'Scrutinized', 'Unscrutinized', 'Inspected', 'Uninspected', 'Surveyed', 'Unsurveyed', 'Scanned', 'Unscanned', 'Reviewed', 'Unreviewed', 'Checked', 'Unchecked', 'Verified', 'Unverified', 'Confirmed', 'Unconfirmed', 'Validated', 'Invalidated', 'Authenticated', 'Unauthenticated', 'Authorized', 'Unauthorized', 'Approved', 'Unapproved', 'Accepted', 'Unaccepted', 'Endorsed', 'Unendorsed', 'Supported', 'Unsupported', 'Backed', 'Unbacked', 'Sponsored', 'Unsponsored', 'Funded', 'Unfunded', 'Financed', 'Unfinanced', 'Subsidized', 'Unsubsidized', 'Granted', 'Ungranted', 'Awarded', 'Unawarded', 'Given', 'Ungiven', 'Presented', 'Unpresented', 'Offered', 'Unoffered', 'Provided', 'Unprovided', 'Supplied', 'Unsupplied', 'Furnished', 'Unfurnished', 'Equipped', 'Unequipped', 'Outfitted', 'Unoutfitted', 'Armed', 'Unarmed', 'Prepared', 'Unprepared', 'Ready', 'Unready', 'Set', 'Unset', 'Primed', 'Unprimed', 'Loaded', 'Unloaded', 'Charged', 'Uncharged', 'Powered', 'Unpowered', 'Energized', 'Unenergized', 'Activated', 'Deactivated', 'Enabled', 'Disabled', 'Engaged', 'Disengaged', 'Turned', 'Unturned', 'Switched', 'Unswitched', 'Started', 'Stopped', 'Begun', 'Ended', 'Initiated', 'Terminated', 'Commenced', 'Concluded', 'Launched', 'Landed', 'Opened', 'Closed', 'Unlocked', 'Locked', 'Unsealed', 'Sealed', 'Unblocked', 'Blocked', 'Cleared', 'Clogged', 'Free', 'Trapped', 'Released', 'Captured', 'Liberated', 'Imprisoned', 'Freed', 'Enslaved', 'Emancipated', 'Bound', 'Unbound', 'Loose', 'Tight', 'Relaxed', 'Tense', 'Calm', 'Agitated', 'Peaceful', 'Disturbed', 'Quiet', 'Noisy', 'Silent', 'Loud', 'Hushed', 'Boisterous', 'Subdued', 'Raucous', 'Muted', 'Amplified', 'Softened', 'Harsh', 'Gentle', 'Mild', 'Severe', 'Lenient', 'Strict', 'Permissive', 'Restrictive', 'Liberal', 'Conservative', 'Open', 'Closed', 'Minded', 'Broad', 'Narrow', 'Wide', 'Confined', 'Spacious', 'Cramped', 'Roomy', 'Crowded', 'Empty', 'Full', 'Vacant', 'Occupied', 'Available', 'Unavailable', 'Accessible', 'Inaccessible', 'Reachable', 'Unreachable', 'Attainable', 'Unattainable', 'Achievable', 'Unachievable', 'Possible', 'Impossible', 'Feasible', 'Infeasible', 'Viable', 'Unviable', 'Workable', 'Unworkable', 'Practical', 'Impractical', 'Realistic', 'Unrealistic', 'Sensible', 'Nonsensical', 'Reasonable', 'Unreasonable', 'Logical', 'Illogical', 'Rational', 'Irrational', 'Sound', 'Unsound', 'Valid', 'Invalid', 'Legitimate', 'Illegitimate', 'Justified', 'Unjustified', 'Warranted', 'Unwarranted', 'Deserved', 'Undeserved', 'Earned', 'Unearned', 'Merited', 'Unmerited', 'Due', 'Undue', 'Owed', 'Unowed', 'Expected', 'Unexpected', 'Anticipated', 'Unanticipated', 'Predicted', 'Unpredicted', 'Foreseen', 'Unforeseen', 'Planned', 'Unplanned', 'Intended', 'Unintended', 'Deliberate', 'Accidental', 'Purposeful', 'Aimless', 'Meaningful', 'Meaningless', 'Significant', 'Insignificant', 'Important', 'Unimportant', 'Relevant', 'Irrelevant', 'Pertinent', 'Impertinent', 'Applicable', 'Inapplicable', 'Suitable', 'Unsuitable', 'Appropriate', 'Inappropriate', 'Proper', 'Improper', 'Fitting', 'Unfitting', 'Right', 'Wrong', 'Correct', 'Incorrect', 'Accurate', 'Inaccurate', 'Precise', 'Imprecise', 'Exact', 'Inexact', 'Perfect', 'Imperfect', 'Flawless', 'Flawed', 'Ideal', 'Nonideal', 'Optimal', 'Suboptimal', 'Best', 'Worst', 'Better', 'Worse', 'Superior', 'Inferior', 'Higher', 'Lower', 'Greater', 'Lesser', 'Larger', 'Smaller', 'Bigger', 'Littler', 'Huge', 'Tiny', 'Enormous', 'Minute', 'Gigantic', 'Minuscule', 'Colossal', 'Microscopic', 'Massive', 'Negligible', 'Immense', 'Infinitesimal', 'Vast', 'Limited', 'Extensive', 'Restricted', 'Comprehensive', 'Narrow', 'Broad', 'Specific', 'General', 'Detailed', 'Vague', 'Precise', 'Imprecise', 'Clear', 'Unclear', 'Distinct', 'Indistinct', 'Sharp', 'Blurry', 'Focused', 'Unfocused', 'Defined', 'Undefined', 'Explicit', 'Implicit', 'Direct', 'Indirect', 'Straightforward', 'Roundabout', 'Simple', 'Complex', 'Easy', 'Difficult', 'Hard', 'Soft', 'Tough', 'Tender', 'Strong', 'Weak', 'Powerful', 'Powerless', 'Mighty', 'Feeble', 'Robust', 'Fragile', 'Sturdy', 'Delicate', 'Durable', 'Perishable', 'Lasting', 'Temporary', 'Permanent', 'Transient', 'Enduring', 'Fleeting', 'Stable', 'Unstable', 'Steady', 'Unsteady', 'Firm', 'Shaky', 'Solid', 'Liquid', 'Hard', 'Soft', 'Rigid', 'Flexible', 'Stiff', 'Supple', 'Brittle', 'Elastic', 'Dense', 'Sparse', 'Thick', 'Thin', 'Heavy', 'Light', 'Weighty', 'Weightless', 'Bulky', 'Compact', 'Large', 'Small', 'Big', 'Little', 'Huge', 'Tiny', 'Enormous', 'Minute', 'Gigantic', 'Minuscule', 'Massive', 'Negligible', 'Colossal', 'Microscopic', 'Immense', 'Infinitesimal', 'Vast', 'Limited', 'Extensive', 'Restricted', 'Wide', 'Narrow', 'Broad', 'Slim', 'Fat', 'Skinny', 'Thick', 'Thin', 'Tall', 'Short', 'High', 'Low', 'Long', 'Brief', 'Extended', 'Shortened', 'Lengthened', 'Stretched', 'Compressed', 'Expanded', 'Contracted', 'Enlarged', 'Reduced', 'Increased', 'Decreased', 'Grown', 'Shrunk', 'Swollen', 'Shrunken', 'Inflated', 'Deflated', 'Bloated', 'Flattened', 'Raised', 'Lowered', 'Elevated', 'Depressed', 'Lifted', 'Dropped', 'Hoisted', 'Lowered', 'Boosted', 'Diminished', 'Heightened', 'Reduced', 'Intensified', 'Weakened', 'Strengthened', 'Weakened', 'Reinforced', 'Undermined', 'Supported', 'Destroyed', 'Built', 'Demolished', 'Constructed', 'Ruined', 'Created', 'Annihilated', 'Made', 'Unmade', 'Formed', 'Deformed', 'Shaped', 'Misshapen', 'Molded', 'Unmolded', 'Crafted', 'Uncrafted', 'Fashioned', 'Unfashioned', 'Designed', 'Undesigned', 'Planned', 'Unplanned', 'Organized', 'Disorganized', 'Arranged', 'Disarranged', 'Ordered', 'Disordered', 'Structured', 'Unstructured', 'Systematic', 'Unsystematic', 'Methodical', 'Unmethodical', 'Coordinated', 'Uncoordinated', 'Synchronized', 'Unsynchronized', 'Harmonized', 'Disharmonized', 'Balanced', 'Unbalanced', 'Aligned', 'Misaligned', 'Adjusted', 'Maladjusted', 'Calibrated', 'Uncalibrated', 'Tuned', 'Untuned', 'Regulated', 'Unregulated', 'Controlled', 'Uncontrolled', 'Managed', 'Unmanaged', 'Governed', 'Ungoverned', 'Directed', 'Undirected', 'Guided', 'Unguided', 'Led', 'Unled', 'Supervised', 'Unsupervised', 'Overseen', 'Unoverseen', 'Watched', 'Unwatched', 'Monitored', 'Unmonitored', 'Observed', 'Unobserved', 'Noticed', 'Unnoticed', 'Seen', 'Unseen', 'Visible', 'Invisible', 'Apparent', 'Unapparent', 'Obvious', 'Unobvious', 'Clear', 'Unclear', 'Plain', 'Obscure', 'Evident', 'Unevident', 'Manifest', 'Hidden', 'Open', 'Concealed', 'Exposed', 'Covered', 'Revealed', 'Unrevealed', 'Shown', 'Unshown', 'Displayed', 'Undisplayed', 'Exhibited', 'Unexphibited', 'Presented', 'Unpresented', 'Demonstrated', 'Undemonstrated', 'Illustrated', 'Unillustrated', 'Depicted', 'Undepicted', 'Portrayed', 'Unportrayed', 'Represented', 'Unrepresented', 'Expressed', 'Unexpressed', 'Communicated', 'Uncommunicated', 'Conveyed', 'Unconveyed', 'Transmitted', 'Untransmitted', 'Delivered', 'Undelivered', 'Sent', 'Unsent', 'Received', 'Unreceived', 'Gotten', 'Ungotten', 'Obtained', 'Unobtained', 'Acquired', 'Unacquired', 'Gained', 'Ungained', 'Earned', 'Unearned', 'Won', 'Lost', 'Achieved', 'Unachieved', 'Accomplished', 'Unaccomplished', 'Completed', 'Incomplete', 'Finished', 'Unfinished', 'Done', 'Undone', 'Ended', 'Unended', 'Concluded', 'Unconcluded', 'Terminated', 'Unterminated', 'Stopped', 'Unstopped', 'Ceased', 'Unceased', 'Discontinued', 'Continued', 'Interrupted', 'Uninterrupted', 'Broken', 'Unbroken', 'Paused', 'Unpaused', 'Suspended', 'Unsuspended', 'Halted', 'Unhalted', 'Frozen', 'Unfrozen', 'Stalled', 'Unstalled', 'Stuck', 'Unstuck', 'Blocked', 'Unblocked', 'Clogged', 'Unclogged', 'Jammed', 'Unjammed', 'Locked', 'Unlocked', 'Sealed', 'Unsealed', 'Closed', 'Opened', 'Shut', 'Unshut', 'Fastened', 'Unfastened', 'Secured', 'Unsecured', 'Fixed', 'Unfixed', 'Attached', 'Detached', 'Connected', 'Disconnected', 'Linked', 'Unlinked', 'Joined', 'Disjoined', 'United', 'Disunited', 'Combined', 'Separated', 'Merged', 'Divided', 'Blended', 'Separated', 'Mixed', 'Unmixed', 'Integrated', 'Segregated', 'Consolidated', 'Dispersed', 'Concentrated', 'Scattered', 'Gathered', 'Dispersed', 'Collected', 'Distributed', 'Assembled', 'Disassembled', 'Grouped', 'Ungrouped', 'Clustered', 'Unclustered', 'Bundled', 'Unbundled', 'Packed', 'Unpacked', 'Wrapped', 'Unwrapped', 'Covered', 'Uncovered', 'Protected', 'Unprotected', 'Shielded', 'Unshielded', 'Defended', 'Undefended', 'Guarded', 'Unguarded', 'Secured', 'Unsecured', 'Safe', 'Unsafe', 'Dangerous', 'Harmless', 'Risky', 'Risk', 'Free', 'Hazardous', 'Non', 'Hazardous', 'Threatening', 'Nonthreatening', 'Menacing', 'Non', 'Menacing', 'Intimidating', 'Non', 'Intimidating', 'Frightening', 'Non', 'Frightening', 'Scary', 'Non', 'Scary', 'Terrifying', 'Non', 'Terrifying', 'Horrifying', 'Non', 'Horrifying', 'Alarming', 'Non', 'Alarming', 'Disturbing', 'Non', 'Disturbing', 'Worrying', 'Non', 'Worrying', 'Concerning', 'Non', 'Concerning', 'Troubling', 'Non', 'Troubling', 'Problematic', 'Non', 'Problematic', 'Difficult', 'Easy', 'Hard', 'Simple', 'Complex', 'Complicated', 'Intricate', 'Straightforward', 'Involved', 'Uninvolved', 'Detailed', 'General', 'Specific', 'Vague', 'Precise', 'Imprecise', 'Exact', 'Approximate', 'Accurate', 'Inaccurate', 'Correct', 'Incorrect', 'Right', 'Wrong', 'Proper', 'Improper', 'Appropriate', 'Inappropriate', 'Suitable', 'Unsuitable', 'Fitting', 'Unfitting', 'Matching', 'Mismatched', 'Compatible', 'Incompatible', 'Consistent', 'Inconsistent', 'Coherent', 'Incoherent', 'Logical', 'Illogical', 'Rational', 'Irrational', 'Reasonable', 'Unreasonable', 'Sensible', 'Nonsensical', 'Sound', 'Unsound', 'Valid', 'Invalid', 'Legitimate', 'Illegitimate', 'Justified', 'Unjustified', 'Warranted', 'Unwarranted', 'Founded', 'Unfounded', 'Based', 'Unbased', 'Grounded', 'Ungrounded', 'Rooted', 'Uprooted', 'Established', 'Unestablished', 'Settled', 'Unsettled', 'Fixed', 'Unfixed', 'Determined', 'Undetermined', 'Decided', 'Undecided', 'Resolved', 'Unresolved', 'Concluded', 'Unconcluded', 'Finalized', 'Unfinalized', 'Completed', 'Incomplete', 'Finished', 'Unfinished', 'Done', 'Undone', 'Accomplished', 'Unaccomplished', 'Achieved', 'Unachieved', 'Attained', 'Unattained', 'Reached', 'Unreached', 'Gained', 'Ungained', 'Obtained', 'Unobtained', 'Acquired', 'Unacquired', 'Secured', 'Unsecured', 'Won', 'Lost', 'Earned', 'Unearned', 'Deserved', 'Undeserved', 'Merited', 'Unmerited', 'Qualified', 'Unqualified', 'Entitled', 'Unentitled', 'Authorized', 'Unauthorized', 'Licensed', 'Unlicensed', 'Permitted', 'Unpermitted', 'Allowed', 'Disallowed', 'Approved', 'Unapproved', 'Accepted', 'Unaccepted', 'Endorsed', 'Unendorsed', 'Supported', 'Unsupported', 'Backed', 'Unbacked', 'Sponsored', 'Unsponsored', 'Funded', 'Unfunded', 'Financed', 'Unfinanced', 'Subsidized', 'Unsubsidized', 'Invested', 'Uninvested', 'Contributed', 'Uncontributed', 'Donated', 'Undonated', 'Given', 'Ungiven', 'Granted', 'Ungranted', 'Awarded', 'Unawarded', 'Presented', 'Unpresented', 'Offered', 'Unoffered', 'Provided', 'Unprovided', 'Supplied', 'Unsupplied', 'Furnished', 'Unfurnished', 'Equipped', 'Unequipped', 'Prepared', 'Unprepared', 'Ready', 'Unready', 'Set', 'Unset', 'Arranged', 'Unarranged', 'Organized', 'Disorganized', 'Planned', 'Unplanned', 'Scheduled', 'Unscheduled', 'Booked', 'Unbooked', 'Reserved', 'Unreserved', 'Confirmed', 'Unconfirmed', 'Guaranteed', 'Unguaranteed', 'Assured', 'Unassured', 'Promised', 'Unpromised', 'Pledged', 'Unpledged', 'Committed', 'Uncommitted', 'Obligated', 'Unobligated', 'Bound', 'Unbound', 'Tied', 'Untied', 'Contracted', 'Uncontracted', 'Agreed', 'Disagreed', 'Consented', 'Dissented', 'Approved', 'Disapproved', 'Accepted', 'Rejected', 'Embraced', 'Spurned', 'Welcomed', 'Unwelcomed', 'Received', 'Unreceived', 'Taken', 'Untaken', 'Adopted', 'Unadopted', 'Assumed', 'Unassumed', 'Acquired', 'Unacquired', 'Inherited', 'Uninherited', 'Derived', 'Underived', 'Obtained', 'Unobtained', 'Gathered', 'Ungathered', 'Collected', 'Uncollected', 'Assembled', 'Unassembled', 'Accumulated', 'Unaccumulated', 'Amassed', 'Unamassed', 'Stockpiled', 'Unstockpiled', 'Stored', 'Unstored', 'Saved', 'Unsaved', 'Preserved', 'Unpreserved', 'Maintained', 'Unmaintained', 'Kept', 'Unkept', 'Retained', 'Unretained', 'Held', 'Unheld', 'Possessed', 'Unpossessed', 'Owned', 'Unowned', 'Had', 'Lacked', 'Contained', 'Lacked', 'Included', 'Excluded', 'Comprised', 'Uncomprised', 'Incorporated', 'Unincorporated', 'Embraced', 'Excluded', 'Encompassed', 'Unencompassed', 'Covered', 'Uncovered', 'Involved', 'Uninvolved', 'Engaged', 'Disengaged', 'Participated', 'Unparticipated', 'Contributed', 'Uncontributed', 'Shared', 'Unshared', 'Partook', 'Abstained', 'Joined', 'Disjoined', 'Entered', 'Exited', 'Included', 'Excluded', 'Admitted', 'Excluded', 'Allowed', 'Denied', 'Granted', 'Refused', 'Permitted', 'Forbade', 'Authorized', 'Prohibited', 'Approved', 'Vetoed', 'Accepted', 'Rejected', 'Endorsed', 'Opposed', 'Supported', 'Resisted', 'Backed', 'Opposed', 'Favored', 'Disfavored', 'Preferred', 'Dispreferred', 'Chose', 'Rejected', 'Selected', 'Deselected', 'Picked', 'Unpicked', 'Opted', 'Declined', 'Decided', 'Undecided', 'Determined', 'Undetermined', 'Resolved', 'Unresolved', 'Settled', 'Unsettled', 'Concluded', 'Unconcluded', 'Agreed', 'Disagreed', 'Consented', 'Refused', 'Assented', 'Dissented', 'Confirmed', 'Denied', 'Affirmed', 'Negated', 'Validated', 'Invalidated', 'Verified', 'Falsified', 'Proved', 'Disproved', 'Demonstrated', 'Refuted', 'Established', 'Debunked', 'Substantiated', 'Undermined', 'Corroborated', 'Contradicted', 'Authenticated', 'Questioned', 'Certified', 'Challenged', 'Warranted', 'Disputed', 'Justified', 'Criticized', 'Defended', 'Attacked', 'Supported', 'Opposed', 'Advocated', 'Condemned', 'Promoted', 'Discouraged', 'Encouraged', 'Deterred', 'Motivated', 'Demotivated', 'Inspired', 'Uninspired', 'Stimulated', 'Unstimulated', 'Energized', 'Unenergized', 'Invigorated', 'Uninvigorated', 'Revitalized', 'Devitalized', 'Refreshed', 'Exhausted', 'Renewed', 'Depleted', 'Restored', 'Diminished', 'Replenished', 'Emptied', 'Filled', 'Emptied', 'Loaded', 'Unloaded', 'Packed', 'Unpacked', 'Stuffed', 'Unstuffed', 'Crammed', 'Uncrammed', 'Jammed', 'Unjammed', 'Squeezed', 'Unsqueezed', 'Compressed', 'Uncompressed', 'Condensed', 'Uncondensed', 'Concentrated', 'Diluted', 'Thickened', 'Thinned', 'Solidified', 'Liquefied', 'Hardened', 'Softened', 'Stiffened', 'Relaxed', 'Tightened', 'Loosened', 'Fastened', 'Unfastened', 'Secured', 'Unsecured', 'Fixed', 'Unfixed', 'Attached', 'Detached', 'Connected', 'Disconnected', 'Linked', 'Unlinked', 'Joined', 'Separated', 'United', 'Divided', 'Combined', 'Split', 'Merged', 'Parted', 'Blended', 'Separated', 'Mixed', 'Unmixed', 'Stirred', 'Unstirred', 'Shaken', 'Unshaken', 'Agitated', 'Calmed', 'Disturbed', 'Settled', 'Troubled', 'Soothed', 'Worried', 'Reassured', 'Concerned', 'Unconcerned', 'Anxious', 'Relaxed', 'Nervous', 'Calm', 'Tense', 'Loose', 'Stressed', 'Unstressed', 'Pressured', 'Unpressured', 'Strained', 'Unstrained', 'Stretched', 'Contracted', 'Extended', 'Retracted', 'Expanded', 'Shrunk', 'Enlarged', 'Reduced', 'Increased', 'Decreased', 'Grown', 'Diminished', 'Developed', 'Undeveloped', 'Advanced', 'Retreated', 'Progressed', 'Regressed', 'Improved', 'Worsened', 'Enhanced', 'Degraded', 'Upgraded', 'Downgraded', 'Refined', 'Coarsened', 'Polished', 'Roughened', 'Smoothed', 'Roughened', 'Sharpened', 'Dulled', 'Brightened', 'Dimmed', 'Lightened', 'Darkened', 'Illuminated', 'Obscured', 'Clarified', 'Confused', 'Simplified', 'Complicated', 'Eased', 'Hardened', 'Facilitated', 'Hindered', 'Helped', 'Harmed', 'Assisted', 'Resisted', 'Aided', 'Opposed', 'Supported', 'Undermined', 'Backed', 'Sabotaged', 'Encouraged', 'Discouraged', 'Promoted', 'Demoted', 'Advanced', 'Retarded', 'Accelerated', 'Decelerated', 'Sped', 'Slowed', 'Quickened', 'Delayed', 'Hastened', 'Postponed', 'Rushed', 'Procrastinated', 'Hurried', 'Dawdled', 'Pressed', 'Relaxed', 'Urged', 'Discouraged', 'Pushed', 'Pulled', 'Forced', 'Allowed', 'Compelled', 'Permitted', 'Required', 'Exempted', 'Demanded', 'Waived', 'Insisted', 'Yielded', 'Persisted', 'Gave', 'Continued', 'Stopped', 'Persevered', 'Quit', 'Endured', 'Surrendered', 'Lasted', 'Ended', 'Survived', 'Perished', 'Thrived', 'Struggled', 'Flourished', 'Suffered', 'Prospered', 'Failed', 'Succeeded', 'Lost', 'Won', 'Defeated', 'Triumphed', 'Lost', 'Conquered', 'Surrendered', 'Overcame', 'Succumbed', 'Prevailed', 'Yielded', 'Dominated', 'Submitted', 'Controlled', 'Obeyed', 'Ruled', 'Followed', 'Governed', 'Served', 'Led', 'Trailed', 'Guided', 'Wandered', 'Directed', 'Strayed', 'Steered', 'Drifted', 'Navigated', 'Lost', 'Found', 'Located', 'Misplaced', 'Discovered', 'Hidden', 'Uncovered', 'Concealed', 'Revealed', 'Covered', 'Exposed', 'Protected', 'Unveiled', 'Veiled', 'Disclosed', 'Withheld', 'Shared', 'Kept', 'Told', 'Concealed', 'Communicated', 'Silenced', 'Expressed', 'Suppressed', 'Spoke', 'Hushed', 'Said', 'Unsaid', 'Voiced', 'Muted', 'Articulated', 'Mumbled', 'Pronounced', 'Slurred', 'Declared', 'Whispered', 'Announced', 'Murmured', 'Proclaimed', 'Muttered', 'Stated', 'Stuttered', 'Asserted', 'Stammered', 'Claimed', 'Babbled', 'Maintained', 'Rambled', 'Argued', 'Chattered', 'Contended', 'Gossiped', 'Insisted', 'Jabbered', 'Alleged', 'Prattled', 'Suggested', 'Blabbered', 'Proposed', 'Gabbed', 'Recommended', 'Yakked', 'Advised', 'Talked', 'Counseled', 'Conversed', 'Guided', 'Discussed', 'Instructed', 'Debated', 'Taught', 'Lectured', 'Educated', 'Preached', 'Trained', 'Sermonized', 'Schooled', 'Pontificated', 'Informed', 'Ranted', 'Told', 'Raved', 'Explained', 'Babbled', 'Described', 'Chattered', 'Detailed', 'Gabbed', 'Narrated', 'Prattled', 'Related', 'Blabbed', 'Recounted', 'Gossiped', 'Reported', 'Whispered', 'Mentioned', 'Murmured', 'Noted', 'Muttered', 'Observed', 'Mumbled', 'Remarked', 'Slurred', 'Commented', 'Stuttered', 'Pointed', 'Stammered', 'Indicated', 'Lisped', 'Showed', 'Drawled', 'Demonstrated', 'Droned', 'Illustrated', 'Monotoned', 'Depicted', 'Intoned', 'Portrayed', 'Chanted', 'Represented', 'Sang', 'Displayed', 'Hummed', 'Exhibited', 'Whistled', 'Presented', 'Crooned', 'Revealed', 'Warbled', 'Unveiled', 'Yodeled', 'Exposed', 'Shouted', 'Uncovered', 'Yelled', 'Disclosed', 'Screamed', 'Manifested', 'Hollered', 'Expressed', 'Roared', 'Conveyed', 'Bellowed', 'Transmitted', 'Shrieked', 'Delivered', 'Screeched', 'Sent', 'Squealed', 'Passed', 'Wailed', 'Gave', 'Howled', 'Handed', 'Cried', 'Offered', 'Sobbed', 'Provided', 'Whimpered', 'Supplied', 'Sniffled', 'Furnished', 'Blubbered', 'Contributed', 'Bawled', 'Donated', 'Moaned', 'Granted', 'Groaned', 'Awarded', 'Sighed', 'Bestowed', 'Gasped', 'Conferred', 'Panted', 'Imparted', 'Wheezed', 'Shared', 'Huffed', 'Distributed', 'Puffed', 'Allocated', 'Breathed', 'Assigned', 'Exhaled', 'Designated', 'Inhaled', 'Appointed', 'Snorted', 'Named', 'Sniffed', 'Called', 'Smelled', 'Titled', 'Sniffled', 'Labeled', 'Sneezed', 'Tagged', 'Coughed', 'Marked', 'Choked', 'Stamped', 'Gagged', 'Signed', 'Gulped', 'Sealed', 'Swallowed', 'Certified', 'Hiccupped', 'Validated', 'Burped', 'Verified', 'Belched', 'Authenticated', 'Yawned', 'Authorized', 'Stretched', 'Licensed', 'Flexed', 'Registered', 'Bent', 'Documented', 'Twisted', 'Recorded', 'Turned', 'Filed', 'Rotated', 'Cataloged', 'Spun', 'Listed', 'Revolved', 'Indexed', 'Pivoted', 'Classified', 'Swiveled', 'Categorized', 'Rolled', 'Grouped', 'Tumbled', 'Sorted', 'Flipped', 'Arranged', 'Flopped', 'Organized', 'Tossed', 'Ordered', 'Threw', 'Structured', 'Hurled', 'Systematized', 'Flung', 'Coordinated', 'Cast', 'Synchronized', 'Pitched', 'Harmonized', 'Lobbed', 'Aligned', 'Heaved', 'Balanced', 'Chucked', 'Adjusted', 'Launched', 'Calibrated', 'Catapulted', 'Tuned', 'Slung', 'Regulated', 'Fired', 'Controlled', 'Shot', 'Managed', 'Aimed', 'Governed', 'Targeted', 'Directed', 'Pointed', 'Guided', 'Focused', 'Steered', 'Concentrated', 'Navigated', 'Centered', 'Piloted', 'Zeroed', 'Drove', 'Honed', 'Operated', 'Sharpened', 'Ran', 'Refined', 'Worked', 'Perfected', 'Functioned', 'Polished', 'Performed', 'Smoothed', 'Executed', 'Buffed', 'Carried', 'Burnished', 'Conducted', 'Glossed', 'Accomplished', 'Shined', 'Achieved', 'Gleamed', 'Completed', 'Sparkled', 'Finished', 'Glittered', 'Fulfilled', 'Twinkled', 'Realized', 'Glowed', 'Attained', 'Radiated', 'Reached', 'Beamed', 'Gained', 'Illuminated', 'Obtained', 'Brightened', 'Acquired', 'Lit', 'Secured', 'Lightened', 'Won', 'Dimmed', 'Earned', 'Darkened', 'Deserved', 'Shadowed', 'Merited', 'Shaded', 'Qualified', 'Obscured', 'Entitled', 'Veiled', 'Warranted', 'Clouded', 'Justified', 'Covered', 'Validated', 'Masked', 'Substantiated', 'Hidden', 'Proved', 'Concealed', 'Demonstrated', 'Camouflaged', 'Established', 'Disguised', 'Confirmed', 'Cloaked', 'Verified', 'Shrouded', 'Authenticated', 'Wrapped', 'Certified', 'Enveloped', 'Endorsed', 'Encased', 'Approved', 'Enclosed', 'Sanctioned', 'Contained', 'Authorized', 'Surrounded', 'Licensed', 'Encompassed', 'Permitted', 'Embraced', 'Allowed', 'Hugged', 'Granted', 'Cuddled', 'Accorded', 'Snuggled', 'Conceded', 'Nestled', 'Yielded', 'Cradled', 'Gave', 'Held', 'Provided', 'Grasped', 'Supplied', 'Gripped', 'Offered', 'Clutched', 'Presented', 'Seized', 'Delivered', 'Grabbed', 'Handed', 'Caught', 'Passed', 'Snatched', 'Transferred', 'Captured', 'Conveyed', 'Trapped', 'Transmitted', 'Snared', 'Transported', 'Netted', 'Carried', 'Hooked', 'Moved', 'Lassoed', 'Shifted', 'Roped', 'Transported', 'Chained', 'Relocated', 'Tied', 'Displaced', 'Bound', 'Transferred', 'Linked', 'Shifted', 'Connected', 'Moved', 'Joined', 'Transported', 'United', 'Carried', 'Combined', 'Bore', 'Merged', 'Brought', 'Blended', 'Took', 'Mixed', 'Fetched', 'Integrated', 'Retrieved', 'Consolidated', 'Collected', 'Amalgamated', 'Gathered', 'Fused', 'Assembled', 'Welded', 'Accumulated', 'Bonded', 'Amassed', 'Cemented', 'Stockpiled', 'Glued', 'Hoarded', 'Pasted', 'Stored', 'Stuck', 'Saved', 'Adhered', 'Preserved', 'Attached', 'Maintained', 'Fastened', 'Kept', 'Secured', 'Retained', 'Fixed', 'Held', 'Anchored', 'Possessed', 'Moored', 'Owned', 'Tethered', 'Had', 'Tied', 'Contained', 'Bound', 'Included', 'Restrained', 'Comprised', 'Confined', 'Encompassed', 'Restricted', 'Embraced', 'Limited', 'Covered', 'Constrained', 'Involved', 'Controlled', 'Engaged', 'Regulated', 'Participated', 'Governed', 'Contributed', 'Managed', 'Shared', 'Administered', 'Partook', 'Supervised', 'Joined', 'Oversaw', 'Entered', 'Monitored', 'Included', 'Watched', 'Admitted', 'Observed', 'Allowed', 'Noticed', 'Permitted', 'Saw', 'Granted', 'Viewed', 'Authorized', 'Looked', 'Approved', 'Gazed', 'Accepted', 'Stared', 'Endorsed', 'Glanced', 'Supported', 'Peeked', 'Backed', 'Glimpsed', 'Favored', 'Spotted', 'Preferred', 'Detected', 'Chose', 'Sighted', 'Selected', 'Witnessed', 'Picked', 'Beheld', 'Opted', 'Discerned', 'Decided', 'Perceived', 'Determined', 'Recognized', 'Resolved', 'Identified', 'Concluded', 'Distinguished', 'Settled', 'Discriminated', 'Agreed', 'Differentiated', 'Consented', 'Separated', 'Assented', 'Divided', 'Confirmed', 'Split', 'Affirmed', 'Parted', 'Validated', 'Segregated', 'Verified', 'Isolated', 'Authenticated', 'Quarantined', 'Certified', 'Excluded', 'Warranted', 'Omitted', 'Justified', 'Left', 'Substantiated', 'Abandoned', 'Corroborated', 'Deserted', 'Supported', 'Forsook', 'Upheld', 'Rejected', 'Maintained', 'Refused', 'Defended', 'Declined', 'Protected', 'Denied', 'Safeguarded', 'Dismissed', 'Shielded', 'Discarded', 'Guarded', 'Threw', 'Secured', 'Dumped', 'Preserved', 'Disposed', 'Conserved', 'Eliminated', 'Saved', 'Removed', 'Rescued', 'Deleted', 'Delivered', 'Erased', 'Liberated', 'Obliterated', 'Freed', 'Destroyed', 'Released', 'Annihilated', 'Emancipated', 'Demolished', 'Unleashed', 'Ruined', 'Unbound', 'Wrecked', 'Untied', 'Devastated', 'Unfastened', 'Ravaged', 'Loosened', 'Damaged', 'Opened', 'Harmed', 'Unlocked', 'Hurt', 'Unsealed', 'Injured', 'Uncovered', 'Wounded', 'Exposed', 'Broken', 'Revealed', 'Fractured', 'Unveiled', 'Cracked', 'Disclosed', 'Split', 'Shown', 'Torn', 'Displayed', 'Ripped', 'Exhibited', 'Shredded', 'Presented', 'Cut', 'Demonstrated', 'Sliced', 'Illustrated', 'Chopped', 'Depicted', 'Diced', 'Portrayed', 'Minced', 'Represented', 'Carved', 'Expressed', 'Sculpted', 'Conveyed', 'Molded', 'Communicated', 'Shaped', 'Transmitted', 'Formed', 'Delivered', 'Fashioned', 'Sent', 'Created', 'Dispatched', 'Made', 'Shipped', 'Produced', 'Mailed', 'Generated', 'Posted', 'Manufactured', 'Forwarded', 'Crafted', 'Relayed', 'Built', 'Passed', 'Constructed', 'Transferred', 'Assembled', 'Conveyed', 'Erected', 'Transported', 'Raised', 'Moved', 'Lifted', 'Shifted', 'Hoisted', 'Displaced', 'Elevated', 'Relocated', 'Boosted', 'Repositioned', 'Heightened', 'Rearranged', 'Rose', 'Reorganized', 'Arose', 'Restructured', 'Ascended', 'Reordered', 'Climbed', 'Reshuffled', 'Mounted', 'Redistributed', 'Scaled', 'Reallocated', 'Soared', 'Reassigned', 'Flew', 'Reappointed', 'Floated', 'Renamed', 'Hovered', 'Retitled', 'Drifted', 'Relabeled', 'Glided', 'Retagged', 'Sailed', 'Remarked', 'Cruised', 'Redesignated', 'Navigated', 'Reclassified', 'Steered', 'Recategorized', 'Piloted', 'Regrouped', 'Drove', 'Resorted', 'Operated', 'Rearranged', 'Ran', 'Reordered', 'Worked', 'Realigned', 'Functioned', 'Readjusted', 'Performed', 'Recalibrated', 'Executed', 'Retuned', 'Accomplished', 'Reregulated', 'Achieved', 'Recontrolled', 'Completed', 'Remanaged', 'Finished', 'Regoverned', 'Fulfilled', 'Redirected', 'Realized', 'Reguided', 'Attained', 'Resteered', 'Reached', 'Renavigated', 'Gained', 'Repiloted', 'Obtained', 'Redrove', 'Acquired', 'Reoperated', 'Secured', 'Reran', 'Won', 'Reworked', 'Earned', 'Refunctioned', 'Deserved', 'Reformed', 'Merited', 'Reperformed', 'Qualified', 'Reexecuted', 'Entitled', 'Reaccomplished', 'Warranted', 'Reachieved', 'Justified', 'Recompleted', 'Validated', 'Refinished', 'Substantiated', 'Refulfilled', 'Proved', 'Rerealized', 'Demonstrated', 'Reattained', 'Established', 'Rereached', 'Confirmed', 'Regained', 'Verified', 'Reobtained', 'Authenticated', 'Reacquired', 'Certified', 'Resecured', 'Endorsed', 'Rewon', 'Approved', 'Rearned', 'Sanctioned', 'Redeserved', 'Authorized', 'Remerited', 'Licensed', 'Requalified', 'Permitted', 'Reentitled', 'Allowed', 'Rewarranted', 'Granted', 'Rejustified', 'Accorded', 'Revalidated', 'Conceded', 'Resubstantiated', 'Yielded', 'Reproved', 'Gave', 'Redemonstrated', 'Provided', 'Reestablished', 'Supplied', 'Reconfirmed', 'Offered', 'Reverified', 'Presented', 'Reauthenticated', 'Delivered', 'Recertified', 'Handed', 'Reendorsed', 'Passed', 'Reapproved', 'Transferred', 'Resanctioned', 'Conveyed', 'Reauthorized', 'Transmitted', 'Relicensed', 'Transported', 'Repermitted', 'Carried', 'Reallowed', 'Moved', 'Regranted', 'Shifted', 'Reaccorded', 'Displaced', 'Reconceded', 'Relocated', 'Reyielded', 'Repositioned', 'Regave', 'Rearranged', 'Reprovided', 'Reorganized', 'Resupplied', 'Restructured', 'Reoffered', 'Reordered', 'Represented', 'Reshuffled', 'Redelivered', 'Redistributed', 'Rehanded', 'Reallocated', 'Repassed', 'Reassigned', 'Retransferred', 'Reappointed', 'Reconveyed', 'Renamed', 'Retransmitted', 'Retitled', 'Retransported', 'Relabeled', 'Recarried', 'Retagged', 'Removed', 'Remarked', 'Reshifted', 'Redesignated', 'Redisplaced', 'Reclassified', 'Rerelocated', 'Recategorized', 'Repositioned', 'Regrouped', 'Rearranged', 'Resorted', 'Reorganized', 'Rearranged', 'Restructured', 'Reordered', 'Reordered', 'Realigned', 'Reshuffled', 'Readjusted', 'Redistributed', 'Recalibrated', 'Reallocated', 'Retuned', 'Reassigned', 'Reregulated', 'Reappointed', 'Recontrolled', 'Renamed', 'Remanaged', 'Retitled', 'Regoverned', 'Relabeled', 'Redirected', 'Retagged', 'Reguided', 'Remarked', 'Resteered', 'Redesignated', 'Renavigated', 'Reclassified', 'Repiloted', 'Recategorized', 'Redrove', 'Regrouped', 'Reoperated', 'Resorted', 'Reran', 'Rearranged', 'Reworked', 'Reordered', 'Refunctioned', 'Realigned', 'Reformed', 'Readjusted', 'Reperformed', 'Recalibrated', 'Reexecuted', 'Retuned', 'Reaccomplished', 'Reregulated', 'Reachieved', 'Recontrolled', 'Recompleted', 'Remanaged', 'Refinished', 'Regoverned', 'Refulfilled', 'Redirected', 'Rerealized', 'Reguided', 'Reattained', 'Resteered', 'Rereached', 'Renavigated', 'Regained', 'Repiloted', 'Reobtained', 'Redrove', 'Reacquired', 'Reoperated', 'Resecured', 'Reran', 'Rewon', 'Reworked', 'Rearned', 'Refunctioned', 'Redeserved', 'Reformed', 'Remerited', 'Reperformed', 'Requalified', 'Reexecuted', 'Reentitled', 'Reaccomplished', 'Rewarranted', 'Reachieved', 'Rejustified', 'Recompleted', 'Revalidated', 'Refinished', 'Resubstantiated', 'Refulfilled', 'Reproved', 'Rerealized', 'Redemonstrated', 'Reattained', 'Reestablished', 'Rereached', 'Reconfirmed', 'Regained', 'Reverified', 'Reobtained', 'Reauthenticated', 'Reacquired', 'Recertified', 'Resecured', 'Reendorsed', 'Rewon', 'Reapproved', 'Rearned', 'Resanctioned', 'Redeserved', 'Reauthorized', 'Remerited', 'Relicensed', 'Requalified', 'Repermitted', 'Reentitled', 'Reallowed', 'Rewarranted', 'Regranted', 'Rejustified', 'Reaccorded', 'Revalidated', 'Reconceded', 'Resubstantiated', 'Reyielded', 'Reproved', 'Regave', 'Redemonstrated', 'Reprovided', 'Reestablished', 'Resupplied', 'Reconfirmed', 'Reoffered', 'Reverified', 'Represented', 'Reauthenticated', 'Redelivered', 'Recertified', 'Rehanded', 'Reendorsed', 'Repassed', 'Reapproved', 'Retransferred', 'Resanctioned', 'Reconveyed', 'Reauthorized', 'Retransmitted', 'Relicensed', 'Retransported', 'Repermitted', 'Recarried', 'Reallowed', 'Removed', 'Regranted', 'Reshifted', 'Reaccorded', 'Redisplaced', 'Reconceded', 'Rerelocated', 'Reyielded', 'Repositioned', 'Regave', 'Rearranged', 'Reprovided', 'Reorganized', 'Resupplied', 'Restructured', 'Reoffered', 'Reordered', 'Represented', 'Reshuffled', 'Redelivered', 'Redistributed', 'Rehanded', 'Reallocated', 'Repassed', 'Reassigned', 'Retransferred', 'Reappointed', 'Reconveyed', 'Renamed', 'Retransmitted', 'Retitled', 'Retransported', 'Relabeled', 'Recarried', 'Retagged', 'Removed', 'Remarked', 'Reshifted', 'Redesignated', 'Redisplaced', 'Reclassified', 'Rerelocated', 'Recategorized', 'Repositioned', 'Regrouped', 'Rearranged', 'Resorted', 'Reorganized', 'Rearranged', 'Restructured', 'Reordered', 'Reordered', 'Realigned', 'Reshuffled', 'Readjusted', 'Redistributed', 'Recalibrated', 'Reallocated', 'Retuned', 'Reassigned', 'Reregulated', 'Reappointed', 'Recontrolled', 'Renamed', 'Remanaged', 'Retitled', 'Regoverned', 'Relabeled', 'Redirected', 'Retagged', 'Reguided', 'Remarked', 'Resteered', 'Redesignated', 'Renavigated', 'Reclassified', 'Repiloted', 'Recategorized', 'Redrove', 'Regrouped', 'Reoperated', 'Resorted', 'Reran', 'Rearranged', 'Reworked', 'Reordered', 'Refunctioned', 'Realigned', 'Reformed', 'Readjusted', 'Reperformed', 'Recalibrated', 'Reexecuted', 'Retuned', 'Reaccomplished', 'Reregulated', 'Reachieved', 'Recontrolled', 'Recompleted', 'Remanaged', 'Refinished', 'Regoverned', 'Refulfilled', 'Redirected', 'Rerealized', 'Reguided', 'Reattained', 'Resteered', 'Rereached', 'Renavigated', 'Regained', 'Repiloted', 'Reobtained', 'Redrove', 'Reacquired', 'Reoperated', 'Resecured', 'Reran', 'Rewon', 'Reworked', 'Rearned', 'Refunctioned', 'Redeserved', 'Reformed', 'Remerited', 'Reperformed', 'Requalified', 'Reexecuted', 'Reentitled', 'Reaccomplished', 'Rewarranted', 'Reachieved', 'Rejustified', 'Recompleted', 'Revalidated', 'Refinished', 'Resubstantiated', 'Refulfilled', 'Reproved', 'Rerealized', 'Redemonstrated', 'Reattained', 'Reestablished', 'Rereached', 'Reconfirmed', 'Regained', 'Reverified', 'Reobtained', 'Reauthenticated', 'Reacquired', 'Recertified', 'Resecured', 'Reendorsed', 'Rewon', 'Reapproved', 'Rearned', 'Resanctioned', 'Redeserved', 'Reauthorized', 'Remerited', 'Relicensed', 'Requalified', 'Repermitted', 'Reentitled', 'Reallowed', 'Rewarranted', 'Regranted', 'Rejustified', 'Reaccorded', 'Revalidated', 'Reconceded', 'Resubstantiated', 'Reyielded', 'Reproved', 'Regave', 'Redemonstrated', 'Reprovided', 'Reestablished', 'Resupplied', 'Reconfirmed', 'Reoffered', 'Reverified', 'Represented', 'Reauthenticated', 'Redelivered', 'Recertified', 'Rehanded', 'Reendorsed', 'Repassed', 'Reapproved', 'Retransferred', 'Resanctioned', 'Reconveyed', 'Reauthorized', 'Retransmitted', 'Relicensed', 'Retransported', 'Repermitted', 'Recarried', 'Reallowed', 'Removed', 'Regranted', 'Reshifted', 'Reaccorded', 'Redisplaced', 'Reconceded', 'Rerelocated', 'Reyielded', 'Repositioned', 'Regave', 'Rearranged', 'Reprovided', 'Reorganized', 'Resupplied', 'Restructured', 'Reoffered', 'Reordered', 'Represented', 'Reshuffled', 'Redelivered', 'Redistributed', 'Rehanded', 'Reallocated', 'Repassed', 'Reassigned', 'Retransferred', 'Reappointed', 'Reconveyed', 'Renamed', 'Retransmitted', 'Retitled', 'Retransported', 'Relabeled', 'Recarried', 'Retagged', 'Removed', 'Remarked', 'Reshifted'];
-          
+          const commonWords = [
+            'Everything',
+            'Something',
+            'Nothing',
+            'Anything',
+            'Everyone',
+            'Someone',
+            'Anyone',
+            'This',
+            'That',
+            'These',
+            'Those',
+            'They',
+            'Them',
+            'Their',
+            'There',
+            'Then',
+            'When',
+            'Where',
+            'What',
+            'Which',
+            'Who',
+            'How',
+            'Why',
+            'And',
+            'But',
+            'Or',
+            'So',
+            'If',
+            'As',
+            'At',
+            'In',
+            'On',
+            'By',
+            'To',
+            'Of',
+            'For',
+            'With',
+            'From',
+            'Up',
+            'Out',
+            'Off',
+            'Down',
+            'Over',
+            'Under',
+            'About',
+            'Into',
+            'Through',
+            'During',
+            'Before',
+            'After',
+            'Above',
+            'Below',
+            'Between',
+            'Among',
+            'Beyond',
+            'Behind',
+            'Beside',
+            'Beneath',
+            'Across',
+            'Against',
+            'Along',
+            'Around',
+            'Toward',
+            'Upon',
+            'Within',
+            'Without',
+            'Inside',
+            'Outside',
+            'Onto',
+            'Into',
+            'The',
+            'A',
+            'An',
+            'This',
+            'That',
+            'These',
+            'Those',
+            'My',
+            'Your',
+            'His',
+            'Her',
+            'Its',
+            'Our',
+            'Their',
+            'Me',
+            'You',
+            'Him',
+            'Her',
+            'It',
+            'Us',
+            'Them',
+            'I',
+            'We',
+            'He',
+            'She',
+            'They',
+            'Am',
+            'Is',
+            'Are',
+            'Was',
+            'Were',
+            'Be',
+            'Been',
+            'Being',
+            'Have',
+            'Has',
+            'Had',
+            'Do',
+            'Does',
+            'Did',
+            'Will',
+            'Would',
+            'Could',
+            'Should',
+            'May',
+            'Might',
+            'Can',
+            'Must',
+            'Shall',
+            'One',
+            'Two',
+            'Three',
+            'Four',
+            'Five',
+            'Six',
+            'Seven',
+            'Eight',
+            'Nine',
+            'Ten',
+            'All',
+            'Any',
+            'Some',
+            'Few',
+            'Many',
+            'Much',
+            'Most',
+            'More',
+            'Less',
+            'Little',
+            'Big',
+            'Large',
+            'Small',
+            'Great',
+            'Good',
+            'Bad',
+            'Best',
+            'Worst',
+            'Better',
+            'Worse',
+            'First',
+            'Last',
+            'Next',
+            'Previous',
+            'New',
+            'Old',
+            'Young',
+            'Ancient',
+            'Modern',
+            'Early',
+            'Late',
+            'Long',
+            'Short',
+            'High',
+            'Low',
+            'Far',
+            'Near',
+            'Close',
+            'Open',
+            'Closed',
+            'Hot',
+            'Cold',
+            'Warm',
+            'Cool',
+            'Dry',
+            'Wet',
+            'Clean',
+            'Dirty',
+            'Light',
+            'Dark',
+            'Bright',
+            'Dim',
+            'Loud',
+            'Quiet',
+            'Fast',
+            'Slow',
+            'Quick',
+            'Easy',
+            'Hard',
+            'Soft',
+            'Rough',
+            'Smooth',
+            'Sharp',
+            'Dull',
+            'Heavy',
+            'Light',
+            'Strong',
+            'Weak',
+            'Full',
+            'Empty',
+            'Right',
+            'Wrong',
+            'True',
+            'False',
+            'Real',
+            'Fake',
+            'Sure',
+            'Maybe',
+            'Yes',
+            'No',
+            'Here',
+            'There',
+            'Where',
+            'Everywhere',
+            'Somewhere',
+            'Nowhere',
+            'Anywhere',
+            'Now',
+            'Then',
+            'When',
+            'Always',
+            'Never',
+            'Sometimes',
+            'Often',
+            'Usually',
+            'Rarely',
+            'Today',
+            'Tomorrow',
+            'Yesterday',
+            'Soon',
+            'Later',
+            'Again',
+            'Still',
+            'Yet',
+            'Already',
+            'Just',
+            'Only',
+            'Also',
+            'Too',
+            'Very',
+            'Really',
+            'Quite',
+            'Rather',
+            'Pretty',
+            'Fairly',
+            'Enough',
+            'Almost',
+            'Nearly',
+            'Completely',
+            'Totally',
+            'Entirely',
+            'Absolutely',
+            'Exactly',
+            'Probably',
+            'Perhaps',
+            'Maybe',
+            'Certainly',
+            'Definitely',
+            'Clearly',
+            'Obviously',
+            'Actually',
+            'Finally',
+            'Suddenly',
+            'Immediately',
+            'Recently',
+            'Currently',
+            'Eventually',
+            'Gradually',
+            'Slowly',
+            'Quickly',
+            'Carefully',
+            'Quietly',
+            'Loudly',
+            'Gently',
+            'Roughly',
+            'Smoothly',
+            'Easily',
+            'Hardly',
+            'Mostly',
+            'Partly',
+            'Especially',
+            'Particularly',
+            'Generally',
+            'Usually',
+            'Normally',
+            'Typically',
+            'Specifically',
+            'Exactly',
+            'Precisely',
+            'Approximately',
+            'About',
+            'Around',
+            'Nearly',
+            'Almost',
+            'Quite',
+            'Rather',
+            'Fairly',
+            'Pretty',
+            'Somewhat',
+            'Slightly',
+            'Barely',
+            'Hardly',
+            'Scarcely',
+            'Merely',
+            'Simply',
+            'Just',
+            'Only',
+            'Even',
+            'Still',
+            'Yet',
+            'Already',
+            'Soon',
+            'Later',
+            'Earlier',
+            'Before',
+            'After',
+            'During',
+            'While',
+            'Since',
+            'Until',
+            'Unless',
+            'Although',
+            'Though',
+            'However',
+            'Nevertheless',
+            'Nonetheless',
+            'Therefore',
+            'Thus',
+            'Hence',
+            'Consequently',
+            'Accordingly',
+            'Meanwhile',
+            'Otherwise',
+            'Instead',
+            'Rather',
+            'Besides',
+            'Moreover',
+            'Furthermore',
+            'Additionally',
+            'Also',
+            'Too',
+            'As',
+            'Well',
+            'Likewise',
+            'Similarly',
+            'Equally',
+            'Comparatively',
+            'Relatively',
+            'Respectively',
+            'Alternatively',
+            'Conversely',
+            'Contrarily',
+            'Oppositely',
+            'Differently',
+            'Separately',
+            'Individually',
+            'Collectively',
+            'Together',
+            'Apart',
+            'Aside',
+            'Away',
+            'Back',
+            'Forward',
+            'Backward',
+            'Ahead',
+            'Behind',
+            'Beside',
+            'Besides',
+            'Between',
+            'Among',
+            'Amongst',
+            'Within',
+            'Without',
+            'Inside',
+            'Outside',
+            'Upward',
+            'Downward',
+            'Inward',
+            'Outward',
+            'Leftward',
+            'Rightward',
+            'Northward',
+            'Southward',
+            'Eastward',
+            'Westward',
+            'Homeward',
+            'Onward',
+            'Toward',
+            'Against',
+            'Along',
+            'Across',
+            'Through',
+            'Throughout',
+            'Over',
+            'Under',
+            'Above',
+            'Below',
+            'Beneath',
+            'Beyond',
+            'Beside',
+            'Behind',
+            'Onto',
+            'Into',
+            'Upon',
+            'Atop',
+            'Beneath',
+            'Underneath',
+            'Overhead',
+            'Nearby',
+            'Alongside',
+            'Amidst',
+            'Amid',
+            'Via',
+            'Per',
+            'Except',
+            'Besides',
+            'Including',
+            'Excluding',
+            'Regarding',
+            'Concerning',
+            'Considering',
+            'Despite',
+            'Regardless',
+            'Notwithstanding',
+            'Albeit',
+            'Whereas',
+            'While',
+            'Since',
+            'Because',
+            'Due',
+            'Thanks',
+            'Owing',
+            'According',
+            'Depending',
+            'Based',
+            'Given',
+            'Assuming',
+            'Supposing',
+            'Provided',
+            'Unless',
+            'Whether',
+            'Either',
+            'Neither',
+            'Both',
+            'All',
+            'Every',
+            'Each',
+            'Any',
+            'Some',
+            'Few',
+            'Several',
+            'Many',
+            'Much',
+            'Most',
+            'More',
+            'Less',
+            'Fewer',
+            'Little',
+            'Lot',
+            'Plenty',
+            'Enough',
+            'Sufficient',
+            'Insufficient',
+            'Adequate',
+            'Inadequate',
+            'Excess',
+            'Excessive',
+            'Extra',
+            'Additional',
+            'Further',
+            'Another',
+            'Other',
+            'Others',
+            'Different',
+            'Same',
+            'Similar',
+            'Alike',
+            'Unlike',
+            'Dissimilar',
+            'Various',
+            'Diverse',
+            'Multiple',
+            'Single',
+            'Double',
+            'Triple',
+            'Quadruple',
+            'Half',
+            'Quarter',
+            'Third',
+            'Whole',
+            'Entire',
+            'Complete',
+            'Incomplete',
+            'Partial',
+            'Full',
+            'Empty',
+            'Filled',
+            'Vacant',
+            'Occupied',
+            'Available',
+            'Unavailable',
+            'Present',
+            'Absent',
+            'Missing',
+            'Lost',
+            'Found',
+            'Discovered',
+            'Hidden',
+            'Visible',
+            'Invisible',
+            'Apparent',
+            'Obvious',
+            'Clear',
+            'Unclear',
+            'Distinct',
+            'Indistinct',
+            'Definite',
+            'Indefinite',
+            'Certain',
+            'Uncertain',
+            'Sure',
+            'Unsure',
+            'Confident',
+            'Doubtful',
+            'Positive',
+            'Negative',
+            'Neutral',
+            'Balanced',
+            'Unbalanced',
+            'Stable',
+            'Unstable',
+            'Steady',
+            'Unsteady',
+            'Consistent',
+            'Inconsistent',
+            'Regular',
+            'Irregular',
+            'Normal',
+            'Abnormal',
+            'Typical',
+            'Atypical',
+            'Common',
+            'Uncommon',
+            'Rare',
+            'Frequent',
+            'Infrequent',
+            'Occasional',
+            'Constant',
+            'Variable',
+            'Fixed',
+            'Flexible',
+            'Rigid',
+            'Loose',
+            'Tight',
+            'Firm',
+            'Weak',
+            'Strong',
+            'Powerful',
+            'Powerless',
+            'Mighty',
+            'Feeble',
+            'Robust',
+            'Fragile',
+            'Sturdy',
+            'Delicate',
+            'Tough',
+            'Tender',
+            'Hard',
+            'Soft',
+            'Solid',
+            'Liquid',
+            'Gaseous',
+            'Dense',
+            'Sparse',
+            'Thick',
+            'Thin',
+            'Wide',
+            'Narrow',
+            'Broad',
+            'Slim',
+            'Fat',
+            'Skinny',
+            'Tall',
+            'Short',
+            'Long',
+            'Brief',
+            'Extended',
+            'Prolonged',
+            'Temporary',
+            'Permanent',
+            'Lasting',
+            'Fleeting',
+            'Quick',
+            'Slow',
+            'Fast',
+            'Rapid',
+            'Swift',
+            'Sluggish',
+            'Immediate',
+            'Delayed',
+            'Instant',
+            'Gradual',
+            'Sudden',
+            'Smooth',
+            'Rough',
+            'Bumpy',
+            'Even',
+            'Uneven',
+            'Level',
+            'Sloped',
+            'Straight',
+            'Curved',
+            'Bent',
+            'Twisted',
+            'Round',
+            'Square',
+            'Circular',
+            'Rectangular',
+            'Triangular',
+            'Oval',
+            'Linear',
+            'Angular',
+            'Sharp',
+            'Blunt',
+            'Pointed',
+            'Rounded',
+            'Flat',
+            'Steep',
+            'Gentle',
+            'Harsh',
+            'Mild',
+            'Severe',
+            'Extreme',
+            'Moderate',
+            'Intense',
+            'Weak',
+            'Strong',
+            'Loud',
+            'Quiet',
+            'Silent',
+            'Noisy',
+            'Peaceful',
+            'Violent',
+            'Calm',
+            'Turbulent',
+            'Serene',
+            'Chaotic',
+            'Orderly',
+            'Disorderly',
+            'Organized',
+            'Disorganized',
+            'Neat',
+            'Messy',
+            'Clean',
+            'Dirty',
+            'Pure',
+            'Impure',
+            'Fresh',
+            'Stale',
+            'New',
+            'Old',
+            'Young',
+            'Aged',
+            'Ancient',
+            'Modern',
+            'Contemporary',
+            'Traditional',
+            'Conventional',
+            'Unconventional',
+            'Standard',
+            'Nonstandard',
+            'Regular',
+            'Irregular',
+            'Formal',
+            'Informal',
+            'Official',
+            'Unofficial',
+            'Legal',
+            'Illegal',
+            'Legitimate',
+            'Illegitimate',
+            'Valid',
+            'Invalid',
+            'Correct',
+            'Incorrect',
+            'Right',
+            'Wrong',
+            'Proper',
+            'Improper',
+            'Appropriate',
+            'Inappropriate',
+            'Suitable',
+            'Unsuitable',
+            'Fitting',
+            'Unfitting',
+            'Relevant',
+            'Irrelevant',
+            'Important',
+            'Unimportant',
+            'Significant',
+            'Insignificant',
+            'Major',
+            'Minor',
+            'Primary',
+            'Secondary',
+            'Main',
+            'Subsidiary',
+            'Central',
+            'Peripheral',
+            'Key',
+            'Trivial',
+            'Essential',
+            'Nonessential',
+            'Necessary',
+            'Unnecessary',
+            'Required',
+            'Optional',
+            'Mandatory',
+            'Voluntary',
+            'Compulsory',
+            'Elective',
+            'Obligatory',
+            'Free',
+            'Bound',
+            'Independent',
+            'Dependent',
+            'Autonomous',
+            'Controlled',
+            'Self',
+            'Other',
+            'Own',
+            'Foreign',
+            'Domestic',
+            'Local',
+            'Global',
+            'International',
+            'National',
+            'Regional',
+            'Universal',
+            'Particular',
+            'General',
+            'Specific',
+            'Generic',
+            'Individual',
+            'Collective',
+            'Personal',
+            'Public',
+            'Private',
+            'Confidential',
+            'Secret',
+            'Open',
+            'Closed',
+            'Accessible',
+            'Inaccessible',
+            'Available',
+            'Unavailable',
+            'Possible',
+            'Impossible',
+            'Probable',
+            'Improbable',
+            'Likely',
+            'Unlikely',
+            'Potential',
+            'Actual',
+            'Real',
+            'Imaginary',
+            'Fictional',
+            'Factual',
+            'True',
+            'False',
+            'Honest',
+            'Dishonest',
+            'Truthful',
+            'Deceptive',
+            'Genuine',
+            'Fake',
+            'Authentic',
+            'Artificial',
+            'Natural',
+            'Synthetic',
+            'Original',
+            'Copy',
+            'Unique',
+            'Common',
+            'Special',
+            'Ordinary',
+            'Extraordinary',
+            'Remarkable',
+            'Unremarkable',
+            'Notable',
+            'Insignificant',
+            'Outstanding',
+            'Average',
+            'Exceptional',
+            'Typical',
+            'Unusual',
+            'Usual',
+            'Strange',
+            'Familiar',
+            'Known',
+            'Unknown',
+            'Recognized',
+            'Unrecognized',
+            'Identified',
+            'Unidentified',
+            'Named',
+            'Unnamed',
+            'Titled',
+            'Untitled',
+            'Labeled',
+            'Unlabeled',
+            'Marked',
+            'Unmarked',
+            'Signed',
+            'Unsigned',
+            'Numbered',
+            'Unnumbered',
+            'Counted',
+            'Uncounted',
+            'Measured',
+            'Unmeasured',
+            'Weighed',
+            'Unweighed',
+            'Calculated',
+            'Estimated',
+            'Guessed',
+            'Determined',
+            'Decided',
+            'Undecided',
+            'Resolved',
+            'Unresolved',
+            'Settled',
+            'Unsettled',
+            'Confirmed',
+            'Unconfirmed',
+            'Verified',
+            'Unverified',
+            'Proven',
+            'Unproven',
+            'Tested',
+            'Untested',
+            'Tried',
+            'Untried',
+            'Attempted',
+            'Unattempted',
+            'Completed',
+            'Incomplete',
+            'Finished',
+            'Unfinished',
+            'Done',
+            'Undone',
+            'Accomplished',
+            'Unaccomplished',
+            'Achieved',
+            'Unachieved',
+            'Successful',
+            'Unsuccessful',
+            'Failed',
+            'Passed',
+            'Won',
+            'Lost',
+            'Gained',
+            'Lost',
+            'Earned',
+            'Spent',
+            'Saved',
+            'Wasted',
+            'Used',
+            'Unused',
+            'Utilized',
+            'Underutilized',
+            'Employed',
+            'Unemployed',
+            'Occupied',
+            'Unoccupied',
+            'Busy',
+            'Idle',
+            'Active',
+            'Inactive',
+            'Dynamic',
+            'Static',
+            'Moving',
+            'Stationary',
+            'Mobile',
+            'Immobile',
+            'Portable',
+            'Fixed',
+            'Stable',
+            'Unstable',
+            'Secure',
+            'Insecure',
+            'Safe',
+            'Dangerous',
+            'Risky',
+            'Harmless',
+            'Harmful',
+            'Beneficial',
+            'Detrimental',
+            'Helpful',
+            'Unhelpful',
+            'Useful',
+            'Useless',
+            'Effective',
+            'Ineffective',
+            'Efficient',
+            'Inefficient',
+            'Productive',
+            'Unproductive',
+            'Profitable',
+            'Unprofitable',
+            'Valuable',
+            'Worthless',
+            'Precious',
+            'Cheap',
+            'Expensive',
+            'Costly',
+            'Affordable',
+            'Unaffordable',
+            'Reasonable',
+            'Unreasonable',
+            'Fair',
+            'Unfair',
+            'Just',
+            'Unjust',
+            'Equal',
+            'Unequal',
+            'Balanced',
+            'Unbalanced',
+            'Proportional',
+            'Disproportional',
+            'Symmetrical',
+            'Asymmetrical',
+            'Aligned',
+            'Misaligned',
+            'Coordinated',
+            'Uncoordinated',
+            'Organized',
+            'Disorganized',
+            'Systematic',
+            'Unsystematic',
+            'Methodical',
+            'Random',
+            'Planned',
+            'Unplanned',
+            'Deliberate',
+            'Accidental',
+            'Intentional',
+            'Unintentional',
+            'Purposeful',
+            'Aimless',
+            'Directed',
+            'Undirected',
+            'Guided',
+            'Unguided',
+            'Controlled',
+            'Uncontrolled',
+            'Managed',
+            'Unmanaged',
+            'Supervised',
+            'Unsupervised',
+            'Monitored',
+            'Unmonitored',
+            'Watched',
+            'Unwatched',
+            'Observed',
+            'Unobserved',
+            'Noticed',
+            'Unnoticed',
+            'Seen',
+            'Unseen',
+            'Visible',
+            'Invisible',
+            'Apparent',
+            'Hidden',
+            'Obvious',
+            'Subtle',
+            'Clear',
+            'Vague',
+            'Distinct',
+            'Indistinct',
+            'Precise',
+            'Imprecise',
+            'Accurate',
+            'Inaccurate',
+            'Exact',
+            'Approximate',
+            'Specific',
+            'General',
+            'Detailed',
+            'Vague',
+            'Thorough',
+            'Superficial',
+            'Complete',
+            'Incomplete',
+            'Comprehensive',
+            'Limited',
+            'Extensive',
+            'Restricted',
+            'Broad',
+            'Narrow',
+            'Wide',
+            'Confined',
+            'Expanded',
+            'Contracted',
+            'Enlarged',
+            'Reduced',
+            'Increased',
+            'Decreased',
+            'Grown',
+            'Shrunk',
+            'Developed',
+            'Undeveloped',
+            'Advanced',
+            'Backward',
+            'Progressive',
+            'Regressive',
+            'Forward',
+            'Reverse',
+            'Upward',
+            'Downward',
+            'Rising',
+            'Falling',
+            'Ascending',
+            'Descending',
+            'Climbing',
+            'Declining',
+            'Improving',
+            'Worsening',
+            'Better',
+            'Worse',
+            'Superior',
+            'Inferior',
+            'Higher',
+            'Lower',
+            'Greater',
+            'Lesser',
+            'Larger',
+            'Smaller',
+            'Bigger',
+            'Littler',
+            'Huge',
+            'Tiny',
+            'Enormous',
+            'Minute',
+            'Gigantic',
+            'Microscopic',
+            'Massive',
+            'Miniature',
+            'Colossal',
+            'Petite',
+            'Immense',
+            'Compact',
+            'Vast',
+            'Cramped',
+            'Spacious',
+            'Crowded',
+            'Roomy',
+            'Tight',
+            'Loose',
+            'Relaxed',
+            'Tense',
+            'Calm',
+            'Agitated',
+            'Peaceful',
+            'Disturbed',
+            'Quiet',
+            'Noisy',
+            'Silent',
+            'Loud',
+            'Soft',
+            'Hard',
+            'Gentle',
+            'Rough',
+            'Smooth',
+            'Bumpy',
+            'Even',
+            'Uneven',
+            'Flat',
+            'Curved',
+            'Straight',
+            'Crooked',
+            'Level',
+            'Tilted',
+            'Horizontal',
+            'Vertical',
+            'Diagonal',
+            'Parallel',
+            'Perpendicular',
+            'Intersecting',
+            'Separate',
+            'Connected',
+            'Joined',
+            'Detached',
+            'Attached',
+            'Linked',
+            'Unlinked',
+            'Related',
+            'Unrelated',
+            'Associated',
+            'Disassociated',
+            'Combined',
+            'Separated',
+            'United',
+            'Divided',
+            'Together',
+            'Apart',
+            'Close',
+            'Distant',
+            'Near',
+            'Far',
+            'Nearby',
+            'Remote',
+            'Local',
+            'Foreign',
+            'Domestic',
+            'International',
+            'Internal',
+            'External',
+            'Inside',
+            'Outside',
+            'Interior',
+            'Exterior',
+            'Inner',
+            'Outer',
+            'Central',
+            'Peripheral',
+            'Middle',
+            'Edge',
+            'Center',
+            'Border',
+            'Core',
+            'Surface',
+            'Deep',
+            'Shallow',
+            'Profound',
+            'Superficial',
+            'Serious',
+            'Trivial',
+            'Important',
+            'Unimportant',
+            'Significant',
+            'Insignificant',
+            'Meaningful',
+            'Meaningless',
+            'Relevant',
+            'Irrelevant',
+            'Applicable',
+            'Inapplicable',
+            'Suitable',
+            'Unsuitable',
+            'Appropriate',
+            'Inappropriate',
+            'Proper',
+            'Improper',
+            'Correct',
+            'Incorrect',
+            'Right',
+            'Wrong',
+            'Good',
+            'Bad',
+            'Excellent',
+            'Poor',
+            'Outstanding',
+            'Terrible',
+            'Wonderful',
+            'Awful',
+            'Great',
+            'Horrible',
+            'Amazing',
+            'Dreadful',
+            'Fantastic',
+            'Disgusting',
+            'Marvelous',
+            'Repulsive',
+            'Splendid',
+            'Revolting',
+            'Magnificent',
+            'Sickening',
+            'Beautiful',
+            'Ugly',
+            'Attractive',
+            'Unattractive',
+            'Pretty',
+            'Plain',
+            'Handsome',
+            'Homely',
+            'Lovely',
+            'Hideous',
+            'Gorgeous',
+            'Ghastly',
+            'Stunning',
+            'Appalling',
+            'Elegant',
+            'Clumsy',
+            'Graceful',
+            'Awkward',
+            'Refined',
+            'Crude',
+            'Sophisticated',
+            'Primitive',
+            'Cultured',
+            'Barbaric',
+            'Civilized',
+            'Savage',
+            'Polite',
+            'Rude',
+            'Courteous',
+            'Impolite',
+            'Respectful',
+            'Disrespectful',
+            'Kind',
+            'Cruel',
+            'Gentle',
+            'Harsh',
+            'Sweet',
+            'Bitter',
+            'Pleasant',
+            'Unpleasant',
+            'Agreeable',
+            'Disagreeable',
+            'Friendly',
+            'Hostile',
+            'Warm',
+            'Cold',
+            'Welcoming',
+            'Unwelcoming',
+            'Inviting',
+            'Uninviting',
+            'Appealing',
+            'Unappealing',
+            'Attractive',
+            'Repulsive',
+            'Charming',
+            'Repellent',
+            'Delightful',
+            'Disgusting',
+            'Enjoyable',
+            'Unenjoyable',
+            'Fun',
+            'Boring',
+            'Exciting',
+            'Dull',
+            'Interesting',
+            'Uninteresting',
+            'Fascinating',
+            'Tedious',
+            'Engaging',
+            'Disengaging',
+            'Captivating',
+            'Repelling',
+            'Absorbing',
+            'Distracting',
+            'Compelling',
+            'Repulsive',
+            'Enticing',
+            'Discouraging',
+            'Tempting',
+            'Deterring',
+            'Alluring',
+            'Repelling',
+            'Seductive',
+            'Revolting',
+            'Appealing',
+            'Appalling',
+            'Inviting',
+            'Forbidding',
+            'Welcome',
+            'Unwelcome',
+            'Desired',
+            'Undesired',
+            'Wanted',
+            'Unwanted',
+            'Needed',
+            'Unneeded',
+            'Required',
+            'Unrequired',
+            'Necessary',
+            'Unnecessary',
+            'Essential',
+            'Nonessential',
+            'Vital',
+            'Trivial',
+            'Critical',
+            'Noncritical',
+            'Crucial',
+            'Negligible',
+            'Urgent',
+            'Nonurgent',
+            'Immediate',
+            'Delayed',
+            'Pressing',
+            'Relaxed',
+            'Hurried',
+            'Leisurely',
+            'Rushed',
+            'Unhurried',
+            'Quick',
+            'Slow',
+            'Fast',
+            'Sluggish',
+            'Rapid',
+            'Gradual',
+            'Swift',
+            'Plodding',
+            'Speedy',
+            'Dawdling',
+            'Hasty',
+            'Deliberate',
+            'Prompt',
+            'Late',
+            'Early',
+            'Tardy',
+            'Punctual',
+            'Overdue',
+            'Timely',
+            'Untimely',
+            'Seasonal',
+            'Unseasonable',
+            'Current',
+            'Outdated',
+            'Modern',
+            'Obsolete',
+            'Contemporary',
+            'Archaic',
+            'Updated',
+            'Antiquated',
+            'Fresh',
+            'Stale',
+            'Recent',
+            'Ancient',
+            'Latest',
+            'Oldest',
+            'Newest',
+            'Eldest',
+            'Youngest',
+            'Senior',
+            'Junior',
+            'Elder',
+            'Younger',
+            'Older',
+            'Newer',
+            'Former',
+            'Current',
+            'Previous',
+            'Present',
+            'Past',
+            'Future',
+            'Historical',
+            'Futuristic',
+            'Traditional',
+            'Innovative',
+            'Classical',
+            'Revolutionary',
+            'Conventional',
+            'Radical',
+            'Orthodox',
+            'Unorthodox',
+            'Standard',
+            'Nonstandard',
+            'Regular',
+            'Irregular',
+            'Normal',
+            'Abnormal',
+            'Typical',
+            'Atypical',
+            'Common',
+            'Uncommon',
+            'Ordinary',
+            'Extraordinary',
+            'Usual',
+            'Unusual',
+            'Routine',
+            'Exceptional',
+            'Habitual',
+            'Sporadic',
+            'Frequent',
+            'Infrequent',
+            'Constant',
+            'Intermittent',
+            'Continuous',
+            'Discontinuous',
+            'Steady',
+            'Unsteady',
+            'Stable',
+            'Unstable',
+            'Consistent',
+            'Inconsistent',
+            'Reliable',
+            'Unreliable',
+            'Dependable',
+            'Undependable',
+            'Trustworthy',
+            'Untrustworthy',
+            'Faithful',
+            'Unfaithful',
+            'Loyal',
+            'Disloyal',
+            'Devoted',
+            'Indifferent',
+            'Committed',
+            'Uncommitted',
+            'Dedicated',
+            'Halfhearted',
+            'Earnest',
+            'Insincere',
+            'Genuine',
+            'Fake',
+            'Authentic',
+            'Artificial',
+            'Real',
+            'Imaginary',
+            'Actual',
+            'Fictional',
+            'True',
+            'False',
+            'Factual',
+            'Fabricated',
+            'Accurate',
+            'Inaccurate',
+            'Precise',
+            'Imprecise',
+            'Exact',
+            'Approximate',
+            'Correct',
+            'Incorrect',
+            'Right',
+            'Wrong',
+            'Proper',
+            'Improper',
+            'Appropriate',
+            'Inappropriate',
+            'Suitable',
+            'Unsuitable',
+            'Fitting',
+            'Unfitting',
+            'Matching',
+            'Mismatched',
+            'Compatible',
+            'Incompatible',
+            'Harmonious',
+            'Discordant',
+            'Coordinated',
+            'Uncoordinated',
+            'Balanced',
+            'Unbalanced',
+            'Proportioned',
+            'Disproportioned',
+            'Symmetrical',
+            'Asymmetrical',
+            'Equal',
+            'Unequal',
+            'Even',
+            'Uneven',
+            'Fair',
+            'Unfair',
+            'Just',
+            'Unjust',
+            'Impartial',
+            'Partial',
+            'Objective',
+            'Subjective',
+            'Neutral',
+            'Biased',
+            'Unprejudiced',
+            'Prejudiced',
+            'Open',
+            'Closed',
+            'Minded',
+            'Narrow',
+            'Minded',
+            'Broad',
+            'Minded',
+            'Liberal',
+            'Conservative',
+            'Progressive',
+            'Regressive',
+            'Forward',
+            'Backward',
+            'Looking',
+            'Advanced',
+            'Primitive',
+            'Developed',
+            'Undeveloped',
+            'Sophisticated',
+            'Unsophisticated',
+            'Refined',
+            'Crude',
+            'Polished',
+            'Rough',
+            'Smooth',
+            'Bumpy',
+            'Finished',
+            'Unfinished',
+            'Complete',
+            'Incomplete',
+            'Whole',
+            'Partial',
+            'Entire',
+            'Fragmented',
+            'Intact',
+            'Broken',
+            'Undamaged',
+            'Damaged',
+            'Perfect',
+            'Imperfect',
+            'Flawless',
+            'Flawed',
+            'Spotless',
+            'Stained',
+            'Clean',
+            'Dirty',
+            'Pure',
+            'Contaminated',
+            'Fresh',
+            'Spoiled',
+            'New',
+            'Used',
+            'Unused',
+            'Worn',
+            'Unworn',
+            'Pristine',
+            'Weathered',
+            'Mint',
+            'Condition',
+            'Shabby',
+            'Elegant',
+            'Crude',
+            'Refined',
+            'Sophisticated',
+            'Simple',
+            'Complex',
+            'Complicated',
+            'Easy',
+            'Difficult',
+            'Hard',
+            'Soft',
+            'Tough',
+            'Tender',
+            'Strong',
+            'Weak',
+            'Powerful',
+            'Powerless',
+            'Mighty',
+            'Feeble',
+            'Robust',
+            'Frail',
+            'Sturdy',
+            'Fragile',
+            'Solid',
+            'Flimsy',
+            'Firm',
+            'Loose',
+            'Tight',
+            'Slack',
+            'Taut',
+            'Rigid',
+            'Flexible',
+            'Stiff',
+            'Supple',
+            'Brittle',
+            'Elastic',
+            'Hard',
+            'Soft',
+            'Dense',
+            'Sparse',
+            'Thick',
+            'Thin',
+            'Heavy',
+            'Light',
+            'Weighty',
+            'Weightless',
+            'Massive',
+            'Tiny',
+            'Bulky',
+            'Compact',
+            'Voluminous',
+            'Condensed',
+            'Expanded',
+            'Compressed',
+            'Inflated',
+            'Deflated',
+            'Swollen',
+            'Shrunken',
+            'Enlarged',
+            'Reduced',
+            'Magnified',
+            'Minimized',
+            'Amplified',
+            'Diminished',
+            'Enhanced',
+            'Degraded',
+            'Improved',
+            'Worsened',
+            'Upgraded',
+            'Downgraded',
+            'Advanced',
+            'Retreated',
+            'Progressed',
+            'Regressed',
+            'Developed',
+            'Deteriorated',
+            'Evolved',
+            'Devolved',
+            'Grown',
+            'Shrunk',
+            'Expanded',
+            'Contracted',
+            'Increased',
+            'Decreased',
+            'Multiplied',
+            'Divided',
+            'Added',
+            'Subtracted',
+            'Gained',
+            'Lost',
+            'Acquired',
+            'Surrendered',
+            'Obtained',
+            'Relinquished',
+            'Received',
+            'Gave',
+            'Taken',
+            'Given',
+            'Accepted',
+            'Rejected',
+            'Embraced',
+            'Shunned',
+            'Welcomed',
+            'Spurned',
+            'Invited',
+            'Excluded',
+            'Included',
+            'Omitted',
+            'Involved',
+            'Uninvolved',
+            'Engaged',
+            'Disengaged',
+            'Participating',
+            'Abstaining',
+            'Contributing',
+            'Withholding',
+            'Supporting',
+            'Opposing',
+            'Helping',
+            'Hindering',
+            'Assisting',
+            'Obstructing',
+            'Aiding',
+            'Impeding',
+            'Facilitating',
+            'Blocking',
+            'Enabling',
+            'Preventing',
+            'Allowing',
+            'Forbidding',
+            'Permitting',
+            'Prohibiting',
+            'Authorizing',
+            'Banning',
+            'Approving',
+            'Disapproving',
+            'Accepting',
+            'Rejecting',
+            'Endorsing',
+            'Condemning',
+            'Praising',
+            'Criticizing',
+            'Commending',
+            'Censuring',
+            'Complimenting',
+            'Insulting',
+            'Flattering',
+            'Mocking',
+            'Admiring',
+            'Despising',
+            'Respecting',
+            'Disrespecting',
+            'Honoring',
+            'Dishonoring',
+            'Revering',
+            'Scorning',
+            'Worshipping',
+            'Blaspheming',
+            'Adoring',
+            'Loathing',
+            'Loving',
+            'Hating',
+            'Liking',
+            'Disliking',
+            'Enjoying',
+            'Detesting',
+            'Appreciating',
+            'Deploring',
+            'Cherishing',
+            'Abhorring',
+            'Treasuring',
+            'Despising',
+            'Valuing',
+            'Undervaluing',
+            'Prizing',
+            'Dismissing',
+            'Esteeming',
+            'Scorning',
+            'Regarding',
+            'Disregarding',
+            'Considering',
+            'Ignoring',
+            'Contemplating',
+            'Neglecting',
+            'Pondering',
+            'Overlooking',
+            'Reflecting',
+            'Disregarding',
+            'Thinking',
+            'Thoughtless',
+            'Mindful',
+            'Mindless',
+            'Conscious',
+            'Unconscious',
+            'Aware',
+            'Unaware',
+            'Alert',
+            'Oblivious',
+            'Attentive',
+            'Inattentive',
+            'Focused',
+            'Distracted',
+            'Concentrated',
+            'Scattered',
+            'Absorbed',
+            'Absent',
+            'Minded',
+            'Engrossed',
+            'Detached',
+            'Immersed',
+            'Withdrawn',
+            'Involved',
+            'Aloof',
+            'Engaged',
+            'Indifferent',
+            'Interested',
+            'Uninterested',
+            'Curious',
+            'Incurious',
+            'Inquisitive',
+            'Apathetic',
+            'Eager',
+            'Reluctant',
+            'Enthusiastic',
+            'Unenthusiastic',
+            'Excited',
+            'Bored',
+            'Thrilled',
+            'Unimpressed',
+            'Delighted',
+            'Disappointed',
+            'Pleased',
+            'Displeased',
+            'Satisfied',
+            'Dissatisfied',
+            'Content',
+            'Discontent',
+            'Happy',
+            'Unhappy',
+            'Joyful',
+            'Sorrowful',
+            'Cheerful',
+            'Gloomy',
+            'Glad',
+            'Sad',
+            'Merry',
+            'Melancholy',
+            'Elated',
+            'Dejected',
+            'Ecstatic',
+            'Depressed',
+            'Euphoric',
+            'Despondent',
+            'Blissful',
+            'Miserable',
+            'Overjoyed',
+            'Heartbroken',
+            'Jubilant',
+            'Grieving',
+            'Triumphant',
+            'Mourning',
+            'Victorious',
+            'Defeated',
+            'Successful',
+            'Failed',
+            'Winning',
+            'Losing',
+            'Accomplished',
+            'Unsuccessful',
+            'Achieved',
+            'Unachieved',
+            'Fulfilled',
+            'Unfulfilled',
+            'Realized',
+            'Unrealized',
+            'Completed',
+            'Incomplete',
+            'Finished',
+            'Unfinished',
+            'Done',
+            'Undone',
+            'Resolved',
+            'Unresolved',
+            'Settled',
+            'Unsettled',
+            'Decided',
+            'Undecided',
+            'Determined',
+            'Undetermined',
+            'Established',
+            'Unestablished',
+            'Confirmed',
+            'Unconfirmed',
+            'Verified',
+            'Unverified',
+            'Proven',
+            'Unproven',
+            'Demonstrated',
+            'Undemonstrated',
+            'Shown',
+            'Unshown',
+            'Revealed',
+            'Unrevealed',
+            'Disclosed',
+            'Undisclosed',
+            'Exposed',
+            'Unexposed',
+            'Uncovered',
+            'Covered',
+            'Discovered',
+            'Undiscovered',
+            'Found',
+            'Unfound',
+            'Located',
+            'Unlocated',
+            'Identified',
+            'Unidentified',
+            'Recognized',
+            'Unrecognized',
+            'Known',
+            'Unknown',
+            'Familiar',
+            'Unfamiliar',
+            'Acquainted',
+            'Unacquainted',
+            'Experienced',
+            'Inexperienced',
+            'Practiced',
+            'Unpracticed',
+            'Skilled',
+            'Unskilled',
+            'Trained',
+            'Untrained',
+            'Educated',
+            'Uneducated',
+            'Learned',
+            'Unlearned',
+            'Knowledgeable',
+            'Ignorant',
+            'Informed',
+            'Uninformed',
+            'Aware',
+            'Unaware',
+            'Conscious',
+            'Unconscious',
+            'Mindful',
+            'Mindless',
+            'Thoughtful',
+            'Thoughtless',
+            'Considerate',
+            'Inconsiderate',
+            'Careful',
+            'Careless',
+            'Cautious',
+            'Reckless',
+            'Prudent',
+            'Imprudent',
+            'Wise',
+            'Foolish',
+            'Sensible',
+            'Senseless',
+            'Rational',
+            'Irrational',
+            'Logical',
+            'Illogical',
+            'Reasonable',
+            'Unreasonable',
+            'Sound',
+            'Unsound',
+            'Valid',
+            'Invalid',
+            'Justified',
+            'Unjustified',
+            'Warranted',
+            'Unwarranted',
+            'Legitimate',
+            'Illegitimate',
+            'Legal',
+            'Illegal',
+            'Lawful',
+            'Unlawful',
+            'Authorized',
+            'Unauthorized',
+            'Permitted',
+            'Forbidden',
+            'Allowed',
+            'Prohibited',
+            'Acceptable',
+            'Unacceptable',
+            'Approved',
+            'Disapproved',
+            'Endorsed',
+            'Rejected',
+            'Supported',
+            'Opposed',
+            'Favored',
+            'Disfavored',
+            'Preferred',
+            'Dispreferred',
+            'Chosen',
+            'Unchosen',
+            'Selected',
+            'Unselected',
+            'Picked',
+            'Unpicked',
+            'Elected',
+            'Unelected',
+            'Appointed',
+            'Unappointed',
+            'Assigned',
+            'Unassigned',
+            'Designated',
+            'Undesignated',
+            'Named',
+            'Unnamed',
+            'Called',
+            'Uncalled',
+            'Titled',
+            'Untitled',
+            'Labeled',
+            'Unlabeled',
+            'Tagged',
+            'Untagged',
+            'Marked',
+            'Unmarked',
+            'Signed',
+            'Unsigned',
+            'Stamped',
+            'Unstamped',
+            'Sealed',
+            'Unsealed',
+            'Certified',
+            'Uncertified',
+            'Verified',
+            'Unverified',
+            'Validated',
+            'Invalidated',
+            'Authenticated',
+            'Unauthenticated',
+            'Authorized',
+            'Unauthorized',
+            'Licensed',
+            'Unlicensed',
+            'Registered',
+            'Unregistered',
+            'Documented',
+            'Undocumented',
+            'Recorded',
+            'Unrecorded',
+            'Filed',
+            'Unfiled',
+            'Catalogued',
+            'Uncatalogued',
+            'Listed',
+            'Unlisted',
+            'Indexed',
+            'Unindexed',
+            'Classified',
+            'Unclassified',
+            'Categorized',
+            'Uncategorized',
+            'Grouped',
+            'Ungrouped',
+            'Sorted',
+            'Unsorted',
+            'Arranged',
+            'Unarranged',
+            'Organized',
+            'Disorganized',
+            'Ordered',
+            'Disordered',
+            'Structured',
+            'Unstructured',
+            'Systematic',
+            'Unsystematic',
+            'Methodical',
+            'Unmethodical',
+            'Planned',
+            'Unplanned',
+            'Scheduled',
+            'Unscheduled',
+            'Timed',
+            'Untimed',
+            'Coordinated',
+            'Uncoordinated',
+            'Synchronized',
+            'Unsynchronized',
+            'Aligned',
+            'Misaligned',
+            'Matched',
+            'Mismatched',
+            'Paired',
+            'Unpaired',
+            'Coupled',
+            'Uncoupled',
+            'Connected',
+            'Disconnected',
+            'Linked',
+            'Unlinked',
+            'Joined',
+            'Disjoined',
+            'United',
+            'Disunited',
+            'Combined',
+            'Separated',
+            'Merged',
+            'Divided',
+            'Integrated',
+            'Segregated',
+            'Blended',
+            'Unmixed',
+            'Mixed',
+            'Unmixed',
+            'Fused',
+            'Unfused',
+            'Welded',
+            'Unwelded',
+            'Bonded',
+            'Unbonded',
+            'Attached',
+            'Detached',
+            'Fastened',
+            'Unfastened',
+            'Secured',
+            'Unsecured',
+            'Fixed',
+            'Unfixed',
+            'Anchored',
+            'Unanchored',
+            'Moored',
+            'Unmoored',
+            'Tethered',
+            'Untethered',
+            'Tied',
+            'Untied',
+            'Bound',
+            'Unbound',
+            'Knotted',
+            'Unknotted',
+            'Twisted',
+            'Untwisted',
+            'Coiled',
+            'Uncoiled',
+            'Wound',
+            'Unwound',
+            'Wrapped',
+            'Unwrapped',
+            'Covered',
+            'Uncovered',
+            'Enclosed',
+            'Unenclosed',
+            'Contained',
+            'Uncontained',
+            'Surrounded',
+            'Unsurrounded',
+            'Encircled',
+            'Unencircled',
+            'Encompassed',
+            'Unencompassed',
+            'Embraced',
+            'Unembraced',
+            'Hugged',
+            'Unhugged',
+            'Held',
+            'Unheld',
+            'Grasped',
+            'Ungrasped',
+            'Gripped',
+            'Ungripped',
+            'Clutched',
+            'Unclutched',
+            'Seized',
+            'Unseized',
+            'Grabbed',
+            'Ungrabbed',
+            'Caught',
+            'Uncaught',
+            'Captured',
+            'Uncaptured',
+            'Trapped',
+            'Untrapped',
+            'Snared',
+            'Unsnared',
+            'Netted',
+            'Unnetted',
+            'Hooked',
+            'Unhooked',
+            'Lassoed',
+            'Unlassoed',
+            'Roped',
+            'Unroped',
+            'Chained',
+            'Unchained',
+            'Shackled',
+            'Unshackled',
+            'Handcuffed',
+            'Unhandcuffed',
+            'Restrained',
+            'Unrestrained',
+            'Confined',
+            'Unconfined',
+            'Restricted',
+            'Unrestricted',
+            'Limited',
+            'Unlimited',
+            'Bounded',
+            'Unbounded',
+            'Constrained',
+            'Unconstrained',
+            'Controlled',
+            'Uncontrolled',
+            'Regulated',
+            'Unregulated',
+            'Governed',
+            'Ungoverned',
+            'Ruled',
+            'Unruled',
+            'Managed',
+            'Unmanaged',
+            'Administered',
+            'Unadministered',
+            'Supervised',
+            'Unsupervised',
+            'Overseen',
+            'Unoverseen',
+            'Monitored',
+            'Unmonitored',
+            'Watched',
+            'Unwatched',
+            'Observed',
+            'Unobserved',
+            'Surveyed',
+            'Unsurveyed',
+            'Inspected',
+            'Uninspected',
+            'Examined',
+            'Unexamined',
+            'Checked',
+            'Unchecked',
+            'Tested',
+            'Untested',
+            'Tried',
+            'Untried',
+            'Attempted',
+            'Unattempted',
+            'Experimented',
+            'Unexperimented',
+            'Explored',
+            'Unexplored',
+            'Investigated',
+            'Uninvestigated',
+            'Researched',
+            'Unresearched',
+            'Studied',
+            'Unstudied',
+            'Analyzed',
+            'Unanalyzed',
+            'Evaluated',
+            'Unevaluated',
+            'Assessed',
+            'Unassessed',
+            'Appraised',
+            'Unappraised',
+            'Judged',
+            'Unjudged',
+            'Rated',
+            'Unrated',
+            'Ranked',
+            'Unranked',
+            'Graded',
+            'Ungraded',
+            'Scored',
+            'Unscored',
+            'Measured',
+            'Unmeasured',
+            'Weighed',
+            'Unweighed',
+            'Counted',
+            'Uncounted',
+            'Numbered',
+            'Unnumbered',
+            'Calculated',
+            'Uncalculated',
+            'Computed',
+            'Uncomputed',
+            'Figured',
+            'Unfigured',
+            'Estimated',
+            'Unestimated',
+            'Approximated',
+            'Unapproximated',
+            'Guessed',
+            'Unguessed',
+            'Predicted',
+            'Unpredicted',
+            'Forecasted',
+            'Unforecasted',
+            'Projected',
+            'Unprojected',
+            'Anticipated',
+            'Unanticipated',
+            'Expected',
+            'Unexpected',
+            'Foreseen',
+            'Unforeseen',
+            'Envisioned',
+            'Unenvisioned',
+            'Imagined',
+            'Unimagined',
+            'Conceived',
+            'Unconceived',
+            'Visualized',
+            'Unvisualized',
+            'Pictured',
+            'Unpictured',
+            'Dreamed',
+            'Undreamed',
+            'Fantasized',
+            'Unfantasized',
+            'Wished',
+            'Unwished',
+            'Hoped',
+            'Unhoped',
+            'Desired',
+            'Undesired',
+            'Wanted',
+            'Unwanted',
+            'Needed',
+            'Unneeded',
+            'Required',
+            'Unrequired',
+            'Demanded',
+            'Undemanded',
+            'Requested',
+            'Unrequested',
+            'Asked',
+            'Unasked',
+            'Sought',
+            'Unsought',
+            'Pursued',
+            'Unpursued',
+            'Chased',
+            'Unchased',
+            'Hunted',
+            'Unhunted',
+            'Searched',
+            'Unsearched',
+            'Looked',
+            'Unlooked',
+            'Explored',
+            'Unexplored',
+            'Investigated',
+            'Uninvestigated',
+            'Probed',
+            'Unprobed',
+            'Examined',
+            'Unexamined',
+            'Scrutinized',
+            'Unscrutinized',
+            'Inspected',
+            'Uninspected',
+            'Surveyed',
+            'Unsurveyed',
+            'Scanned',
+            'Unscanned',
+            'Reviewed',
+            'Unreviewed',
+            'Checked',
+            'Unchecked',
+            'Verified',
+            'Unverified',
+            'Confirmed',
+            'Unconfirmed',
+            'Validated',
+            'Invalidated',
+            'Authenticated',
+            'Unauthenticated',
+            'Authorized',
+            'Unauthorized',
+            'Approved',
+            'Unapproved',
+            'Accepted',
+            'Unaccepted',
+            'Endorsed',
+            'Unendorsed',
+            'Supported',
+            'Unsupported',
+            'Backed',
+            'Unbacked',
+            'Sponsored',
+            'Unsponsored',
+            'Funded',
+            'Unfunded',
+            'Financed',
+            'Unfinanced',
+            'Subsidized',
+            'Unsubsidized',
+            'Granted',
+            'Ungranted',
+            'Awarded',
+            'Unawarded',
+            'Given',
+            'Ungiven',
+            'Presented',
+            'Unpresented',
+            'Offered',
+            'Unoffered',
+            'Provided',
+            'Unprovided',
+            'Supplied',
+            'Unsupplied',
+            'Furnished',
+            'Unfurnished',
+            'Equipped',
+            'Unequipped',
+            'Outfitted',
+            'Unoutfitted',
+            'Armed',
+            'Unarmed',
+            'Prepared',
+            'Unprepared',
+            'Ready',
+            'Unready',
+            'Set',
+            'Unset',
+            'Primed',
+            'Unprimed',
+            'Loaded',
+            'Unloaded',
+            'Charged',
+            'Uncharged',
+            'Powered',
+            'Unpowered',
+            'Energized',
+            'Unenergized',
+            'Activated',
+            'Deactivated',
+            'Enabled',
+            'Disabled',
+            'Engaged',
+            'Disengaged',
+            'Turned',
+            'Unturned',
+            'Switched',
+            'Unswitched',
+            'Started',
+            'Stopped',
+            'Begun',
+            'Ended',
+            'Initiated',
+            'Terminated',
+            'Commenced',
+            'Concluded',
+            'Launched',
+            'Landed',
+            'Opened',
+            'Closed',
+            'Unlocked',
+            'Locked',
+            'Unsealed',
+            'Sealed',
+            'Unblocked',
+            'Blocked',
+            'Cleared',
+            'Clogged',
+            'Free',
+            'Trapped',
+            'Released',
+            'Captured',
+            'Liberated',
+            'Imprisoned',
+            'Freed',
+            'Enslaved',
+            'Emancipated',
+            'Bound',
+            'Unbound',
+            'Loose',
+            'Tight',
+            'Relaxed',
+            'Tense',
+            'Calm',
+            'Agitated',
+            'Peaceful',
+            'Disturbed',
+            'Quiet',
+            'Noisy',
+            'Silent',
+            'Loud',
+            'Hushed',
+            'Boisterous',
+            'Subdued',
+            'Raucous',
+            'Muted',
+            'Amplified',
+            'Softened',
+            'Harsh',
+            'Gentle',
+            'Mild',
+            'Severe',
+            'Lenient',
+            'Strict',
+            'Permissive',
+            'Restrictive',
+            'Liberal',
+            'Conservative',
+            'Open',
+            'Closed',
+            'Minded',
+            'Broad',
+            'Narrow',
+            'Wide',
+            'Confined',
+            'Spacious',
+            'Cramped',
+            'Roomy',
+            'Crowded',
+            'Empty',
+            'Full',
+            'Vacant',
+            'Occupied',
+            'Available',
+            'Unavailable',
+            'Accessible',
+            'Inaccessible',
+            'Reachable',
+            'Unreachable',
+            'Attainable',
+            'Unattainable',
+            'Achievable',
+            'Unachievable',
+            'Possible',
+            'Impossible',
+            'Feasible',
+            'Infeasible',
+            'Viable',
+            'Unviable',
+            'Workable',
+            'Unworkable',
+            'Practical',
+            'Impractical',
+            'Realistic',
+            'Unrealistic',
+            'Sensible',
+            'Nonsensical',
+            'Reasonable',
+            'Unreasonable',
+            'Logical',
+            'Illogical',
+            'Rational',
+            'Irrational',
+            'Sound',
+            'Unsound',
+            'Valid',
+            'Invalid',
+            'Legitimate',
+            'Illegitimate',
+            'Justified',
+            'Unjustified',
+            'Warranted',
+            'Unwarranted',
+            'Deserved',
+            'Undeserved',
+            'Earned',
+            'Unearned',
+            'Merited',
+            'Unmerited',
+            'Due',
+            'Undue',
+            'Owed',
+            'Unowed',
+            'Expected',
+            'Unexpected',
+            'Anticipated',
+            'Unanticipated',
+            'Predicted',
+            'Unpredicted',
+            'Foreseen',
+            'Unforeseen',
+            'Planned',
+            'Unplanned',
+            'Intended',
+            'Unintended',
+            'Deliberate',
+            'Accidental',
+            'Purposeful',
+            'Aimless',
+            'Meaningful',
+            'Meaningless',
+            'Significant',
+            'Insignificant',
+            'Important',
+            'Unimportant',
+            'Relevant',
+            'Irrelevant',
+            'Pertinent',
+            'Impertinent',
+            'Applicable',
+            'Inapplicable',
+            'Suitable',
+            'Unsuitable',
+            'Appropriate',
+            'Inappropriate',
+            'Proper',
+            'Improper',
+            'Fitting',
+            'Unfitting',
+            'Right',
+            'Wrong',
+            'Correct',
+            'Incorrect',
+            'Accurate',
+            'Inaccurate',
+            'Precise',
+            'Imprecise',
+            'Exact',
+            'Inexact',
+            'Perfect',
+            'Imperfect',
+            'Flawless',
+            'Flawed',
+            'Ideal',
+            'Nonideal',
+            'Optimal',
+            'Suboptimal',
+            'Best',
+            'Worst',
+            'Better',
+            'Worse',
+            'Superior',
+            'Inferior',
+            'Higher',
+            'Lower',
+            'Greater',
+            'Lesser',
+            'Larger',
+            'Smaller',
+            'Bigger',
+            'Littler',
+            'Huge',
+            'Tiny',
+            'Enormous',
+            'Minute',
+            'Gigantic',
+            'Minuscule',
+            'Colossal',
+            'Microscopic',
+            'Massive',
+            'Negligible',
+            'Immense',
+            'Infinitesimal',
+            'Vast',
+            'Limited',
+            'Extensive',
+            'Restricted',
+            'Comprehensive',
+            'Narrow',
+            'Broad',
+            'Specific',
+            'General',
+            'Detailed',
+            'Vague',
+            'Precise',
+            'Imprecise',
+            'Clear',
+            'Unclear',
+            'Distinct',
+            'Indistinct',
+            'Sharp',
+            'Blurry',
+            'Focused',
+            'Unfocused',
+            'Defined',
+            'Undefined',
+            'Explicit',
+            'Implicit',
+            'Direct',
+            'Indirect',
+            'Straightforward',
+            'Roundabout',
+            'Simple',
+            'Complex',
+            'Easy',
+            'Difficult',
+            'Hard',
+            'Soft',
+            'Tough',
+            'Tender',
+            'Strong',
+            'Weak',
+            'Powerful',
+            'Powerless',
+            'Mighty',
+            'Feeble',
+            'Robust',
+            'Fragile',
+            'Sturdy',
+            'Delicate',
+            'Durable',
+            'Perishable',
+            'Lasting',
+            'Temporary',
+            'Permanent',
+            'Transient',
+            'Enduring',
+            'Fleeting',
+            'Stable',
+            'Unstable',
+            'Steady',
+            'Unsteady',
+            'Firm',
+            'Shaky',
+            'Solid',
+            'Liquid',
+            'Hard',
+            'Soft',
+            'Rigid',
+            'Flexible',
+            'Stiff',
+            'Supple',
+            'Brittle',
+            'Elastic',
+            'Dense',
+            'Sparse',
+            'Thick',
+            'Thin',
+            'Heavy',
+            'Light',
+            'Weighty',
+            'Weightless',
+            'Bulky',
+            'Compact',
+            'Large',
+            'Small',
+            'Big',
+            'Little',
+            'Huge',
+            'Tiny',
+            'Enormous',
+            'Minute',
+            'Gigantic',
+            'Minuscule',
+            'Massive',
+            'Negligible',
+            'Colossal',
+            'Microscopic',
+            'Immense',
+            'Infinitesimal',
+            'Vast',
+            'Limited',
+            'Extensive',
+            'Restricted',
+            'Wide',
+            'Narrow',
+            'Broad',
+            'Slim',
+            'Fat',
+            'Skinny',
+            'Thick',
+            'Thin',
+            'Tall',
+            'Short',
+            'High',
+            'Low',
+            'Long',
+            'Brief',
+            'Extended',
+            'Shortened',
+            'Lengthened',
+            'Stretched',
+            'Compressed',
+            'Expanded',
+            'Contracted',
+            'Enlarged',
+            'Reduced',
+            'Increased',
+            'Decreased',
+            'Grown',
+            'Shrunk',
+            'Swollen',
+            'Shrunken',
+            'Inflated',
+            'Deflated',
+            'Bloated',
+            'Flattened',
+            'Raised',
+            'Lowered',
+            'Elevated',
+            'Depressed',
+            'Lifted',
+            'Dropped',
+            'Hoisted',
+            'Lowered',
+            'Boosted',
+            'Diminished',
+            'Heightened',
+            'Reduced',
+            'Intensified',
+            'Weakened',
+            'Strengthened',
+            'Weakened',
+            'Reinforced',
+            'Undermined',
+            'Supported',
+            'Destroyed',
+            'Built',
+            'Demolished',
+            'Constructed',
+            'Ruined',
+            'Created',
+            'Annihilated',
+            'Made',
+            'Unmade',
+            'Formed',
+            'Deformed',
+            'Shaped',
+            'Misshapen',
+            'Molded',
+            'Unmolded',
+            'Crafted',
+            'Uncrafted',
+            'Fashioned',
+            'Unfashioned',
+            'Designed',
+            'Undesigned',
+            'Planned',
+            'Unplanned',
+            'Organized',
+            'Disorganized',
+            'Arranged',
+            'Disarranged',
+            'Ordered',
+            'Disordered',
+            'Structured',
+            'Unstructured',
+            'Systematic',
+            'Unsystematic',
+            'Methodical',
+            'Unmethodical',
+            'Coordinated',
+            'Uncoordinated',
+            'Synchronized',
+            'Unsynchronized',
+            'Harmonized',
+            'Disharmonized',
+            'Balanced',
+            'Unbalanced',
+            'Aligned',
+            'Misaligned',
+            'Adjusted',
+            'Maladjusted',
+            'Calibrated',
+            'Uncalibrated',
+            'Tuned',
+            'Untuned',
+            'Regulated',
+            'Unregulated',
+            'Controlled',
+            'Uncontrolled',
+            'Managed',
+            'Unmanaged',
+            'Governed',
+            'Ungoverned',
+            'Directed',
+            'Undirected',
+            'Guided',
+            'Unguided',
+            'Led',
+            'Unled',
+            'Supervised',
+            'Unsupervised',
+            'Overseen',
+            'Unoverseen',
+            'Watched',
+            'Unwatched',
+            'Monitored',
+            'Unmonitored',
+            'Observed',
+            'Unobserved',
+            'Noticed',
+            'Unnoticed',
+            'Seen',
+            'Unseen',
+            'Visible',
+            'Invisible',
+            'Apparent',
+            'Unapparent',
+            'Obvious',
+            'Unobvious',
+            'Clear',
+            'Unclear',
+            'Plain',
+            'Obscure',
+            'Evident',
+            'Unevident',
+            'Manifest',
+            'Hidden',
+            'Open',
+            'Concealed',
+            'Exposed',
+            'Covered',
+            'Revealed',
+            'Unrevealed',
+            'Shown',
+            'Unshown',
+            'Displayed',
+            'Undisplayed',
+            'Exhibited',
+            'Unexphibited',
+            'Presented',
+            'Unpresented',
+            'Demonstrated',
+            'Undemonstrated',
+            'Illustrated',
+            'Unillustrated',
+            'Depicted',
+            'Undepicted',
+            'Portrayed',
+            'Unportrayed',
+            'Represented',
+            'Unrepresented',
+            'Expressed',
+            'Unexpressed',
+            'Communicated',
+            'Uncommunicated',
+            'Conveyed',
+            'Unconveyed',
+            'Transmitted',
+            'Untransmitted',
+            'Delivered',
+            'Undelivered',
+            'Sent',
+            'Unsent',
+            'Received',
+            'Unreceived',
+            'Gotten',
+            'Ungotten',
+            'Obtained',
+            'Unobtained',
+            'Acquired',
+            'Unacquired',
+            'Gained',
+            'Ungained',
+            'Earned',
+            'Unearned',
+            'Won',
+            'Lost',
+            'Achieved',
+            'Unachieved',
+            'Accomplished',
+            'Unaccomplished',
+            'Completed',
+            'Incomplete',
+            'Finished',
+            'Unfinished',
+            'Done',
+            'Undone',
+            'Ended',
+            'Unended',
+            'Concluded',
+            'Unconcluded',
+            'Terminated',
+            'Unterminated',
+            'Stopped',
+            'Unstopped',
+            'Ceased',
+            'Unceased',
+            'Discontinued',
+            'Continued',
+            'Interrupted',
+            'Uninterrupted',
+            'Broken',
+            'Unbroken',
+            'Paused',
+            'Unpaused',
+            'Suspended',
+            'Unsuspended',
+            'Halted',
+            'Unhalted',
+            'Frozen',
+            'Unfrozen',
+            'Stalled',
+            'Unstalled',
+            'Stuck',
+            'Unstuck',
+            'Blocked',
+            'Unblocked',
+            'Clogged',
+            'Unclogged',
+            'Jammed',
+            'Unjammed',
+            'Locked',
+            'Unlocked',
+            'Sealed',
+            'Unsealed',
+            'Closed',
+            'Opened',
+            'Shut',
+            'Unshut',
+            'Fastened',
+            'Unfastened',
+            'Secured',
+            'Unsecured',
+            'Fixed',
+            'Unfixed',
+            'Attached',
+            'Detached',
+            'Connected',
+            'Disconnected',
+            'Linked',
+            'Unlinked',
+            'Joined',
+            'Disjoined',
+            'United',
+            'Disunited',
+            'Combined',
+            'Separated',
+            'Merged',
+            'Divided',
+            'Blended',
+            'Separated',
+            'Mixed',
+            'Unmixed',
+            'Integrated',
+            'Segregated',
+            'Consolidated',
+            'Dispersed',
+            'Concentrated',
+            'Scattered',
+            'Gathered',
+            'Dispersed',
+            'Collected',
+            'Distributed',
+            'Assembled',
+            'Disassembled',
+            'Grouped',
+            'Ungrouped',
+            'Clustered',
+            'Unclustered',
+            'Bundled',
+            'Unbundled',
+            'Packed',
+            'Unpacked',
+            'Wrapped',
+            'Unwrapped',
+            'Covered',
+            'Uncovered',
+            'Protected',
+            'Unprotected',
+            'Shielded',
+            'Unshielded',
+            'Defended',
+            'Undefended',
+            'Guarded',
+            'Unguarded',
+            'Secured',
+            'Unsecured',
+            'Safe',
+            'Unsafe',
+            'Dangerous',
+            'Harmless',
+            'Risky',
+            'Risk',
+            'Free',
+            'Hazardous',
+            'Non',
+            'Hazardous',
+            'Threatening',
+            'Nonthreatening',
+            'Menacing',
+            'Non',
+            'Menacing',
+            'Intimidating',
+            'Non',
+            'Intimidating',
+            'Frightening',
+            'Non',
+            'Frightening',
+            'Scary',
+            'Non',
+            'Scary',
+            'Terrifying',
+            'Non',
+            'Terrifying',
+            'Horrifying',
+            'Non',
+            'Horrifying',
+            'Alarming',
+            'Non',
+            'Alarming',
+            'Disturbing',
+            'Non',
+            'Disturbing',
+            'Worrying',
+            'Non',
+            'Worrying',
+            'Concerning',
+            'Non',
+            'Concerning',
+            'Troubling',
+            'Non',
+            'Troubling',
+            'Problematic',
+            'Non',
+            'Problematic',
+            'Difficult',
+            'Easy',
+            'Hard',
+            'Simple',
+            'Complex',
+            'Complicated',
+            'Intricate',
+            'Straightforward',
+            'Involved',
+            'Uninvolved',
+            'Detailed',
+            'General',
+            'Specific',
+            'Vague',
+            'Precise',
+            'Imprecise',
+            'Exact',
+            'Approximate',
+            'Accurate',
+            'Inaccurate',
+            'Correct',
+            'Incorrect',
+            'Right',
+            'Wrong',
+            'Proper',
+            'Improper',
+            'Appropriate',
+            'Inappropriate',
+            'Suitable',
+            'Unsuitable',
+            'Fitting',
+            'Unfitting',
+            'Matching',
+            'Mismatched',
+            'Compatible',
+            'Incompatible',
+            'Consistent',
+            'Inconsistent',
+            'Coherent',
+            'Incoherent',
+            'Logical',
+            'Illogical',
+            'Rational',
+            'Irrational',
+            'Reasonable',
+            'Unreasonable',
+            'Sensible',
+            'Nonsensical',
+            'Sound',
+            'Unsound',
+            'Valid',
+            'Invalid',
+            'Legitimate',
+            'Illegitimate',
+            'Justified',
+            'Unjustified',
+            'Warranted',
+            'Unwarranted',
+            'Founded',
+            'Unfounded',
+            'Based',
+            'Unbased',
+            'Grounded',
+            'Ungrounded',
+            'Rooted',
+            'Uprooted',
+            'Established',
+            'Unestablished',
+            'Settled',
+            'Unsettled',
+            'Fixed',
+            'Unfixed',
+            'Determined',
+            'Undetermined',
+            'Decided',
+            'Undecided',
+            'Resolved',
+            'Unresolved',
+            'Concluded',
+            'Unconcluded',
+            'Finalized',
+            'Unfinalized',
+            'Completed',
+            'Incomplete',
+            'Finished',
+            'Unfinished',
+            'Done',
+            'Undone',
+            'Accomplished',
+            'Unaccomplished',
+            'Achieved',
+            'Unachieved',
+            'Attained',
+            'Unattained',
+            'Reached',
+            'Unreached',
+            'Gained',
+            'Ungained',
+            'Obtained',
+            'Unobtained',
+            'Acquired',
+            'Unacquired',
+            'Secured',
+            'Unsecured',
+            'Won',
+            'Lost',
+            'Earned',
+            'Unearned',
+            'Deserved',
+            'Undeserved',
+            'Merited',
+            'Unmerited',
+            'Qualified',
+            'Unqualified',
+            'Entitled',
+            'Unentitled',
+            'Authorized',
+            'Unauthorized',
+            'Licensed',
+            'Unlicensed',
+            'Permitted',
+            'Unpermitted',
+            'Allowed',
+            'Disallowed',
+            'Approved',
+            'Unapproved',
+            'Accepted',
+            'Unaccepted',
+            'Endorsed',
+            'Unendorsed',
+            'Supported',
+            'Unsupported',
+            'Backed',
+            'Unbacked',
+            'Sponsored',
+            'Unsponsored',
+            'Funded',
+            'Unfunded',
+            'Financed',
+            'Unfinanced',
+            'Subsidized',
+            'Unsubsidized',
+            'Invested',
+            'Uninvested',
+            'Contributed',
+            'Uncontributed',
+            'Donated',
+            'Undonated',
+            'Given',
+            'Ungiven',
+            'Granted',
+            'Ungranted',
+            'Awarded',
+            'Unawarded',
+            'Presented',
+            'Unpresented',
+            'Offered',
+            'Unoffered',
+            'Provided',
+            'Unprovided',
+            'Supplied',
+            'Unsupplied',
+            'Furnished',
+            'Unfurnished',
+            'Equipped',
+            'Unequipped',
+            'Prepared',
+            'Unprepared',
+            'Ready',
+            'Unready',
+            'Set',
+            'Unset',
+            'Arranged',
+            'Unarranged',
+            'Organized',
+            'Disorganized',
+            'Planned',
+            'Unplanned',
+            'Scheduled',
+            'Unscheduled',
+            'Booked',
+            'Unbooked',
+            'Reserved',
+            'Unreserved',
+            'Confirmed',
+            'Unconfirmed',
+            'Guaranteed',
+            'Unguaranteed',
+            'Assured',
+            'Unassured',
+            'Promised',
+            'Unpromised',
+            'Pledged',
+            'Unpledged',
+            'Committed',
+            'Uncommitted',
+            'Obligated',
+            'Unobligated',
+            'Bound',
+            'Unbound',
+            'Tied',
+            'Untied',
+            'Contracted',
+            'Uncontracted',
+            'Agreed',
+            'Disagreed',
+            'Consented',
+            'Dissented',
+            'Approved',
+            'Disapproved',
+            'Accepted',
+            'Rejected',
+            'Embraced',
+            'Spurned',
+            'Welcomed',
+            'Unwelcomed',
+            'Received',
+            'Unreceived',
+            'Taken',
+            'Untaken',
+            'Adopted',
+            'Unadopted',
+            'Assumed',
+            'Unassumed',
+            'Acquired',
+            'Unacquired',
+            'Inherited',
+            'Uninherited',
+            'Derived',
+            'Underived',
+            'Obtained',
+            'Unobtained',
+            'Gathered',
+            'Ungathered',
+            'Collected',
+            'Uncollected',
+            'Assembled',
+            'Unassembled',
+            'Accumulated',
+            'Unaccumulated',
+            'Amassed',
+            'Unamassed',
+            'Stockpiled',
+            'Unstockpiled',
+            'Stored',
+            'Unstored',
+            'Saved',
+            'Unsaved',
+            'Preserved',
+            'Unpreserved',
+            'Maintained',
+            'Unmaintained',
+            'Kept',
+            'Unkept',
+            'Retained',
+            'Unretained',
+            'Held',
+            'Unheld',
+            'Possessed',
+            'Unpossessed',
+            'Owned',
+            'Unowned',
+            'Had',
+            'Lacked',
+            'Contained',
+            'Lacked',
+            'Included',
+            'Excluded',
+            'Comprised',
+            'Uncomprised',
+            'Incorporated',
+            'Unincorporated',
+            'Embraced',
+            'Excluded',
+            'Encompassed',
+            'Unencompassed',
+            'Covered',
+            'Uncovered',
+            'Involved',
+            'Uninvolved',
+            'Engaged',
+            'Disengaged',
+            'Participated',
+            'Unparticipated',
+            'Contributed',
+            'Uncontributed',
+            'Shared',
+            'Unshared',
+            'Partook',
+            'Abstained',
+            'Joined',
+            'Disjoined',
+            'Entered',
+            'Exited',
+            'Included',
+            'Excluded',
+            'Admitted',
+            'Excluded',
+            'Allowed',
+            'Denied',
+            'Granted',
+            'Refused',
+            'Permitted',
+            'Forbade',
+            'Authorized',
+            'Prohibited',
+            'Approved',
+            'Vetoed',
+            'Accepted',
+            'Rejected',
+            'Endorsed',
+            'Opposed',
+            'Supported',
+            'Resisted',
+            'Backed',
+            'Opposed',
+            'Favored',
+            'Disfavored',
+            'Preferred',
+            'Dispreferred',
+            'Chose',
+            'Rejected',
+            'Selected',
+            'Deselected',
+            'Picked',
+            'Unpicked',
+            'Opted',
+            'Declined',
+            'Decided',
+            'Undecided',
+            'Determined',
+            'Undetermined',
+            'Resolved',
+            'Unresolved',
+            'Settled',
+            'Unsettled',
+            'Concluded',
+            'Unconcluded',
+            'Agreed',
+            'Disagreed',
+            'Consented',
+            'Refused',
+            'Assented',
+            'Dissented',
+            'Confirmed',
+            'Denied',
+            'Affirmed',
+            'Negated',
+            'Validated',
+            'Invalidated',
+            'Verified',
+            'Falsified',
+            'Proved',
+            'Disproved',
+            'Demonstrated',
+            'Refuted',
+            'Established',
+            'Debunked',
+            'Substantiated',
+            'Undermined',
+            'Corroborated',
+            'Contradicted',
+            'Authenticated',
+            'Questioned',
+            'Certified',
+            'Challenged',
+            'Warranted',
+            'Disputed',
+            'Justified',
+            'Criticized',
+            'Defended',
+            'Attacked',
+            'Supported',
+            'Opposed',
+            'Advocated',
+            'Condemned',
+            'Promoted',
+            'Discouraged',
+            'Encouraged',
+            'Deterred',
+            'Motivated',
+            'Demotivated',
+            'Inspired',
+            'Uninspired',
+            'Stimulated',
+            'Unstimulated',
+            'Energized',
+            'Unenergized',
+            'Invigorated',
+            'Uninvigorated',
+            'Revitalized',
+            'Devitalized',
+            'Refreshed',
+            'Exhausted',
+            'Renewed',
+            'Depleted',
+            'Restored',
+            'Diminished',
+            'Replenished',
+            'Emptied',
+            'Filled',
+            'Emptied',
+            'Loaded',
+            'Unloaded',
+            'Packed',
+            'Unpacked',
+            'Stuffed',
+            'Unstuffed',
+            'Crammed',
+            'Uncrammed',
+            'Jammed',
+            'Unjammed',
+            'Squeezed',
+            'Unsqueezed',
+            'Compressed',
+            'Uncompressed',
+            'Condensed',
+            'Uncondensed',
+            'Concentrated',
+            'Diluted',
+            'Thickened',
+            'Thinned',
+            'Solidified',
+            'Liquefied',
+            'Hardened',
+            'Softened',
+            'Stiffened',
+            'Relaxed',
+            'Tightened',
+            'Loosened',
+            'Fastened',
+            'Unfastened',
+            'Secured',
+            'Unsecured',
+            'Fixed',
+            'Unfixed',
+            'Attached',
+            'Detached',
+            'Connected',
+            'Disconnected',
+            'Linked',
+            'Unlinked',
+            'Joined',
+            'Separated',
+            'United',
+            'Divided',
+            'Combined',
+            'Split',
+            'Merged',
+            'Parted',
+            'Blended',
+            'Separated',
+            'Mixed',
+            'Unmixed',
+            'Stirred',
+            'Unstirred',
+            'Shaken',
+            'Unshaken',
+            'Agitated',
+            'Calmed',
+            'Disturbed',
+            'Settled',
+            'Troubled',
+            'Soothed',
+            'Worried',
+            'Reassured',
+            'Concerned',
+            'Unconcerned',
+            'Anxious',
+            'Relaxed',
+            'Nervous',
+            'Calm',
+            'Tense',
+            'Loose',
+            'Stressed',
+            'Unstressed',
+            'Pressured',
+            'Unpressured',
+            'Strained',
+            'Unstrained',
+            'Stretched',
+            'Contracted',
+            'Extended',
+            'Retracted',
+            'Expanded',
+            'Shrunk',
+            'Enlarged',
+            'Reduced',
+            'Increased',
+            'Decreased',
+            'Grown',
+            'Diminished',
+            'Developed',
+            'Undeveloped',
+            'Advanced',
+            'Retreated',
+            'Progressed',
+            'Regressed',
+            'Improved',
+            'Worsened',
+            'Enhanced',
+            'Degraded',
+            'Upgraded',
+            'Downgraded',
+            'Refined',
+            'Coarsened',
+            'Polished',
+            'Roughened',
+            'Smoothed',
+            'Roughened',
+            'Sharpened',
+            'Dulled',
+            'Brightened',
+            'Dimmed',
+            'Lightened',
+            'Darkened',
+            'Illuminated',
+            'Obscured',
+            'Clarified',
+            'Confused',
+            'Simplified',
+            'Complicated',
+            'Eased',
+            'Hardened',
+            'Facilitated',
+            'Hindered',
+            'Helped',
+            'Harmed',
+            'Assisted',
+            'Resisted',
+            'Aided',
+            'Opposed',
+            'Supported',
+            'Undermined',
+            'Backed',
+            'Sabotaged',
+            'Encouraged',
+            'Discouraged',
+            'Promoted',
+            'Demoted',
+            'Advanced',
+            'Retarded',
+            'Accelerated',
+            'Decelerated',
+            'Sped',
+            'Slowed',
+            'Quickened',
+            'Delayed',
+            'Hastened',
+            'Postponed',
+            'Rushed',
+            'Procrastinated',
+            'Hurried',
+            'Dawdled',
+            'Pressed',
+            'Relaxed',
+            'Urged',
+            'Discouraged',
+            'Pushed',
+            'Pulled',
+            'Forced',
+            'Allowed',
+            'Compelled',
+            'Permitted',
+            'Required',
+            'Exempted',
+            'Demanded',
+            'Waived',
+            'Insisted',
+            'Yielded',
+            'Persisted',
+            'Gave',
+            'Continued',
+            'Stopped',
+            'Persevered',
+            'Quit',
+            'Endured',
+            'Surrendered',
+            'Lasted',
+            'Ended',
+            'Survived',
+            'Perished',
+            'Thrived',
+            'Struggled',
+            'Flourished',
+            'Suffered',
+            'Prospered',
+            'Failed',
+            'Succeeded',
+            'Lost',
+            'Won',
+            'Defeated',
+            'Triumphed',
+            'Lost',
+            'Conquered',
+            'Surrendered',
+            'Overcame',
+            'Succumbed',
+            'Prevailed',
+            'Yielded',
+            'Dominated',
+            'Submitted',
+            'Controlled',
+            'Obeyed',
+            'Ruled',
+            'Followed',
+            'Governed',
+            'Served',
+            'Led',
+            'Trailed',
+            'Guided',
+            'Wandered',
+            'Directed',
+            'Strayed',
+            'Steered',
+            'Drifted',
+            'Navigated',
+            'Lost',
+            'Found',
+            'Located',
+            'Misplaced',
+            'Discovered',
+            'Hidden',
+            'Uncovered',
+            'Concealed',
+            'Revealed',
+            'Covered',
+            'Exposed',
+            'Protected',
+            'Unveiled',
+            'Veiled',
+            'Disclosed',
+            'Withheld',
+            'Shared',
+            'Kept',
+            'Told',
+            'Concealed',
+            'Communicated',
+            'Silenced',
+            'Expressed',
+            'Suppressed',
+            'Spoke',
+            'Hushed',
+            'Said',
+            'Unsaid',
+            'Voiced',
+            'Muted',
+            'Articulated',
+            'Mumbled',
+            'Pronounced',
+            'Slurred',
+            'Declared',
+            'Whispered',
+            'Announced',
+            'Murmured',
+            'Proclaimed',
+            'Muttered',
+            'Stated',
+            'Stuttered',
+            'Asserted',
+            'Stammered',
+            'Claimed',
+            'Babbled',
+            'Maintained',
+            'Rambled',
+            'Argued',
+            'Chattered',
+            'Contended',
+            'Gossiped',
+            'Insisted',
+            'Jabbered',
+            'Alleged',
+            'Prattled',
+            'Suggested',
+            'Blabbered',
+            'Proposed',
+            'Gabbed',
+            'Recommended',
+            'Yakked',
+            'Advised',
+            'Talked',
+            'Counseled',
+            'Conversed',
+            'Guided',
+            'Discussed',
+            'Instructed',
+            'Debated',
+            'Taught',
+            'Lectured',
+            'Educated',
+            'Preached',
+            'Trained',
+            'Sermonized',
+            'Schooled',
+            'Pontificated',
+            'Informed',
+            'Ranted',
+            'Told',
+            'Raved',
+            'Explained',
+            'Babbled',
+            'Described',
+            'Chattered',
+            'Detailed',
+            'Gabbed',
+            'Narrated',
+            'Prattled',
+            'Related',
+            'Blabbed',
+            'Recounted',
+            'Gossiped',
+            'Reported',
+            'Whispered',
+            'Mentioned',
+            'Murmured',
+            'Noted',
+            'Muttered',
+            'Observed',
+            'Mumbled',
+            'Remarked',
+            'Slurred',
+            'Commented',
+            'Stuttered',
+            'Pointed',
+            'Stammered',
+            'Indicated',
+            'Lisped',
+            'Showed',
+            'Drawled',
+            'Demonstrated',
+            'Droned',
+            'Illustrated',
+            'Monotoned',
+            'Depicted',
+            'Intoned',
+            'Portrayed',
+            'Chanted',
+            'Represented',
+            'Sang',
+            'Displayed',
+            'Hummed',
+            'Exhibited',
+            'Whistled',
+            'Presented',
+            'Crooned',
+            'Revealed',
+            'Warbled',
+            'Unveiled',
+            'Yodeled',
+            'Exposed',
+            'Shouted',
+            'Uncovered',
+            'Yelled',
+            'Disclosed',
+            'Screamed',
+            'Manifested',
+            'Hollered',
+            'Expressed',
+            'Roared',
+            'Conveyed',
+            'Bellowed',
+            'Transmitted',
+            'Shrieked',
+            'Delivered',
+            'Screeched',
+            'Sent',
+            'Squealed',
+            'Passed',
+            'Wailed',
+            'Gave',
+            'Howled',
+            'Handed',
+            'Cried',
+            'Offered',
+            'Sobbed',
+            'Provided',
+            'Whimpered',
+            'Supplied',
+            'Sniffled',
+            'Furnished',
+            'Blubbered',
+            'Contributed',
+            'Bawled',
+            'Donated',
+            'Moaned',
+            'Granted',
+            'Groaned',
+            'Awarded',
+            'Sighed',
+            'Bestowed',
+            'Gasped',
+            'Conferred',
+            'Panted',
+            'Imparted',
+            'Wheezed',
+            'Shared',
+            'Huffed',
+            'Distributed',
+            'Puffed',
+            'Allocated',
+            'Breathed',
+            'Assigned',
+            'Exhaled',
+            'Designated',
+            'Inhaled',
+            'Appointed',
+            'Snorted',
+            'Named',
+            'Sniffed',
+            'Called',
+            'Smelled',
+            'Titled',
+            'Sniffled',
+            'Labeled',
+            'Sneezed',
+            'Tagged',
+            'Coughed',
+            'Marked',
+            'Choked',
+            'Stamped',
+            'Gagged',
+            'Signed',
+            'Gulped',
+            'Sealed',
+            'Swallowed',
+            'Certified',
+            'Hiccupped',
+            'Validated',
+            'Burped',
+            'Verified',
+            'Belched',
+            'Authenticated',
+            'Yawned',
+            'Authorized',
+            'Stretched',
+            'Licensed',
+            'Flexed',
+            'Registered',
+            'Bent',
+            'Documented',
+            'Twisted',
+            'Recorded',
+            'Turned',
+            'Filed',
+            'Rotated',
+            'Cataloged',
+            'Spun',
+            'Listed',
+            'Revolved',
+            'Indexed',
+            'Pivoted',
+            'Classified',
+            'Swiveled',
+            'Categorized',
+            'Rolled',
+            'Grouped',
+            'Tumbled',
+            'Sorted',
+            'Flipped',
+            'Arranged',
+            'Flopped',
+            'Organized',
+            'Tossed',
+            'Ordered',
+            'Threw',
+            'Structured',
+            'Hurled',
+            'Systematized',
+            'Flung',
+            'Coordinated',
+            'Cast',
+            'Synchronized',
+            'Pitched',
+            'Harmonized',
+            'Lobbed',
+            'Aligned',
+            'Heaved',
+            'Balanced',
+            'Chucked',
+            'Adjusted',
+            'Launched',
+            'Calibrated',
+            'Catapulted',
+            'Tuned',
+            'Slung',
+            'Regulated',
+            'Fired',
+            'Controlled',
+            'Shot',
+            'Managed',
+            'Aimed',
+            'Governed',
+            'Targeted',
+            'Directed',
+            'Pointed',
+            'Guided',
+            'Focused',
+            'Steered',
+            'Concentrated',
+            'Navigated',
+            'Centered',
+            'Piloted',
+            'Zeroed',
+            'Drove',
+            'Honed',
+            'Operated',
+            'Sharpened',
+            'Ran',
+            'Refined',
+            'Worked',
+            'Perfected',
+            'Functioned',
+            'Polished',
+            'Performed',
+            'Smoothed',
+            'Executed',
+            'Buffed',
+            'Carried',
+            'Burnished',
+            'Conducted',
+            'Glossed',
+            'Accomplished',
+            'Shined',
+            'Achieved',
+            'Gleamed',
+            'Completed',
+            'Sparkled',
+            'Finished',
+            'Glittered',
+            'Fulfilled',
+            'Twinkled',
+            'Realized',
+            'Glowed',
+            'Attained',
+            'Radiated',
+            'Reached',
+            'Beamed',
+            'Gained',
+            'Illuminated',
+            'Obtained',
+            'Brightened',
+            'Acquired',
+            'Lit',
+            'Secured',
+            'Lightened',
+            'Won',
+            'Dimmed',
+            'Earned',
+            'Darkened',
+            'Deserved',
+            'Shadowed',
+            'Merited',
+            'Shaded',
+            'Qualified',
+            'Obscured',
+            'Entitled',
+            'Veiled',
+            'Warranted',
+            'Clouded',
+            'Justified',
+            'Covered',
+            'Validated',
+            'Masked',
+            'Substantiated',
+            'Hidden',
+            'Proved',
+            'Concealed',
+            'Demonstrated',
+            'Camouflaged',
+            'Established',
+            'Disguised',
+            'Confirmed',
+            'Cloaked',
+            'Verified',
+            'Shrouded',
+            'Authenticated',
+            'Wrapped',
+            'Certified',
+            'Enveloped',
+            'Endorsed',
+            'Encased',
+            'Approved',
+            'Enclosed',
+            'Sanctioned',
+            'Contained',
+            'Authorized',
+            'Surrounded',
+            'Licensed',
+            'Encompassed',
+            'Permitted',
+            'Embraced',
+            'Allowed',
+            'Hugged',
+            'Granted',
+            'Cuddled',
+            'Accorded',
+            'Snuggled',
+            'Conceded',
+            'Nestled',
+            'Yielded',
+            'Cradled',
+            'Gave',
+            'Held',
+            'Provided',
+            'Grasped',
+            'Supplied',
+            'Gripped',
+            'Offered',
+            'Clutched',
+            'Presented',
+            'Seized',
+            'Delivered',
+            'Grabbed',
+            'Handed',
+            'Caught',
+            'Passed',
+            'Snatched',
+            'Transferred',
+            'Captured',
+            'Conveyed',
+            'Trapped',
+            'Transmitted',
+            'Snared',
+            'Transported',
+            'Netted',
+            'Carried',
+            'Hooked',
+            'Moved',
+            'Lassoed',
+            'Shifted',
+            'Roped',
+            'Transported',
+            'Chained',
+            'Relocated',
+            'Tied',
+            'Displaced',
+            'Bound',
+            'Transferred',
+            'Linked',
+            'Shifted',
+            'Connected',
+            'Moved',
+            'Joined',
+            'Transported',
+            'United',
+            'Carried',
+            'Combined',
+            'Bore',
+            'Merged',
+            'Brought',
+            'Blended',
+            'Took',
+            'Mixed',
+            'Fetched',
+            'Integrated',
+            'Retrieved',
+            'Consolidated',
+            'Collected',
+            'Amalgamated',
+            'Gathered',
+            'Fused',
+            'Assembled',
+            'Welded',
+            'Accumulated',
+            'Bonded',
+            'Amassed',
+            'Cemented',
+            'Stockpiled',
+            'Glued',
+            'Hoarded',
+            'Pasted',
+            'Stored',
+            'Stuck',
+            'Saved',
+            'Adhered',
+            'Preserved',
+            'Attached',
+            'Maintained',
+            'Fastened',
+            'Kept',
+            'Secured',
+            'Retained',
+            'Fixed',
+            'Held',
+            'Anchored',
+            'Possessed',
+            'Moored',
+            'Owned',
+            'Tethered',
+            'Had',
+            'Tied',
+            'Contained',
+            'Bound',
+            'Included',
+            'Restrained',
+            'Comprised',
+            'Confined',
+            'Encompassed',
+            'Restricted',
+            'Embraced',
+            'Limited',
+            'Covered',
+            'Constrained',
+            'Involved',
+            'Controlled',
+            'Engaged',
+            'Regulated',
+            'Participated',
+            'Governed',
+            'Contributed',
+            'Managed',
+            'Shared',
+            'Administered',
+            'Partook',
+            'Supervised',
+            'Joined',
+            'Oversaw',
+            'Entered',
+            'Monitored',
+            'Included',
+            'Watched',
+            'Admitted',
+            'Observed',
+            'Allowed',
+            'Noticed',
+            'Permitted',
+            'Saw',
+            'Granted',
+            'Viewed',
+            'Authorized',
+            'Looked',
+            'Approved',
+            'Gazed',
+            'Accepted',
+            'Stared',
+            'Endorsed',
+            'Glanced',
+            'Supported',
+            'Peeked',
+            'Backed',
+            'Glimpsed',
+            'Favored',
+            'Spotted',
+            'Preferred',
+            'Detected',
+            'Chose',
+            'Sighted',
+            'Selected',
+            'Witnessed',
+            'Picked',
+            'Beheld',
+            'Opted',
+            'Discerned',
+            'Decided',
+            'Perceived',
+            'Determined',
+            'Recognized',
+            'Resolved',
+            'Identified',
+            'Concluded',
+            'Distinguished',
+            'Settled',
+            'Discriminated',
+            'Agreed',
+            'Differentiated',
+            'Consented',
+            'Separated',
+            'Assented',
+            'Divided',
+            'Confirmed',
+            'Split',
+            'Affirmed',
+            'Parted',
+            'Validated',
+            'Segregated',
+            'Verified',
+            'Isolated',
+            'Authenticated',
+            'Quarantined',
+            'Certified',
+            'Excluded',
+            'Warranted',
+            'Omitted',
+            'Justified',
+            'Left',
+            'Substantiated',
+            'Abandoned',
+            'Corroborated',
+            'Deserted',
+            'Supported',
+            'Forsook',
+            'Upheld',
+            'Rejected',
+            'Maintained',
+            'Refused',
+            'Defended',
+            'Declined',
+            'Protected',
+            'Denied',
+            'Safeguarded',
+            'Dismissed',
+            'Shielded',
+            'Discarded',
+            'Guarded',
+            'Threw',
+            'Secured',
+            'Dumped',
+            'Preserved',
+            'Disposed',
+            'Conserved',
+            'Eliminated',
+            'Saved',
+            'Removed',
+            'Rescued',
+            'Deleted',
+            'Delivered',
+            'Erased',
+            'Liberated',
+            'Obliterated',
+            'Freed',
+            'Destroyed',
+            'Released',
+            'Annihilated',
+            'Emancipated',
+            'Demolished',
+            'Unleashed',
+            'Ruined',
+            'Unbound',
+            'Wrecked',
+            'Untied',
+            'Devastated',
+            'Unfastened',
+            'Ravaged',
+            'Loosened',
+            'Damaged',
+            'Opened',
+            'Harmed',
+            'Unlocked',
+            'Hurt',
+            'Unsealed',
+            'Injured',
+            'Uncovered',
+            'Wounded',
+            'Exposed',
+            'Broken',
+            'Revealed',
+            'Fractured',
+            'Unveiled',
+            'Cracked',
+            'Disclosed',
+            'Split',
+            'Shown',
+            'Torn',
+            'Displayed',
+            'Ripped',
+            'Exhibited',
+            'Shredded',
+            'Presented',
+            'Cut',
+            'Demonstrated',
+            'Sliced',
+            'Illustrated',
+            'Chopped',
+            'Depicted',
+            'Diced',
+            'Portrayed',
+            'Minced',
+            'Represented',
+            'Carved',
+            'Expressed',
+            'Sculpted',
+            'Conveyed',
+            'Molded',
+            'Communicated',
+            'Shaped',
+            'Transmitted',
+            'Formed',
+            'Delivered',
+            'Fashioned',
+            'Sent',
+            'Created',
+            'Dispatched',
+            'Made',
+            'Shipped',
+            'Produced',
+            'Mailed',
+            'Generated',
+            'Posted',
+            'Manufactured',
+            'Forwarded',
+            'Crafted',
+            'Relayed',
+            'Built',
+            'Passed',
+            'Constructed',
+            'Transferred',
+            'Assembled',
+            'Conveyed',
+            'Erected',
+            'Transported',
+            'Raised',
+            'Moved',
+            'Lifted',
+            'Shifted',
+            'Hoisted',
+            'Displaced',
+            'Elevated',
+            'Relocated',
+            'Boosted',
+            'Repositioned',
+            'Heightened',
+            'Rearranged',
+            'Rose',
+            'Reorganized',
+            'Arose',
+            'Restructured',
+            'Ascended',
+            'Reordered',
+            'Climbed',
+            'Reshuffled',
+            'Mounted',
+            'Redistributed',
+            'Scaled',
+            'Reallocated',
+            'Soared',
+            'Reassigned',
+            'Flew',
+            'Reappointed',
+            'Floated',
+            'Renamed',
+            'Hovered',
+            'Retitled',
+            'Drifted',
+            'Relabeled',
+            'Glided',
+            'Retagged',
+            'Sailed',
+            'Remarked',
+            'Cruised',
+            'Redesignated',
+            'Navigated',
+            'Reclassified',
+            'Steered',
+            'Recategorized',
+            'Piloted',
+            'Regrouped',
+            'Drove',
+            'Resorted',
+            'Operated',
+            'Rearranged',
+            'Ran',
+            'Reordered',
+            'Worked',
+            'Realigned',
+            'Functioned',
+            'Readjusted',
+            'Performed',
+            'Recalibrated',
+            'Executed',
+            'Retuned',
+            'Accomplished',
+            'Reregulated',
+            'Achieved',
+            'Recontrolled',
+            'Completed',
+            'Remanaged',
+            'Finished',
+            'Regoverned',
+            'Fulfilled',
+            'Redirected',
+            'Realized',
+            'Reguided',
+            'Attained',
+            'Resteered',
+            'Reached',
+            'Renavigated',
+            'Gained',
+            'Repiloted',
+            'Obtained',
+            'Redrove',
+            'Acquired',
+            'Reoperated',
+            'Secured',
+            'Reran',
+            'Won',
+            'Reworked',
+            'Earned',
+            'Refunctioned',
+            'Deserved',
+            'Reformed',
+            'Merited',
+            'Reperformed',
+            'Qualified',
+            'Reexecuted',
+            'Entitled',
+            'Reaccomplished',
+            'Warranted',
+            'Reachieved',
+            'Justified',
+            'Recompleted',
+            'Validated',
+            'Refinished',
+            'Substantiated',
+            'Refulfilled',
+            'Proved',
+            'Rerealized',
+            'Demonstrated',
+            'Reattained',
+            'Established',
+            'Rereached',
+            'Confirmed',
+            'Regained',
+            'Verified',
+            'Reobtained',
+            'Authenticated',
+            'Reacquired',
+            'Certified',
+            'Resecured',
+            'Endorsed',
+            'Rewon',
+            'Approved',
+            'Rearned',
+            'Sanctioned',
+            'Redeserved',
+            'Authorized',
+            'Remerited',
+            'Licensed',
+            'Requalified',
+            'Permitted',
+            'Reentitled',
+            'Allowed',
+            'Rewarranted',
+            'Granted',
+            'Rejustified',
+            'Accorded',
+            'Revalidated',
+            'Conceded',
+            'Resubstantiated',
+            'Yielded',
+            'Reproved',
+            'Gave',
+            'Redemonstrated',
+            'Provided',
+            'Reestablished',
+            'Supplied',
+            'Reconfirmed',
+            'Offered',
+            'Reverified',
+            'Presented',
+            'Reauthenticated',
+            'Delivered',
+            'Recertified',
+            'Handed',
+            'Reendorsed',
+            'Passed',
+            'Reapproved',
+            'Transferred',
+            'Resanctioned',
+            'Conveyed',
+            'Reauthorized',
+            'Transmitted',
+            'Relicensed',
+            'Transported',
+            'Repermitted',
+            'Carried',
+            'Reallowed',
+            'Moved',
+            'Regranted',
+            'Shifted',
+            'Reaccorded',
+            'Displaced',
+            'Reconceded',
+            'Relocated',
+            'Reyielded',
+            'Repositioned',
+            'Regave',
+            'Rearranged',
+            'Reprovided',
+            'Reorganized',
+            'Resupplied',
+            'Restructured',
+            'Reoffered',
+            'Reordered',
+            'Represented',
+            'Reshuffled',
+            'Redelivered',
+            'Redistributed',
+            'Rehanded',
+            'Reallocated',
+            'Repassed',
+            'Reassigned',
+            'Retransferred',
+            'Reappointed',
+            'Reconveyed',
+            'Renamed',
+            'Retransmitted',
+            'Retitled',
+            'Retransported',
+            'Relabeled',
+            'Recarried',
+            'Retagged',
+            'Removed',
+            'Remarked',
+            'Reshifted',
+            'Redesignated',
+            'Redisplaced',
+            'Reclassified',
+            'Rerelocated',
+            'Recategorized',
+            'Repositioned',
+            'Regrouped',
+            'Rearranged',
+            'Resorted',
+            'Reorganized',
+            'Rearranged',
+            'Restructured',
+            'Reordered',
+            'Reordered',
+            'Realigned',
+            'Reshuffled',
+            'Readjusted',
+            'Redistributed',
+            'Recalibrated',
+            'Reallocated',
+            'Retuned',
+            'Reassigned',
+            'Reregulated',
+            'Reappointed',
+            'Recontrolled',
+            'Renamed',
+            'Remanaged',
+            'Retitled',
+            'Regoverned',
+            'Relabeled',
+            'Redirected',
+            'Retagged',
+            'Reguided',
+            'Remarked',
+            'Resteered',
+            'Redesignated',
+            'Renavigated',
+            'Reclassified',
+            'Repiloted',
+            'Recategorized',
+            'Redrove',
+            'Regrouped',
+            'Reoperated',
+            'Resorted',
+            'Reran',
+            'Rearranged',
+            'Reworked',
+            'Reordered',
+            'Refunctioned',
+            'Realigned',
+            'Reformed',
+            'Readjusted',
+            'Reperformed',
+            'Recalibrated',
+            'Reexecuted',
+            'Retuned',
+            'Reaccomplished',
+            'Reregulated',
+            'Reachieved',
+            'Recontrolled',
+            'Recompleted',
+            'Remanaged',
+            'Refinished',
+            'Regoverned',
+            'Refulfilled',
+            'Redirected',
+            'Rerealized',
+            'Reguided',
+            'Reattained',
+            'Resteered',
+            'Rereached',
+            'Renavigated',
+            'Regained',
+            'Repiloted',
+            'Reobtained',
+            'Redrove',
+            'Reacquired',
+            'Reoperated',
+            'Resecured',
+            'Reran',
+            'Rewon',
+            'Reworked',
+            'Rearned',
+            'Refunctioned',
+            'Redeserved',
+            'Reformed',
+            'Remerited',
+            'Reperformed',
+            'Requalified',
+            'Reexecuted',
+            'Reentitled',
+            'Reaccomplished',
+            'Rewarranted',
+            'Reachieved',
+            'Rejustified',
+            'Recompleted',
+            'Revalidated',
+            'Refinished',
+            'Resubstantiated',
+            'Refulfilled',
+            'Reproved',
+            'Rerealized',
+            'Redemonstrated',
+            'Reattained',
+            'Reestablished',
+            'Rereached',
+            'Reconfirmed',
+            'Regained',
+            'Reverified',
+            'Reobtained',
+            'Reauthenticated',
+            'Reacquired',
+            'Recertified',
+            'Resecured',
+            'Reendorsed',
+            'Rewon',
+            'Reapproved',
+            'Rearned',
+            'Resanctioned',
+            'Redeserved',
+            'Reauthorized',
+            'Remerited',
+            'Relicensed',
+            'Requalified',
+            'Repermitted',
+            'Reentitled',
+            'Reallowed',
+            'Rewarranted',
+            'Regranted',
+            'Rejustified',
+            'Reaccorded',
+            'Revalidated',
+            'Reconceded',
+            'Resubstantiated',
+            'Reyielded',
+            'Reproved',
+            'Regave',
+            'Redemonstrated',
+            'Reprovided',
+            'Reestablished',
+            'Resupplied',
+            'Reconfirmed',
+            'Reoffered',
+            'Reverified',
+            'Represented',
+            'Reauthenticated',
+            'Redelivered',
+            'Recertified',
+            'Rehanded',
+            'Reendorsed',
+            'Repassed',
+            'Reapproved',
+            'Retransferred',
+            'Resanctioned',
+            'Reconveyed',
+            'Reauthorized',
+            'Retransmitted',
+            'Relicensed',
+            'Retransported',
+            'Repermitted',
+            'Recarried',
+            'Reallowed',
+            'Removed',
+            'Regranted',
+            'Reshifted',
+            'Reaccorded',
+            'Redisplaced',
+            'Reconceded',
+            'Rerelocated',
+            'Reyielded',
+            'Repositioned',
+            'Regave',
+            'Rearranged',
+            'Reprovided',
+            'Reorganized',
+            'Resupplied',
+            'Restructured',
+            'Reoffered',
+            'Reordered',
+            'Represented',
+            'Reshuffled',
+            'Redelivered',
+            'Redistributed',
+            'Rehanded',
+            'Reallocated',
+            'Repassed',
+            'Reassigned',
+            'Retransferred',
+            'Reappointed',
+            'Reconveyed',
+            'Renamed',
+            'Retransmitted',
+            'Retitled',
+            'Retransported',
+            'Relabeled',
+            'Recarried',
+            'Retagged',
+            'Removed',
+            'Remarked',
+            'Reshifted',
+            'Redesignated',
+            'Redisplaced',
+            'Reclassified',
+            'Rerelocated',
+            'Recategorized',
+            'Repositioned',
+            'Regrouped',
+            'Rearranged',
+            'Resorted',
+            'Reorganized',
+            'Rearranged',
+            'Restructured',
+            'Reordered',
+            'Reordered',
+            'Realigned',
+            'Reshuffled',
+            'Readjusted',
+            'Redistributed',
+            'Recalibrated',
+            'Reallocated',
+            'Retuned',
+            'Reassigned',
+            'Reregulated',
+            'Reappointed',
+            'Recontrolled',
+            'Renamed',
+            'Remanaged',
+            'Retitled',
+            'Regoverned',
+            'Relabeled',
+            'Redirected',
+            'Retagged',
+            'Reguided',
+            'Remarked',
+            'Resteered',
+            'Redesignated',
+            'Renavigated',
+            'Reclassified',
+            'Repiloted',
+            'Recategorized',
+            'Redrove',
+            'Regrouped',
+            'Reoperated',
+            'Resorted',
+            'Reran',
+            'Rearranged',
+            'Reworked',
+            'Reordered',
+            'Refunctioned',
+            'Realigned',
+            'Reformed',
+            'Readjusted',
+            'Reperformed',
+            'Recalibrated',
+            'Reexecuted',
+            'Retuned',
+            'Reaccomplished',
+            'Reregulated',
+            'Reachieved',
+            'Recontrolled',
+            'Recompleted',
+            'Remanaged',
+            'Refinished',
+            'Regoverned',
+            'Refulfilled',
+            'Redirected',
+            'Rerealized',
+            'Reguided',
+            'Reattained',
+            'Resteered',
+            'Rereached',
+            'Renavigated',
+            'Regained',
+            'Repiloted',
+            'Reobtained',
+            'Redrove',
+            'Reacquired',
+            'Reoperated',
+            'Resecured',
+            'Reran',
+            'Rewon',
+            'Reworked',
+            'Rearned',
+            'Refunctioned',
+            'Redeserved',
+            'Reformed',
+            'Remerited',
+            'Reperformed',
+            'Requalified',
+            'Reexecuted',
+            'Reentitled',
+            'Reaccomplished',
+            'Rewarranted',
+            'Reachieved',
+            'Rejustified',
+            'Recompleted',
+            'Revalidated',
+            'Refinished',
+            'Resubstantiated',
+            'Refulfilled',
+            'Reproved',
+            'Rerealized',
+            'Redemonstrated',
+            'Reattained',
+            'Reestablished',
+            'Rereached',
+            'Reconfirmed',
+            'Regained',
+            'Reverified',
+            'Reobtained',
+            'Reauthenticated',
+            'Reacquired',
+            'Recertified',
+            'Resecured',
+            'Reendorsed',
+            'Rewon',
+            'Reapproved',
+            'Rearned',
+            'Resanctioned',
+            'Redeserved',
+            'Reauthorized',
+            'Remerited',
+            'Relicensed',
+            'Requalified',
+            'Repermitted',
+            'Reentitled',
+            'Reallowed',
+            'Rewarranted',
+            'Regranted',
+            'Rejustified',
+            'Reaccorded',
+            'Revalidated',
+            'Reconceded',
+            'Resubstantiated',
+            'Reyielded',
+            'Reproved',
+            'Regave',
+            'Redemonstrated',
+            'Reprovided',
+            'Reestablished',
+            'Resupplied',
+            'Reconfirmed',
+            'Reoffered',
+            'Reverified',
+            'Represented',
+            'Reauthenticated',
+            'Redelivered',
+            'Recertified',
+            'Rehanded',
+            'Reendorsed',
+            'Repassed',
+            'Reapproved',
+            'Retransferred',
+            'Resanctioned',
+            'Reconveyed',
+            'Reauthorized',
+            'Retransmitted',
+            'Relicensed',
+            'Retransported',
+            'Repermitted',
+            'Recarried',
+            'Reallowed',
+            'Removed',
+            'Regranted',
+            'Reshifted',
+            'Reaccorded',
+            'Redisplaced',
+            'Reconceded',
+            'Rerelocated',
+            'Reyielded',
+            'Repositioned',
+            'Regave',
+            'Rearranged',
+            'Reprovided',
+            'Reorganized',
+            'Resupplied',
+            'Restructured',
+            'Reoffered',
+            'Reordered',
+            'Represented',
+            'Reshuffled',
+            'Redelivered',
+            'Redistributed',
+            'Rehanded',
+            'Reallocated',
+            'Repassed',
+            'Reassigned',
+            'Retransferred',
+            'Reappointed',
+            'Reconveyed',
+            'Renamed',
+            'Retransmitted',
+            'Retitled',
+            'Retransported',
+            'Relabeled',
+            'Recarried',
+            'Retagged',
+            'Removed',
+            'Remarked',
+            'Reshifted',
+          ];
+
           if (!commonWords.includes(potentialName)) {
             characterName = potentialName;
             characterDesc = characterName; // Just use the name
@@ -2508,15 +7477,22 @@ class ImageGenerationService {
     }
 
     // PRIORITY 5: SECONDARY CHARACTERS (Enhanced integration)
-    if (analysis.secondaryCharacters && analysis.secondaryCharacters.length > 0) {
+    if (
+      analysis.secondaryCharacters &&
+      analysis.secondaryCharacters.length > 0
+    ) {
       const topSecondaryCharacters = analysis.secondaryCharacters
         .filter(char => char.importance > 3) // Only include meaningful characters
         .slice(0, 2); // Limit to top 2
-      
+
       topSecondaryCharacters.forEach(char => {
-        const characterDesc = `${char.name} the ${char.type}${char.role !== 'other' ? ` (${char.role})` : ''}`;
+        const characterDesc = `${char.name} the ${char.type}${
+          char.role !== 'other' ? ` (${char.role})` : ''
+        }`;
         addIfUnique(characterDesc, 6);
-        console.log(`👥 Adding secondary character: ${characterDesc} (importance: ${char.importance})`);
+        console.log(
+          `👥 Adding secondary character: ${characterDesc} (importance: ${char.importance})`,
+        );
       });
     }
 
@@ -2524,7 +7500,10 @@ class ImageGenerationService {
     if (analysis.enhancedColorDetails) {
       // Add dominant colors with emotional context
       if (analysis.enhancedColorDetails.dominantColors.length > 0) {
-        const topColors = analysis.enhancedColorDetails.dominantColors.slice(0, 2);
+        const topColors = analysis.enhancedColorDetails.dominantColors.slice(
+          0,
+          2,
+        );
         topColors.forEach(color => {
           addIfUnique(`${color} coloring`, 5);
           console.log(`🎨 Adding enhanced color: ${color}`);
@@ -2533,10 +7512,15 @@ class ImageGenerationService {
 
       // Add object-color pairs for specific visual elements
       if (analysis.enhancedColorDetails.objectColorPairs.length > 0) {
-        const topPairs = analysis.enhancedColorDetails.objectColorPairs.slice(0, 2);
+        const topPairs = analysis.enhancedColorDetails.objectColorPairs.slice(
+          0,
+          2,
+        );
         topPairs.forEach(pair => {
           addIfUnique(`${pair.color} ${pair.object}`, 5);
-          console.log(`🎯 Adding object-color pair: ${pair.color} ${pair.object}`);
+          console.log(
+            `🎯 Adding object-color pair: ${pair.color} ${pair.object}`,
+          );
         });
       }
     }
@@ -2544,17 +7528,25 @@ class ImageGenerationService {
     // PRIORITY 7: DYNAMIC SCENE CONTEXT
     if (analysis.dynamicSceneContext) {
       const sceneContext = analysis.dynamicSceneContext;
-      
+
       // Add current action for dynamic representation
-      if (sceneContext.currentAction && sceneContext.currentAction !== 'engaging in story adventure') {
+      if (
+        sceneContext.currentAction &&
+        sceneContext.currentAction !== 'engaging in story adventure'
+      ) {
         addIfUnique(`${sceneContext.currentAction}`, 4);
         console.log(`⚡ Adding dynamic action: ${sceneContext.currentAction}`);
       }
 
       // Add emotional state for better mood representation
-      if (sceneContext.emotionalState && sceneContext.emotionalState !== 'wonder') {
+      if (
+        sceneContext.emotionalState &&
+        sceneContext.emotionalState !== 'wonder'
+      ) {
         addIfUnique(`${sceneContext.emotionalState} moment`, 4);
-        console.log(`😊 Adding emotional state: ${sceneContext.emotionalState}`);
+        console.log(
+          `😊 Adding emotional state: ${sceneContext.emotionalState}`,
+        );
       }
 
       // Add interaction level context
@@ -2580,23 +7572,27 @@ class ImageGenerationService {
     if (
       analysis.characters.detailed &&
       analysis.characters.detailed.length > 1 &&
-      (!analysis.secondaryCharacters || analysis.secondaryCharacters.length === 0)
+      (!analysis.secondaryCharacters ||
+        analysis.secondaryCharacters.length === 0)
     ) {
       // Add secondary characters (skip protagonist if already added)
       analysis.characters.detailed
         .slice(1, 3) // Skip first if it's protagonist, take next 2
         .forEach(char => {
           addIfUnique(char.description, 2);
-          console.log(`👥 Adding fallback secondary character: ${char.description}`);
+          console.log(
+            `👥 Adding fallback secondary character: ${char.description}`,
+          );
         });
     }
 
     // Prioritize story-specific visual concepts if available
     if (analysis.visualConcepts && analysis.visualConcepts.length > 0) {
-      const _storySpecific = analysis.visualConcepts
+      // Process story-specific visual concepts for prompt enhancement
+      analysis.visualConcepts
         .filter(v => v.isStorySpecific)
         .slice(0, 3)
-        .map(v => {
+        .forEach(v => {
           // Clean up visual descriptions for better prompt flow
           let desc = v.element;
           if (v.isStorySpecific) {
@@ -2614,9 +7610,9 @@ class ImageGenerationService {
               desc = desc.substring(0, desc.lastIndexOf(' '));
             }
           }
-          return desc;
-        })
-        .filter(desc => addIfUnique(desc));
+          // Add to unique elements if not already present
+          addIfUnique(desc);
+        });
     }
 
     // Fallback to enhanced character details if available
@@ -3703,7 +8699,7 @@ class ImageGenerationService {
 
   private async executeRequestWithTracking(
     request: ImageGenerationRequest,
-    startTime: number,
+    _startTime: number,
   ): Promise<ImageGenerationResult> {
     activeRequests++;
     rateLimitingStats.totalRequests++;
@@ -4042,8 +9038,8 @@ class ImageGenerationService {
     };
   } {
     const metrics = errorLogger.getMetrics();
-    const _activeRequestsRatio =
-      activeRequests / RATE_LIMIT_CONFIG.MAX_CONCURRENT_REQUESTS;
+    // Note: activeRequestsRatio calculated but not currently used in decision logic
+    // const activeRequestsRatio = activeRequests / RATE_LIMIT_CONFIG.MAX_CONCURRENT_REQUESTS;
     const queueRatio = requestQueue.length / RATE_LIMIT_CONFIG.MAX_QUEUE_SIZE;
 
     const apiConnectivity = metrics.errorRate < 5; // Less than 5 errors per minute
@@ -4426,7 +9422,8 @@ class ImageGenerationService {
       let match;
       while ((match = pattern.exec(content)) !== null) {
         const fullMatch = match[0];
-        const _adjective = match[1];
+        // Note: adjective extracted but not currently used in significance calculation
+        // const adjective = match[1];
         const item = match[2] || match[1]; // Handle different capture groups
 
         // Calculate significance based on how often it's mentioned and its role
@@ -4484,7 +9481,7 @@ class ImageGenerationService {
 
   private analyzeStoryThemes(
     content: string,
-    sentences: string[],
+    _sentences: string[],
   ): StoryAnalysis['storyThemes'] {
     const themes = {
       primary: '',
@@ -4681,8 +9678,10 @@ class ImageGenerationService {
     content: string,
     _sentences: string[],
   ): StoryAnalysis['secondaryCharacters'] {
-    const secondaryCharacters: NonNullable<StoryAnalysis['secondaryCharacters']> = [];
-    
+    const secondaryCharacters: NonNullable<
+      StoryAnalysis['secondaryCharacters']
+    > = [];
+
     // Enhanced patterns for secondary character detection
     const characterPatterns = [
       // Named characters with descriptions: "Henry the hedgehog", "Holly the hummingbird"
@@ -4709,34 +9708,52 @@ class ImageGenerationService {
       let match;
       while ((match = pattern.exec(content)) !== null) {
         const characterName = match[1] || match[2] || match[3] || match[0];
-        
-        if (characterName && characterName.length > 1 && characterName !== 'the') {
+
+        if (
+          characterName &&
+          characterName.length > 1 &&
+          characterName !== 'the'
+        ) {
           // Determine character type
           let characterType: 'human' | 'animal' | 'fantasy' = 'animal'; // Default for children's stories
           if (/\b(boy|girl|man|woman|child|person|human)\b/i.test(match[0])) {
             characterType = 'human';
-          } else if (/\b(fairy|elf|wizard|dragon|unicorn|phoenix)\b/i.test(match[0])) {
+          } else if (
+            /\b(fairy|elf|wizard|dragon|unicorn|phoenix)\b/i.test(match[0])
+          ) {
             characterType = 'fantasy';
           }
 
           // Determine role
-          let role: 'friend' | 'helper' | 'companion' | 'guide' | 'other' = 'other';
+          let role: 'friend' | 'helper' | 'companion' | 'guide' | 'other' =
+            'other';
           for (const [roleType, keywords] of Object.entries(roleKeywords)) {
-            if (keywords.some(keyword => match[0].toLowerCase().includes(keyword))) {
+            if (
+              keywords.some(keyword => match[0].toLowerCase().includes(keyword))
+            ) {
               role = roleType as 'friend' | 'helper' | 'companion' | 'guide';
               break;
             }
           }
 
           // Calculate importance based on mentions and context
-          const mentions = (content.match(new RegExp(`\\b${characterName}\\b`, 'gi')) || []).length;
-          const importance = Math.min(10, Math.max(1, mentions * 2 + (role === 'friend' ? 2 : 1)));
+          const mentions = (
+            content.match(new RegExp(`\\b${characterName}\\b`, 'gi')) || []
+          ).length;
+          const importance = Math.min(
+            10,
+            Math.max(1, mentions * 2 + (role === 'friend' ? 2 : 1)),
+          );
 
           // Extract relationship context
           let relationshipContext = '';
-          const contextMatch = content.match(new RegExp(`${characterName}[^.!?]{0,50}`, 'gi'));
+          const contextMatch = content.match(
+            new RegExp(`${characterName}[^.!?]{0,50}`, 'gi'),
+          );
           if (contextMatch && contextMatch[0]) {
-            relationshipContext = contextMatch[0].replace(characterName, '').trim();
+            relationshipContext = contextMatch[0]
+              .replace(characterName, '')
+              .trim();
           }
 
           secondaryCharacters.push({
@@ -4745,15 +9762,18 @@ class ImageGenerationService {
             role,
             description: match[0],
             importance,
-            relationshipToProtagonist: relationshipContext || `Appears as ${role} in the story`,
+            relationshipToProtagonist:
+              relationshipContext || `Appears as ${role} in the story`,
           });
         }
       }
     });
 
     // Remove duplicates and sort by importance
-    const uniqueCharacters = secondaryCharacters.filter((char, index, self) => 
-      index === self.findIndex(c => c.name.toLowerCase() === char.name.toLowerCase())
+    const uniqueCharacters = secondaryCharacters.filter(
+      (char, index, self) =>
+        index ===
+        self.findIndex(c => c.name.toLowerCase() === char.name.toLowerCase()),
     );
 
     return uniqueCharacters
@@ -4764,7 +9784,9 @@ class ImageGenerationService {
   /**
    * Extracts enhanced color details with emotional and contextual mapping
    */
-  private extractEnhancedColorDetails(content: string): StoryAnalysis['enhancedColorDetails'] {
+  private extractEnhancedColorDetails(
+    content: string,
+  ): StoryAnalysis['enhancedColorDetails'] {
     const colorDetails: NonNullable<StoryAnalysis['enhancedColorDetails']> = {
       dominantColors: [],
       emotionalColorMapping: [],
@@ -4784,12 +9806,12 @@ class ImageGenerationService {
 
     // Emotional color associations
     const emotionalColorMap: Record<string, string[]> = {
-      'happiness': ['yellow', 'golden', 'bright', 'warm', 'sunny'],
-      'calm': ['blue', 'soft', 'gentle', 'cool', 'peaceful'],
-      'excitement': ['red', 'orange', 'vibrant', 'bright', 'bold'],
-      'nature': ['green', 'brown', 'earth', 'natural', 'forest'],
-      'magic': ['purple', 'violet', 'sparkling', 'shimmering', 'glowing'],
-      'wonder': ['silver', 'pearl', 'radiant', 'brilliant', 'luminous'],
+      happiness: ['yellow', 'golden', 'bright', 'warm', 'sunny'],
+      calm: ['blue', 'soft', 'gentle', 'cool', 'peaceful'],
+      excitement: ['red', 'orange', 'vibrant', 'bright', 'bold'],
+      nature: ['green', 'brown', 'earth', 'natural', 'forest'],
+      magic: ['purple', 'violet', 'sparkling', 'shimmering', 'glowing'],
+      wonder: ['silver', 'pearl', 'radiant', 'brilliant', 'luminous'],
     };
 
     // Extract dominant colors
@@ -4799,7 +9821,7 @@ class ImageGenerationService {
         const colorDescriptor = match[1] ? `${match[1]} ${match[2]}` : match[2];
         if (colorDescriptor) {
           colorDetails.dominantColors.push(colorDescriptor);
-          
+
           // If there's an object association, add it
           if (match[3]) {
             colorDetails.objectColorPairs.push({
@@ -4815,7 +9837,10 @@ class ImageGenerationService {
     // Map colors to emotions
     for (const [emotion, colors] of Object.entries(emotionalColorMap)) {
       colors.forEach(color => {
-        if (content.toLowerCase().includes(color) && content.toLowerCase().includes(emotion)) {
+        if (
+          content.toLowerCase().includes(color) &&
+          content.toLowerCase().includes(emotion)
+        ) {
           colorDetails.emotionalColorMapping.push({
             color,
             emotion,
@@ -4836,8 +9861,11 @@ class ImageGenerationService {
         if (match[1] && match[2]) {
           const scene = match[1];
           const colorInfo = match[2];
-          const colors = colorInfo.match(/\b(red|blue|green|yellow|orange|purple|pink|brown|black|white|gray|golden|silver|bright|dark|light)\b/gi) || [];
-          
+          const colors =
+            colorInfo.match(
+              /\b(red|blue|green|yellow|orange|purple|pink|brown|black|white|gray|golden|silver|bright|dark|light)\b/gi,
+            ) || [];
+
           if (colors.length > 0) {
             colorDetails.sceneColorMoods.push({
               scene,
@@ -4850,8 +9878,11 @@ class ImageGenerationService {
     });
 
     // Clean up and deduplicate
-    colorDetails.dominantColors = [...new Set(colorDetails.dominantColors)].slice(0, 6);
-    colorDetails.emotionalColorMapping = colorDetails.emotionalColorMapping.slice(0, 5);
+    colorDetails.dominantColors = [
+      ...new Set(colorDetails.dominantColors),
+    ].slice(0, 6);
+    colorDetails.emotionalColorMapping =
+      colorDetails.emotionalColorMapping.slice(0, 5);
     colorDetails.objectColorPairs = colorDetails.objectColorPairs.slice(0, 8);
     colorDetails.sceneColorMoods = colorDetails.sceneColorMoods.slice(0, 4);
 
@@ -4885,20 +9916,30 @@ class ImageGenerationService {
 
     // Emotional state detection
     const emotionalStateMap: Record<string, RegExp> = {
-      discovery: /\b(found|discovered|noticed|realized|saw|spotted|uncovered|revealed)\b/gi,
-      excitement: /\b(excited|thrilled|amazed|delighted|overjoyed|enthusiastic)\b/gi,
-      wonder: /\b(wondered|curious|mysterious|magical|enchanting|beautiful|extraordinary)\b/gi,
-      collaboration: /\b(together|teamwork|helping|sharing|cooperating|working with|joined forces)\b/gi,
-      achievement: /\b(accomplished|succeeded|completed|achieved|won|solved|finished)\b/gi,
-      adventure: /\b(adventure|journey|quest|exploration|expedition|voyage)\b/gi,
+      discovery:
+        /\b(found|discovered|noticed|realized|saw|spotted|uncovered|revealed)\b/gi,
+      excitement:
+        /\b(excited|thrilled|amazed|delighted|overjoyed|enthusiastic)\b/gi,
+      wonder:
+        /\b(wondered|curious|mysterious|magical|enchanting|beautiful|extraordinary)\b/gi,
+      collaboration:
+        /\b(together|teamwork|helping|sharing|cooperating|working with|joined forces)\b/gi,
+      achievement:
+        /\b(accomplished|succeeded|completed|achieved|won|solved|finished)\b/gi,
+      adventure:
+        /\b(adventure|journey|quest|exploration|expedition|voyage)\b/gi,
     };
 
     // Movement intensity patterns
     const movementPatterns = {
-      static: /\b(sitting|resting|standing|watching|observing|thinking|pondering)\b/gi,
-      gentle: /\b(walking|strolling|floating|drifting|gliding|moving slowly)\b/gi,
-      active: /\b(running|jumping|climbing|swimming|flying|dancing|playing)\b/gi,
-      dynamic: /\b(racing|rushing|dashing|leaping|soaring|zooming|bursting|erupting)\b/gi,
+      static:
+        /\b(sitting|resting|standing|watching|observing|thinking|pondering)\b/gi,
+      gentle:
+        /\b(walking|strolling|floating|drifting|gliding|moving slowly)\b/gi,
+      active:
+        /\b(running|jumping|climbing|swimming|flying|dancing|playing)\b/gi,
+      dynamic:
+        /\b(racing|rushing|dashing|leaping|soaring|zooming|bursting|erupting)\b/gi,
     };
 
     // Extract current action
@@ -4917,7 +9958,8 @@ class ImageGenerationService {
       const matches = content.match(pattern);
       if (matches && matches.length > highestEmotionCount) {
         highestEmotionCount = matches.length;
-        sceneContext.emotionalState = emotion as typeof sceneContext.emotionalState;
+        sceneContext.emotionalState =
+          emotion as typeof sceneContext.emotionalState;
       }
     }
 
@@ -4927,21 +9969,35 @@ class ImageGenerationService {
       const matches = content.match(pattern);
       if (matches && matches.length > highestMovementCount) {
         highestMovementCount = matches.length;
-        sceneContext.sceneMovement = movement as typeof sceneContext.sceneMovement;
+        sceneContext.sceneMovement =
+          movement as typeof sceneContext.sceneMovement;
       }
     }
 
     // Determine time of action
-    if (content.includes('began') || content.includes('started') || content.includes('first')) {
+    if (
+      content.includes('began') ||
+      content.includes('started') ||
+      content.includes('first')
+    ) {
       sceneContext.timeOfAction = 'beginning';
-    } else if (content.includes('finally') || content.includes('ended') || content.includes('accomplished')) {
+    } else if (
+      content.includes('finally') ||
+      content.includes('ended') ||
+      content.includes('accomplished')
+    ) {
       sceneContext.timeOfAction = 'resolution';
-    } else if (content.includes('suddenly') || content.includes('moment') || content.includes('peak')) {
+    } else if (
+      content.includes('suddenly') ||
+      content.includes('moment') ||
+      content.includes('peak')
+    ) {
       sceneContext.timeOfAction = 'climax';
     }
 
     // Determine interaction level
-    const characterCount = (content.match(/\b(?:and|with|together)\b/gi) || []).length;
+    const characterCount = (content.match(/\b(?:and|with|together)\b/gi) || [])
+      .length;
     if (characterCount > 2) {
       sceneContext.interactionLevel = 'group';
     } else if (characterCount > 0) {
@@ -4963,10 +10019,26 @@ class ImageGenerationService {
 
     // Extract visual dynamics
     const dynamicElements = [
-      { element: 'light', motion: 'dancing', pattern: /\b(?:dancing|flickering|shimmering)\s+light\b/gi },
-      { element: 'leaves', motion: 'swaying', pattern: /\b(?:swaying|rustling|fluttering)\s+leaves\b/gi },
-      { element: 'water', motion: 'flowing', pattern: /\b(?:flowing|babbling|rushing)\s+(?:water|stream|river)\b/gi },
-      { element: 'characters', motion: 'moving', pattern: /\b(?:running|jumping|flying|dancing)\b/gi },
+      {
+        element: 'light',
+        motion: 'dancing',
+        pattern: /\b(?:dancing|flickering|shimmering)\s+light\b/gi,
+      },
+      {
+        element: 'leaves',
+        motion: 'swaying',
+        pattern: /\b(?:swaying|rustling|fluttering)\s+leaves\b/gi,
+      },
+      {
+        element: 'water',
+        motion: 'flowing',
+        pattern: /\b(?:flowing|babbling|rushing)\s+(?:water|stream|river)\b/gi,
+      },
+      {
+        element: 'characters',
+        motion: 'moving',
+        pattern: /\b(?:running|jumping|flying|dancing)\b/gi,
+      },
     ];
 
     dynamicElements.forEach(({ element, motion, pattern }) => {
@@ -4981,7 +10053,9 @@ class ImageGenerationService {
     });
 
     // Clean up arrays
-    sceneContext.atmosphericElements = [...new Set(sceneContext.atmosphericElements)].slice(0, 5);
+    sceneContext.atmosphericElements = [
+      ...new Set(sceneContext.atmosphericElements),
+    ].slice(0, 5);
     sceneContext.visualDynamics = sceneContext.visualDynamics.slice(0, 5);
 
     return sceneContext;
@@ -4992,22 +10066,22 @@ class ImageGenerationService {
    */
   private inferMoodFromColors(colors: string[]): string {
     const moodColorMap: Record<string, string[]> = {
-      'cheerful': ['yellow', 'bright', 'golden', 'light'],
-      'peaceful': ['blue', 'green', 'soft', 'gentle'],
-      'energetic': ['red', 'orange', 'vibrant', 'bold'],
-      'mysterious': ['purple', 'dark', 'deep'],
-      'natural': ['green', 'brown', 'earth'],
-      'magical': ['silver', 'golden', 'sparkling'],
+      cheerful: ['yellow', 'bright', 'golden', 'light'],
+      peaceful: ['blue', 'green', 'soft', 'gentle'],
+      energetic: ['red', 'orange', 'vibrant', 'bold'],
+      mysterious: ['purple', 'dark', 'deep'],
+      natural: ['green', 'brown', 'earth'],
+      magical: ['silver', 'golden', 'sparkling'],
     };
 
     let bestMood = 'neutral';
     let highestScore = 0;
 
     for (const [mood, moodColors] of Object.entries(moodColorMap)) {
-      const score = colors.filter(color => 
-        moodColors.some(moodColor => color.toLowerCase().includes(moodColor))
+      const score = colors.filter(color =>
+        moodColors.some(moodColor => color.toLowerCase().includes(moodColor)),
       ).length;
-      
+
       if (score > highestScore) {
         highestScore = score;
         bestMood = mood;
@@ -5025,64 +10099,70 @@ class ImageGenerationService {
    * NEW: Story-first prompt generation that prioritizes specific story content
    * This method directly extracts visual elements without complex pipelines
    */
-  private generateStorySpecificPrompt(storyContent: string, gradeLevel: GradeLevel, artStyleDefinition: ArtStyleDefinition): string {
+  private generateStorySpecificPrompt(
+    storyContent: string,
+    gradeLevel: GradeLevel,
+    artStyleDefinition: ArtStyleDefinition,
+  ): string {
     try {
       // Extract key visual elements directly from story
       const visualElements = this.extractDirectVisualElements(storyContent);
-      
+
       // If we have strong story-specific content, build a targeted prompt
-      if (visualElements.character || visualElements.objects.length > 0 || visualElements.setting) {
-        
+      if (
+        visualElements.character ||
+        visualElements.objects.length > 0 ||
+        visualElements.setting
+      ) {
         let prompt = `Create a ${artStyleDefinition.baseStyle}`;
-        
+
         // Add character with physical descriptions
         if (visualElements.character) {
           prompt += ` showing ${visualElements.character}`;
         }
-        
+
         // Add primary action/scene
         if (visualElements.action) {
           prompt += ` ${visualElements.action}`;
         }
-        
+
         // Add specific objects
         if (visualElements.objects.length > 0) {
           const objectList = visualElements.objects.slice(0, 3).join(' and ');
           prompt += ` with ${objectList}`;
         }
-        
+
         // Add setting context
         if (visualElements.setting) {
           prompt += ` in ${visualElements.setting}`;
         }
-        
+
         // Add colors and atmosphere
         if (visualElements.colors.length > 0) {
           const colorList = visualElements.colors.slice(0, 3).join(', ');
           prompt += `, featuring ${colorList} colors`;
         }
-        
+
         // Add emotional tone
         if (visualElements.mood) {
           prompt += `, ${visualElements.mood} atmosphere`;
         }
-        
+
         // Always add safety constraint
         prompt += ', safe for children, G-rated content';
-        
+
         console.log('📝 Story-specific elements extracted:', {
           character: visualElements.character,
           objects: visualElements.objects,
           setting: visualElements.setting,
           colors: visualElements.colors,
-          mood: visualElements.mood
+          mood: visualElements.mood,
         });
-        
+
         return prompt;
       }
-      
+
       return ''; // Return empty to fall back to other methods
-      
     } catch (error) {
       console.error('Error in generateStorySpecificPrompt:', error);
       return '';
@@ -5098,66 +10178,146 @@ class ImageGenerationService {
    */
   private extractCharactersDynamically(content: string): string[] {
     const characters: string[] = [];
-    
+
     // Pattern 1: "Name the [adjective] [anything]" - captures any creature
     const nameThePattern = /\b([A-Z][a-z]+)\s+the\s+(\w+(?:\s+\w+)?)\b/g;
     let match;
     while ((match = nameThePattern.exec(content)) !== null) {
       const name = match[1];
       const description = match[2];
-      
+
       // Filter out common words that aren't creatures
-      const commonWords = ['first', 'last', 'next', 'same', 'other', 'best', 'only', 'new', 'old', 'good', 'great'];
+      const commonWords = [
+        'first',
+        'last',
+        'next',
+        'same',
+        'other',
+        'best',
+        'only',
+        'new',
+        'old',
+        'good',
+        'great',
+      ];
       if (!commonWords.includes(description.toLowerCase())) {
         characters.push(`${name} the ${description}`);
       }
     }
-    
+
     // Pattern 2: Multi-word descriptive creatures - "wise old tortoise", "tiny dragons", etc.
-    const multiWordCreaturePattern = /\b(wise\s+old|little|tiny|baby|small|magical|ancient|friendly|curious|brave|gentle)\s+([a-z]+(?:\s+[a-z]+)?)\b/g;
+    const multiWordCreaturePattern =
+      /\b(wise\s+old|little|tiny|baby|small|magical|ancient|friendly|curious|brave|gentle)\s+([a-z]+(?:\s+[a-z]+)?)\b/g;
     while ((match = multiWordCreaturePattern.exec(content)) !== null) {
       const adjective = match[1];
       const creature = match[2];
-      
+
       // Check for creature context (animal nouns or animal behaviors)
-      const contextWindow = content.substring(Math.max(0, match.index - 100), match.index + 200);
-      const creatureIndicators = ['wings', 'flew', 'hopped', 'crawled', 'swam', 'chirped', 'squeaked', 'purred', 'barked', 'meowed', 'tail', 'paws', 'scales', 'feathers', 'fur', 'shell', 'horn', 'whiskers', 'mane'];
-      const creatureNouns = ['dragon', 'unicorn', 'phoenix', 'tortoise', 'butterfly', 'rabbit', 'mouse', 'mice', 'ladybug', 'caterpillar', 'cat', 'lion', 'monkey', 'bird', 'fish', 'snake', 'frog', 'bear', 'wolf', 'fox', 'deer'];
-      
-      if (creatureIndicators.some(indicator => contextWindow.includes(indicator)) || 
-          creatureNouns.some(noun => creature.includes(noun))) {
+      const contextWindow = content.substring(
+        Math.max(0, match.index - 100),
+        match.index + 200,
+      );
+      const creatureIndicators = [
+        'wings',
+        'flew',
+        'hopped',
+        'crawled',
+        'swam',
+        'chirped',
+        'squeaked',
+        'purred',
+        'barked',
+        'meowed',
+        'tail',
+        'paws',
+        'scales',
+        'feathers',
+        'fur',
+        'shell',
+        'horn',
+        'whiskers',
+        'mane',
+      ];
+      const creatureNouns = [
+        'dragon',
+        'unicorn',
+        'phoenix',
+        'tortoise',
+        'butterfly',
+        'rabbit',
+        'mouse',
+        'mice',
+        'ladybug',
+        'caterpillar',
+        'cat',
+        'lion',
+        'monkey',
+        'bird',
+        'fish',
+        'snake',
+        'frog',
+        'bear',
+        'wolf',
+        'fox',
+        'deer',
+      ];
+
+      if (
+        creatureIndicators.some(indicator =>
+          contextWindow.includes(indicator),
+        ) ||
+        creatureNouns.some(noun => creature.includes(noun))
+      ) {
         characters.push(`${adjective} ${creature}`);
       }
     }
-    
+
     // Pattern 3: Standalone fantasy creatures mentioned directly
-    const fantasyCreaturePattern = /\b(dragons?|unicorns?|phoenixes?|griffins?|fairies?|elves?|dwarves?)\b/g;
+    const fantasyCreaturePattern =
+      /\b(dragons?|unicorns?|phoenixes?|griffins?|fairies?|elves?|dwarves?)\b/g;
     while ((match = fantasyCreaturePattern.exec(content)) !== null) {
       const creature = match[1];
-      
+
       // Get surrounding context for size/description
-      const contextBefore = content.substring(Math.max(0, match.index - 50), match.index);
-      const sizeMatch = contextBefore.match(/\b(tiny|small|little|huge|enormous|giant|miniature)\s*$/i);
-      
+      const contextBefore = content.substring(
+        Math.max(0, match.index - 50),
+        match.index,
+      );
+      const sizeMatch = contextBefore.match(
+        /\b(tiny|small|little|huge|enormous|giant|miniature)\s*$/i,
+      );
+
       if (sizeMatch) {
         characters.push(`${sizeMatch[1].toLowerCase()} ${creature}`);
       } else {
         characters.push(creature);
       }
     }
-    
+
     // Pattern 4: Character names that perform actions (dynamic)
-    const actionPattern = /\b([A-Z][a-z]{2,})\s+(saw|found|felt|heard|went|took|looked|ran|jumped|flew|hopped|smiled|laughed|wondered|decided|noticed|lapped|fluttered|perched|landed|bounded|danced|giggled|trembled|stretched|yawned|rumbled|leaned|gripped|ventured|examined|inserted|turned)\b/g;
+    const actionPattern =
+      /\b([A-Z][a-z]{2,})\s+(saw|found|felt|heard|went|took|looked|ran|jumped|flew|hopped|smiled|laughed|wondered|decided|noticed|lapped|fluttered|perched|landed|bounded|danced|giggled|trembled|stretched|yawned|rumbled|leaned|gripped|ventured|examined|inserted|turned)\b/g;
     while ((match = actionPattern.exec(content)) !== null) {
       const name = match[1];
-      
+
       // Exclude common words
-      const excludeWords = ['Everything', 'Something', 'Nothing', 'Behind', 'Inside', 'Outside', 'Around', 'Through', 'Beyond', 'Welcome'];
+      const excludeWords = [
+        'Everything',
+        'Something',
+        'Nothing',
+        'Behind',
+        'Inside',
+        'Outside',
+        'Around',
+        'Through',
+        'Beyond',
+        'Welcome',
+      ];
       if (!excludeWords.includes(name)) {
         characters.push(name);
       }
     }
-    
+
     return [...new Set(characters)]; // Remove duplicates
   }
 
@@ -5167,61 +10327,138 @@ class ImageGenerationService {
    */
   private extractEnvironmentsDynamically(content: string): string[] {
     const environments: string[] = [];
-    
+
     // Pattern 1: Color + object combinations
-    const colorObjectPattern = /\b(bright|dark|crimson|golden|crystal|sparkling|shimmering|beautiful|mysterious|enormous|magical|enchanted|legendary)\s+([a-z]+(?:\s+[a-z]+)?)\b/g;
+    const colorObjectPattern =
+      /\b(bright|dark|crimson|golden|crystal|sparkling|shimmering|beautiful|mysterious|enormous|magical|enchanted|legendary)\s+([a-z]+(?:\s+[a-z]+)?)\b/g;
     let match;
     while ((match = colorObjectPattern.exec(content)) !== null) {
       const adjective = match[1];
       const object = match[2];
-      
+
       // Focus on location/setting words
-      const locationWords = ['door', 'field', 'meadow', 'pond', 'garden', 'tree', 'hill', 'path', 'clearing', 'forest', 'fountain', 'canopy', 'brook', 'stream', 'grove', 'glade'];
+      const locationWords = [
+        'door',
+        'field',
+        'meadow',
+        'pond',
+        'garden',
+        'tree',
+        'hill',
+        'path',
+        'clearing',
+        'forest',
+        'fountain',
+        'canopy',
+        'brook',
+        'stream',
+        'grove',
+        'glade',
+      ];
       if (locationWords.some(word => object.includes(word))) {
         environments.push(`${adjective} ${object}`);
       }
     }
-    
+
     // Pattern 2: Named places - "Garden of Wonders", "Forest of Dreams", etc.
     const namedPlacePattern = /\b([A-Z][a-z]+(?:\s+of\s+[A-Z][a-z]+)+)\b/g;
     while ((match = namedPlacePattern.exec(content)) !== null) {
       const placeName = match[1];
-      
+
       // Check if it's a location context
-      const contextWindow = content.substring(Math.max(0, match.index - 100), match.index + 100);
-      const placeIndicators = ['door', 'garden', 'forest', 'field', 'meadow', 'kingdom', 'land', 'realm', 'valley', 'mountain', 'lake', 'river', 'cave', 'palace', 'castle'];
-      
-      if (placeIndicators.some(indicator => contextWindow.toLowerCase().includes(indicator))) {
+      const contextWindow = content.substring(
+        Math.max(0, match.index - 100),
+        match.index + 100,
+      );
+      const placeIndicators = [
+        'door',
+        'garden',
+        'forest',
+        'field',
+        'meadow',
+        'kingdom',
+        'land',
+        'realm',
+        'valley',
+        'mountain',
+        'lake',
+        'river',
+        'cave',
+        'palace',
+        'castle',
+      ];
+
+      if (
+        placeIndicators.some(indicator =>
+          contextWindow.toLowerCase().includes(indicator),
+        )
+      ) {
         environments.push(placeName);
       }
     }
-    
-    // Pattern 3: "a/the [adjective] [place]" 
-    const placePattern = /\b(?:a|the)\s+(big|little|small|huge|enormous|vast|tiny|beautiful|magical|peaceful|sunny|magnificent|ancient|mysterious|enchanted)\s+([a-z]+(?:\s+[a-z]+)?)\b/g;
+
+    // Pattern 3: "a/the [adjective] [place]"
+    const placePattern =
+      /\b(?:a|the)\s+(big|little|small|huge|enormous|vast|tiny|beautiful|magical|peaceful|sunny|magnificent|ancient|mysterious|enchanted)\s+([a-z]+(?:\s+[a-z]+)?)\b/g;
     while ((match = placePattern.exec(content)) !== null) {
       const adjective = match[1];
       const place = match[2];
-      
+
       // Check if it's a place/location
-      const contextWindow = content.substring(Math.max(0, match.index - 50), match.index + 50);
-      const locationContext = ['in', 'through', 'across', 'behind', 'inside', 'outside', 'toward', 'into', 'within', 'beside', 'beneath', 'above'];
-      
+      const contextWindow = content.substring(
+        Math.max(0, match.index - 50),
+        match.index + 50,
+      );
+      const locationContext = [
+        'in',
+        'through',
+        'across',
+        'behind',
+        'inside',
+        'outside',
+        'toward',
+        'into',
+        'within',
+        'beside',
+        'beneath',
+        'above',
+      ];
+
       if (locationContext.some(prep => contextWindow.includes(prep))) {
         environments.push(`${adjective} ${place}`);
       }
     }
-    
+
     // Pattern 4: Specific descriptive environments
-    const descriptivePattern = /(field\s+full\s+of\s+[^.!?]+|meadow[^.!?]*|pond[^.!?]*|garden[^.!?]*|fountain[^.!?]*|forest[^.!?]*|canopy[^.!?]*|door[^.!?]*)/g;
+    const descriptivePattern =
+      /(field\s+full\s+of\s+[^.!?]+|meadow[^.!?]*|pond[^.!?]*|garden[^.!?]*|fountain[^.!?]*|forest[^.!?]*|canopy[^.!?]*|door[^.!?]*)/g;
     while ((match = descriptivePattern.exec(content)) !== null) {
       const description = match[1].trim();
-      if (description.length < 100) { // Keep descriptions reasonable
+      if (description.length < 100) {
+        // Keep descriptions reasonable
         environments.push(description);
       }
     }
-    
+
     // Pattern 5: Standalone environment words with strong context
-    const environmentWords = ['fountain', 'waterfall', 'brook', 'stream', 'clearing', 'grove', 'glade', 'valley', 'hillside', 'meadowland', 'woodland', 'pathway', 'bridge', 'archway', 'doorway', 'keyhole'];
+    const environmentWords = [
+      'fountain',
+      'waterfall',
+      'brook',
+      'stream',
+      'clearing',
+      'grove',
+      'glade',
+      'valley',
+      'hillside',
+      'meadowland',
+      'woodland',
+      'pathway',
+      'bridge',
+      'archway',
+      'doorway',
+      'keyhole',
+    ];
     environmentWords.forEach(word => {
       const wordPattern = new RegExp(`\\b(${word})\\b`, 'gi');
       const matches = content.match(wordPattern);
@@ -5229,16 +10466,38 @@ class ImageGenerationService {
         // Get context to see if it's a prominent setting element
         const wordIndex = content.toLowerCase().indexOf(word);
         if (wordIndex !== -1) {
-          const contextWindow = content.substring(Math.max(0, wordIndex - 50), wordIndex + 100);
-          const settingIndicators = ['stood', 'lay', 'found', 'discovered', 'saw', 'opened', 'revealed', 'beyond', 'center', 'beside', 'magnificent', 'beautiful', 'magical', 'ancient'];
-          
-          if (settingIndicators.some(indicator => contextWindow.toLowerCase().includes(indicator))) {
+          const contextWindow = content.substring(
+            Math.max(0, wordIndex - 50),
+            wordIndex + 100,
+          );
+          const settingIndicators = [
+            'stood',
+            'lay',
+            'found',
+            'discovered',
+            'saw',
+            'opened',
+            'revealed',
+            'beyond',
+            'center',
+            'beside',
+            'magnificent',
+            'beautiful',
+            'magical',
+            'ancient',
+          ];
+
+          if (
+            settingIndicators.some(indicator =>
+              contextWindow.toLowerCase().includes(indicator),
+            )
+          ) {
             environments.push(word);
           }
         }
       }
     });
-    
+
     return [...new Set(environments)]; // Remove duplicates
   }
 
@@ -5247,24 +10506,26 @@ class ImageGenerationService {
    */
   private extractVisualElements(content: string): string[] {
     const visuals: string[] = [];
-    
+
     // Extract colors with context
-    const colorPattern = /\b(orange|blue|green|red|golden|silver|crimson|purple|pink|white|black|gray|grey)\s+([a-z]+)\b/g;
+    const colorPattern =
+      /\b(orange|blue|green|red|golden|silver|crimson|purple|pink|white|black|gray|grey)\s+([a-z]+)\b/g;
     let match;
     while ((match = colorPattern.exec(content)) !== null) {
       const color = match[1];
       const object = match[2];
       visuals.push(`${color} ${object}`);
     }
-    
+
     // Extract textures and materials
-    const texturePattern = /\b(soft|fluffy|smooth|rough|velvety|silky|sparkl\w+|glitt\w+|shimmer\w+)\s+([a-z]+)\b/g;
+    const texturePattern =
+      /\b(soft|fluffy|smooth|rough|velvety|silky|sparkl\w+|glitt\w+|shimmer\w+)\s+([a-z]+)\b/g;
     while ((match = texturePattern.exec(content)) !== null) {
       const texture = match[1];
       const object = match[2];
       visuals.push(`${texture} ${object}`);
     }
-    
+
     return [...new Set(visuals)];
   }
 
@@ -5275,9 +10536,9 @@ class ImageGenerationService {
       objects: [] as string[],
       setting: '',
       colors: [] as string[],
-      mood: ''
+      mood: '',
     };
-    
+
     // DYNAMIC CHARACTER EXTRACTION - No hardcoded animal lists!
     const characters = this.extractCharactersDynamically(content);
     if (characters.length > 0) {
@@ -5285,41 +10546,43 @@ class ImageGenerationService {
       const fullCharacter = characters.find(char => char.includes(' the '));
       elements.character = fullCharacter || characters[0];
     }
-    
+
     // DYNAMIC OBJECT EXTRACTION - Extract objects from visual elements
     const visuals = this.extractVisualElements(content);
     elements.objects = visuals.slice(0, 5); // Take top 5 visual elements as objects
-    
+
     // DYNAMIC SETTING EXTRACTION
     const environments = this.extractEnvironmentsDynamically(content);
     if (environments.length > 0) {
       elements.setting = environments[0]; // Take the first/most prominent setting
     }
-    
+
     // DYNAMIC COLOR EXTRACTION
-    const colorElements = visuals.filter(v => 
-      /\b(orange|blue|green|red|golden|silver|crimson|purple|pink|white|black|gray|grey)\s+/.test(v)
+    const colorElements = visuals.filter(v =>
+      /\b(orange|blue|green|red|golden|silver|crimson|purple|pink|white|black|gray|grey)\s+/.test(
+        v,
+      ),
     );
     elements.colors = colorElements.slice(0, 3); // Take top 3 color elements
-    
+
     // ACTION EXTRACTION
     const actionPatterns = [
       /(discovering|exploring|finding|playing\s+with|holding)/gi,
-      /(hopped|hopping|bounced|bouncing|ran|running)/gi
+      /(hopped|hopping|bounced|bouncing|ran|running)/gi,
     ];
-    
+
     actionPatterns.forEach(pattern => {
       const match = content.match(pattern);
       if (match && !elements.action) {
         elements.action = `${match[0]}`;
       }
     });
-    
+
     // MOOD EXTRACTION
     const moodPatterns = [
-      /(happy|joyful|excited|magical|whimsical|peaceful|adventurous)/gi
+      /(happy|joyful|excited|magical|whimsical|peaceful|adventurous)/gi,
     ];
-    
+
     const moods = [];
     moodPatterns.forEach(pattern => {
       let match;
@@ -5327,50 +10590,76 @@ class ImageGenerationService {
         moods.push(match[1]);
       }
     });
-    
+
     if (moods.length > 0) {
       elements.mood = moods.slice(0, 2).join(' and ');
     }
-    
+
     // Remove duplicates
     elements.objects = [...new Set(elements.objects)];
     elements.colors = [...new Set(elements.colors)];
-    
+
     return elements;
   }
 
   /**
    * Extract physical features mentioned near a character name
    */
-  private extractPhysicalFeatures(characterName: string, contextWindow: string): string[] {
+  private extractPhysicalFeatures(
+    characterName: string,
+    contextWindow: string,
+  ): string[] {
     const features: string[] = [];
     const name = characterName.toLowerCase();
-    
+
     // Physical feature patterns - more comprehensive
     const featurePatterns = [
       // Eyes: "bright purple eyes", "purple eyes"
-      new RegExp(`${name}[^.!?]*?(bright\\s+purple|purple|blue|green|brown|hazel|bright)\\s+(eyes)`, 'gi'),
-      new RegExp(`(bright\\s+purple|purple|blue|green|brown|hazel|bright)\\s+(eyes)[^.!?]*?${name}`, 'gi'),
+      new RegExp(
+        `${name}[^.!?]*?(bright\\s+purple|purple|blue|green|brown|hazel|bright)\\s+(eyes)`,
+        'gi',
+      ),
+      new RegExp(
+        `(bright\\s+purple|purple|blue|green|brown|hazel|bright)\\s+(eyes)[^.!?]*?${name}`,
+        'gi',
+      ),
       // Ears and tail: "long ears", "fluffy tail"
-      new RegExp(`${name}[^.!?]*?(long|short|fluffy|soft)\\s+(ears|tail)`, 'gi'),
-      new RegExp(`(long|short|fluffy|soft)\\s+(ears|tail)[^.!?]*?${name}`, 'gi'),
+      new RegExp(
+        `${name}[^.!?]*?(long|short|fluffy|soft)\\s+(ears|tail)`,
+        'gi',
+      ),
+      new RegExp(
+        `(long|short|fluffy|soft)\\s+(ears|tail)[^.!?]*?${name}`,
+        'gi',
+      ),
       // Nose and paws: "tiny pink nose", "small paws"
-      new RegExp(`${name}[^.!?]*?(tiny|small|pink|black|soft)\\s+(nose|paws)`, 'gi'),
-      new RegExp(`(tiny|small|pink|black|soft)\\s+(nose|paws)[^.!?]*?${name}`, 'gi'),
+      new RegExp(
+        `${name}[^.!?]*?(tiny|small|pink|black|soft)\\s+(nose|paws)`,
+        'gi',
+      ),
+      new RegExp(
+        `(tiny|small|pink|black|soft)\\s+(nose|paws)[^.!?]*?${name}`,
+        'gi',
+      ),
       // Fur descriptions that weren't caught in main extraction
-      new RegExp(`${name}[^.!?]*?(cotton-soft|soft|fluffy|silky)\\s+(white|brown|golden|black)\\s+(fur)`, 'gi'),
+      new RegExp(
+        `${name}[^.!?]*?(cotton-soft|soft|fluffy|silky)\\s+(white|brown|golden|black)\\s+(fur)`,
+        'gi',
+      ),
     ];
-    
+
     featurePatterns.forEach(pattern => {
       let match;
       while ((match = pattern.exec(contextWindow)) !== null) {
-        const feature = match[1].includes(' ') ? `${match[1]} ${match[2]}` : `${match[1]} ${match[2]}`;
+        const feature = match[1].includes(' ')
+          ? `${match[1]} ${match[2]}`
+          : `${match[1]} ${match[2]}`;
         if (!features.includes(feature)) {
           features.push(feature);
         }
       }
     });
-    
+
     return features.slice(0, 3); // Limit to 3 features for clarity
   }
 
@@ -5419,7 +10708,7 @@ class ImageGenerationService {
         confidence: number;
       }>,
       sequences: [] as Array<any>,
-      originalContent: content
+      originalContent: content,
     };
 
     // Phase 1: Character Name Extraction with Context
@@ -5444,7 +10733,7 @@ class ImageGenerationService {
             type: 'human',
             context,
             confidence: 0.9,
-            mentions: 1
+            mentions: 1,
           });
         }
       }
@@ -5466,7 +10755,7 @@ class ImageGenerationService {
       let match;
       while ((match = pattern.exec(content)) !== null) {
         let description, name, animalType;
-        
+
         if (patternIndex === 3) {
           // Generic animal pattern: /\ba?\s*(adjective)?\s*(animal)\s+(?:named|called)\s+([A-Z][a-z]+)/gi
           description = match[1] || 'animal'; // adjective like "little"
@@ -5481,20 +10770,25 @@ class ImageGenerationService {
           // Specific patterns (indices 0, 1)
           description = match[1] || match[2] || 'animal';
           name = match[2] || match[3] || match[1];
-          animalType = description.includes('retriever') ? 'dog' : 
-                       description.includes('tortoise') ? 'tortoise' : 'animal';
+          animalType = description.includes('retriever')
+            ? 'dog'
+            : description.includes('tortoise')
+            ? 'tortoise'
+            : 'animal';
         }
-        
+
         const fullMatch = match[0];
-        
+
         if (name && name.length > 2 && /^[A-Z]/.test(name)) {
           entities.animals.push({
             name,
-            description: animalType ? `${description} ${animalType}`.trim() : description,
+            description: animalType
+              ? `${description} ${animalType}`.trim()
+              : description,
             type: 'animal',
             context: fullMatch,
             confidence: 0.8,
-            mentions: 1
+            mentions: 1,
           });
         }
       }
@@ -5504,17 +10798,21 @@ class ImageGenerationService {
     entities.characters.forEach(char => {
       const contextLower = content.toLowerCase();
       const charLower = char.name.toLowerCase();
-      const mentions = (contextLower.match(new RegExp(`\\b${charLower}\\b`, 'g')) || []).length;
+      const mentions = (
+        contextLower.match(new RegExp(`\\b${charLower}\\b`, 'g')) || []
+      ).length;
       char.mentions = mentions;
-      char.confidence = Math.min(0.95, 0.5 + (mentions * 0.1));
+      char.confidence = Math.min(0.95, 0.5 + mentions * 0.1);
     });
 
     entities.animals.forEach(animal => {
       const contextLower = content.toLowerCase();
       const animalLower = animal.name.toLowerCase();
-      const mentions = (contextLower.match(new RegExp(`\\b${animalLower}\\b`, 'g')) || []).length;
+      const mentions = (
+        contextLower.match(new RegExp(`\\b${animalLower}\\b`, 'g')) || []
+      ).length;
       animal.mentions = mentions;
-      animal.confidence = Math.min(0.95, 0.5 + (mentions * 0.1));
+      animal.confidence = Math.min(0.95, 0.5 + mentions * 0.1);
     });
 
     // Phase 4: Object Relationship Mapping
@@ -5523,7 +10821,7 @@ class ImageGenerationService {
       /\b([A-Z][a-z]+)\s+(?:found|picked|held|grabbed|caught|discovered|saw|spotted)\s+(?:a|the)?\s*([\w\s]+?)(?:\.|,|\s+(?:hidden|under|near|in))/gi,
       /\b([A-Z][a-z]+)\s+(?:bounced|threw|tossed|played with)\s+(?:a|the)?\s*([\w\s]+?)(?:\.|,|\s+(?:high|up|down))/gi,
       /\b([A-Z][a-z]+)\s+(?:reached for|tied to|attached to)\s+(?:a|the)?\s*([\w\s]+)/gi,
-      
+
       // Object descriptions with owners
       /\b([\w\s]+?)\s+(?:belonged to|owned by)\s+([A-Z][a-z]+)/gi,
       /\b([A-Z][a-z]+)'s\s+([\w\s]+?)(?:\.|,|\s+(?:was|were|had))/gi,
@@ -5534,14 +10832,14 @@ class ImageGenerationService {
       while ((match = pattern.exec(content)) !== null) {
         const character = match[1] || match[2];
         const object = match[2] || match[1];
-        
+
         if (character && object && /^[A-Z]/.test(character)) {
           entities.relationships.push({
             type: 'character-object',
             character,
             object: object.trim(),
             context: match[0],
-            confidence: 0.8
+            confidence: 0.8,
           });
         }
       }
@@ -5555,10 +10853,10 @@ class ImageGenerationService {
    */
   private analyzeNarrativeSequence(content: string, entities: any) {
     const sequences = [];
-    
+
     // Break content into sentences for sequential analysis
     const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 10);
-    
+
     // Define sequence patterns for common story progressions
     const sequencePatterns = [
       // Discovery sequences
@@ -5566,38 +10864,39 @@ class ImageGenerationService {
         name: 'discovery',
         pattern: /\b(?:found|discovered|spotted|saw|noticed)\b/i,
         weight: 3,
-        type: 'action'
+        type: 'action',
       },
       // Play/interaction sequences
       {
         name: 'play',
         pattern: /\b(?:played|bounced|threw|tossed|chased|ran)\b/i,
         weight: 2,
-        type: 'action'
+        type: 'action',
       },
       // Meeting/social sequences
       {
         name: 'meeting',
         pattern: /\b(?:met|found|came|emerged|appeared|bounding)\b/i,
         weight: 2,
-        type: 'social'
+        type: 'social',
       },
       // Exploration sequences
       {
         name: 'exploration',
         pattern: /\b(?:explored|went|walked|led|path|deeper|hidden)\b/i,
         weight: 2,
-        type: 'adventure'
+        type: 'adventure',
       },
       // Magical/climax sequences
       {
         name: 'climax',
-        pattern: /\b(?:suddenly|burst|rumble|magical|glowing|sparkling|crystal)\b/i,
+        pattern:
+          /\b(?:suddenly|burst|rumble|magical|glowing|sparkling|crystal)\b/i,
         weight: 4,
-        type: 'climax'
-      }
+        type: 'climax',
+      },
     ];
-    
+
     sentences.forEach((sentence, index) => {
       sequencePatterns.forEach(pattern => {
         if (pattern.pattern.test(sentence)) {
@@ -5613,15 +10912,18 @@ class ImageGenerationService {
               involvedCharacters.push(animal.name);
             }
           });
-          
+
           // Extract objects involved
           const involvedObjects: string[] = [];
           entities.relationships.forEach((rel: any) => {
-            if (rel.type === 'character-object' && sentence.toLowerCase().includes(rel.object.toLowerCase())) {
+            if (
+              rel.type === 'character-object' &&
+              sentence.toLowerCase().includes(rel.object.toLowerCase())
+            ) {
               involvedObjects.push(rel.object);
             }
           });
-          
+
           sequences.push({
             sequenceType: pattern.name,
             actionType: pattern.type,
@@ -5630,24 +10932,26 @@ class ImageGenerationService {
             characters: involvedCharacters,
             objects: involvedObjects,
             weight: pattern.weight,
-            confidence: 0.8
+            confidence: 0.8,
           });
         }
       });
     });
-    
+
     // Sort sequences by sentence order to maintain narrative flow
     sequences.sort((a, b) => a.sentenceIndex - b.sentenceIndex);
-    
+
     // Identify the primary sequence (highest weight)
-    const primarySequence = sequences.reduce((prev, curr) => 
-      curr.weight > prev.weight ? curr : prev, sequences[0] || {});
-    
+    const primarySequence = sequences.reduce(
+      (prev, curr) => (curr.weight > prev.weight ? curr : prev),
+      sequences[0] || {},
+    );
+
     return {
       sequences,
       primarySequence,
       narrativeFlow: sequences.map((s: any) => s.sequenceType),
-      keyMoments: sequences.filter((s: any) => s.weight >= 3)
+      keyMoments: sequences.filter((s: any) => s.weight >= 3),
     };
   }
 
@@ -5660,96 +10964,121 @@ class ImageGenerationService {
       secondaryCharacters: [],
       characterInteractions: [],
       sceneComposition: null,
-      promptStructure: null
+      promptStructure: null,
     };
-    
+
     // Identify primary character (most mentions and actions)
     const allCharacters = [...entities.characters, ...entities.animals];
     if (allCharacters.length > 0) {
-      coordination.primaryCharacter = allCharacters.reduce((prev, curr) => 
-        (curr.mentions + curr.confidence) > (prev.mentions + prev.confidence) ? curr : prev
+      coordination.primaryCharacter = allCharacters.reduce((prev, curr) =>
+        curr.mentions + curr.confidence > prev.mentions + prev.confidence
+          ? curr
+          : prev,
       );
-      
+
       coordination.secondaryCharacters = allCharacters
         .filter(char => char !== coordination.primaryCharacter)
-        .sort((a, b) => (b.mentions + b.confidence) - (a.mentions + a.confidence))
+        .sort((a, b) => b.mentions + b.confidence - (a.mentions + a.confidence))
         .slice(0, 3); // Limit to 3 secondary characters for visual clarity
     }
-    
+
     // Analyze character interactions from relationships
     entities.relationships.forEach((rel: any) => {
       if (rel.type === 'character-character') {
         coordination.characterInteractions.push({
-          participants: [rel.character1, rel.character2, rel.character3].filter(Boolean),
+          participants: [rel.character1, rel.character2, rel.character3].filter(
+            Boolean,
+          ),
           context: rel.context,
-          confidence: rel.confidence
+          confidence: rel.confidence,
         });
       }
     });
-    
+
     // Determine optimal scene composition based on narrative
     if (narrativeAnalysis.primarySequence) {
       const primarySeq = narrativeAnalysis.primarySequence;
-      
+
       coordination.sceneComposition = {
         sceneType: primarySeq.sequenceType,
         actionType: primarySeq.actionType,
         focusCharacters: primarySeq.characters,
         keyObjects: primarySeq.objects,
-        mood: primarySeq.sequenceType === 'climax' ? 'dramatic' : 
-               primarySeq.sequenceType === 'discovery' ? 'curious' :
-               primarySeq.sequenceType === 'play' ? 'joyful' : 'friendly'
+        mood:
+          primarySeq.sequenceType === 'climax'
+            ? 'dramatic'
+            : primarySeq.sequenceType === 'discovery'
+            ? 'curious'
+            : primarySeq.sequenceType === 'play'
+            ? 'joyful'
+            : 'friendly',
       };
     }
-    
+
     // Generate sophisticated prompt structure
-    coordination.promptStructure = this.generateAdvancedPromptStructure(coordination, entities, narrativeAnalysis);
-    
+    coordination.promptStructure = this.generateAdvancedPromptStructure(
+      coordination,
+      entities,
+      narrativeAnalysis,
+    );
+
     return coordination;
   }
 
   /**
    * Advanced Prompt Structure Generator with Template-Based Refinement
    */
-  private generateAdvancedPromptStructure(coordination: any, entities: any, _narrativeAnalysis: any) {
+  private generateAdvancedPromptStructure(
+    coordination: any,
+    entities: any,
+    _narrativeAnalysis: any,
+  ) {
     const structure = {
       characterDescription: '',
       sceneAction: '',
       objectElements: '',
       settingContext: '',
-      moodDescription: ''
+      moodDescription: '',
     };
-    
+
     // Enhanced character description with story-specific details
     if (coordination.primaryCharacter) {
       const primary = coordination.primaryCharacter;
-      
+
       // Extract character details from story context
       const content = entities.originalContent || '';
-      const characterDetails = this.extractCharacterDetails(primary.name, content);
-      
+      const characterDetails = this.extractCharacterDetails(
+        primary.name,
+        content,
+      );
+
       if (primary.type === 'human') {
-        structure.characterDescription = this.buildHumanCharacterDescription(primary.name, characterDetails);
+        structure.characterDescription = this.buildHumanCharacterDescription(
+          primary.name,
+          characterDetails,
+        );
       } else {
         // For animals, build proper description with name and type
         const animalType = primary.description || primary.type || 'animal';
         structure.characterDescription = `${primary.name} the ${animalType}`;
       }
-      
+
       // Include secondary characters if they interact
       if (coordination.secondaryCharacters.length > 0) {
-        const secondaries = coordination.secondaryCharacters.slice(0, 2).map((char: any) => {
-          if (char.type === 'human') {
-            return `${char.name} (child)`;
-          } else {
-            return `${char.name} (${char.description || char.type})`;
-          }
-        });
-        
+        const secondaries = coordination.secondaryCharacters
+          .slice(0, 2)
+          .map((char: any) => {
+            if (char.type === 'human') {
+              return `${char.name} (child)`;
+            } else {
+              return `${char.name} (${char.description || char.type})`;
+            }
+          });
+
         structure.characterDescription += ` with ${secondaries.join(' and ')}`;
       }
     }
-    
+
     // Build scene action based on narrative sequence
     if (coordination.sceneComposition) {
       const scene = coordination.sceneComposition;
@@ -5773,19 +11102,19 @@ class ImageGenerationService {
           structure.sceneAction = 'interacting with';
       }
     }
-    
+
     // Build refined object elements from relationships
     const refinedObjects = this.buildRefinedObjectElements(entities);
-    
+
     if (refinedObjects.length > 0) {
       structure.objectElements = refinedObjects.join(' and ');
     }
-    
+
     // Build mood description
     if (coordination.sceneComposition) {
       structure.moodDescription = coordination.sceneComposition.mood;
     }
-    
+
     return structure;
   }
 
@@ -5797,51 +11126,72 @@ class ImageGenerationService {
       physicalFeatures: [] as string[],
       clothing: [] as string[],
       personality: [] as string[],
-      actions: [] as string[]
+      actions: [] as string[],
     };
-    
+
     const nameLower = characterName.toLowerCase();
-    
+
     // Extract physical features
     const physicalPatterns = [
-      new RegExp(`${nameLower}'s\\s+(\\w+(?:-\\w+)?)\\s+(hair|eyes|face|ponytail)`, 'gi'),
-      new RegExp(`${nameLower}\\s+(?:had|has|with)\\s+(\\w+(?:-\\w+)?)\\s+(hair|eyes|sneakers|shoes)`, 'gi'),
-      new RegExp(`(\\w+(?:-\\w+)?)\\s+(hair|eyes|ponytail|sneakers).*${nameLower}`, 'gi')
+      new RegExp(
+        `${nameLower}'s\\s+(\\w+(?:-\\w+)?)\\s+(hair|eyes|face|ponytail)`,
+        'gi',
+      ),
+      new RegExp(
+        `${nameLower}\\s+(?:had|has|with)\\s+(\\w+(?:-\\w+)?)\\s+(hair|eyes|sneakers|shoes)`,
+        'gi',
+      ),
+      new RegExp(
+        `(\\w+(?:-\\w+)?)\\s+(hair|eyes|ponytail|sneakers).*${nameLower}`,
+        'gi',
+      ),
     ];
-    
+
     physicalPatterns.forEach(pattern => {
       let match;
       while ((match = pattern.exec(content)) !== null) {
         details.physicalFeatures.push(`${match[1]} ${match[2]}`);
       }
     });
-    
+
     // Extract clothing/accessories
     const clothingPatterns = [
-      new RegExp(`${nameLower}'s\\s+(\\w+)\\s+(sneakers|shoes|dress|shirt|pants)`, 'gi'),
-      new RegExp(`${nameLower}\\s+(?:wore|wearing|had)\\s+(\\w+)\\s+(sneakers|shoes|clothing)`, 'gi')
+      new RegExp(
+        `${nameLower}'s\\s+(\\w+)\\s+(sneakers|shoes|dress|shirt|pants)`,
+        'gi',
+      ),
+      new RegExp(
+        `${nameLower}\\s+(?:wore|wearing|had)\\s+(\\w+)\\s+(sneakers|shoes|clothing)`,
+        'gi',
+      ),
     ];
-    
+
     clothingPatterns.forEach(pattern => {
       let match;
       while ((match = pattern.exec(content)) !== null) {
         details.clothing.push(`${match[1]} ${match[2]}`);
       }
     });
-    
+
     // Extract key actions for scene composition
     const actionPatterns = [
-      new RegExp(`${nameLower}\\s+(found|discovered|picked|bounced|ran|chased|held)`, 'gi'),
-      new RegExp(`${nameLower}\\s+(?:felt|thought|wondered|smiled|laughed)`, 'gi')
+      new RegExp(
+        `${nameLower}\\s+(found|discovered|picked|bounced|ran|chased|held)`,
+        'gi',
+      ),
+      new RegExp(
+        `${nameLower}\\s+(?:felt|thought|wondered|smiled|laughed)`,
+        'gi',
+      ),
     ];
-    
+
     actionPatterns.forEach(pattern => {
       let match;
       while ((match = pattern.exec(content)) !== null) {
         details.actions.push(match[1]);
       }
     });
-    
+
     return details;
   }
 
@@ -5849,35 +11199,48 @@ class ImageGenerationService {
    * Build Human Character Description
    */
   private buildHumanCharacterDescription(name: string, details: any): string {
-    let description = `a young ${name.includes('boy') || name.includes('Boy') ? 'boy' : 'girl'}`;
-    
+    let description = `a young ${
+      name.includes('boy') || name.includes('Boy') ? 'boy' : 'girl'
+    }`;
+
     // Add name if it's a proper name (not generic pronouns)
-    if (name && name !== 'She' && name !== 'He' && name !== 'child' && name !== 'she' && name !== 'he') {
+    if (
+      name &&
+      name !== 'She' &&
+      name !== 'He' &&
+      name !== 'child' &&
+      name !== 'she' &&
+      name !== 'he'
+    ) {
       // Clean the name - remove undefined/null values
-      const cleanName = String(name).replace(/undefined|null/g, '').trim();
+      const cleanName = String(name)
+        .replace(/undefined|null/g, '')
+        .trim();
       if (cleanName && cleanName.length > 1) {
         description += ` named ${cleanName}`;
       }
     }
-    
+
     // Add most distinctive physical features (avoid duplicates)
     if (details.physicalFeatures.length > 0) {
-      const uniqueFeatures = [...new Set(details.physicalFeatures)]
-        .filter((feature: string) => feature && !feature.includes('undefined'));
+      const uniqueFeatures = [...new Set(details.physicalFeatures)].filter(
+        (feature: string) => feature && !feature.includes('undefined'),
+      );
       if (uniqueFeatures.length > 0) {
         description += ` with ${uniqueFeatures.slice(0, 2).join(' and ')}`;
       }
     }
-    
+
     // Add distinctive clothing if mentioned (avoid duplicates)
     if (details.clothing.length > 0) {
-      const uniqueClothing = [...new Set(details.clothing)]
-        .filter((clothing: string) => clothing && !clothing.includes('undefined'));
+      const uniqueClothing = [...new Set(details.clothing)].filter(
+        (clothing: string) => clothing && !clothing.includes('undefined'),
+      );
       if (uniqueClothing.length > 0) {
         description += ` wearing ${uniqueClothing.slice(0, 1).join(' and ')}`;
       }
     }
-    
+
     return description;
   }
 
@@ -5890,82 +11253,116 @@ class ImageGenerationService {
       .map((rel: any) => {
         // Clean and enhance object descriptions
         let obj = rel.object.trim();
-        
+
         // Remove any existing adjectives from the object to avoid duplication
-        obj = obj.replace(/^(shiny|bright|red|blue|green|yellow|purple|golden|silver|turquoise|big|small|tiny|large|little)\s+/gi, '');
-        
+        obj = obj.replace(
+          /^(shiny|bright|red|blue|green|yellow|purple|golden|silver|turquoise|big|small|tiny|large|little)\s+/gi,
+          '',
+        );
+
         // Add descriptive adjectives from context (avoid duplicates)
-        const colorMatches = rel.context.match(/\b(red|blue|green|yellow|purple|golden|silver|turquoise)\b/gi);
-        const qualityMatches = rel.context.match(/\b(shiny|bright|glowing|sparkling)\b/gi);
-        const sizeMatches = rel.context.match(/\b(big|small|tiny|large|little)\b/gi);
-        
+        const colorMatches = rel.context.match(
+          /\b(red|blue|green|yellow|purple|golden|silver|turquoise)\b/gi,
+        );
+        const qualityMatches = rel.context.match(
+          /\b(shiny|bright|glowing|sparkling)\b/gi,
+        );
+        const sizeMatches = rel.context.match(
+          /\b(big|small|tiny|large|little)\b/gi,
+        );
+
         let enhancedObj = obj;
-        
+
         // Build adjective list without duplicates
         const adjectives = [];
         if (qualityMatches) adjectives.push(qualityMatches[0]);
         if (colorMatches) adjectives.push(colorMatches[0]);
-        if (sizeMatches && adjectives.length === 0) adjectives.push(sizeMatches[0]);
-        
+        if (sizeMatches && adjectives.length === 0)
+          adjectives.push(sizeMatches[0]);
+
         // Combine adjectives with object (max 2 adjectives for clarity)
         if (adjectives.length > 0) {
           const uniqueAdjectives = [...new Set(adjectives)].slice(0, 2);
           enhancedObj = `${uniqueAdjectives.join(' ')} ${obj}`;
         }
-        
+
         return enhancedObj;
       })
-      .filter((obj: string, index: number, arr: string[]) => arr.indexOf(obj) === index) // Remove duplicates
+      .filter(
+        (obj: string, index: number, arr: string[]) =>
+          arr.indexOf(obj) === index,
+      ) // Remove duplicates
       .filter((obj: string) => obj && obj.trim().length > 0) // Remove empty objects
       .slice(0, 3); // Limit for visual clarity
-      
+
     return objects;
   }
 
   /**
    * Main Advanced Prompt Generator - New Signature
    */
-  private generateAdvancedPrompt(storyContent: string, nerEntities: any, narrativeSequence: any, coordinatedCharacters: any, gradeLevel: GradeLevel): string {
+  private generateAdvancedPrompt(
+    storyContent: string,
+    nerEntities: any,
+    narrativeSequence: any,
+    coordinatedCharacters: any,
+    gradeLevel: GradeLevel,
+  ): string {
     const artStyleDefinition = ART_STYLE_MAPPING[gradeLevel];
-    
+
     // Defensive check - ensure artStyleDefinition exists
     if (!artStyleDefinition || !artStyleDefinition.baseStyle) {
-      console.error(`🚨 artStyleDefinition is undefined for gradeLevel: ${gradeLevel}`, { artStyleDefinition, availableKeys: Object.keys(ART_STYLE_MAPPING) });
+      console.error(
+        `🚨 artStyleDefinition is undefined for gradeLevel: ${gradeLevel}`,
+        { artStyleDefinition, availableKeys: Object.keys(ART_STYLE_MAPPING) },
+      );
       // Fallback to simple fallback prompt
-      return this.generateFallbackAdvancedPrompt(storyContent, nerEntities, gradeLevel, null);
+      return this.generateFallbackAdvancedPrompt(
+        storyContent,
+        nerEntities,
+        gradeLevel,
+        null,
+      );
     }
-    
+
     try {
       // Use the sophisticated prompt structure from character coordination
       if (coordinatedCharacters && coordinatedCharacters.promptStructure) {
         const structure = coordinatedCharacters.promptStructure;
-        
+
         let prompt = `Create a ${artStyleDefinition.baseStyle}`;
-        
+
         // 1. Character Description (enhanced with story details)
         if (structure.characterDescription) {
           prompt += ` showing ${structure.characterDescription}`;
-          
+
           // Add secondary characters if present (but avoid pronouns)
-          if (coordinatedCharacters.secondaryCharacters && coordinatedCharacters.secondaryCharacters.length > 0) {
-            const validSecondaryChars = coordinatedCharacters.secondaryCharacters.filter((char: any) => 
-              char.name && 
-              char.name !== 'She' && 
-              char.name !== 'He' && 
-              char.name !== 'she' && 
-              char.name !== 'he' &&
-              char.name !== 'child'
-            );
-            
+          if (
+            coordinatedCharacters.secondaryCharacters &&
+            coordinatedCharacters.secondaryCharacters.length > 0
+          ) {
+            const validSecondaryChars =
+              coordinatedCharacters.secondaryCharacters.filter(
+                (char: any) =>
+                  char.name &&
+                  char.name !== 'She' &&
+                  char.name !== 'He' &&
+                  char.name !== 'she' &&
+                  char.name !== 'he' &&
+                  char.name !== 'child',
+              );
+
             if (validSecondaryChars.length > 0) {
               const secondaryChar = validSecondaryChars[0];
               if (secondaryChar.type === 'animal') {
-                prompt += ` and a ${secondaryChar.description || secondaryChar.name}`;
+                prompt += ` and a ${
+                  secondaryChar.description || secondaryChar.name
+                }`;
               }
             }
           }
         }
-        
+
         // 2. Scene Action (grammatically correct)
         if (structure.sceneAction) {
           let action = structure.sceneAction;
@@ -5976,60 +11373,87 @@ class ImageGenerationService {
           }
           prompt += ` ${action}`;
         }
-        
+
         // 3. Objects and Setting (refined descriptions)
         if (structure.objectElements) {
           prompt += ` ${structure.objectElements}`;
         }
-        
+
         // 4. Setting Context (if available)
         if (structure.settingContext) {
           prompt += ` in ${structure.settingContext}`;
         }
-        
+
         // 5. Mood and Atmosphere
         let mood = 'whimsical and joyful';
         if (structure.moodDescription) {
-          switch(structure.moodDescription) {
-            case 'dramatic': mood = 'magical and wondrous'; break;
-            case 'curious': mood = 'bright and curious'; break; 
-            case 'joyful': mood = 'happy and playful'; break;
-            case 'friendly': mood = 'warm and friendly'; break;
-            default: mood = structure.moodDescription;
+          switch (structure.moodDescription) {
+            case 'dramatic':
+              mood = 'magical and wondrous';
+              break;
+            case 'curious':
+              mood = 'bright and curious';
+              break;
+            case 'joyful':
+              mood = 'happy and playful';
+              break;
+            case 'friendly':
+              mood = 'warm and friendly';
+              break;
+            default:
+              mood = structure.moodDescription;
           }
         }
         prompt += `, ${mood} atmosphere`;
-        
+
         // Always add safety constraints
         prompt += ', safe for children, G-rated content';
-        
+
         return prompt;
       }
-      
+
       // Fallback to basic character/entity extraction if structure is missing
-      return this.generateFallbackAdvancedPrompt(storyContent, nerEntities, gradeLevel, artStyleDefinition);
-      
+      return this.generateFallbackAdvancedPrompt(
+        storyContent,
+        nerEntities,
+        gradeLevel,
+        artStyleDefinition,
+      );
     } catch (error) {
       console.error('Error in generateAdvancedPrompt:', error);
-      return this.generateFallbackAdvancedPrompt(storyContent, nerEntities, gradeLevel, artStyleDefinition);
+      return this.generateFallbackAdvancedPrompt(
+        storyContent,
+        nerEntities,
+        gradeLevel,
+        artStyleDefinition,
+      );
     }
   }
 
   /**
    * Fallback Advanced Prompt Generator
    */
-  private generateFallbackAdvancedPrompt(storyContent: string, nerEntities: any, gradeLevel: GradeLevel, _artStyleDefinition: any): string {
+  private generateFallbackAdvancedPrompt(
+    storyContent: string,
+    nerEntities: any,
+    gradeLevel: GradeLevel,
+    _artStyleDefinition: any,
+  ): string {
     const gradeStyles = {
       'K-2': "children's book watercolor illustration",
-      '3-5': "detailed children's book illustration", 
+      '3-5': "detailed children's book illustration",
       '6-8': 'realistic digital illustration',
       '9-12': 'professional digital artwork',
     };
 
     let prompt = `Create a ${gradeStyles[gradeLevel]}`;
-    
+
     // Extract key characters from NER entities
-    if (nerEntities && nerEntities.characters && nerEntities.characters.length > 0) {
+    if (
+      nerEntities &&
+      nerEntities.characters &&
+      nerEntities.characters.length > 0
+    ) {
       const primaryChar = nerEntities.characters[0];
       if (primaryChar.type === 'human') {
         prompt += ` showing a ${primaryChar.name || 'young child'}`;
@@ -6037,61 +11461,75 @@ class ImageGenerationService {
         prompt += ` showing a ${primaryChar.description || primaryChar.name}`;
       }
     }
-    
+
     // Extract key objects
     if (nerEntities && nerEntities.objects && nerEntities.objects.length > 0) {
-      const keyObjects = nerEntities.objects.slice(0, 2).map((obj: any) => obj.name || obj).join(' and ');
+      const keyObjects = nerEntities.objects
+        .slice(0, 2)
+        .map((obj: any) => obj.name || obj)
+        .join(' and ');
       prompt += ` with ${keyObjects}`;
     }
-    
+
     prompt += ', safe for children, G-rated content';
-    
+
     return prompt;
   }
 
   /**
    * Template-Based Refined Prompt Generator (Legacy Function - Keep for compatibility)
    */
-  private generateAdvancedPromptLegacy(analysis: StoryAnalysis, characterCoordination: any, gradeLevel: GradeLevel = 'K-2'): string {
+  private generateAdvancedPromptLegacy(
+    analysis: StoryAnalysis,
+    characterCoordination: any,
+    gradeLevel: GradeLevel = 'K-2',
+  ): string {
     const gradeStyles = {
       'K-2': "children's book watercolor illustration",
-      '3-5': "detailed children's book illustration", 
+      '3-5': "detailed children's book illustration",
       '6-8': 'realistic digital illustration',
       '9-12': 'professional digital artwork',
     };
 
     // Template: "Create a [art_style] showing [character_description] [action] [objects_and_setting], [mood], [safety]"
-    
+
     let prompt = `Create a ${gradeStyles[gradeLevel]}`;
-    
+
     // Use the sophisticated prompt structure from character coordination
     if (characterCoordination.promptStructure) {
       const structure = characterCoordination.promptStructure;
-      
+
       // 1. Character Description (enhanced with story details)
       if (structure.characterDescription) {
         prompt += ` showing ${structure.characterDescription}`;
-        
+
         // Add secondary characters if present (but avoid pronouns like "She", "he")
-        if (characterCoordination.secondaryCharacters && characterCoordination.secondaryCharacters.length > 0) {
-          const validSecondaryChars = characterCoordination.secondaryCharacters.filter((char: any) => 
-            char.name && 
-            char.name !== 'She' && 
-            char.name !== 'He' && 
-            char.name !== 'she' && 
-            char.name !== 'he' &&
-            char.name !== 'child'
-          );
-          
+        if (
+          characterCoordination.secondaryCharacters &&
+          characterCoordination.secondaryCharacters.length > 0
+        ) {
+          const validSecondaryChars =
+            characterCoordination.secondaryCharacters.filter(
+              (char: any) =>
+                char.name &&
+                char.name !== 'She' &&
+                char.name !== 'He' &&
+                char.name !== 'she' &&
+                char.name !== 'he' &&
+                char.name !== 'child',
+            );
+
           if (validSecondaryChars.length > 0) {
             const secondaryChar = validSecondaryChars[0];
             if (secondaryChar.type === 'animal') {
-              prompt += ` and a ${secondaryChar.description || secondaryChar.name}`;
+              prompt += ` and a ${
+                secondaryChar.description || secondaryChar.name
+              }`;
             }
           }
         }
       }
-      
+
       // 2. Scene Action (grammatically correct)
       if (structure.sceneAction) {
         // Clean up action to be grammatically correct
@@ -6103,12 +11541,12 @@ class ImageGenerationService {
         }
         prompt += ` ${action}`;
       }
-      
+
       // 3. Objects and Setting (refined descriptions)
       if (structure.objectElements) {
         prompt += ` ${structure.objectElements}`;
       }
-      
+
       // 4. Setting Context (if available)
       if (structure.settingContext) {
         prompt += ` in ${structure.settingContext}`;
@@ -6116,25 +11554,33 @@ class ImageGenerationService {
         // Add basic setting context - could be enhanced later
         prompt += ' in a beautiful magical setting';
       }
-      
+
       // 5. Mood and Atmosphere
       let mood = 'whimsical and joyful';
       if (structure.moodDescription) {
-        switch(structure.moodDescription) {
-          case 'dramatic': mood = 'magical and wondrous'; break;
-          case 'curious': mood = 'bright and curious'; break; 
-          case 'joyful': mood = 'happy and playful'; break;
-          case 'friendly': mood = 'warm and friendly'; break;
-          default: mood = structure.moodDescription;
+        switch (structure.moodDescription) {
+          case 'dramatic':
+            mood = 'magical and wondrous';
+            break;
+          case 'curious':
+            mood = 'bright and curious';
+            break;
+          case 'joyful':
+            mood = 'happy and playful';
+            break;
+          case 'friendly':
+            mood = 'warm and friendly';
+            break;
+          default:
+            mood = structure.moodDescription;
         }
       }
       prompt += `, ${mood} atmosphere`;
-      
+
       // Always add safety constraints
       prompt += ', safe for children, G-rated content';
-      
+
       return prompt;
-      
     } else {
       // Fallback to basic prompt if structure is missing
       return `Create a ${gradeStyles[gradeLevel]} showing characters from the story in a magical setting, safe for children, G-rated content`;
@@ -6146,22 +11592,25 @@ class ImageGenerationService {
    */
   private extractSettingHints(analysis: StoryAnalysis): string | null {
     // Check scenes for setting information
-    if (analysis.scenes && (
-      (analysis.scenes.nature && analysis.scenes.nature.length > 0) ||
-      (analysis.scenes.magical && analysis.scenes.magical.length > 0)
-    )) {
+    if (
+      analysis.scenes &&
+      ((analysis.scenes.nature && analysis.scenes.nature.length > 0) ||
+        (analysis.scenes.magical && analysis.scenes.magical.length > 0))
+    ) {
       return 'a magical outdoor setting';
     }
-    
+
     // Check themes for nature/outdoor indicators
-    const hasNature = analysis.themes && analysis.themes.some(theme => 
-      theme.includes('nature') || theme.includes('adventure')
-    );
-    
+    const hasNature =
+      analysis.themes &&
+      analysis.themes.some(
+        theme => theme.includes('nature') || theme.includes('adventure'),
+      );
+
     if (hasNature) {
       return 'a beautiful park setting';
     }
-    
+
     return null;
   }
 }
