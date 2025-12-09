@@ -24,7 +24,7 @@
 		306989DDC74F8C1A6DB09B00 /* Pods-CreativeBridge.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CreativeBridge.debug.xcconfig"; path = "Target Support Files/Pods-CreativeBridge/Pods-CreativeBridge.debug.xcconfig"; sourceTree = "<group>"; };
 		62EEE89C3B12FA2BB546FEAA /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-CreativeBridge/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		812BB8923863759C25E510E3 /* Pods-CreativeBridge.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CreativeBridge.release.xcconfig"; path = "Target Support Files/Pods-CreativeBridge/Pods-CreativeBridge.release.xcconfig"; sourceTree = "<group>"; };
-		8ECE788EEE17CED3CF858F5E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = CreativeBridge/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		8ECE788EEE17CED3CF858F5E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = CreativeBridge/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		9B0B9157C198FBB2C1BE8C85 /* libPods-CreativeBridge.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-CreativeBridge.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = CreativeBridge/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
@@ -130,7 +130,6 @@
 				306989DDC74F8C1A6DB09B00 /* Pods-CreativeBridge.debug.xcconfig */,
 				812BB8923863759C25E510E3 /* Pods-CreativeBridge.release.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -399,6 +398,8 @@
 					"FB_SONARKIT_ENABLED=1",
 				);
 				INFOPLIST_FILE = CreativeBridge/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = CreativeBridge;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.educational-games";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -413,10 +414,12 @@
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
 				PRODUCT_BUNDLE_IDENTIFIER = org.name.CreativeBridge;
 				PRODUCT_NAME = CreativeBridge;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "CreativeBridge/CreativeBridge-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Debug;
@@ -430,6 +433,8 @@
 				CODE_SIGN_ENTITLEMENTS = CreativeBridge/CreativeBridge.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = CreativeBridge/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = CreativeBridge;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.educational-games";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -444,9 +449,11 @@
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
 				PRODUCT_BUNDLE_IDENTIFIER = org.name.CreativeBridge;
 				PRODUCT_NAME = CreativeBridge;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "CreativeBridge/CreativeBridge-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Release;

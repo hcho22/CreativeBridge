@@ -52,7 +52,26 @@ class ReactNativeDelegate: RCTDefaultReactNativeFactoryDelegate {
 
   override func bundleURL() -> URL? {
 #if DEBUG
-    return RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: "index")
+    // Get bundle URL provider
+    let bundleURLProvider = RCTBundleURLProvider.sharedSettings()
+    
+    // Try to get the bundle URL with the standard entry point
+    // For Expo projects, the entry point is resolved via expo/scripts/resolveAppEntry
+    // but the bundle root should still be "index" for the Metro bundler
+    guard let url = bundleURLProvider.jsBundleURL(forBundleRoot: "index") else {
+      // Fallback: construct the URL manually if automatic resolution fails
+      // This ensures the app can connect to Metro even if URL provider fails
+      #if targetEnvironment(simulator)
+        // For simulator, use localhost
+        return URL(string: "http://localhost:8081/index.bundle?platform=ios&dev=true&minify=false")
+      #else
+        // For physical device, you may need to replace localhost with your machine's IP
+        // For now, try localhost (works if device is on same network and Metro is accessible)
+        return URL(string: "http://localhost:8081/index.bundle?platform=ios&dev=true&minify=false")
+      #endif
+    }
+    
+    return url
 #else
     return Bundle.main.url(forResource: "main", withExtension: "jsbundle")
 #endif
