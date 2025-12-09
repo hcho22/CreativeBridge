@@ -154,8 +154,12 @@ const validateEnvironmentConfig = (config: EnvironmentConfig): void => {
     )}`;
     console.error(errorMessage);
 
-    if (!__DEV__) {
-      throw new Error(`Environment configuration error: ${errorMessage}`);
+    // Don't throw in production - log error but allow app to continue
+    // Some features may not work, but app won't crash
+    if (__DEV__) {
+      console.warn('⚠️ Running in development mode with missing environment variables');
+    } else {
+      console.error('⚠️ Production build with missing environment variables - some features may not work');
     }
   }
 
@@ -204,9 +208,32 @@ const validateEnvironmentConfig = (config: EnvironmentConfig): void => {
   }
 };
 
-// Load and validate configuration
-export const env: EnvironmentConfig = loadEnvironmentConfig();
-validateEnvironmentConfig(env);
+// Load and validate configuration with error handling
+let env: EnvironmentConfig;
+try {
+  env = loadEnvironmentConfig();
+  validateEnvironmentConfig(env);
+} catch (error) {
+  console.error('Failed to load environment configuration:', error);
+  // Provide fallback configuration to prevent app crash
+  env = {
+    SUPABASE_URL: 'https://dzwcqfnvcaempqgkzkuz.supabase.co',
+    SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6d2NxZm52Y2FlbXBxZ2t6a3V6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc3NzAxMzgsImV4cCI6MjA2MzM0NjEzOH0.a4TidZN02D6AAj88W08BdumMQv_LLihRqyYu4b_3TEo',
+    OPENAI_API_KEY: '',
+    REPLICATE_API_TOKEN: '',
+    BACKUP_IMAGE_API_TOKEN: '',
+    IMAGE_GENERATION_ENABLED: false,
+    IMAGE_GENERATION_TIMEOUT_PRIMARY: 60000,
+    IMAGE_GENERATION_TIMEOUT_BACKUP: 45000,
+    IMAGE_GENERATION_MAX_CONCURRENT: 10,
+    IMAGE_GENERATION_XP_COST: 1000,
+    APP_NAME: 'CreativeBridge',
+    APP_VERSION: '1.0.0',
+  };
+  console.warn('Using fallback environment configuration');
+}
+
+export { env };
 
 // Export individual getters for convenience
 export const getEnvironmentConfig = (): EnvironmentConfig => env;
