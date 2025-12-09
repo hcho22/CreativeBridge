@@ -20,6 +20,7 @@
 		13B07F961A680F5B00A75B9A /* CreativeBridge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CreativeBridge.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = CreativeBridge/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = CreativeBridge/Info.plist; sourceTree = "<group>"; };
+		13B07FB71A68108700A75B9A /* CreativeBridge.entitlements */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.entitlements; name = CreativeBridge.entitlements; path = CreativeBridge/CreativeBridge.entitlements; sourceTree = "<group>"; };
 		306989DDC74F8C1A6DB09B00 /* Pods-CreativeBridge.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CreativeBridge.debug.xcconfig"; path = "Target Support Files/Pods-CreativeBridge/Pods-CreativeBridge.debug.xcconfig"; sourceTree = "<group>"; };
 		62EEE89C3B12FA2BB546FEAA /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-CreativeBridge/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		812BB8923863759C25E510E3 /* Pods-CreativeBridge.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CreativeBridge.release.xcconfig"; path = "Target Support Files/Pods-CreativeBridge/Pods-CreativeBridge.release.xcconfig"; sourceTree = "<group>"; };
@@ -52,6 +53,7 @@
 				BB2F792B24A3F905000567C9 /* Supporting */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
+				13B07FB71A68108700A75B9A /* CreativeBridge.entitlements */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
 				8ECE788EEE17CED3CF858F5E /* PrivacyInfo.xcprivacy */,
 			);
