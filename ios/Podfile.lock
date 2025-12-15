@@ -3,7 +3,7 @@ PODS:
     - React-Core
   - EASClient (1.0.7):
     - ExpoModulesCore
-  - EXConstants (18.0.10):
+  - EXConstants (18.0.11):
     - ExpoModulesCore
   - EXJSONUtils (0.15.0)
   - EXManifests (1.0.9):
@@ -45,7 +45,6 @@ PODS:
     - expo-dev-menu
     - expo-dev-menu-interface
     - ExpoModulesCore
-    - EXUpdatesInterface
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -76,7 +75,6 @@ PODS:
     - expo-dev-menu
     - expo-dev-menu-interface
     - ExpoModulesCore
-    - EXUpdatesInterface
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -106,7 +104,6 @@ PODS:
     - expo-dev-menu
     - expo-dev-menu-interface
     - ExpoModulesCore
-    - EXUpdatesInterface
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -2596,12 +2593,12 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   BVLinearGradient: cb006ba232a1f3e4f341bb62c42d1098c284da70
   EASClient: 68127f1248d2b25fdc82dbbfb17be95d1c4700be
-  EXConstants: fd688cef4e401dcf798a021cfb5d87c890c30ba3
+  EXConstants: c378c1b344ff1ecfbad27b90f0e48d1d0ead8cbb
   EXJSONUtils: 1d3e4590438c3ee593684186007028a14b3686cd
   EXManifests: 26e15640538c3d5ef028077ebcaf004b744d4932
   Expo: 111394d38f32be09385d4c7f70cc96d2da438d0d
   expo-dev-client: cc9491ad3e25a7a89f367c30f72884584c682b77
-  expo-dev-launcher: 2c7725298ce170ea6fd2186b17cdbb4a585bae6b
+  expo-dev-launcher: e1b4c4d86e1cbcc8902c13b91d61561f89937a58
   expo-dev-menu: 7b72a6130e42799659ba2cc349e35b22bcbb8aef
   expo-dev-menu-interface: 600df12ea01efecdd822daaf13cc0ac091775533
   ExpoAsset: d839c8eae8124470332408427327e8f88beb2dfd
