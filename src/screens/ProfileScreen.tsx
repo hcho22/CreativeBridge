@@ -24,7 +24,9 @@ interface ProfileScreenProps {
   navigation: ProfileScreenNavigationProp;
 }
 
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
+const ProfileScreen: React.FC<ProfileScreenProps> = ({
+  navigation: _navigation,
+}) => {
   const { userProfile, updateProfile, refreshProfile } = useAuth();
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editedDisplayName, setEditedDisplayName] = useState(

@@ -22,7 +22,9 @@ interface SettingsScreenProps {
   navigation: SettingsScreenNavigationProp;
 }
 
-const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
+const SettingsScreen: React.FC<SettingsScreenProps> = ({
+  navigation: _navigation,
+}) => {
   const { userProfile, updateProfile, signOut } = useAuth();
   const [speechEnabled, setSpeechEnabled] = useState(
     userProfile?.speech_enabled || false,
