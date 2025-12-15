@@ -25,6 +25,8 @@ import {
 } from '../utils/usernameValidation';
 import { AuthStackParamList } from '../navigation/AppNavigator';
 import { GradeLevel } from '../types/database';
+import { GoogleSignInButton } from '../components/auth/GoogleSignInButton';
+import { AppleSignInButton } from '../components/auth/AppleSignInButton';
 
 type AuthScreenNavigationProp = StackNavigationProp<AuthStackParamList, 'Auth'>;
 
@@ -653,14 +655,56 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
 
           {/* Auth Form */}
           <View style={styles.formSection}>
-            <Text style={styles.formTitle}>
-              {isLogin ? 'Welcome Back!' : 'Create Account'}
-            </Text>
-            <Text style={styles.formSubtitle}>
-              {isLogin
-                ? 'Sign in to continue your story journey'
-                : 'Join thousands of creative writers'}
-            </Text>
+            {!isLogin && (
+              <>
+                <Text style={styles.formTitle}>Create Account</Text>
+                <Text style={styles.formSubtitle}>
+                  Join thousands of creative writers
+                </Text>
+              </>
+            )}
+
+            {/* Social Login Buttons Row */}
+            <View style={styles.socialButtonsRow}>
+              {/* Apple Sign-In Button */}
+              <AppleSignInButton
+                disabled={loading}
+                style={styles.socialButton}
+                onSignInStart={() => {
+                  console.log('Apple sign-in initiated');
+                }}
+                onSignInComplete={error => {
+                  if (error) {
+                    console.error('Apple sign-in error:', error);
+                  } else {
+                    console.log('Apple sign-in completed successfully');
+                  }
+                }}
+              />
+
+              {/* Google Sign-In Button */}
+              <GoogleSignInButton
+                disabled={loading}
+                style={styles.socialButton}
+                onSignInStart={() => {
+                  console.log('Google sign-in initiated');
+                }}
+                onSignInComplete={error => {
+                  if (error) {
+                    console.error('Google sign-in error:', error);
+                  } else {
+                    console.log('Google sign-in completed successfully');
+                  }
+                }}
+              />
+            </View>
+
+            {/* OAuth Divider */}
+            <View style={styles.oauthDividerContainer}>
+              <View style={styles.oauthDividerLine} />
+              <Text style={styles.oauthDividerText}>OR</Text>
+              <View style={styles.oauthDividerLine} />
+            </View>
 
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Email Address</Text>
@@ -703,13 +747,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
                       💡 {suggestion}
                     </Text>
                   ))}
-                  {emailValidation.isValid &&
-                    emailValidation.errors.length === 0 &&
-                    emailValidation.warnings.length === 0 && (
-                      <Text style={styles.successText}>
-                        ✅ Email looks good!
-                      </Text>
-                    )}
                 </View>
               )}
             </View>
@@ -793,17 +830,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
                   ? 'Password must be at least 6 characters'
                   : 'Choose a strong password with 8+ characters, including uppercase, lowercase, numbers, and symbols'}
               </Text>
-              {isLogin && (
-                <TouchableOpacity
-                  style={styles.forgotPasswordLink}
-                  onPress={() => setShowForgotPassword(true)}
-                  disabled={loading}
-                >
-                  <Text style={styles.forgotPasswordText}>
-                    Forgot your password?
-                  </Text>
-                </TouchableOpacity>
-              )}
             </View>
 
             {/* Remember Me checkbox - login only */}
@@ -999,6 +1025,19 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
               </TouchableOpacity>
             </View>
 
+            {/* Forgot Password Link - login only */}
+            {isLogin && (
+              <TouchableOpacity
+                style={styles.forgotPasswordLinkBelow}
+                onPress={() => setShowForgotPassword(true)}
+                disabled={loading}
+              >
+                <Text style={styles.forgotPasswordText}>
+                  Forgot your password?
+                </Text>
+              </TouchableOpacity>
+            )}
+
             {/* Legal Links */}
             <View style={styles.legalLinksContainer}>
               <TouchableOpacity disabled={loading}>
@@ -1035,51 +1074,51 @@ const styles = StyleSheet.create({
   },
   headerSection: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 12,
   },
   appTitle: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#4CAF50',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   appSubtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#666',
     textAlign: 'center',
   },
   formSection: {
     width: '100%',
-    marginBottom: 30,
+    marginBottom: 10,
   },
   formTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#333',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   formSubtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#666',
     textAlign: 'center',
-    marginBottom: 30,
+    marginBottom: 12,
   },
   inputContainer: {
-    marginBottom: 20,
+    marginBottom: 10,
   },
   inputLabel: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   textInput: {
     borderWidth: 1,
     borderColor: '#e0e0e0',
     borderRadius: 8,
     paddingHorizontal: 15,
-    paddingVertical: 12,
+    paddingVertical: 10,
     fontSize: 16,
     backgroundColor: '#f8f9fa',
   },
@@ -1091,7 +1130,7 @@ const styles = StyleSheet.create({
     borderColor: '#e0e0e0',
     borderRadius: 8,
     paddingHorizontal: 15,
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingRight: 50,
     fontSize: 16,
     backgroundColor: '#f8f9fa',
@@ -1124,11 +1163,11 @@ const styles = StyleSheet.create({
   },
   authButton: {
     backgroundColor: '#4CAF50',
-    paddingVertical: 15,
+    paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 20,
+    marginTop: 6,
+    marginBottom: 10,
   },
   disabledButton: {
     backgroundColor: '#cccccc',
@@ -1152,12 +1191,40 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     fontWeight: '600',
   },
+  oauthDividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 8,
+  },
+  oauthDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#e0e0e0',
+  },
+  oauthDividerText: {
+    marginHorizontal: 16,
+    fontSize: 14,
+    color: '#999',
+    fontWeight: '500',
+  },
+  socialButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginVertical: 6,
+  },
+  socialButton: {
+    flex: 1,
+    minWidth: 0,
+    marginVertical: 0,
+  },
   legalLinksContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 20,
-    paddingTop: 20,
+    marginTop: 8,
+    marginBottom: 0,
+    paddingTop: 8,
+    paddingBottom: 2,
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
   },
