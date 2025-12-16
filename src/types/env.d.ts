@@ -28,4 +28,9 @@ declare module '@env' {
   // App Configuration
   export const APP_NAME: string;
   export const APP_VERSION: string;
+
+  // Clerk OAuth Configuration
+  export const CLERK_PUBLISHABLE_KEY: string;
+  export const CLERK_SECRET_KEY: string;
+  export const CLERK_JWKS_URL: string;
 }

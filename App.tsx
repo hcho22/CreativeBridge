@@ -12,6 +12,10 @@ import { AppNavigator } from './src/navigation';
 import { AuthScreen } from './src/screens';
 import ErrorBoundary from './src/components/common/ErrorBoundary';
 import { supabase } from './src/services/supabase';
+import {
+  isClerkCallback,
+  handleClerkCallback,
+} from './src/utils/clerkDeepLink';
 
 // Import expo-web-browser with error handling for native module linking
 let WebBrowser: any = null;
@@ -63,6 +67,30 @@ const MainApp: React.FC = () => {
         }
       } catch (error) {
         // Ignore errors if maybeCompleteAuthSession is not available
+      }
+
+      // Check if it's a Clerk OAuth callback first
+      // Clerk callbacks typically come as: creativebridge://auth/callback?__clerk_redirect_url=...
+      if (isClerkCallback(url)) {
+        try {
+          console.log('🔐 Clerk OAuth callback detected via deep link');
+
+          const result = handleClerkCallback(url);
+
+          if (result.success && result.redirectUrl) {
+            console.log('✅ Clerk callback processed successfully');
+            // ClerkProvider will handle the redirect URL automatically
+            // The OAuth flow will complete when Clerk processes the redirect
+          } else if (result.error) {
+            console.error('❌ Clerk OAuth callback error:', result.error);
+            if (result.errorDescription) {
+              console.error('Error description:', result.errorDescription);
+            }
+          }
+        } catch (error) {
+          console.error('❌ Error handling Clerk callback:', error);
+        }
+        return; // Don't process as Supabase callback
       }
 
       // Check if it's a Supabase auth callback (email confirmation or OAuth)

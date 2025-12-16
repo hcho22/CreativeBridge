@@ -14,6 +14,9 @@ export interface UserProfile {
   created_at: string;
   updated_at: string;
 
+  // OAuth Authentication (Clerk)
+  clerk_user_id?: string; // Clerk user ID for OAuth users (format: user_xxxxx)
+
   // Game Statistics
   total_xp: number;
   current_streak: number;
@@ -131,7 +134,12 @@ export interface Database {
         Row: StoryDownloadHistoryRecord;
         Insert: Omit<
           StoryDownloadHistoryRecord,
-          'id' | 'created_at' | 'completed_at' | 'retry_count' | 'file_exists' | 'metadata'
+          | 'id'
+          | 'created_at'
+          | 'completed_at'
+          | 'retry_count'
+          | 'file_exists'
+          | 'metadata'
         > & {
           id?: string;
           created_at?: string;

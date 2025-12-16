@@ -51,6 +51,7 @@
     "monitor:image-generation": "node scripts/monitor-rollout.js"
   },
   "dependencies": {
+    "@clerk/clerk-expo": "^2.19.12",
     "@hookform/resolvers": "^5.2.2",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-clipboard/clipboard": "^1.16.3",
@@ -62,6 +63,7 @@
     "@supabase/supabase-js": "^2.57.4",
     "dotenv": "^17.2.3",
     "expo": "~54.0.25",
+    "expo-linking": "^8.0.10",
     "expo-web-browser": "~15.0.10",
     "openai": "^6.0.0",
     "pako": "^2.1.0",

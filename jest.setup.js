@@ -1,3 +1,4 @@
+/* eslint-env jest */
 // Mock AsyncStorage
 jest.mock('react-native-async-storage', () => ({
   getItem: jest.fn(),
@@ -43,6 +44,41 @@ jest.mock('@react-native-voice/voice', () => ({
   stop: jest.fn(() => Promise.resolve()),
   destroy: jest.fn(() => Promise.resolve()),
   removeAllListeners: jest.fn(),
+}));
+
+// Mock Clerk
+jest.mock('@clerk/clerk-expo', () => ({
+  ClerkProvider: ({ children }: { children: React.ReactNode }) => children,
+  useAuth: jest.fn(() => ({
+    isSignedIn: false,
+    userId: null,
+    sessionId: null,
+    signIn: jest.fn(),
+    signOut: jest.fn(),
+    getToken: jest.fn(() => Promise.resolve(null)),
+  })),
+  useUser: jest.fn(() => ({
+    user: null,
+    isLoaded: true,
+  })),
+}));
+
+// Mock expo-web-browser
+jest.mock('expo-web-browser', () => ({
+  openAuthSessionAsync: jest.fn(() => Promise.resolve({ type: 'cancel' })),
+  dismissBrowser: jest.fn(),
+}));
+
+// Mock expo-linking
+jest.mock('expo-linking', () => ({
+  openURL: jest.fn(() => Promise.resolve(true)),
+  parse: jest.fn((url: string) => ({
+    scheme: url.split('://')[0],
+    path: url.split('://')[1]?.split('?')[0],
+    queryParams: {},
+  })),
+  getInitialURL: jest.fn(() => Promise.resolve(null)),
+  canOpenURL: jest.fn(() => Promise.resolve(true)),
 }));
 
 // Mock Supabase

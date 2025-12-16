@@ -16,6 +16,11 @@ export interface EnvironmentConfig {
   elevenlabs?: {
     apiKey: string;
   };
+  clerk?: {
+    publishableKey: string;
+    secretKey?: string;
+    jwksUrl: string;
+  };
   app: {
     name: string;
     version: string;
@@ -45,6 +50,11 @@ const getEnvironmentConfig = (): EnvironmentConfig => {
     },
     elevenlabs: {
       apiKey: process.env.ELEVENLABS_API_KEY || '',
+    },
+    clerk: {
+      publishableKey: process.env.CLERK_PUBLISHABLE_KEY || '',
+      secretKey: process.env.CLERK_SECRET_KEY || '',
+      jwksUrl: process.env.CLERK_JWKS_URL || '', // Format: https://your-clerk-instance.clerk.accounts.dev/.well-known/jwks.json
     },
     app: {
       name: 'CreativeBridge',
@@ -82,3 +92,47 @@ export const getOpenAIHeaders = () => ({
   'Content-Type': 'application/json',
   Authorization: `Bearer ${Environment.openai.apiKey}`,
 });
+
+// Clerk Configuration Helpers
+
+export interface ClerkConfig {
+  publishableKey: string;
+  secretKey?: string;
+  jwksUrl: string;
+}
+
+/**
+ * Get Clerk configuration
+ * @returns Clerk configuration object
+ * @throws Error if Clerk is not configured
+ */
+export const getClerkConfig = (): ClerkConfig => {
+  const clerkConfig = Environment.clerk;
+  if (!clerkConfig || !clerkConfig.publishableKey || !clerkConfig.jwksUrl) {
+    throw new Error(
+      'Clerk is not configured. Please set CLERK_PUBLISHABLE_KEY and CLERK_JWKS_URL environment variables.',
+    );
+  }
+  return clerkConfig;
+};
+
+/**
+ * Check if Clerk is properly configured
+ * @returns true if Clerk publishable key and JWKS URL are configured
+ */
+export const isClerkConfigured = (): boolean => {
+  try {
+    const config = getClerkConfig();
+    return Boolean(
+      config.publishableKey &&
+        config.publishableKey.startsWith('pk_') &&
+        config.publishableKey.length > 10 && // Ensure it's not just 'pk_'
+        config.jwksUrl &&
+        config.jwksUrl.includes('clerk') &&
+        config.jwksUrl.includes('.well-known/jwks.json') &&
+        config.jwksUrl.startsWith('https://'), // Ensure HTTPS
+    );
+  } catch {
+    return false;
+  }
+};
