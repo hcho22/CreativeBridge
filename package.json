@@ -62,6 +62,7 @@
     "@supabase/supabase-js": "^2.57.4",
     "dotenv": "^17.2.3",
     "expo": "~54.0.25",
+    "expo-web-browser": "~15.0.10",
     "openai": "^6.0.0",
     "pako": "^2.1.0",
     "react": "19.1.0",

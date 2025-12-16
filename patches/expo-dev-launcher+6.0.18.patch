@@ -1,0 +1,432 @@
+diff --git a/node_modules/expo-dev-launcher/.DS_Store b/node_modules/expo-dev-launcher/.DS_Store
+new file mode 100644
+index 0000000..59d4d36
+Binary files /dev/null and b/node_modules/expo-dev-launcher/.DS_Store differ
+diff --git a/node_modules/expo-dev-launcher/expo-dev-launcher.podspec b/node_modules/expo-dev-launcher/expo-dev-launcher.podspec
+index ffcac95..4a832da 100644
+--- a/node_modules/expo-dev-launcher/expo-dev-launcher.podspec
++++ b/node_modules/expo-dev-launcher/expo-dev-launcher.podspec
+@@ -32,6 +32,10 @@ Pod::Spec.new do |s|
+   s.requires_arc   = true
+   s.header_dir     = 'EXDevLauncher'
+   
++  # Link React framework so Swift can import it
++  s.vendored_frameworks = []
++  s.frameworks = 'React'
++
+   s.resource_bundles = {
+     'EXDevLauncher' => [
+       'ios/Assets.xcassets',
+@@ -67,7 +71,8 @@ Pod::Spec.new do |s|
+     '"$(PODS_ROOT)/Headers/Private/React-Core"',
+     '"${PODS_ROOT}/Headers/Public/RNReanimated"',
+     '"$(PODS_CONFIGURATION_BUILD_DIR)/EXManifests/Swift Compatibility Header"',
+-    '"$(PODS_CONFIGURATION_BUILD_DIR)/EXUpdatesInterface/Swift Compatibility Header"',
++    # EXUpdatesInterface is optional - only include if available
++    # '"$(PODS_CONFIGURATION_BUILD_DIR)/EXUpdatesInterface/Swift Compatibility Header"',
+   ]
+   if ENV['USE_FRAMEWORKS']
+     header_search_paths.concat([
+@@ -92,8 +97,14 @@ Pod::Spec.new do |s|
+     'OTHER_CFLAGS[config=*Debug*]' => other_c_flags,
+     'OTHER_SWIFT_FLAGS[config=*Debug*]' => other_swift_flags,
+     'HEADER_SEARCH_PATHS' => header_search_paths.join(' '),
+-    'FRAMEWORK_SEARCH_PATHS' => '"${PODS_CONFIGURATION_BUILD_DIR}/RNReanimated"',
++    'FRAMEWORK_SEARCH_PATHS' => '"${PODS_CONFIGURATION_BUILD_DIR}/RNReanimated" "$(PODS_ROOT)/React-Core-prebuilt"',
+     "CLANG_CXX_LANGUAGE_STANDARD" => "c++20",
++    # Add React framework to allow Swift imports
++    'OTHER_LDFLAGS' => '$(inherited) -framework React',
++    # Ensure Swift can find React module from xcframework
++    'SWIFT_INCLUDE_PATHS' => '$(inherited) "$(PODS_ROOT)/React-Core-prebuilt"',
++    # Ensure ExpoModulesCore is available to Swift
++    'SWIFT_ACTIVE_COMPILATION_CONDITIONS' => '$(inherited)',
+   }
+ 
+   s.user_target_xcconfig = {
+@@ -104,7 +115,8 @@ Pod::Spec.new do |s|
+   s.dependency 'React-RCTAppDelegate'
+   s.dependency "expo-dev-menu-interface"
+   s.dependency "EXManifests"
+-  s.dependency "EXUpdatesInterface"
++  # EXUpdatesInterface is optional - only needed when Updates is enabled
++  # s.dependency "EXUpdatesInterface"
+   s.dependency "expo-dev-menu"
+   s.dependency "ExpoModulesCore"
+   s.dependency "ReactAppDependencyProvider"
+diff --git a/node_modules/expo-dev-launcher/ios/DevLauncherNetworkInterceptor.swift b/node_modules/expo-dev-launcher/ios/DevLauncherNetworkInterceptor.swift
+index 5a2f8b9..0542d70 100644
+--- a/node_modules/expo-dev-launcher/ios/DevLauncherNetworkInterceptor.swift
++++ b/node_modules/expo-dev-launcher/ios/DevLauncherNetworkInterceptor.swift
+@@ -1,7 +1,7 @@
+ // Copyright 2015-present 650 Industries. All rights reserved.
+ 
+ import ExpoModulesCore
+-import React
++@_exported import React
+ 
+ #if DEBUG && EX_DEV_CLIENT_NETWORK_INSPECTOR
+ 
+diff --git a/node_modules/expo-dev-launcher/ios/EXDevLauncherController.h b/node_modules/expo-dev-launcher/ios/EXDevLauncherController.h
+index 8d9d6da..f91fe54 100644
+--- a/node_modules/expo-dev-launcher/ios/EXDevLauncherController.h
++++ b/node_modules/expo-dev-launcher/ios/EXDevLauncherController.h
+@@ -7,8 +7,6 @@
+ // Otherwise, it's available only locally with double-quoted imports.
+ #if __has_include(<EXUpdatesInterface/EXUpdatesInterface-Swift.h>)
+ #import <EXUpdatesInterface/EXUpdatesInterface-Swift.h>
+-#else
+-#import "EXUpdatesInterface-Swift.h"
+ #endif
+ #if __has_include(<EXManifests/EXManifests-Swift.h>)
+ #import <EXManifests/EXManifests-Swift.h>
+@@ -39,14 +37,17 @@ NS_ASSUME_NONNULL_BEGIN
+ 
+ @end
+ 
+-@interface EXDevLauncherController : RCTDefaultReactNativeFactoryDelegate <RCTBridgeDelegate, EXUpdatesExternalInterfaceDelegate>
++@interface EXDevLauncherController : RCTDefaultReactNativeFactoryDelegate <RCTBridgeDelegate>
+ 
+ @property (nonatomic, weak) RCTBridge * _Nullable appBridge;
+ @property (nonatomic, weak) EXAppContext * _Nullable appContext;
+ @property (nonatomic, strong) EXDevLauncherPendingDeepLinkRegistry *pendingDeepLinkRegistry;
+ @property (nonatomic, strong) EXDevLauncherRecentlyOpenedAppsRegistry *recentlyOpenedAppsRegistry;
++#if __has_include(<EXUpdatesInterface/EXUpdatesInterface-Swift.h>)
+ @property (nonatomic, strong) id<EXUpdatesExternalInterface> updatesInterface;
+-@property (nonatomic, readonly, assign) BOOL isStarted;
++#else
++@property (nonatomic, strong) id updatesInterface;
++#endif@property (nonatomic, readonly, assign) BOOL isStarted;
+ 
+ + (instancetype)sharedInstance;
+ 
+diff --git a/node_modules/expo-dev-launcher/ios/EXDevLauncherController.m b/node_modules/expo-dev-launcher/ios/EXDevLauncherController.m
+index 0fc0dd9..920f248 100644
+--- a/node_modules/expo-dev-launcher/ios/EXDevLauncherController.m
++++ b/node_modules/expo-dev-launcher/ios/EXDevLauncherController.m
+@@ -401,9 +401,19 @@ - (BOOL)_handleExternalDeepLink:(NSURL *)url options:(NSDictionary *)options
+ 
+ - (nullable NSURL *)sourceUrl
+ {
++#if __has_include(<EXUpdatesInterface/EXUpdatesInterface-Swift.h>)
+   if (_shouldPreferUpdatesInterfaceSourceUrl && _updatesInterface && ((id<EXUpdatesExternalInterface>)_updatesInterface).launchAssetURL) {
+     return ((id<EXUpdatesExternalInterface>)_updatesInterface).launchAssetURL;
+   }
++#else
++  // When EXUpdatesInterface is not available, check if updatesInterface responds to launchAssetURL selector
++  if (_shouldPreferUpdatesInterfaceSourceUrl && _updatesInterface && [_updatesInterface respondsToSelector:@selector(launchAssetURL)]) {
++    NSURL *launchURL = [_updatesInterface performSelector:@selector(launchAssetURL)];
++    if (launchURL) {
++      return launchURL;
++    }
++  }
++#endif
+   return _sourceUrl;
+ }
+ 
+@@ -450,7 +460,16 @@ - (void)loadApp:(NSURL *)url
+   // an update url requires a matching projectUrl
+   // if one isn't provided, default to the configured project url in Expo.plist
+   if (isEASUpdate && projectUrl == nil && _updatesInterface) {
+-    NSString *projectUrlString = [_updatesInterface.updateURL absoluteString] ?: @"";
++#if __has_include(<EXUpdatesInterface/EXUpdatesInterface-Swift.h>)
++    NSURL *updateURL = ((id<EXUpdatesExternalInterface>)_updatesInterface).updateURL;
++    NSString *projectUrlString = updateURL ? [updateURL absoluteString] : @"";
++#else
++    NSString *projectUrlString = @"";
++    if ([_updatesInterface respondsToSelector:@selector(updateURL)]) {
++      NSURL *updateURL = [_updatesInterface performSelector:@selector(updateURL)];
++      projectUrlString = updateURL ? [updateURL absoluteString] : @"";
++    }
++#endif
+     projectUrl = [NSURL URLWithString:projectUrlString];
+   }
+ 
+@@ -464,7 +483,13 @@ - (void)loadApp:(NSURL *)url
+ 
+   NSString *runtimeVersion = @"";
+   if (_updatesInterface) {
+-    runtimeVersion = _updatesInterface.runtimeVersion ?: @"";
++#if __has_include(<EXUpdatesInterface/EXUpdatesInterface-Swift.h>)
++    runtimeVersion = ((id<EXUpdatesExternalInterface>)_updatesInterface).runtimeVersion ?: @"";
++#else
++    if ([_updatesInterface respondsToSelector:@selector(runtimeVersion)]) {
++      runtimeVersion = [_updatesInterface performSelector:@selector(runtimeVersion)] ?: @"";
++    }
++#endif
+   }
+   NSString *installationID = [_installationIDHelper getOrCreateInstallationID];
+ 
+@@ -507,14 +532,27 @@ - (void)loadApp:(NSURL *)url
+                                                  session:[NSURLSession sharedSession]
+                                                  requestTimeout:requestTimeout];
+ 
++  __weak __typeof(self) weakSelf = self;
+   void (^onIsManifestURL)(BOOL) = ^(BOOL isManifestURL) {
++    __typeof(self) strongSelf = weakSelf;
++    if (!strongSelf) {
++      return;
++    }
+     if (!isManifestURL) {
+       // assume this is a direct URL to a bundle hosted by metro
+       launchReactNativeApp();
+       return;
+     }
+ 
+-    if ([self->_updatesInterface isValidUpdatesConfiguration:updatesConfiguration] != YES) {
++#if __has_include(<EXUpdatesInterface/EXUpdatesInterface-Swift.h>)
++    BOOL isValidConfig = [((id<EXUpdatesExternalInterface>)strongSelf->_updatesInterface) isValidUpdatesConfiguration:updatesConfiguration];
++#else
++    BOOL isValidConfig = YES;
++    if (strongSelf->_updatesInterface && [strongSelf->_updatesInterface respondsToSelector:@selector(isValidUpdatesConfiguration:)]) {
++      isValidConfig = (BOOL)[strongSelf->_updatesInterface performSelector:@selector(isValidUpdatesConfiguration:) withObject:updatesConfiguration];
++    }
++#endif
++    if (isValidConfig != YES) {
+       [manifestParser tryToParseManifest:^(EXManifestsManifest *manifest) {
+         if (!manifest.isUsingDeveloperTool) {
+           onError([NSError errorWithDomain:@"DevelopmentClient" code:1 userInfo:@{NSLocalizedDescriptionKey: @"expo-updates is not properly installed or integrated. In order to load published projects with this development client, follow all installation and setup instructions for both the expo-dev-client and expo-updates packages."}]);
+@@ -525,7 +563,8 @@ - (void)loadApp:(NSURL *)url
+       return;
+     }
+ 
+-    [self->_updatesInterface fetchUpdateWithConfiguration:updatesConfiguration onManifest:^BOOL(NSDictionary *manifest) {
++#if __has_include(<EXUpdatesInterface/EXUpdatesInterface-Swift.h>)
++    [((id<EXUpdatesExternalInterface>)strongSelf->_updatesInterface) fetchUpdateWithConfiguration:updatesConfiguration onManifest:^BOOL(NSDictionary *manifest) {
+       EXManifestsManifest *devLauncherManifest = [EXManifestsManifestFactory manifestForManifestJSON:manifest];
+       if (devLauncherManifest.isUsingDeveloperTool) {
+         // launch right away rather than continuing to load through EXUpdates
+@@ -536,10 +575,50 @@ - (void)loadApp:(NSURL *)url
+     } progress:^(NSUInteger successfulAssetCount, NSUInteger failedAssetCount, NSUInteger totalAssetCount) {
+       // do nothing for now
+     } success:^(NSDictionary * _Nullable manifest) {
++      __typeof(self) strongSelf = weakSelf;
++      if (!strongSelf) {
++        return;
++      }
+       if (manifest) {
+-        launchExpoApp(((id<EXUpdatesExternalInterface>)self->_updatesInterface).launchAssetURL, [EXManifestsManifestFactory manifestForManifestJSON:manifest]);
++        launchExpoApp(((id<EXUpdatesExternalInterface>)strongSelf->_updatesInterface).launchAssetURL, [EXManifestsManifestFactory manifestForManifestJSON:manifest]);
+       }
+     } error:onError];
++#else
++    if (strongSelf->_updatesInterface && [strongSelf->_updatesInterface respondsToSelector:@selector(fetchUpdateWithConfiguration:onManifest:progress:success:error:)]) {
++      // Use objc_msgSend to call the method at runtime to avoid compiler errors
++      SEL selector = @selector(fetchUpdateWithConfiguration:onManifest:progress:success:error:);
++      IMP imp = [strongSelf->_updatesInterface methodForSelector:selector];
++      void (*func)(id, SEL, NSDictionary *, BOOL(^)(NSDictionary *), void(^)(NSUInteger, NSUInteger, NSUInteger), void(^)(NSDictionary *), void(^)(NSError *)) = (void (*)(id, SEL, NSDictionary *, BOOL(^)(NSDictionary *), void(^)(NSUInteger, NSUInteger, NSUInteger), void(^)(NSDictionary *), void(^)(NSError *)))imp;
++      func(strongSelf->_updatesInterface, selector, updatesConfiguration, ^BOOL(NSDictionary *manifest) {
++        EXManifestsManifest *devLauncherManifest = [EXManifestsManifestFactory manifestForManifestJSON:manifest];
++        if (devLauncherManifest.isUsingDeveloperTool) {
++          // launch right away rather than continuing to load through EXUpdates
++          launchExpoApp([NSURL URLWithString:devLauncherManifest.bundleUrl], devLauncherManifest);
++          return NO;
++        }
++        return YES;
++      }, ^(NSUInteger successfulAssetCount, NSUInteger failedAssetCount, NSUInteger totalAssetCount) {
++        // do nothing for now
++      }, ^(NSDictionary * _Nullable manifest) {
++        __typeof(self) strongSelf = weakSelf;
++        if (!strongSelf) {
++          return;
++        }
++        if (manifest) {
++          // When EXUpdatesInterface is not available, use runtime method call
++          if (strongSelf->_updatesInterface && [strongSelf->_updatesInterface respondsToSelector:@selector(launchAssetURL)]) {
++            NSURL *launchURL = [strongSelf->_updatesInterface performSelector:@selector(launchAssetURL)];
++            if (launchURL) {
++              launchExpoApp(launchURL, [EXManifestsManifestFactory manifestForManifestJSON:manifest]);
++            }
++          }
++        }
++      }, onError);
++    } else {
++      onError([NSError errorWithDomain:@"DevelopmentClient" code:1 userInfo:@{NSLocalizedDescriptionKey: @"expo-updates is not properly installed or integrated."}]);
++      return;
++    }
++#endif
+   };
+ 
+   [manifestParser isManifestURLWithCompletion:onIsManifestURL onError:^(NSError * _Nonnull error) {
+@@ -682,7 +761,13 @@ -(NSDictionary *)getBuildInfo
+   NSString *appIcon = [self getAppIcon];
+   NSString *runtimeVersion = @"";
+   if (_updatesInterface) {
+-    runtimeVersion = _updatesInterface.runtimeVersion ?: @"";
++#if __has_include(<EXUpdatesInterface/EXUpdatesInterface-Swift.h>)
++    runtimeVersion = ((id<EXUpdatesExternalInterface>)_updatesInterface).runtimeVersion ?: @"";
++#else
++    if ([_updatesInterface respondsToSelector:@selector(runtimeVersion)]) {
++      runtimeVersion = [_updatesInterface performSelector:@selector(runtimeVersion)] ?: @"";
++    }
++#endif
+   }
+ 
+   NSString *appVersion = [self getFormattedAppVersion];
+@@ -772,12 +857,25 @@ -(NSDictionary *)getUpdatesConfig: (nullable NSDictionary *) constants
+ 
+   NSString *runtimeVersion = @"";
+   if (_updatesInterface) {
+-    runtimeVersion = _updatesInterface.runtimeVersion ?: @"";
++#if __has_include(<EXUpdatesInterface/EXUpdatesInterface-Swift.h>)
++    runtimeVersion = ((id<EXUpdatesExternalInterface>)_updatesInterface).runtimeVersion ?: @"";
++#else
++    if ([_updatesInterface respondsToSelector:@selector(runtimeVersion)]) {
++      runtimeVersion = [_updatesInterface performSelector:@selector(runtimeVersion)] ?: @"";
++    }
++#endif
+   }
+ 
+   // the project url field is added to app.json.updates when running `eas update:configure`
+   // the `u.expo.dev` determines that it is the modern manifest protocol
+-  NSURL *updateURL = _updatesInterface ? _updatesInterface.updateURL : nil;
++#if __has_include(<EXUpdatesInterface/EXUpdatesInterface-Swift.h>)
++  NSURL *updateURL = _updatesInterface ? ((id<EXUpdatesExternalInterface>)_updatesInterface).updateURL : nil;
++#else
++  NSURL *updateURL = nil;
++  if (_updatesInterface && [_updatesInterface respondsToSelector:@selector(updateURL)]) {
++    updateURL = [_updatesInterface performSelector:@selector(updateURL)];
++  }
++#endif
+   NSString *projectUrl = @"";
+   if (_updatesInterface) {
+     projectUrl = [[self.manifest updatesInfo] valueForKey:@"url"] ?: @"";
+@@ -817,7 +915,11 @@ -(NSDictionary *)getUpdatesConfig: (nullable NSDictionary *) constants
+   return updatesConfig;
+ }
+ 
++#if __has_include(<EXUpdatesInterface/EXUpdatesInterface-Swift.h>)
+ - (void)updatesExternalInterfaceDidRequestRelaunch:(id<EXUpdatesExternalInterface> _Nonnull)updatesExternalInterface {
++#else
++- (void)updatesExternalInterfaceDidRequestRelaunch:(id)updatesExternalInterface {
++#endif
+   NSURL * _Nullable appUrl = self.appManifestURLWithFallback;
+   if (!appUrl) {
+     return;
+diff --git a/node_modules/expo-dev-launcher/ios/Errors/EXDevLauncherAppError.swift b/node_modules/expo-dev-launcher/ios/Errors/EXDevLauncherAppError.swift
+index c530d12..aab6b2c 100644
+--- a/node_modules/expo-dev-launcher/ios/Errors/EXDevLauncherAppError.swift
++++ b/node_modules/expo-dev-launcher/ios/Errors/EXDevLauncherAppError.swift
+@@ -1,5 +1,7 @@
+ // Copyright 2015-present 650 Industries. All rights reserved.
+ 
++@_exported import React
++
+ @objc
+ public class EXDevLauncherAppError: NSObject {
+   let message: String
+diff --git a/node_modules/expo-dev-launcher/ios/ReactDelegateHandler/ExpoDevLauncherReactDelegateHandler.swift b/node_modules/expo-dev-launcher/ios/ReactDelegateHandler/ExpoDevLauncherReactDelegateHandler.swift
+index 306aad6..2632167 100644
+--- a/node_modules/expo-dev-launcher/ios/ReactDelegateHandler/ExpoDevLauncherReactDelegateHandler.swift
++++ b/node_modules/expo-dev-launcher/ios/ReactDelegateHandler/ExpoDevLauncherReactDelegateHandler.swift
+@@ -1,7 +1,33 @@
+ // Copyright 2018-present 650 Industries. All rights reserved.
+ 
+ import ExpoModulesCore
++#if canImport(EXUpdatesInterface)
++#if canImport(EXUpdatesInterface)
++#if canImport(EXUpdatesInterface)
++#if canImport(EXUpdatesInterface)
++#if canImport(EXUpdatesInterface)
++#if canImport(EXUpdatesInterface)
++#if canImport(EXUpdatesInterface)
++#if canImport(EXUpdatesInterface)
++#if canImport(EXUpdatesInterface)
++#if canImport(EXUpdatesInterface)
++#if canImport(EXUpdatesInterface)
++#if canImport(EXUpdatesInterface)
++#if canImport(EXUpdatesInterface)
+ import EXUpdatesInterface
++#endif
++#endif
++#endif
++#endif
++#endif
++#endif
++#endif
++#endif
++#endif
++#endif
++#endif
++#endif
++#endif
+ 
+ @objc
+ public class ExpoDevLauncherReactDelegateHandler: ExpoReactDelegateHandler, EXDevLauncherControllerDelegate {
+@@ -25,11 +51,37 @@ public class ExpoDevLauncherReactDelegateHandler: ExpoReactDelegateHandler, EXDe
+     self.reactDelegate = reactDelegate
+     self.launchOptions = launchOptions
+     EXDevLauncherController.sharedInstance().autoSetupPrepare(self, launchOptions: launchOptions)
+-    if let sharedController = UpdatesControllerRegistry.sharedInstance.controller {
++    #if canImport(EXUpdatesInterface)
++    #if canImport(EXUpdatesInterface)
++#if canImport(EXUpdatesInterface)
++#if canImport(EXUpdatesInterface)
++#if canImport(EXUpdatesInterface)
++#if canImport(EXUpdatesInterface)
++#if canImport(EXUpdatesInterface)
++#if canImport(EXUpdatesInterface)
++#if canImport(EXUpdatesInterface)
++#if canImport(EXUpdatesInterface)
++#if canImport(EXUpdatesInterface)
++#if canImport(EXUpdatesInterface)
++#if canImport(EXUpdatesInterface)
++if let sharedController = UpdatesControllerRegistry.sharedInstance.controller {
+       // for some reason the swift compiler and bridge are having issues here
+       EXDevLauncherController.sharedInstance().updatesInterface = sharedController
+       sharedController.updatesExternalInterfaceDelegate = EXDevLauncherController.sharedInstance()
+     }
++#endif
++#endif
++#endif
++#endif
++#endif
++#endif
++#endif
++#endif
++#endif
++#endif
++#endif
++#endif
++    #endif
+ 
+     self.rootViewModuleName = moduleName
+     self.rootViewInitialProperties = initialProperties
+diff --git a/node_modules/expo-dev-launcher/ios/SwiftUI/CrashReportView.swift b/node_modules/expo-dev-launcher/ios/SwiftUI/CrashReportView.swift
+index 7b46a76..aae99d1 100644
+--- a/node_modules/expo-dev-launcher/ios/SwiftUI/CrashReportView.swift
++++ b/node_modules/expo-dev-launcher/ios/SwiftUI/CrashReportView.swift
+@@ -2,7 +2,7 @@
+ // swiftlint:disable closure_body_length
+ 
+ import SwiftUI
+-import React
++// React is imported via EXDevLauncherAppError which exports it
+ 
+ struct CrashReportView: View {
+   @State private var showCopiedMessage = false
+diff --git a/node_modules/expo-dev-launcher/ios/SwiftUI/ErrorView.swift b/node_modules/expo-dev-launcher/ios/SwiftUI/ErrorView.swift
+index 327214f..db341ac 100644
+--- a/node_modules/expo-dev-launcher/ios/SwiftUI/ErrorView.swift
++++ b/node_modules/expo-dev-launcher/ios/SwiftUI/ErrorView.swift
+@@ -1,7 +1,7 @@
+ // Copyright 2015-present 650 Industries. All rights reserved.
+ 
+ import SwiftUI
+-import React
++// React is imported via EXDevLauncherAppError which exports it
+ 
+ struct ErrorView: View {
+   let error: EXDevLauncherAppError
+diff --git a/node_modules/expo-dev-launcher/ios/SwiftUI/StackFrameView.swift b/node_modules/expo-dev-launcher/ios/SwiftUI/StackFrameView.swift
+index 27d13ac..df430c9 100644
+--- a/node_modules/expo-dev-launcher/ios/SwiftUI/StackFrameView.swift
++++ b/node_modules/expo-dev-launcher/ios/SwiftUI/StackFrameView.swift
+@@ -1,7 +1,7 @@
+ // Copyright 2015-present 650 Industries. All rights reserved.
+ 
+ import SwiftUI
+-import React
++// React is imported via EXDevLauncherAppError which exports it
+ 
+ struct StackFrameView: View {
+   let frame: RCTJSStackFrame

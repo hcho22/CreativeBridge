@@ -1,7 +1,24 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+} from 'react';
 import { Session, User } from '@supabase/supabase-js';
+import { Linking } from 'react-native';
 import AsyncStorage from '../utils/asyncStorageWrapper';
 import { supabase } from '../services/supabase';
+
+// Import expo-web-browser with error handling for native module linking
+let WebBrowser: any = null;
+try {
+  WebBrowser = require('expo-web-browser');
+} catch (error) {
+  console.warn(
+    '⚠️ expo-web-browser native module not available. Run "cd ios && pod install" to link it.',
+  );
+}
 import type {
   UserProfile,
   UserProfileInsert,
@@ -12,7 +29,9 @@ import { xpEventTracker } from '../services/xpEventTracker';
 
 // Verify supabase is properly imported
 if (!supabase) {
-  console.error('❌ CRITICAL: Supabase client is not initialized at module load time');
+  console.error(
+    '❌ CRITICAL: Supabase client is not initialized at module load time',
+  );
 }
 
 interface SignUpData {
@@ -71,6 +90,8 @@ interface AuthContextType {
     storyGradeLevel?: string,
     storyWordCount?: number,
   ) => Promise<string | null>;
+  signInWithGoogle: () => Promise<{ error?: string }>;
+  signInWithApple: () => Promise<{ error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -689,6 +710,308 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const signInWithGoogle = async (): Promise<{ error?: string }> => {
+    try {
+      console.log('🔐 Initiating Google OAuth sign-in...');
+
+      // Use the deep link scheme for redirect
+      const redirectTo = 'creativebridge://auth/callback';
+
+      console.log('📋 Redirect URL:', redirectTo);
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        },
+      });
+
+      if (error) {
+        console.error('❌ Google OAuth error:', error);
+        console.error('❌ Error details:', JSON.stringify(error, null, 2));
+        return { error: error.message || 'Failed to initiate Google sign-in' };
+      }
+
+      if (!data?.url) {
+        console.error('❌ No OAuth URL returned from Supabase');
+        return { error: 'Failed to generate authentication URL' };
+      }
+
+      console.log(
+        '✅ Google OAuth URL generated:',
+        data.url.substring(0, 100) + '...',
+      );
+      console.log('🌐 Opening browser with OAuth URL...');
+
+      try {
+        // Use expo-web-browser for OAuth flow
+        console.log('📱 Using expo-web-browser for OAuth flow...');
+        const result = await WebBrowser.openAuthSessionAsync(
+          data.url,
+          redirectTo,
+        );
+
+        console.log('🔗 OAuth browser result:', result.type);
+
+        if (result.type === 'success' && result.url) {
+          console.log(
+            '✅ OAuth callback received:',
+            result.url.substring(0, 100) + '...',
+          );
+
+          // Parse the callback URL
+          const url = result.url;
+          const hashMatch = url.match(/#(.+)/);
+
+          if (hashMatch) {
+            const hashParams = new URLSearchParams(hashMatch[1]);
+            const accessToken = hashParams.get('access_token');
+            const refreshToken = hashParams.get('refresh_token');
+            const errorParam = hashParams.get('error');
+            const errorDescription = hashParams.get('error_description');
+
+            if (errorParam) {
+              console.error(
+                '❌ OAuth error in callback:',
+                errorParam,
+                errorDescription,
+              );
+              return {
+                error:
+                  errorDescription || errorParam || 'Authentication failed',
+              };
+            }
+
+            if (accessToken && refreshToken) {
+              console.log('🔐 Setting OAuth session from callback...');
+              const { error: sessionError } = await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+              });
+
+              if (sessionError) {
+                console.error('❌ Error setting session:', sessionError);
+                console.error(
+                  '❌ Error details:',
+                  JSON.stringify(sessionError, null, 2),
+                );
+                return {
+                  error: sessionError.message || 'Failed to complete sign-in',
+                };
+              }
+
+              console.log('✅ Google sign-in successful');
+              return {};
+            } else {
+              console.error('❌ Missing tokens in OAuth callback');
+              console.error('❌ URL received:', url.substring(0, 200));
+              return {
+                error: 'Authentication callback missing required tokens',
+              };
+            }
+          } else {
+            console.warn('⚠️ OAuth callback URL format unexpected:', url);
+            // Try to let Supabase handle it via deep link
+            return {};
+          }
+        } else if (result.type === 'cancel') {
+          console.log('ℹ️ User cancelled OAuth flow');
+          return {}; // Silent return for user cancellation
+        } else {
+          console.error('❌ Unexpected OAuth result type:', result.type);
+          return { error: 'Authentication was cancelled or failed' };
+        }
+      } catch (browserError) {
+        console.error('❌ Error opening browser:', browserError);
+        console.error(
+          '❌ Browser error details:',
+          JSON.stringify(browserError, null, 2),
+        );
+        // Fallback to Linking if WebBrowser fails
+        try {
+          const canOpen = await Linking.canOpenURL(data.url);
+          if (canOpen) {
+            await Linking.openURL(data.url);
+            console.log('✅ Opened OAuth URL using Linking (fallback)');
+            return {}; // Deep link handler will process the callback
+          } else {
+            return { error: 'Unable to open authentication page' };
+          }
+        } catch (linkingError) {
+          console.error('❌ Error with Linking fallback:', linkingError);
+          return { error: 'Unable to open authentication page' };
+        }
+      }
+    } catch (error) {
+      console.error('💥 Unexpected error during Google sign-in:', error);
+      const errorMessage =
+        error instanceof Error ? error.message : 'An unexpected error occurred';
+      return { error: errorMessage };
+    }
+  };
+
+  const signInWithApple = async (): Promise<{ error?: string }> => {
+    try {
+      console.log('🔐 Initiating Apple OAuth sign-in...');
+
+      // Use the deep link scheme for redirect
+      const redirectTo = 'creativebridge://auth/callback';
+
+      console.log('📋 Redirect URL:', redirectTo);
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'apple',
+        options: {
+          redirectTo,
+        },
+      });
+
+      if (error) {
+        console.error('❌ Apple OAuth error:', error);
+        console.error('❌ Error details:', JSON.stringify(error, null, 2));
+        return { error: error.message || 'Failed to initiate Apple sign-in' };
+      }
+
+      if (!data?.url) {
+        console.error('❌ No OAuth URL returned from Supabase');
+        return { error: 'Failed to generate authentication URL' };
+      }
+
+      console.log(
+        '✅ Apple OAuth URL generated:',
+        data.url.substring(0, 100) + '...',
+      );
+      console.log('🌐 Opening browser with OAuth URL...');
+
+      try {
+        // Use expo-web-browser for OAuth flow if available, otherwise fall back to Linking
+        let result: any = null;
+
+        if (WebBrowser?.openAuthSessionAsync) {
+          console.log('📱 Using expo-web-browser for OAuth flow...');
+          result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+        } else {
+          console.log(
+            '📱 expo-web-browser not available, using Linking.openURL...',
+          );
+          console.log(
+            '⚠️ Run "cd ios && pod install" to enable expo-web-browser',
+          );
+          // Fallback to Linking - the deep link handler will process the callback
+          const canOpen = await Linking.canOpenURL(data.url);
+          if (canOpen) {
+            await Linking.openURL(data.url);
+            console.log('✅ Opened OAuth URL using Linking');
+            // Return early - deep link handler in App.tsx will process the callback
+            return {};
+          } else {
+            return { error: 'Unable to open authentication page' };
+          }
+        }
+
+        console.log('🔗 OAuth browser result:', result.type);
+
+        if (result.type === 'success' && result.url) {
+          console.log(
+            '✅ OAuth callback received:',
+            result.url.substring(0, 100) + '...',
+          );
+
+          // Parse the callback URL
+          const url = result.url;
+          const hashMatch = url.match(/#(.+)/);
+
+          if (hashMatch) {
+            const hashParams = new URLSearchParams(hashMatch[1]);
+            const accessToken = hashParams.get('access_token');
+            const refreshToken = hashParams.get('refresh_token');
+            const errorParam = hashParams.get('error');
+            const errorDescription = hashParams.get('error_description');
+
+            if (errorParam) {
+              console.error(
+                '❌ OAuth error in callback:',
+                errorParam,
+                errorDescription,
+              );
+              return {
+                error:
+                  errorDescription || errorParam || 'Authentication failed',
+              };
+            }
+
+            if (accessToken && refreshToken) {
+              console.log('🔐 Setting OAuth session from callback...');
+              const { error: sessionError } = await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+              });
+
+              if (sessionError) {
+                console.error('❌ Error setting session:', sessionError);
+                console.error(
+                  '❌ Error details:',
+                  JSON.stringify(sessionError, null, 2),
+                );
+                return {
+                  error: sessionError.message || 'Failed to complete sign-in',
+                };
+              }
+
+              console.log('✅ Apple sign-in successful');
+              return {};
+            } else {
+              console.error('❌ Missing tokens in OAuth callback');
+              console.error('❌ URL received:', url.substring(0, 200));
+              return {
+                error: 'Authentication callback missing required tokens',
+              };
+            }
+          } else {
+            console.warn('⚠️ OAuth callback URL format unexpected:', url);
+            // Try to let Supabase handle it via deep link
+            return {};
+          }
+        } else if (result.type === 'cancel') {
+          console.log('ℹ️ User cancelled OAuth flow');
+          return {}; // Silent return for user cancellation
+        } else {
+          console.error('❌ Unexpected OAuth result type:', result.type);
+          return { error: 'Authentication was cancelled or failed' };
+        }
+      } catch (browserError) {
+        console.error('❌ Error opening browser:', browserError);
+        console.error(
+          '❌ Browser error details:',
+          JSON.stringify(browserError, null, 2),
+        );
+        // Fallback to Linking if WebBrowser fails
+        try {
+          const canOpen = await Linking.canOpenURL(data.url);
+          if (canOpen) {
+            await Linking.openURL(data.url);
+            console.log('✅ Opened OAuth URL using Linking (fallback)');
+            return {}; // Deep link handler will process the callback
+          } else {
+            return { error: 'Unable to open authentication page' };
+          }
+        } catch (linkingError) {
+          console.error('❌ Error with Linking fallback:', linkingError);
+          return { error: 'Unable to open authentication page' };
+        }
+      }
+    } catch (error) {
+      console.error('💥 Unexpected error during Apple sign-in:', error);
+      const errorMessage =
+        error instanceof Error ? error.message : 'An unexpected error occurred';
+      return { error: errorMessage };
+    }
+  };
+
   const deductXP = async (
     amount: number,
     reason: string = 'Image generation',
@@ -939,12 +1262,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } catch (error) {
         // Safely log the error without causing additional errors
         try {
-          const errorMessage = error instanceof Error ? error.message : String(error);
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
           const errorStack = error instanceof Error ? error.stack : undefined;
-          console.error('❌ Error initializing auth:', errorMessage, errorStack);
+          console.error(
+            '❌ Error initializing auth:',
+            errorMessage,
+            errorStack,
+          );
         } catch (logError) {
           // Fallback if even logging fails
-          console.error('❌ Error initializing auth (logging failed):', String(error));
+          console.error(
+            '❌ Error initializing auth (logging failed):',
+            String(error),
+          );
         }
         setLoading(false);
       }
@@ -959,7 +1290,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         // Ensure supabase is initialized before use
         if (!supabase || !supabase.auth) {
-          console.error('❌ Supabase client is not initialized, cannot setup auth listener');
+          console.error(
+            '❌ Supabase client is not initialized, cannot setup auth listener',
+          );
           return;
         }
 
@@ -1053,6 +1386,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     canGenerateImage,
     trackXPEvent,
     createImageGenerationEvent,
+    signInWithGoogle,
+    signInWithApple,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
