@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useAuth } from '../context/AuthContext';
@@ -1059,6 +1060,10 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
   );
 };
 
+// Calculate responsive font size for title
+const screenWidth = Dimensions.get('window').width;
+const titleFontSize = Math.min(screenWidth * 0.18, 80);
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1066,7 +1071,8 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flexGrow: 1,
-    paddingTop: 60, // Add top padding to avoid Dynamic Island
+    justifyContent: 'center',
+    paddingVertical: 40,
   },
   content: {
     width: '100%',
@@ -1077,15 +1083,18 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   appTitle: {
-    fontSize: 28,
+    fontSize: titleFontSize,
     fontWeight: 'bold',
     color: '#4CAF50',
     marginBottom: 4,
+    textAlign: 'center',
+    width: '100%',
   },
   appSubtitle: {
     fontSize: 14,
     color: '#666',
     textAlign: 'center',
+    marginBottom: 24,
   },
   formSection: {
     width: '100%',
@@ -1156,6 +1165,11 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     marginTop: 8,
   },
+  forgotPasswordLinkBelow: {
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 60,
+  },
   forgotPasswordText: {
     fontSize: 14,
     color: '#4CAF50',
@@ -1221,8 +1235,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 0,
+    marginTop: 0,
+    marginBottom: 20,
     paddingTop: 8,
     paddingBottom: 2,
     borderTopWidth: 1,
