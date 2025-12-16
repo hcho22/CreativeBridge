@@ -11,6 +11,7 @@ import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { AppNavigator } from './src/navigation';
 import { AuthScreen } from './src/screens';
 import ErrorBoundary from './src/components/common/ErrorBoundary';
+import { ConditionalClerkProvider } from './src/components/common/ConditionalClerkProvider';
 import { supabase } from './src/services/supabase';
 import {
   isClerkCallback,
@@ -252,10 +253,12 @@ const App: React.FC = () => {
         // Example: Sentry.captureException(error, { extra: errorInfo });
       }}
     >
-      <AuthProvider>
-        <StatusBar barStyle="light-content" backgroundColor="#4CAF50" />
-        <MainApp />
-      </AuthProvider>
+      <ConditionalClerkProvider>
+        <AuthProvider>
+          <StatusBar barStyle="light-content" backgroundColor="#4CAF50" />
+          <MainApp />
+        </AuthProvider>
+      </ConditionalClerkProvider>
     </ErrorBoundary>
   );
 };

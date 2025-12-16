@@ -4,11 +4,19 @@ import React, {
   useEffect,
   useState,
   useCallback,
+  useRef,
 } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { Linking } from 'react-native';
 import AsyncStorage from '../utils/asyncStorageWrapper';
 import { supabase } from '../services/supabase';
+import { useSafeClerkAuth } from '../hooks/useSafeClerkAuth';
+import {
+  signInWithGoogle as clerkSignInWithGoogle,
+  completeOAuthFlow,
+  type ClerkAuthMethods,
+  type ClerkUser,
+} from '../services/oauthService';
 
 // Import expo-web-browser with error handling for native module linking
 let WebBrowser: any = null;
@@ -114,6 +122,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [emailConfirmed, setEmailConfirmed] = useState(false);
+
+  // Get Clerk auth and user hooks
+  const { clerkAuth, clerkUser } = useSafeClerkAuth();
+
+  // Track if we're processing an OAuth flow
+  const isProcessingOAuth = useRef(false);
 
   const fetchUserProfile = async (
     userId: string,
@@ -712,142 +726,74 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const signInWithGoogle = async (): Promise<{ error?: string }> => {
     try {
-      console.log('🔐 Initiating Google OAuth sign-in...');
-
-      // Use the deep link scheme for redirect
-      const redirectTo = 'creativebridge://auth/callback';
-
-      console.log('📋 Redirect URL:', redirectTo);
-
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
-        },
-      });
-
-      if (error) {
-        console.error('❌ Google OAuth error:', error);
-        console.error('❌ Error details:', JSON.stringify(error, null, 2));
-        return { error: error.message || 'Failed to initiate Google sign-in' };
-      }
-
-      if (!data?.url) {
-        console.error('❌ No OAuth URL returned from Supabase');
-        return { error: 'Failed to generate authentication URL' };
-      }
-
       console.log(
-        '✅ Google OAuth URL generated:',
-        data.url.substring(0, 100) + '...',
+        '🔐 [AuthContext] Initiating Google OAuth sign-in via Clerk...',
       );
-      console.log('🌐 Opening browser with OAuth URL...');
 
-      try {
-        // Use expo-web-browser for OAuth flow
-        console.log('📱 Using expo-web-browser for OAuth flow...');
-        const result = await WebBrowser.openAuthSessionAsync(
-          data.url,
-          redirectTo,
-        );
-
-        console.log('🔗 OAuth browser result:', result.type);
-
-        if (result.type === 'success' && result.url) {
-          console.log(
-            '✅ OAuth callback received:',
-            result.url.substring(0, 100) + '...',
-          );
-
-          // Parse the callback URL
-          const url = result.url;
-          const hashMatch = url.match(/#(.+)/);
-
-          if (hashMatch) {
-            const hashParams = new URLSearchParams(hashMatch[1]);
-            const accessToken = hashParams.get('access_token');
-            const refreshToken = hashParams.get('refresh_token');
-            const errorParam = hashParams.get('error');
-            const errorDescription = hashParams.get('error_description');
-
-            if (errorParam) {
-              console.error(
-                '❌ OAuth error in callback:',
-                errorParam,
-                errorDescription,
-              );
-              return {
-                error:
-                  errorDescription || errorParam || 'Authentication failed',
-              };
-            }
-
-            if (accessToken && refreshToken) {
-              console.log('🔐 Setting OAuth session from callback...');
-              const { error: sessionError } = await supabase.auth.setSession({
-                access_token: accessToken,
-                refresh_token: refreshToken,
-              });
-
-              if (sessionError) {
-                console.error('❌ Error setting session:', sessionError);
-                console.error(
-                  '❌ Error details:',
-                  JSON.stringify(sessionError, null, 2),
-                );
-                return {
-                  error: sessionError.message || 'Failed to complete sign-in',
-                };
-              }
-
-              console.log('✅ Google sign-in successful');
-              return {};
-            } else {
-              console.error('❌ Missing tokens in OAuth callback');
-              console.error('❌ URL received:', url.substring(0, 200));
-              return {
-                error: 'Authentication callback missing required tokens',
-              };
-            }
-          } else {
-            console.warn('⚠️ OAuth callback URL format unexpected:', url);
-            // Try to let Supabase handle it via deep link
-            return {};
-          }
-        } else if (result.type === 'cancel') {
-          console.log('ℹ️ User cancelled OAuth flow');
-          return {}; // Silent return for user cancellation
-        } else {
-          console.error('❌ Unexpected OAuth result type:', result.type);
-          return { error: 'Authentication was cancelled or failed' };
-        }
-      } catch (browserError) {
-        console.error('❌ Error opening browser:', browserError);
-        console.error(
-          '❌ Browser error details:',
-          JSON.stringify(browserError, null, 2),
-        );
-        // Fallback to Linking if WebBrowser fails
-        try {
-          const canOpen = await Linking.canOpenURL(data.url);
-          if (canOpen) {
-            await Linking.openURL(data.url);
-            console.log('✅ Opened OAuth URL using Linking (fallback)');
-            return {}; // Deep link handler will process the callback
-          } else {
-            return { error: 'Unable to open authentication page' };
-          }
-        } catch (linkingError) {
-          console.error('❌ Error with Linking fallback:', linkingError);
-          return { error: 'Unable to open authentication page' };
-        }
+      // Check if Clerk is available
+      if (!clerkAuth) {
+        const error =
+          'Clerk is not configured or not available. Please configure Clerk to use OAuth.';
+        console.error('❌ [AuthContext]', error);
+        return { error };
       }
+
+      // Mark that we're processing OAuth
+      isProcessingOAuth.current = true;
+
+      // Convert Clerk auth to the interface expected by oauthService
+      const clerkAuthMethods: ClerkAuthMethods = {
+        signInWithOAuth: clerkAuth.signInWithOAuth.bind(clerkAuth),
+        getToken: clerkAuth.getToken.bind(clerkAuth),
+        userId: clerkAuth.userId,
+        isSignedIn: clerkAuth.isSignedIn,
+      };
+
+      // Convert Clerk user to the interface expected by oauthService
+      const clerkUserData: ClerkUser | null = clerkUser
+        ? {
+            id: clerkUser.id,
+            emailAddresses: clerkUser.emailAddresses || [],
+            firstName: clerkUser.firstName,
+            lastName: clerkUser.lastName,
+          }
+        : null;
+
+      // Initiate OAuth flow via Clerk
+      const oauthResult = await clerkSignInWithGoogle(
+        clerkAuthMethods,
+        clerkUserData,
+      );
+
+      if (!oauthResult.success) {
+        isProcessingOAuth.current = false;
+        console.error(
+          '❌ [AuthContext] OAuth initiation failed:',
+          oauthResult.error,
+        );
+        return {
+          error: oauthResult.error || 'Failed to initiate Google sign-in',
+        };
+      }
+
+      console.log('✅ [AuthContext] Google OAuth flow initiated successfully');
+      console.log(
+        '📱 [AuthContext] Waiting for OAuth callback via deep linking...',
+      );
+
+      // OAuth flow is now in progress
+      // The callback will be handled via deep linking in App.tsx
+      // After the callback, Clerk will have the user signed in
+      // We'll complete the flow when we detect Clerk auth state change
+
+      // Return success - the actual completion will happen after OAuth callback
+      return {};
     } catch (error) {
-      console.error('💥 Unexpected error during Google sign-in:', error);
+      isProcessingOAuth.current = false;
+      console.error(
+        '💥 [AuthContext] Unexpected error during Google sign-in:',
+        error,
+      );
       const errorMessage =
         error instanceof Error ? error.message : 'An unexpected error occurred';
       return { error: errorMessage };
@@ -1202,6 +1148,99 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // Handle Clerk OAuth completion after callback
+  const handleClerkOAuthCompletion = useCallback(async () => {
+    // Only process if we're in the middle of an OAuth flow and Clerk user is signed in
+    if (!isProcessingOAuth.current || !clerkAuth?.isSignedIn || !clerkAuth) {
+      return;
+    }
+
+    try {
+      console.log(
+        '🔄 [AuthContext] Detected Clerk OAuth completion, syncing with Supabase...',
+      );
+
+      // Convert Clerk auth to the interface expected by oauthService
+      const clerkAuthMethods: ClerkAuthMethods = {
+        signInWithOAuth: clerkAuth.signInWithOAuth.bind(clerkAuth),
+        getToken: clerkAuth.getToken.bind(clerkAuth),
+        userId: clerkAuth.userId,
+        isSignedIn: clerkAuth.isSignedIn,
+      };
+
+      // Convert Clerk user to the interface expected by oauthService
+      const clerkUserData: ClerkUser | null = clerkUser
+        ? {
+            id: clerkUser.id,
+            emailAddresses: clerkUser.emailAddresses || [],
+            firstName: clerkUser.firstName,
+            lastName: clerkUser.lastName,
+          }
+        : null;
+
+      // Complete OAuth flow: get JWT and sync with Supabase
+      const oauthResult = await completeOAuthFlow(
+        clerkAuthMethods,
+        clerkUserData,
+      );
+
+      if (!oauthResult.success) {
+        console.error(
+          '❌ [AuthContext] Failed to complete OAuth flow:',
+          oauthResult.error,
+        );
+        isProcessingOAuth.current = false;
+        return;
+      }
+
+      console.log('✅ [AuthContext] OAuth flow completed successfully');
+
+      // OAuth users bypass email confirmation (handled by Clerk)
+      setEmailConfirmed(true);
+
+      // Update user profile if available
+      if (oauthResult.clerkUserId) {
+        // Find or create profile with Clerk user ID
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('clerk_user_id', oauthResult.clerkUserId)
+          .single();
+
+        if (profile) {
+          setUserProfile(profile);
+        } else {
+          // Profile will be created during profile completion (Task 5.1)
+          console.log(
+            '📋 [AuthContext] Profile will be created during profile completion',
+          );
+        }
+      }
+
+      // Mark OAuth processing as complete
+      isProcessingOAuth.current = false;
+    } catch (error) {
+      console.error(
+        '💥 [AuthContext] Error handling Clerk OAuth completion:',
+        error,
+      );
+      isProcessingOAuth.current = false;
+    }
+  }, [clerkAuth, clerkUser]);
+
+  // Monitor Clerk auth state changes to detect OAuth completion
+  useEffect(() => {
+    // Check for OAuth completion when Clerk auth state changes
+    if (clerkAuth?.isSignedIn && isProcessingOAuth.current) {
+      handleClerkOAuthCompletion();
+    }
+  }, [
+    clerkAuth?.isSignedIn,
+    clerkAuth?.userId,
+    clerkUser?.id,
+    handleClerkOAuthCompletion,
+  ]);
+
   useEffect(() => {
     const initializeAuth = async () => {
       try {
@@ -1257,6 +1296,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }
         }
 
+        // Check if Clerk user is signed in (for OAuth users)
+        if (clerkAuth?.isSignedIn && clerkUser && isProcessingOAuth.current) {
+          console.log(
+            '🔐 [AuthContext] Clerk user is signed in, checking for OAuth completion...',
+          );
+          // This will trigger the OAuth completion handler
+          await handleClerkOAuthCompletion();
+        }
+
         console.log('🎉 Auth initialization complete!');
         setLoading(false);
       } catch (error) {
@@ -1280,6 +1328,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setLoading(false);
       }
     };
+
+    initializeAuth();
 
     let authSubscription: { unsubscribe: () => void } | null = null;
 
@@ -1356,7 +1406,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         authSubscription.unsubscribe();
       }
     };
-  }, []);
+  }, [clerkAuth, clerkUser, handleClerkOAuthCompletion]);
 
   const refreshProfile = useCallback(async (): Promise<void> => {
     if (user?.id) {

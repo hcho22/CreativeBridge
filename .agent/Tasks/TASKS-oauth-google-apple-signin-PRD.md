@@ -155,17 +155,17 @@ describe('OAuth Dependencies', () => {
 
 **Implementation Steps:**
 
-- [ ] Access Supabase project dashboard
-- [ ] Configure Supabase to accept Clerk as JWT issuer
-- [ ] Set up Supabase Edge Function or API endpoint for Clerk JWT verification
-- [ ] Implement function to fetch Clerk's public keys from JWKS endpoint
-- [ ] Implement JWT signature verification using Clerk's public keys
-- [ ] Extract Clerk user ID from verified JWT claims
-- [ ] Map Clerk user ID to Supabase user identifier
-- [ ] Update `user_profiles` table schema to use Clerk user ID (or add Clerk user ID column)
-- [ ] Create/update RLS policies to use Clerk user ID from JWT
-- [ ] Test JWT verification with sample Clerk JWT
-- [ ] Document JWT verification setup
+- [x] Access Supabase project dashboard
+- [x] Configure Supabase to accept Clerk as JWT issuer
+- [x] Set up Supabase Edge Function or API endpoint for Clerk JWT verification
+- [x] Implement function to fetch Clerk's public keys from JWKS endpoint
+- [x] Implement JWT signature verification using Clerk's public key
+- [x] Extract Clerk user ID from verified JWT claims
+- [x] Map Clerk user ID to Supabase user identifier
+- [x] Update `user_profiles` table schema to use Clerk user ID (or add Clerk user ID column)
+- [x] Create/update RLS policies to use Clerk user ID from JWT
+- [x] Test JWT verification with sample Clerk JWT
+- [x] Document JWT verification setup
 
 **Verification Test:**
 
@@ -218,16 +218,16 @@ describe('Supabase JWT Verification', () => {
 
 **Implementation Steps:**
 
-- [ ] Review existing deep linking configuration in `App.tsx`
-- [ ] Configure Clerk deep linking in Clerk dashboard
-- [ ] Add OAuth callback URL scheme: `creativebridge://auth/callback`
-- [ ] Update iOS `Info.plist` with URL scheme configuration
-- [ ] Update Android `AndroidManifest.xml` with intent filters
-- [ ] Configure `app.json` or `app.config.js` with deep link scheme
-- [ ] Test Clerk OAuth callback handling in `App.tsx`
-- [ ] Handle Clerk OAuth callback parameters
-- [ ] Test deep linking on iOS simulator
-- [ ] Test deep linking on Android emulator
+- [x] Review existing deep linking configuration in `App.tsx`
+- [x] Configure Clerk deep linking in Clerk dashboard
+- [x] Add OAuth callback URL scheme: `creativebridge://auth/callback`
+- [x] Update iOS `Info.plist` with URL scheme configuration
+- [x] Update Android `AndroidManifest.xml` with intent filters
+- [x] Configure `app.json` or `app.config.js` with deep link scheme
+- [x] Test Clerk OAuth callback handling in `App.tsx`
+- [x] Handle Clerk OAuth callback parameters
+- [x] Test deep linking on iOS simulator
+- [x] Test deep linking on Android emulator
 
 **Verification Test:**
 
@@ -282,17 +282,17 @@ describe('Deep Linking Configuration', () => {
 
 **Implementation Steps:**
 
-- [ ] Create new file `src/services/oauthService.ts`
-- [ ] Import Clerk hooks (`useAuth`, `useUser`) and required dependencies
-- [ ] Implement `signInWithGoogle()` function
-- [ ] Use Clerk's `signInWithOAuth({ strategy: 'oauth_google' })`
-- [ ] Handle Clerk OAuth callback and session creation
-- [ ] Retrieve Clerk JWT token using `getToken()` after successful authentication
-- [ ] Send Clerk JWT to Supabase for verification
-- [ ] Extract user email from Clerk user object
-- [ ] Handle authentication errors gracefully
-- [ ] Add TypeScript types for OAuth responses
-- [ ] Add logging for debugging OAuth flow
+- [x] Create new file `src/services/oauthService.ts`
+- [x] Import Clerk hooks (`useAuth`, `useUser`) and required dependencies
+- [x] Implement `signInWithGoogle()` function
+- [x] Use Clerk's `signInWithOAuth({ strategy: 'oauth_google' })`
+- [x] Handle Clerk OAuth callback and session creation
+- [x] Retrieve Clerk JWT token using `getToken()` after successful authentication
+- [x] Send Clerk JWT to Supabase for verification
+- [x] Extract user email from Clerk user object
+- [x] Handle authentication errors gracefully
+- [x] Add TypeScript types for OAuth responses
+- [x] Add logging for debugging OAuth flow
 
 **Verification Test:**
 
@@ -365,20 +365,20 @@ describe('Google OAuth Service', () => {
 
 **Implementation Steps:**
 
-- [ ] Open `src/context/AuthContext.tsx`
-- [ ] Import Clerk hooks (`useAuth`, `useUser`) from `@clerk/clerk-expo`
-- [ ] Import OAuth service
-- [ ] Add `signInWithGoogle()` method to `AuthContextType` interface
-- [ ] Implement `signInWithGoogle()` in `AuthProvider` using Clerk
-- [ ] After Clerk authentication, retrieve JWT using `getToken()`
-- [ ] Send Clerk JWT to Supabase for verification
-- [ ] Handle Supabase session creation using Clerk user ID
-- [ ] Update user state after successful OAuth (from Clerk user object)
-- [ ] Update Supabase user profile using Clerk user ID
-- [ ] Handle OAuth errors and return error messages
-- [ ] Ensure OAuth users bypass email confirmation (handled by Clerk)
-- [ ] Update `emailConfirmed` state for OAuth users (from Clerk user)
-- [ ] Add OAuth user to auth state change listener
+- [x] Open `src/context/AuthContext.tsx`
+- [x] Import Clerk hooks (`useAuth`, `useUser`) from `@clerk/clerk-expo`
+- [x] Import OAuth service
+- [x] Add `signInWithGoogle()` method to `AuthContextType` interface
+- [x] Implement `signInWithGoogle()` in `AuthProvider` using Clerk
+- [x] After Clerk authentication, retrieve JWT using `getToken()`
+- [x] Send Clerk JWT to Supabase for verification
+- [x] Handle Supabase session creation using Clerk user ID
+- [x] Update user state after successful OAuth (from Clerk user object)
+- [x] Update Supabase user profile using Clerk user ID
+- [x] Handle OAuth errors and return error messages
+- [x] Ensure OAuth users bypass email confirmation (handled by Clerk)
+- [x] Update `emailConfirmed` state for OAuth users (from Clerk user)
+- [x] Add OAuth user to auth state change listener
 
 **Verification Test:**
 
@@ -467,17 +467,17 @@ describe('AuthContext Google OAuth', () => {
 
 **Implementation Steps:**
 
-- [ ] Create `src/components/auth/GoogleSignInButton.tsx`
-- [ ] Design button matching existing design system
-- [ ] Add Google logo/icon on left side
-- [ ] Add "Continue with Google" text
-- [ ] Style button (white background, rounded corners, proper spacing)
-- [ ] Add loading state indicator
-- [ ] Add disabled state during authentication
-- [ ] Connect button to `signInWithGoogle()` from AuthContext
-- [ ] Handle button press and initiate OAuth flow
-- [ ] Add error handling and user feedback
-- [ ] Make button accessible (accessibility labels)
+- [x] Create `src/components/auth/GoogleSignInButton.tsx`
+- [x] Design button matching existing design system
+- [x] Add Google logo/icon on left side
+- [x] Add "Continue with Google" text
+- [x] Style button (white background, rounded corners, proper spacing)
+- [x] Add loading state indicator
+- [x] Add disabled state during authentication
+- [x] Connect button to `signInWithGoogle()` from AuthContext
+- [x] Handle button press and initiate OAuth flow
+- [x] Add error handling and user feedback
+- [x] Make button accessible (accessibility labels)
 
 **Verification Test:**
 
@@ -546,16 +546,16 @@ describe('GoogleSignInButton', () => {
 
 **Implementation Steps:**
 
-- [ ] Open `src/screens/AuthScreen.tsx`
-- [ ] Import `GoogleSignInButton` component
-- [ ] Add Google button below email/password form
-- [ ] Add visual separator ("or" divider) between form and OAuth buttons
-- [ ] Position button with consistent spacing
-- [ ] Connect button to authentication flow
-- [ ] Handle OAuth success and navigate to app
-- [ ] Handle OAuth errors and show user-friendly messages
-- [ ] Ensure button works in both login and signup modes
-- [ ] Test button placement and styling
+- [x] Open `src/screens/AuthScreen.tsx`
+- [x] Import `GoogleSignInButton` component
+- [x] Add Google button below email/password form
+- [x] Add visual separator ("or" divider) between form and OAuth buttons
+- [x] Position button with consistent spacing
+- [x] Connect button to authentication flow
+- [x] Handle OAuth success and navigate to app
+- [x] Handle OAuth errors and show user-friendly messages
+- [x] Ensure button works in both login and signup modes
+- [x] Test button placement and styling
 
 **Verification Test:**
 

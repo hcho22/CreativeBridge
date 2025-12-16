@@ -27,7 +27,6 @@ import {
 import { AuthStackParamList } from '../navigation/AppNavigator';
 import { GradeLevel } from '../types/database';
 import { GoogleSignInButton } from '../components/auth/GoogleSignInButton';
-import { AppleSignInButton } from '../components/auth/AppleSignInButton';
 
 type AuthScreenNavigationProp = StackNavigationProp<AuthStackParamList, 'Auth'>;
 
@@ -665,48 +664,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
               </>
             )}
 
-            {/* Social Login Buttons Row */}
-            <View style={styles.socialButtonsRow}>
-              {/* Apple Sign-In Button */}
-              <AppleSignInButton
-                disabled={loading}
-                style={styles.socialButton}
-                onSignInStart={() => {
-                  console.log('Apple sign-in initiated');
-                }}
-                onSignInComplete={error => {
-                  if (error) {
-                    console.error('Apple sign-in error:', error);
-                  } else {
-                    console.log('Apple sign-in completed successfully');
-                  }
-                }}
-              />
-
-              {/* Google Sign-In Button */}
-              <GoogleSignInButton
-                disabled={loading}
-                style={styles.socialButton}
-                onSignInStart={() => {
-                  console.log('Google sign-in initiated');
-                }}
-                onSignInComplete={error => {
-                  if (error) {
-                    console.error('Google sign-in error:', error);
-                  } else {
-                    console.log('Google sign-in completed successfully');
-                  }
-                }}
-              />
-            </View>
-
-            {/* OAuth Divider */}
-            <View style={styles.oauthDividerContainer}>
-              <View style={styles.oauthDividerLine} />
-              <Text style={styles.oauthDividerText}>OR</Text>
-              <View style={styles.oauthDividerLine} />
-            </View>
-
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Email Address</Text>
               <View style={styles.emailInputWrapper}>
@@ -1038,6 +995,28 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
                 </Text>
               </TouchableOpacity>
             )}
+
+            {/* OAuth Divider */}
+            <View style={styles.oauthDividerContainer}>
+              <View style={styles.oauthDividerLine} />
+              <Text style={styles.oauthDividerText}>OR</Text>
+              <View style={styles.oauthDividerLine} />
+            </View>
+
+            {/* Google Sign-In Button */}
+            <GoogleSignInButton
+              disabled={loading}
+              onSignInStart={() => {
+                console.log('Google sign-in initiated');
+              }}
+              onSignInComplete={error => {
+                if (error) {
+                  console.error('Google sign-in error:', error);
+                } else {
+                  console.log('Google sign-in completed successfully');
+                }
+              }}
+            />
 
             {/* Legal Links */}
             <View style={styles.legalLinksContainer}>

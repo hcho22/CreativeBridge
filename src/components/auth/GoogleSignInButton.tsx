@@ -187,11 +187,12 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
           <Text style={styles.buttonText}>Signing in...</Text>
         </View>
       ) : (
-        // Center the Google logo inside the button
-        <View style={styles.iconOnlyContent}>
+        // Show Google icon and "Continue with Google" text
+        <View style={styles.content}>
           <View style={styles.iconContainer}>
             <Text style={styles.googleIcon}>G</Text>
           </View>
+          <Text style={styles.buttonText}>Continue with Google</Text>
         </View>
       )}
     </TouchableOpacity>
@@ -224,11 +225,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconOnlyContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   iconContainer: {
     width: 24,
     height: 24,
@@ -236,6 +232,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#4285F4', // Google blue
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: theme.spacing.sm,
   },
   googleIcon: {
     fontSize: 16,
