@@ -10,15 +10,15 @@ import {
 } from 'react-native';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { AppNavigator } from './src/navigation';
-import { AuthScreen } from './src/screens';
+import { AuthScreen, ProfileCompletionScreen } from './src/screens';
 import ErrorBoundary from './src/components/common/ErrorBoundary';
 import { ConditionalClerkProvider } from './src/components/common/ConditionalClerkProvider';
 import { isClerkConfigured } from './src/config/environment';
-import { supabase } from './src/services/supabase';
 import {
   isClerkCallback,
   handleClerkCallback,
 } from './src/utils/clerkDeepLink';
+import { useSafeClerkAuth } from './src/hooks/useSafeClerkAuth';
 
 // Import expo-web-browser with error handling for native module linking
 let WebBrowser: any = null;
@@ -44,15 +44,41 @@ const LoadingScreen: React.FC = () => (
 );
 
 const MainApp: React.FC = () => {
-  const { session, loading, emailConfirmed, checkEmailConfirmation } =
-    useAuth();
+  const {
+    session,
+    loading,
+    emailConfirmed,
+    checkEmailConfirmation,
+    needsProfileCompletion,
+    refreshProfile,
+  } = useAuth();
+  const { clerkUser, clerkAuth } = useSafeClerkAuth();
   const appState = useRef(AppState.currentState);
+  const clerkCallbackProcessed = useRef(false);
 
   // ALL useEffect hooks must be called at the top level, before any returns
   useEffect(() => {
-    // Handle deep links for email confirmation and OAuth callbacks
+    /**
+     * Handle deep links for email confirmation and OAuth callbacks
+     *
+     * Clerk OAuth Deep Linking Flow:
+     * 1. User initiates OAuth via signInWithGoogle/Apple in AuthContext
+     * 2. Clerk opens OAuth provider (Google/Apple) in browser/webview
+     * 3. User authenticates with OAuth provider
+     * 4. OAuth provider redirects to: creativebridge://auth/callback?__clerk_redirect_url=...
+     * 5. This deep link handler receives the callback URL
+     * 6. ClerkProvider automatically processes the redirect URL
+     * 7. AuthContext monitors Clerk auth state changes via useEffect
+     * 8. When clerkAuth.isSignedIn becomes true, AuthContext calls handleClerkOAuthCompletion
+     * 9. handleClerkOAuthCompletion:
+     *    - Retrieves Clerk JWT using getToken()
+     *    - Sends Clerk JWT to Supabase for verification via completeOAuthFlow
+     *    - Creates Supabase session using Clerk user ID
+     *    - Updates auth state (session, user, userProfile)
+     *    - Checks if profile completion is needed
+     */
     const handleDeepLink = async (url: string) => {
-      console.log('🔗 Deep link received:', url);
+      console.log('🔗 [App] Deep link received:', url);
 
       // Complete OAuth session when deep link is received (important for expo-web-browser)
       try {
@@ -67,22 +93,70 @@ const MainApp: React.FC = () => {
       // Clerk callbacks typically come as: creativebridge://auth/callback?__clerk_redirect_url=...
       if (isClerkCallback(url)) {
         try {
-          console.log('🔐 Clerk OAuth callback detected via deep link');
+          console.log('🔐 [App] Clerk OAuth callback detected via deep link');
+          console.log('🔐 [App] Callback URL:', url.substring(0, 200));
 
           const result = handleClerkCallback(url);
 
-          if (result.success && result.redirectUrl) {
-            console.log('✅ Clerk callback processed successfully');
+          // Check for errors first
+          if (result.error) {
+            console.error('❌ [App] Clerk OAuth callback error:', result.error);
+            if (result.errorDescription) {
+              console.error('❌ [App] Error description:', result.errorDescription);
+            }
+
+            // Handle specific error types
+            if (result.error === 'access_denied' || result.error === 'user_cancelled') {
+              console.log('ℹ️ [App] User cancelled OAuth flow (silent return)');
+              // Don't show error to user for cancellation
+              return;
+            }
+
+            // For other errors, log them but don't crash
+            console.error('❌ [App] OAuth error will be handled by AuthContext');
+            return;
+          }
+
+          if (result.success) {
+            console.log('✅ [App] Clerk callback parsed successfully');
+            if (result.redirectUrl) {
+              console.log('✅ [App] Clerk redirect URL extracted');
+            }
+
+            // Mark that we've processed a Clerk callback
+            clerkCallbackProcessed.current = true;
+
             // ClerkProvider will handle the redirect URL automatically
             // The OAuth flow will complete when Clerk processes the redirect
-          } else if (result.error) {
-            console.error('❌ Clerk OAuth callback error:', result.error);
-            if (result.errorDescription) {
-              console.error('Error description:', result.errorDescription);
-            }
+            // AuthContext monitors Clerk auth state changes and will complete the flow
+            // via handleClerkOAuthCompletion when clerkAuth.isSignedIn becomes true
+
+            // Give Clerk a moment to process the callback, then check if we need to trigger completion
+            setTimeout(async () => {
+              // Check if Clerk user is now signed in after callback
+              if (clerkAuth?.isSignedIn) {
+                console.log(
+                  '✅ [App] Clerk user is signed in after callback - AuthContext will complete OAuth flow',
+                );
+                // AuthContext's useEffect will detect this and call handleClerkOAuthCompletion
+                // which will:
+                // 1. Retrieve Clerk JWT using getToken()
+                // 2. Send Clerk JWT to Supabase for verification
+                // 3. Handle Supabase session creation using Clerk user ID
+                // 4. Update auth state
+              } else {
+                console.log(
+                  '⏳ [App] Waiting for Clerk to complete authentication...',
+                );
+                // Clerk might still be processing - AuthContext will handle it when ready
+              }
+            }, 500);
+          } else {
+            console.warn('⚠️ [App] Clerk callback parsing returned no result');
           }
         } catch (error) {
-          console.error('❌ Error handling Clerk callback:', error);
+          console.error('❌ [App] Error handling Clerk callback:', error);
+          // Don't crash the app - let AuthContext handle OAuth completion
         }
         return; // Don't process as Supabase callback
       }
@@ -220,7 +294,7 @@ const MainApp: React.FC = () => {
       linkingSubscription?.remove();
       appStateSubscription?.remove();
     };
-  }, [checkEmailConfirmation]);
+  }, [checkEmailConfirmation, clerkAuth, clerkUser]);
 
   // Now handle the conditional rendering AFTER all hooks
   if (loading) {
@@ -230,6 +304,25 @@ const MainApp: React.FC = () => {
   // Show auth screen if no session OR if user exists but email is not confirmed
   if (!session || (session.user && !emailConfirmed)) {
     return <AuthScreen />;
+  }
+
+  // Show profile completion screen for OAuth users who need to complete their profile
+  if (needsProfileCompletion && clerkUser?.id) {
+    return (
+      <ProfileCompletionScreen
+        onComplete={async () => {
+          // Refresh profile after completion
+          // AuthContext will automatically update needsProfileCompletion state
+          // when the profile is refreshed and found to be complete
+          await refreshProfile();
+        }}
+        onSkip={() => {
+          // Allow skipping - user can complete later
+          // AuthContext manages needsProfileCompletion state
+          // The user can complete their profile later from Settings
+        }}
+      />
+    );
   }
 
   // User is authenticated and email is confirmed

@@ -16,6 +16,9 @@ A mobile story-writing application where users create engaging narratives with A
 ### 👤 User Profile System
 
 - **User Authentication** - Secure login/signup with Supabase
+  - **OAuth Sign-In** - Sign in with Google or Apple for quick authentication
+  - **Email/Password** - Traditional email and password authentication
+  - **Account Linking** - Automatic linking of accounts with the same email
 - **XP & Streak Tracking** - Gamified writing experience
 - **Statistics Dashboard** - Games played, words written, best scores
 - **Grade Level Preferences** - Personalized content difficulty
@@ -32,6 +35,7 @@ A mobile story-writing application where users create engaging narratives with A
 
 - **Frontend**: React Native 0.81.1 with TypeScript
 - **Backend**: Supabase (Authentication, Database, Storage)
+- **Authentication**: Clerk (OAuth with Google & Apple) + Supabase (JWT verification)
 - **Voice AI**: ElevenLabs Voice AI integration
 - **Navigation**: React Navigation v7
 - **State Management**: React Context API
@@ -45,6 +49,9 @@ A mobile story-writing application where users create engaging narratives with A
 - iOS development: Xcode, CocoaPods
 - Android development: Android Studio, Java JDK
 - Supabase account
+- Clerk account (for OAuth authentication)
+- Google Cloud Console account (for Google OAuth)
+- Apple Developer account (for Apple Sign In)
 - ElevenLabs API key (for voice features)
 
 ## 🚀 Installation
@@ -67,6 +74,8 @@ cd ios && pod install && cd ..
 ```
 
 ### 3. Environment Setup
+
+#### 3.1: Supabase Setup
 
 Create a Supabase project at [supabase.com](https://supabase.com) and configure your environment:
 
@@ -107,6 +116,32 @@ CREATE TABLE scores (
 const supabaseUrl = 'your-supabase-url';
 const supabaseAnonKey = 'your-supabase-anon-key';
 ```
+
+#### 3.2: OAuth Setup (Google & Apple)
+
+CreativeBridge supports OAuth authentication via Clerk. See the [Clerk OAuth Setup Guide](docs/developer/clerk-oauth-setup-guide.md) for detailed instructions.
+
+**Quick Setup:**
+
+1. **Clerk Configuration**: 
+   - Create a Clerk account at [clerk.com](https://clerk.com)
+   - Configure Google and Apple OAuth providers
+   - Obtain Clerk publishable key and JWKS URL
+
+2. **Environment Variables**: Add to your `.env` file:
+
+```bash
+# Clerk Configuration
+CLERK_PUBLISHABLE_KEY=pk_test_xxxxxxxxxxxxxxxxxxxxx
+CLERK_JWKS_URL=https://your-instance.clerk.accounts.dev/.well-known/jwks.json
+```
+
+3. **Supabase JWT Verification**: Configure Supabase to verify Clerk JWTs (see [Supabase JWT Verification Setup](docs/developer/supabase-jwt-verification-setup.md))
+
+For complete OAuth setup instructions, see:
+- [Clerk OAuth Setup Guide](docs/developer/clerk-oauth-setup-guide.md)
+- [Deep Linking Setup](docs/developer/clerk-deep-linking-setup.md)
+- [OAuth Dependencies](docs/developer/oauth-dependencies.md)
 
 ### 4. Running the Application
 

@@ -44,6 +44,8 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
     resendConfirmation,
     checkEmailConfirmation,
     resetPassword,
+    oauthError,
+    clearOAuthError,
   } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -70,6 +72,20 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
+
+  // Show OAuth errors from AuthContext
+  useEffect(() => {
+    if (oauthError) {
+      Alert.alert('Sign-In Error', oauthError, [
+        {
+          text: 'OK',
+          onPress: () => {
+            clearOAuthError();
+          },
+        },
+      ]);
+    }
+  }, [oauthError, clearOAuthError]);
 
   const isValidPassword = (passwordParam: string): boolean => {
     const validation = validatePassword(passwordParam);

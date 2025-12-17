@@ -4,6 +4,21 @@
  * Provides comprehensive error handling for OAuth authentication flows (Google, Apple).
  * Handles various error types including network errors, user cancellations, and provider errors.
  * Returns structured error information for consistent error handling across the app.
+ *
+ * Error Scenarios Handled:
+ * 1. User Cancellation - Silent return (no error shown to user)
+ * 2. Network Errors - Retryable with exponential backoff
+ * 3. Account Linking Errors - Not retryable, specific messages
+ * 4. Database Errors - Retryable with delay
+ * 5. Provider Errors (Clerk, Google, Apple) - Retryable with exponential backoff
+ * 6. Token/Expiration Errors - Retryable
+ * 7. Default/Unknown Errors - Generic message, retryable
+ *
+ * All errors include:
+ * - User-friendly error messages
+ * - Retry options when applicable
+ * - Fallback to email/password option
+ * - Exponential backoff for retries
  */
 
 export interface OAuthErrorOptions {
@@ -65,6 +80,20 @@ const OAUTH_ERROR_CODES = {
     'connection_error',
     'timeout',
     'offline',
+    'no internet',
+    'no_internet',
+    'network connection',
+    'connection lost',
+    'connection_lost',
+    'fetch failed',
+    'fetch_failed',
+    'request timeout',
+    'request_timeout',
+    'econnrefused',
+    'enotfound',
+    'eai_again',
+    'socket hang up',
+    'socket_hang_up',
   ],
 
   // Provider errors (retryable with delay)
@@ -74,6 +103,16 @@ const OAUTH_ERROR_CODES = {
     'invalid_request',
     'server_error',
     'service_unavailable',
+    'oauth_error',
+    'oauth_failed',
+    'clerk error',
+    'clerk_error',
+    'internal server error',
+    'internal_server_error',
+    'bad gateway',
+    'bad_gateway',
+    'gateway timeout',
+    'gateway_timeout',
   ],
 
   // Account linking errors (not retryable)
@@ -171,13 +210,19 @@ export function handleOAuthError(
 
   // Network errors - retryable
   if (matchesErrorPattern(error, OAUTH_ERROR_CODES.NETWORK_ERROR)) {
+    // Calculate exponential backoff for retries
+    const baseDelay = 2000;
+    const retryDelay = attemptNumber > 1 ? baseDelay * Math.pow(2, attemptNumber - 1) : baseDelay;
+    const maxDelay = 10000; // Cap at 10 seconds
+    const finalDelay = Math.min(retryDelay, maxDelay);
+
     return {
       shouldShowError: true,
       userMessage:
         'Connection error. Please check your internet connection and try again.',
       fallbackAvailable: true,
-      canRetry: true,
-      retryDelay: 2000,
+      canRetry: attemptNumber < 3, // Allow up to 2 retries for network errors
+      retryDelay: finalDelay,
     };
   }
 
@@ -271,12 +316,26 @@ export function handleOAuthError(
 
   // Provider errors - retryable with delay
   if (matchesErrorPattern(error, OAUTH_ERROR_CODES.PROVIDER_ERROR)) {
+    // Calculate exponential backoff for retries
+    const baseDelay = 3000;
+    const retryDelay = attemptNumber > 1 ? baseDelay * Math.pow(2, attemptNumber - 1) : baseDelay;
+    const maxDelay = 15000; // Cap at 15 seconds
+    const finalDelay = Math.min(retryDelay, maxDelay);
+
+    // Provide more specific messages for Clerk errors
+    let userMessage = 'Authentication failed. Please try again.';
+    if (errorString.includes('clerk')) {
+      userMessage = 'Authentication service temporarily unavailable. Please try again in a moment.';
+    } else if (errorString.includes('server') || errorString.includes('gateway')) {
+      userMessage = 'The authentication service is experiencing issues. Please try again in a moment.';
+    }
+
     return {
       shouldShowError: true,
-      userMessage: 'Authentication failed. Please try again.',
+      userMessage,
       fallbackAvailable: true,
       canRetry: attemptNumber < 2, // Allow one retry
-      retryDelay: 3000,
+      retryDelay: finalDelay,
     };
   }
 
@@ -310,13 +369,31 @@ export function handleOAuthError(
     };
   }
 
+  // Clerk-specific errors
+  if (errorString.includes('clerk') || errorString.includes('jwt') || errorString.includes('jwks')) {
+    return {
+      shouldShowError: true,
+      userMessage:
+        'Authentication service error. Please try again or use email and password to sign in.',
+      fallbackAvailable: true,
+      canRetry: attemptNumber < 2,
+      retryDelay: 3000,
+    };
+  }
+
   // Default error - generic message, retryable
+  // Calculate exponential backoff for retries
+  const baseDelay = 2000;
+  const retryDelay = attemptNumber > 1 ? baseDelay * Math.pow(2, attemptNumber - 1) : baseDelay;
+  const maxDelay = 8000; // Cap at 8 seconds
+  const finalDelay = Math.min(retryDelay, maxDelay);
+
   return {
     shouldShowError: true,
     userMessage:
       'An error occurred during sign-in. Please try again or use email and password.',
     fallbackAvailable: true,
     canRetry: attemptNumber < 2,
-    retryDelay: 2000,
+    retryDelay: finalDelay,
   };
 }

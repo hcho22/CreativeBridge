@@ -44,6 +44,8 @@ interface AuthContextType {
   userProfile: UserProfile | null;
   loading: boolean;
   emailConfirmed: boolean;
+  needsProfileCompletion: boolean;
+  oauthError: string | null; // Latest OAuth error (for display)
   signIn: (
     email: string,
     password: string,
@@ -90,6 +92,8 @@ interface AuthContextType {
   ) => Promise<string | null>;
   signInWithGoogle: () => Promise<{ error?: string }>;
   signInWithApple: () => Promise<{ error?: string }>;
+  checkProfileCompletion: () => Promise<void>;
+  clearOAuthError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -113,6 +117,8 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [emailConfirmed, setEmailConfirmed] = useState(false);
+  const [needsProfileCompletion, setNeedsProfileCompletion] = useState(false);
+  const [oauthError, setOAuthError] = useState<string | null>(null);
 
   // Get Clerk auth and user hooks
   // This component is only rendered when ClerkProvider is present, so hooks are safe
@@ -1078,6 +1084,96 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  /**
+   * Check if profile completion is needed for OAuth users
+   * This checks if:
+   * 1. User is an OAuth user (has Clerk user ID)
+   * 2. Profile doesn't exist OR profile is incomplete (missing username or grade level)
+   */
+  const checkProfileCompletion = useCallback(async (): Promise<void> => {
+    try {
+      // Only check for OAuth users (users with Clerk user ID)
+      if (!clerkUser?.id) {
+        setNeedsProfileCompletion(false);
+        return;
+      }
+
+      // Only check if user is authenticated and email is confirmed
+      if (!session || !emailConfirmed) {
+        setNeedsProfileCompletion(false);
+        return;
+      }
+
+      const clerkUserId = clerkUser.id;
+
+      // Check if profile exists and is complete
+      if (userProfile) {
+        // Profile exists - check if it's complete
+        const isComplete =
+          userProfile.username &&
+          userProfile.username.trim().length > 0 &&
+          userProfile.preferred_grade_level;
+
+        setNeedsProfileCompletion(!isComplete);
+        console.log(
+          `📋 [AuthContext] Profile completion check: ${isComplete ? 'Complete' : 'Incomplete'}`,
+        );
+        return;
+      }
+
+      // No profile in context - check Supabase directly using Clerk user ID
+      console.log(
+        '📋 [AuthContext] Checking profile completion for Clerk user ID:',
+        clerkUserId,
+      );
+
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('clerk_user_id', clerkUserId)
+        .single();
+
+      if (profileError && profileError.code !== 'PGRST116') {
+        // PGRST116 is "not found" - that's okay, profile needs to be created
+        console.error(
+          '❌ [AuthContext] Error checking profile:',
+          profileError.message,
+        );
+        // On error, assume profile needs completion
+        setNeedsProfileCompletion(true);
+        return;
+      }
+
+      if (profile) {
+        // Profile exists in DB - check if it's complete
+        const isComplete =
+          profile.username &&
+          profile.username.trim().length > 0 &&
+          profile.preferred_grade_level;
+
+        setNeedsProfileCompletion(!isComplete);
+        console.log(
+          `📋 [AuthContext] Profile found in DB: ${isComplete ? 'Complete' : 'Incomplete'}`,
+        );
+
+        // Update context with profile if it exists
+        if (!userProfile) {
+          setUserProfile(profile);
+        }
+      } else {
+        // No profile found - needs completion
+        setNeedsProfileCompletion(true);
+        console.log(
+          '📋 [AuthContext] No profile found - profile completion needed',
+        );
+      }
+    } catch (error) {
+      console.error('❌ [AuthContext] Error checking profile completion:', error);
+      // On error, assume profile needs completion to be safe
+      setNeedsProfileCompletion(true);
+    }
+  }, [clerkUser?.id, session, emailConfirmed, userProfile]);
+
   // Handle Clerk OAuth completion after callback
   const handleClerkOAuthCompletion = useCallback(async () => {
     // Only process if we're in the middle of an OAuth flow and Clerk user is signed in
@@ -1147,12 +1243,58 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         }
 
         isProcessingOAuth.current = false;
-        // Note: Error is returned to the caller (OAuth button components)
-        // which will handle displaying user-friendly error messages
+        
+        // Log error for monitoring and debugging
+        console.error(
+          '❌ [AuthContext] OAuth completion error details:',
+          JSON.stringify(
+            {
+              errorMessage,
+              errorType,
+              clerkUserId: clerkUserData?.id || clerkAuthMethods.userId || 'unknown',
+              timestamp: new Date().toISOString(),
+            },
+            null,
+            2,
+          ),
+        );
+
+        // Store error for display to user
+        // Use error handler to get user-friendly message
+        try {
+          const { handleOAuthError } = require('../utils/oauthErrorHandler');
+          const errorResult = handleOAuthError(errorMessage, {
+            provider: 'google', // Default, will be refined based on actual provider
+            attemptNumber: 1,
+          });
+
+          if (errorResult.shouldShowError) {
+            setOAuthError(errorResult.userMessage);
+            // Clear error after 10 seconds
+            setTimeout(() => {
+              setOAuthError(null);
+            }, 10000);
+          }
+        } catch (importError) {
+          // Fallback if error handler import fails
+          console.error('Error importing oauthErrorHandler:', importError);
+          setOAuthError(errorMessage);
+          setTimeout(() => {
+            setOAuthError(null);
+          }, 10000);
+        }
+
+        // Note: Error from OAuth completion is not directly returned to button components
+        // because the OAuth flow is asynchronous (initiation → callback → completion)
+        // If completion fails, the user won't be signed in and can try again
+        // The button components handle errors from the initiation phase
         return;
       }
 
       console.log('✅ [AuthContext] OAuth flow completed successfully');
+
+      // Clear any previous OAuth errors on success
+      setOAuthError(null);
 
       // OAuth users bypass email confirmation (handled by Clerk)
       // This applies to both Google and Apple OAuth users
@@ -1228,6 +1370,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
             'ℹ️ [AuthContext] This is normal for new OAuth users or if account linking did not find a matching profile',
           );
         }
+
+        // Check if profile completion is needed after OAuth
+        await checkProfileCompletion();
       }
 
       // Mark OAuth processing as complete
@@ -1239,7 +1384,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       );
       isProcessingOAuth.current = false;
     }
-  }, [clerkAuth, clerkUser]);
+  }, [clerkAuth, clerkUser, checkProfileCompletion]);
 
   // Monitor Clerk auth state changes to detect OAuth completion
   useEffect(() => {
@@ -1318,6 +1463,11 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           await handleClerkOAuthCompletion();
         }
 
+        // Check profile completion after initialization
+        if (initialSession?.user && emailConfirmed) {
+          await checkProfileCompletion();
+        }
+
         console.log('🎉 Auth initialization complete!');
         setLoading(false);
       } catch (error) {
@@ -1385,7 +1535,8 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
           if (currentSession?.user) {
             // Check email confirmation status
-            setEmailConfirmed(!!currentSession.user.email_confirmed_at);
+            const isEmailConfirmed = !!currentSession.user.email_confirmed_at;
+            setEmailConfirmed(isEmailConfirmed);
 
             // Fetch or create user profile
             let profile = await fetchUserProfile(currentSession.user.id);
@@ -1397,9 +1548,18 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
               profile = await createUserProfile(currentSession.user);
             }
             setUserProfile(profile);
+
+            // Check profile completion after profile is loaded (for OAuth users)
+            if (isEmailConfirmed && clerkUser?.id) {
+              // Use setTimeout to ensure state is updated before checking
+              setTimeout(async () => {
+                await checkProfileCompletion();
+              }, 100);
+            }
           } else {
             setUserProfile(null);
             setEmailConfirmed(false);
+            setNeedsProfileCompletion(false);
           }
 
           setLoading(false);
@@ -1419,14 +1579,23 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         authSubscription.unsubscribe();
       }
     };
-  }, [clerkAuth, clerkUser, handleClerkOAuthCompletion]);
+  }, [clerkAuth, clerkUser, handleClerkOAuthCompletion, checkProfileCompletion, emailConfirmed]);
 
-  const refreshProfile = useCallback(async (): Promise<void> => {
-    if (user?.id) {
-      const profile = await fetchUserProfile(user.id);
-      setUserProfile(profile);
-    }
-  }, [user?.id]);
+  const refreshProfile = useCallback(
+    async (): Promise<void> => {
+      if (user?.id) {
+        const profile = await fetchUserProfile(user.id);
+        setUserProfile(profile);
+        // Check profile completion after refresh
+        await checkProfileCompletion();
+      }
+    },
+    [user?.id, checkProfileCompletion],
+  );
+
+  const clearOAuthError = useCallback(() => {
+    setOAuthError(null);
+  }, []);
 
   const value: AuthContextType = {
     session,
@@ -1434,6 +1603,8 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     userProfile,
     loading,
     emailConfirmed,
+    needsProfileCompletion,
+    oauthError,
     signIn,
     signUp,
     signOut,
@@ -1451,6 +1622,8 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     createImageGenerationEvent,
     signInWithGoogle,
     signInWithApple,
+    checkProfileCompletion,
+    clearOAuthError,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
