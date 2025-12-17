@@ -1083,14 +1083,14 @@ describe('Account Linking with Clerk', () => {
 
 **Implementation Steps:**
 
-- [ ] Identify potential account linking error scenarios
-- [ ] Create error message mapping for different error types
-- [ ] Handle email mismatch errors
-- [ ] Handle provider conflict errors
-- [ ] Handle database errors during linking
-- [ ] Display user-friendly error messages in UI
-- [ ] Log errors for debugging and monitoring
-- [ ] Provide fallback options (use email/password)
+- [x] Identify potential account linking error scenarios
+- [x] Create error message mapping for different error types
+- [x] Handle email mismatch errors
+- [x] Handle provider conflict errors
+- [x] Handle database errors during linking
+- [x] Display user-friendly error messages in UI
+- [x] Log errors for debugging and monitoring
+- [x] Provide fallback options (use email/password)
 - [ ] Test all error scenarios
 - [ ] Update error handling in OAuth service
 

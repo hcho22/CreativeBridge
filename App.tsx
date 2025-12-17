@@ -6,12 +6,14 @@ import {
   Text,
   Linking,
   AppState,
+  StyleSheet,
 } from 'react-native';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { AppNavigator } from './src/navigation';
 import { AuthScreen } from './src/screens';
 import ErrorBoundary from './src/components/common/ErrorBoundary';
 import { ConditionalClerkProvider } from './src/components/common/ConditionalClerkProvider';
+import { isClerkConfigured } from './src/config/environment';
 import { supabase } from './src/services/supabase';
 import {
   isClerkCallback,
@@ -35,18 +37,9 @@ if (__DEV__) {
 }
 
 const LoadingScreen: React.FC = () => (
-  <View
-    style={{
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: '#f0f2f5',
-    }}
-  >
+  <View style={styles.loadingContainer}>
     <ActivityIndicator size="large" color="#4CAF50" />
-    <Text style={{ marginTop: 16, fontSize: 16, color: '#666' }}>
-      Loading...
-    </Text>
+    <Text style={styles.loadingText}>Loading...</Text>
   </View>
 );
 
@@ -244,6 +237,9 @@ const MainApp: React.FC = () => {
 };
 
 const App: React.FC = () => {
+  // Check if Clerk is configured
+  const clerkConfigured = isClerkConfigured();
+
   return (
     <ErrorBoundary
       onError={(error, errorInfo) => {
@@ -253,14 +249,64 @@ const App: React.FC = () => {
         // Example: Sentry.captureException(error, { extra: errorInfo });
       }}
     >
-      <ConditionalClerkProvider>
-        <AuthProvider>
-          <StatusBar barStyle="light-content" backgroundColor="#4CAF50" />
-          <MainApp />
-        </AuthProvider>
-      </ConditionalClerkProvider>
+      {clerkConfigured ? (
+        // Clerk is configured - wrap with ConditionalClerkProvider which will render ClerkProvider
+        <ConditionalClerkProvider>
+          <AuthProvider>
+            <StatusBar barStyle="light-content" backgroundColor="#4CAF50" />
+            <MainApp />
+          </AuthProvider>
+        </ConditionalClerkProvider>
+      ) : (
+        // Clerk is not configured - show error message
+        // AuthProvider requires ClerkProvider, so we can't render it without Clerk
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorTitle}>
+            Clerk Authentication Not Configured
+          </Text>
+          <Text style={styles.errorText}>
+            Please set the following environment variables:{'\n\n'}•
+            CLERK_PUBLISHABLE_KEY{'\n'}• CLERK_JWKS_URL{'\n\n'}
+            The app requires Clerk to be configured to function properly.
+          </Text>
+        </View>
+      )}
     </ErrorBoundary>
   );
 };
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f0f2f5',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f0f2f5',
+    padding: 20,
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+});
 
 export default App;

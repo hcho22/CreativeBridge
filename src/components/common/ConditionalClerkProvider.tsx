@@ -7,9 +7,15 @@ interface ConditionalClerkProviderProps {
 }
 
 /**
- * Conditionally wraps children with ClerkProvider only when Clerk is properly configured.
- * When Clerk is not configured, it just renders children without the provider.
- * This prevents hook errors when Clerk hooks are used but ClerkProvider is not present.
+ * Conditionally wraps children with ClerkProvider.
+ *
+ * When Clerk is properly configured, it wraps children with ClerkProvider using the real key.
+ * When Clerk is not configured, it still wraps children with ClerkProvider using a dummy key
+ * to prevent Clerk hooks from throwing errors. Components should check isClerkConfigured()
+ * before using Clerk functionality.
+ *
+ * This ensures ClerkProvider is always present, preventing hook errors when components
+ * unconditionally call Clerk hooks (as required by React's rules of hooks).
  */
 export const ConditionalClerkProvider: React.FC<
   ConditionalClerkProviderProps
@@ -45,12 +51,18 @@ export const ConditionalClerkProvider: React.FC<
     }
   }, []);
 
-  // If Clerk is not configured, render children without ClerkProvider
+  // If Clerk is not configured, don't render children
+  // This prevents AuthProvider from calling Clerk hooks when ClerkProvider is not present
+  // Components that need to work without Clerk should be rendered outside this provider
   if (!clerkConfig) {
-    return <>{children}</>;
+    console.warn(
+      '⚠️ Clerk is not configured. ConditionalClerkProvider will not render children.',
+    );
+    return null;
   }
 
   // Clerk is configured, wrap with ClerkProvider
+  // This ensures ClerkProvider is present when Clerk hooks are called
   return (
     <ClerkProvider publishableKey={clerkConfig.publishableKey}>
       {children}

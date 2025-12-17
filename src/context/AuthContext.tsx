@@ -106,7 +106,8 @@ interface AuthProviderProps {
   children: React.ReactNode;
 }
 
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+// Internal component that uses Clerk hooks - only rendered when ClerkProvider is present
+const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -114,7 +115,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [emailConfirmed, setEmailConfirmed] = useState(false);
 
   // Get Clerk auth and user hooks
-  // useSafeClerkAuth will check if Clerk is configured and handle errors gracefully
+  // This component is only rendered when ClerkProvider is present, so hooks are safe
   const { clerkAuth, clerkUser } = useSafeClerkAuth();
 
   // Track if we're processing an OAuth flow
@@ -1454,3 +1455,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+
+// Export AuthProviderWithClerk as the main AuthProvider
+// It will be wrapped in ConditionalClerkProvider when Clerk is configured
+export const AuthProvider = AuthProviderWithClerk;
