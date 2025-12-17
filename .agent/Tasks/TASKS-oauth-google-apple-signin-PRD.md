@@ -795,17 +795,17 @@ describe('AuthContext Apple OAuth', () => {
 
 **Implementation Steps:**
 
-- [ ] Create `src/components/auth/AppleSignInButton.tsx`
-- [ ] Design button matching existing design system
-- [ ] Add Apple logo/icon on left side
-- [ ] Add "Continue with Apple" text
-- [ ] Style button (white background, supports dark mode)
-- [ ] Add loading state indicator
-- [ ] Add disabled state during authentication
-- [ ] Connect button to `signInWithApple()` from AuthContext
-- [ ] Handle button press and initiate OAuth flow
-- [ ] Add error handling and user feedback
-- [ ] Make button accessible (accessibility labels)
+- [x] Create `src/components/auth/AppleSignInButton.tsx`
+- [x] Design button matching existing design system
+- [x] Add Apple logo/icon on left side
+- [x] Add "Continue with Apple" text
+- [x] Style button (white background, supports dark mode)
+- [x] Add loading state indicator
+- [x] Add disabled state during authentication
+- [x] Connect button to `signInWithApple()` from AuthContext
+- [x] Handle button press and initiate OAuth flow
+- [x] Add error handling and user feedback
+- [x] Make button accessible (accessibility labels)
 
 **Verification Test:**
 
@@ -877,16 +877,16 @@ describe('AppleSignInButton', () => {
 
 **Implementation Steps:**
 
-- [ ] Open `src/screens/AuthScreen.tsx`
-- [ ] Import `AppleSignInButton` component
-- [ ] Add Apple button below Google button
-- [ ] Maintain consistent spacing between OAuth buttons
-- [ ] Connect button to authentication flow
-- [ ] Handle OAuth success and navigate to app
-- [ ] Handle OAuth errors and show user-friendly messages
-- [ ] Ensure button works in both login and signup modes
-- [ ] Test button placement and styling
-- [ ] Verify button order (Google first, Apple second)
+- [x] Open `src/screens/AuthScreen.tsx`
+- [x] Import `AppleSignInButton` component
+- [x] Add Apple button below Google button
+- [x] Maintain consistent spacing between OAuth buttons
+- [x] Connect button to authentication flow
+- [x] Handle OAuth success and navigate to app
+- [x] Handle OAuth errors and show user-friendly messages
+- [x] Ensure button works in both login and signup modes
+- [x] Test button placement and styling
+- [x] Verify button order (Google first, Apple second)
 
 **Verification Test:**
 
@@ -973,16 +973,16 @@ describe('AuthScreen Apple Integration', () => {
 
 **Implementation Steps:**
 
-- [ ] Review Clerk's account linking capabilities (automatic email matching)
-- [ ] Clerk automatically handles email matching (case-insensitive)
-- [ ] Clerk automatically links OAuth providers to existing accounts
-- [ ] After Clerk authentication, sync user data to Supabase using Clerk user ID
-- [ ] Handle multiple provider linking (Google + Apple) - Clerk handles this automatically
-- [ ] Store Clerk user ID in Supabase `user_profiles` table
-- [ ] Handle account linking errors gracefully (Clerk provides error messages)
-- [ ] Add logging for account linking attempts
-- [ ] Test account linking with email/password accounts (via Clerk)
-- [ ] Test account linking with existing OAuth accounts (via Clerk)
+- [x] Review Clerk's account linking capabilities (automatic email matching)
+- [x] Clerk automatically handles email matching (case-insensitive)
+- [x] Clerk automatically links OAuth providers to existing accounts
+- [x] After Clerk authentication, sync user data to Supabase using Clerk user ID
+- [x] Handle multiple provider linking (Google + Apple) - Clerk handles this automatically
+- [x] Store Clerk user ID in Supabase `user_profiles` table
+- [x] Handle account linking errors gracefully (Clerk provides error messages)
+- [x] Add logging for account linking attempts
+- [x] Test account linking with email/password accounts (via Clerk)
+- [x] Test account linking with existing OAuth accounts (via Clerk)
 
 **Verification Test:**
 

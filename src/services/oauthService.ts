@@ -24,6 +24,11 @@ export interface OAuthResult {
   userEmail?: string;
   clerkUserId?: string;
   error?: string;
+  errorType?:
+    | 'ACCOUNT_LINKING_CONFLICT'
+    | 'DATABASE_ERROR'
+    | 'EMAIL_MISMATCH'
+    | 'UNKNOWN';
 }
 
 /**
@@ -304,27 +309,7 @@ export async function completeOAuthFlow(
 
     console.log('✅ [OAuth Service] Clerk JWT retrieved successfully');
 
-    // Send Clerk JWT to Supabase for verification
-    console.log(
-      '🔄 [OAuth Service] Sending Clerk JWT to Supabase for verification...',
-    );
-    const supabaseResult = await createSupabaseSessionFromClerkJWT(clerkJWT);
-
-    if (!supabaseResult.success) {
-      const error =
-        supabaseResult.error ||
-        'Failed to create Supabase session from Clerk JWT';
-      console.error('❌ [OAuth Service]', error);
-      return {
-        success: false,
-        error,
-        jwt: clerkJWT, // Still return JWT even if Supabase sync fails
-      };
-    }
-
-    console.log('✅ [OAuth Service] Supabase session created successfully');
-
-    // Extract user email from Clerk user object
+    // Extract user email from Clerk user object (before Supabase sync for account linking)
     // Note: For Apple OAuth, this may be a private relay email (e.g., privaterelay@icloud.com)
     // Clerk handles Apple's email privacy feature automatically and provides the email
     // (whether real or private relay) in the user object
@@ -355,6 +340,49 @@ export async function completeOAuthFlow(
         '⚠️ [OAuth Service] Email will not be available until user object is provided',
       );
     }
+
+    // Send Clerk JWT to Supabase for verification (with email for account linking)
+    console.log(
+      '🔄 [OAuth Service] Sending Clerk JWT to Supabase for verification and account linking...',
+    );
+    const supabaseResult = await createSupabaseSessionFromClerkJWT(
+      clerkJWT,
+      userEmail,
+    );
+
+    if (!supabaseResult.success) {
+      const error =
+        supabaseResult.error ||
+        'Failed to create Supabase session from Clerk JWT';
+      const errorType = supabaseResult.errorType || 'UNKNOWN';
+
+      console.error('❌ [OAuth Service] Account linking/sync failed:', error);
+      console.error('❌ [OAuth Service] Error type:', errorType);
+
+      // Log account linking errors for monitoring
+      const errorContext = {
+        errorType,
+        errorMessage: error,
+        clerkUserId: clerkUser?.id || clerkAuth.userId || 'unknown',
+        userEmail: userEmail || 'not provided',
+        timestamp: new Date().toISOString(),
+      };
+      console.error(
+        '📊 [OAuth Service] Account linking error context:',
+        errorContext,
+      );
+
+      // Return error with type for better error handling in UI
+      // The error handler will use the error type to provide appropriate user messages
+      return {
+        success: false,
+        error: error, // Error message that will be processed by error handler
+        errorType, // Additional context for error handling
+        jwt: clerkJWT, // Still return JWT even if Supabase sync fails
+      };
+    }
+
+    console.log('✅ [OAuth Service] Supabase session created successfully');
 
     // Extract Clerk user ID
     const clerkUserId = clerkUser?.id || clerkAuth.userId || undefined;

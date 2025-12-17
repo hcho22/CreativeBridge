@@ -82,6 +82,24 @@ const OAUTH_ERROR_CODES = {
     'account_exists',
     'email_mismatch',
     'account_linking_failed',
+    'profile is already linked',
+    'already linked to a different',
+    'clerk account',
+    'different clerk account',
+    'account conflict',
+    'linking conflict',
+  ],
+
+  // Database errors during account linking
+  DATABASE_ERROR: [
+    'database_error',
+    'database_failed',
+    'failed to update profile',
+    'failed to link',
+    'pg_error',
+    'postgres_error',
+    'constraint violation',
+    'unique constraint',
   ],
 };
 
@@ -165,6 +183,33 @@ export function handleOAuthError(
 
   // Account linking errors - not retryable, specific message
   if (matchesErrorPattern(error, OAUTH_ERROR_CODES.ACCOUNT_ERROR)) {
+    // Profile already linked to different Clerk account
+    if (
+      errorString.includes('already linked') ||
+      errorString.includes('different clerk') ||
+      errorString.includes('account conflict')
+    ) {
+      return {
+        shouldShowError: true,
+        userMessage:
+          'This account is already linked to a different sign-in method. Please use your original sign-in method or contact support.',
+        fallbackAvailable: true,
+        canRetry: false,
+      };
+    }
+
+    // Email mismatch errors
+    if (errorString.includes('email') && errorString.includes('mismatch')) {
+      return {
+        shouldShowError: true,
+        userMessage:
+          'The email address does not match your account. Please sign in with the email address associated with your account.',
+        fallbackAvailable: true,
+        canRetry: false,
+      };
+    }
+
+    // Email already exists (but different account)
     if (errorString.includes('email') && errorString.includes('already')) {
       return {
         shouldShowError: true,
@@ -175,15 +220,53 @@ export function handleOAuthError(
       };
     }
 
+    // General account linking failure
     if (errorString.includes('linking')) {
       return {
         shouldShowError: true,
         userMessage:
-          'Unable to link account. Please contact support if this issue persists.',
+          'Unable to link your account. Please try signing in with your email and password, or contact support if this issue persists.',
         fallbackAvailable: true,
         canRetry: false,
       };
     }
+
+    // Default account error
+    return {
+      shouldShowError: true,
+      userMessage:
+        'There was an issue linking your account. Please sign in with your email and password instead.',
+      fallbackAvailable: true,
+      canRetry: false,
+    };
+  }
+
+  // Database errors during account linking
+  if (matchesErrorPattern(error, OAUTH_ERROR_CODES.DATABASE_ERROR)) {
+    // Check if it's a constraint violation (e.g., unique constraint on clerk_user_id)
+    if (
+      errorString.includes('constraint') ||
+      errorString.includes('unique') ||
+      errorString.includes('duplicate')
+    ) {
+      return {
+        shouldShowError: true,
+        userMessage:
+          'This account is already linked. Please sign in with your existing account.',
+        fallbackAvailable: true,
+        canRetry: false,
+      };
+    }
+
+    // General database error
+    return {
+      shouldShowError: true,
+      userMessage:
+        'Unable to save account information. Please try again or use email and password to sign in.',
+      fallbackAvailable: true,
+      canRetry: attemptNumber < 2, // Allow one retry for database errors
+      retryDelay: 2000,
+    };
   }
 
   // Provider errors - retryable with delay

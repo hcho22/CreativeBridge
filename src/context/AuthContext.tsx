@@ -1114,11 +1114,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       );
 
       if (!oauthResult.success) {
+        const errorMessage =
+          oauthResult.error || 'Unknown error during OAuth completion';
+        const errorType = oauthResult.errorType || 'UNKNOWN';
+
         console.error(
           '❌ [AuthContext] Failed to complete OAuth flow:',
-          oauthResult.error,
+          errorMessage,
         );
+        console.error('❌ [AuthContext] Error type:', errorType);
+
+        // Log account linking errors for monitoring
+        if (
+          errorType === 'ACCOUNT_LINKING_CONFLICT' ||
+          errorType === 'DATABASE_ERROR'
+        ) {
+          console.error(
+            '⚠️ [AuthContext] Account linking error detected - user will see error message',
+          );
+          const errorContext = {
+            errorType,
+            errorMessage,
+            clerkUserId:
+              clerkUserData?.id || clerkAuthMethods.userId || 'unknown',
+            timestamp: new Date().toISOString(),
+          };
+          console.error(
+            '📊 [AuthContext] Account linking error context for monitoring:',
+            errorContext,
+          );
+        }
+
         isProcessingOAuth.current = false;
+        // Note: Error is returned to the caller (OAuth button components)
+        // which will handle displaying user-friendly error messages
         return;
       }
 
@@ -1154,26 +1183,48 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       // Update user profile if available
+      // Note: Account linking is handled automatically by syncClerkUserIdToProfile
+      // which checks for existing Supabase profiles and links them to the Clerk user ID
       if (oauthResult.clerkUserId) {
         console.log(
           '👤 [AuthContext] Looking up user profile with Clerk user ID:',
           oauthResult.clerkUserId,
         );
+        console.log(
+          '🔗 [AuthContext] Account linking was handled during OAuth completion',
+        );
 
-        // Find or create profile with Clerk user ID
-        const { data: profile } = await supabase
+        // Find profile with Clerk user ID (account linking should have already happened)
+        const { data: profile, error: profileError } = await supabase
           .from('user_profiles')
           .select('*')
           .eq('clerk_user_id', oauthResult.clerkUserId)
           .single();
 
+        if (profileError && profileError.code !== 'PGRST116') {
+          // PGRST116 is "not found" - that's okay, profile will be created
+          console.error(
+            '❌ [AuthContext] Error finding profile:',
+            profileError.message,
+          );
+        }
+
         if (profile) {
           console.log('✅ [AuthContext] User profile found and loaded');
+          console.log(
+            '✅ [AuthContext] Profile ID:',
+            profile.id,
+            'Username:',
+            profile.username,
+          );
           setUserProfile(profile);
         } else {
           // Profile will be created during profile completion (Task 5.1)
           console.log(
-            '📋 [AuthContext] Profile will be created during profile completion',
+            '📋 [AuthContext] Profile not found. Will be created during profile completion',
+          );
+          console.log(
+            'ℹ️ [AuthContext] This is normal for new OAuth users or if account linking did not find a matching profile',
           );
         }
       }
