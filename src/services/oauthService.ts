@@ -34,12 +34,10 @@ export interface OAuthResult {
 /**
  * Clerk auth methods interface
  * These methods come from Clerk's useAuth() hook
+ * Note: OAuth sign-in is now handled via useSSO() hook directly in AuthContext
+ * This interface is used for post-OAuth operations like getting tokens
  */
 export interface ClerkAuthMethods {
-  signInWithOAuth: (params: {
-    strategy: 'oauth_google' | 'oauth_apple';
-    redirectUrl?: string;
-  }) => Promise<void>;
   getToken: () => Promise<string | null>;
   userId?: string | null;
   isSignedIn?: boolean;
@@ -58,215 +56,82 @@ export interface ClerkUser {
 /**
  * Sign in with Google OAuth using Clerk
  *
- * @param clerkAuth Clerk auth methods from useAuth() hook
- * @param clerkUser Optional Clerk user object from useUser() hook
- * @returns OAuth result with JWT and Supabase session
+ * @deprecated OAuth sign-in is now handled directly in AuthContext using useSSO() hook.
+ * This function is kept for backward compatibility but should not be called.
+ * Use the signInWithGoogle method from AuthContext instead.
+ *
+ * @param _clerkAuth Clerk auth methods (no longer used)
+ * @param _clerkUser Optional Clerk user object (no longer used)
+ * @returns OAuth result indicating this function is deprecated
  */
 export async function signInWithGoogle(
-  clerkAuth: ClerkAuthMethods,
+  _clerkAuth: ClerkAuthMethods,
   _clerkUser?: ClerkUser | null,
 ): Promise<OAuthResult> {
-  try {
-    console.log(
-      '🔐 [OAuth Service] Initiating Google OAuth sign-in via Clerk...',
-    );
+  console.warn(
+    '⚠️ [OAuth Service] signInWithGoogle is deprecated. OAuth is now handled directly in AuthContext using useSSO() hook.',
+  );
 
-    // Check if Clerk is configured
-    if (!isClerkConfigured()) {
-      const error =
-        'Clerk is not configured. Please set CLERK_PUBLISHABLE_KEY and CLERK_JWKS_URL.';
-      console.error('❌ [OAuth Service]', error);
-      return {
-        success: false,
-        error,
-      };
-    }
-
-    // Use Clerk's OAuth sign-in
-    // Note: Clerk's signInWithOAuth opens the OAuth provider in a browser/webview
-    // The OAuth callback is handled via deep linking (creativebridge://auth/callback)
-    // After the callback, Clerk automatically completes the authentication
-    console.log(
-      '📋 [OAuth Service] Calling Clerk signInWithOAuth with strategy: oauth_google',
-    );
-    await clerkAuth.signInWithOAuth({
-      strategy: 'oauth_google',
-      redirectUrl: 'creativebridge://auth/callback',
-    });
-
-    console.log(
-      '🌐 [OAuth Service] OAuth flow initiated, waiting for callback via deep linking...',
-    );
-    console.log(
-      '📱 [OAuth Service] OAuth callback will be handled automatically by Clerk via deep link',
-    );
-
-    // Clerk's signInWithOAuth opens the OAuth provider and handles the callback automatically
-    // After the callback completes, the user will be signed in to Clerk
-    // We need to wait for the OAuth callback to complete before getting the JWT
-    // The callback is handled via deep linking in App.tsx
-
-    // For now, return success - the actual JWT retrieval and Supabase sync
-    // should happen after the OAuth callback completes (handled in AuthContext)
-    // This allows the OAuth flow to complete asynchronously via deep linking
-    return {
-      success: true,
-      // JWT and session will be available after OAuth callback completes
-      // The caller should check auth state after OAuth callback
-    };
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error
-        ? error.message
-        : 'An unexpected error occurred during Google OAuth';
-    console.error(
-      '💥 [OAuth Service] Unexpected error during Google sign-in:',
-      errorMessage,
-    );
-    console.error('💥 [OAuth Service] Error details:', error);
-
+  // Check if Clerk is configured
+  if (!isClerkConfigured()) {
+    const error =
+      'Clerk is not configured. Please set CLERK_PUBLISHABLE_KEY and CLERK_JWKS_URL.';
+    console.error('❌ [OAuth Service]', error);
     return {
       success: false,
-      error: errorMessage,
+      error,
     };
   }
+
+  // This function is deprecated - OAuth is now handled in AuthContext
+  return {
+    success: false,
+    error:
+      'This function is deprecated. Use AuthContext.signInWithGoogle() instead.',
+  };
 }
 
 /**
  * Sign in with Apple OAuth using Clerk
  *
- * Apple OAuth has several unique characteristics that Clerk handles automatically:
- * 1. Private Relay Email: Apple may provide a private relay email (e.g., privaterelay@icloud.com)
- *    instead of the user's real email. Clerk handles this transparently and provides the email
- *    address in the Clerk user object, whether it's a real email or a private relay.
- * 2. Platform-Specific Implementation:
- *    - iOS: Clerk uses native Apple Sign In (ASWebAuthenticationSession) for better UX
- *    - Android: Clerk uses web-based OAuth flow (browser/webview)
- *    Clerk automatically selects the appropriate method based on the platform.
- * 3. Email Privacy: Users can choose to hide their email, in which case Apple provides
- *    a private relay email. Clerk stores this email and we can use it for account identification.
+ * @deprecated OAuth sign-in is now handled directly in AuthContext using useSSO() hook.
+ * This function is kept for backward compatibility but should not be called.
+ * Use the signInWithApple method from AuthContext instead.
  *
- * @param clerkAuth Clerk auth methods from useAuth() hook
- * @param clerkUser Optional Clerk user object from useUser() hook
- * @returns OAuth result with JWT and Supabase session
+ * Apple OAuth characteristics (handled by AuthContext):
+ * 1. Private Relay Email: Apple may provide a private relay email
+ * 2. Platform-Specific: iOS uses native Apple Sign In, Android uses web-based OAuth
+ * 3. Email Privacy: Users can choose to hide their email
+ *
+ * @param _clerkAuth Clerk auth methods (no longer used)
+ * @param _clerkUser Optional Clerk user object (no longer used)
+ * @returns OAuth result indicating this function is deprecated
  */
 export async function signInWithApple(
-  clerkAuth: ClerkAuthMethods,
+  _clerkAuth: ClerkAuthMethods,
   _clerkUser?: ClerkUser | null,
 ): Promise<OAuthResult> {
-  try {
-    console.log(
-      '🍎 [OAuth Service] Initiating Apple OAuth sign-in via Clerk...',
-    );
+  console.warn(
+    '⚠️ [OAuth Service] signInWithApple is deprecated. OAuth is now handled directly in AuthContext using useSSO() hook.',
+  );
 
-    // Check if Clerk is configured
-    if (!isClerkConfigured()) {
-      const error =
-        'Clerk is not configured. Please set CLERK_PUBLISHABLE_KEY and CLERK_JWKS_URL.';
-      console.error('❌ [OAuth Service]', error);
-      return {
-        success: false,
-        error,
-      };
-    }
-
-    // Use Clerk's OAuth sign-in with Apple strategy
-    // Platform-specific behavior (handled automatically by Clerk):
-    // - iOS: Uses native Apple Sign In (ASWebAuthenticationSession) for seamless UX
-    // - Android: Uses web-based OAuth flow in browser/webview
-    // Clerk automatically detects the platform and uses the appropriate method
-    console.log(
-      '📋 [OAuth Service] Calling Clerk signInWithOAuth with strategy: oauth_apple',
-    );
-    console.log(
-      '📱 [OAuth Service] Platform-specific handling: Clerk will use native Apple Sign In on iOS, web OAuth on Android',
-    );
-
-    await clerkAuth.signInWithOAuth({
-      strategy: 'oauth_apple',
-      redirectUrl: 'creativebridge://auth/callback',
-    });
-
-    console.log(
-      '🌐 [OAuth Service] Apple OAuth flow initiated, waiting for callback via deep linking...',
-    );
-    console.log(
-      '📱 [OAuth Service] OAuth callback will be handled automatically by Clerk via deep link',
-    );
-    console.log(
-      '🍎 [OAuth Service] Note: Apple may provide a private relay email - Clerk handles this automatically',
-    );
-
-    // Clerk's signInWithOAuth opens the OAuth provider and handles the callback automatically
-    // After the callback completes, the user will be signed in to Clerk
-    // We need to wait for the OAuth callback to complete before getting the JWT
-    // The callback is handled via deep linking in App.tsx
-    //
-    // Apple-specific considerations:
-    // - If user chooses to hide email, Apple provides a private relay email
-    // - Clerk stores this email in the user object (emailAddresses array)
-    // - We can use this email for account identification (it's stable per user)
-    // - The email will be available in clerkUser.emailAddresses after authentication
-
-    // For now, return success - the actual JWT retrieval and Supabase sync
-    // should happen after the OAuth callback completes (handled in AuthContext)
-    // This allows the OAuth flow to complete asynchronously via deep linking
-    return {
-      success: true,
-      // JWT and session will be available after OAuth callback completes
-      // The caller should check auth state after OAuth callback
-      // Note: User email (including private relay) will be available in Clerk user object
-    };
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error
-        ? error.message
-        : 'An unexpected error occurred during Apple OAuth';
-    console.error(
-      '💥 [OAuth Service] Unexpected error during Apple sign-in:',
-      errorMessage,
-    );
-    console.error('💥 [OAuth Service] Error details:', error);
-
-    // Handle specific Apple OAuth errors
-    if (error instanceof Error) {
-      // User cancellation (common on Apple Sign In)
-      if (
-        error.message.includes('cancel') ||
-        error.message.includes('dismissed') ||
-        error.message.includes('user_cancelled')
-      ) {
-        console.log(
-          'ℹ️ [OAuth Service] Apple sign-in was cancelled by user (silent return)',
-        );
-        // Return success: false but don't show error to user (handled in UI)
-        return {
-          success: false,
-          error: 'User cancelled Apple sign-in',
-        };
-      }
-
-      // Network errors
-      if (
-        error.message.includes('network') ||
-        error.message.includes('connection')
-      ) {
-        console.error(
-          '🌐 [OAuth Service] Network error during Apple sign-in',
-          error.message,
-        );
-        return {
-          success: false,
-          error: 'Network error. Please check your connection and try again.',
-        };
-      }
-    }
-
+  // Check if Clerk is configured
+  if (!isClerkConfigured()) {
+    const error =
+      'Clerk is not configured. Please set CLERK_PUBLISHABLE_KEY and CLERK_JWKS_URL.';
+    console.error('❌ [OAuth Service]', error);
     return {
       success: false,
-      error: errorMessage,
+      error,
     };
   }
+
+  // This function is deprecated - OAuth is now handled in AuthContext
+  return {
+    success: false,
+    error:
+      'This function is deprecated. Use AuthContext.signInWithApple() instead.',
+  };
 }
 
 /**

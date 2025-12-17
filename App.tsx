@@ -19,6 +19,7 @@ import {
   handleClerkCallback,
 } from './src/utils/clerkDeepLink';
 import { useSafeClerkAuth } from './src/hooks/useSafeClerkAuth';
+import { supabase } from './src/services/supabase';
 
 // Import expo-web-browser with error handling for native module linking
 let WebBrowser: any = null;
@@ -102,18 +103,26 @@ const MainApp: React.FC = () => {
           if (result.error) {
             console.error('❌ [App] Clerk OAuth callback error:', result.error);
             if (result.errorDescription) {
-              console.error('❌ [App] Error description:', result.errorDescription);
+              console.error(
+                '❌ [App] Error description:',
+                result.errorDescription,
+              );
             }
 
             // Handle specific error types
-            if (result.error === 'access_denied' || result.error === 'user_cancelled') {
+            if (
+              result.error === 'access_denied' ||
+              result.error === 'user_cancelled'
+            ) {
               console.log('ℹ️ [App] User cancelled OAuth flow (silent return)');
               // Don't show error to user for cancellation
               return;
             }
 
             // For other errors, log them but don't crash
-            console.error('❌ [App] OAuth error will be handled by AuthContext');
+            console.error(
+              '❌ [App] OAuth error will be handled by AuthContext',
+            );
             return;
           }
 
@@ -301,8 +310,37 @@ const MainApp: React.FC = () => {
     return <LoadingScreen />;
   }
 
-  // Show auth screen if no session OR if user exists but email is not confirmed
-  if (!session || (session.user && !emailConfirmed)) {
+  // Debug auth state
+  console.log('🔍 [App] Auth state check:', {
+    hasSession: !!session,
+    emailConfirmed,
+    clerkIsSignedIn: clerkAuth?.isSignedIn,
+    clerkUserId: clerkAuth?.userId,
+    hasClerkUser: !!clerkUser,
+  });
+
+  // Show auth screen if:
+  // 1. No Supabase session AND no Clerk session (not authenticated at all)
+  // 2. OR if Supabase user exists but email is not confirmed (and not an OAuth user)
+  const isClerkAuthenticated = clerkAuth?.isSignedIn === true;
+  const isSupabaseAuthenticated = !!session;
+  const isAuthenticated = isClerkAuthenticated || isSupabaseAuthenticated;
+
+  // For OAuth users (Clerk), email is always confirmed
+  // For email/password users (Supabase), check emailConfirmed state
+  const needsEmailConfirmation =
+    isSupabaseAuthenticated &&
+    session?.user &&
+    !emailConfirmed &&
+    !isClerkAuthenticated;
+
+  if (!isAuthenticated || needsEmailConfirmation) {
+    console.log('🔍 [App] Showing auth screen:', {
+      isAuthenticated,
+      needsEmailConfirmation,
+      isClerkAuthenticated,
+      isSupabaseAuthenticated,
+    });
     return <AuthScreen />;
   }
 

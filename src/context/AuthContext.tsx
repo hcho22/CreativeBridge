@@ -11,8 +11,6 @@ import AsyncStorage from '../utils/asyncStorageWrapper';
 import { supabase } from '../services/supabase';
 import { useSafeClerkAuth } from '../hooks/useSafeClerkAuth';
 import {
-  signInWithGoogle as clerkSignInWithGoogle,
-  signInWithApple as clerkSignInWithApple,
   completeOAuthFlow,
   type ClerkAuthMethods,
   type ClerkUser,
@@ -122,7 +120,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Get Clerk auth and user hooks
   // This component is only rendered when ClerkProvider is present, so hooks are safe
-  const { clerkAuth, clerkUser } = useSafeClerkAuth();
+  const { clerkAuth, clerkUser, clerkSSO } = useSafeClerkAuth();
 
   // Track if we're processing an OAuth flow
   const isProcessingOAuth = useRef(false);
@@ -415,16 +413,29 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       // Check if remember me is enabled before signing out
       const rememberMeData = await RememberMeStorage.getRememberMe();
 
-      // Clear local state immediately (before Supabase signOut)
+      // Clear local state immediately (before signouts)
       console.log('🧹 Clearing local state...');
       setLoading(true); // Show loading during logout
       setSession(null);
       setUser(null);
       setUserProfile(null);
       setEmailConfirmed(false);
+      setNeedsProfileCompletion(false);
 
       // Clear all app-related AsyncStorage data
       await clearAllAppData(rememberMeData?.isEnabled);
+
+      // Sign out from Clerk (for OAuth users)
+      if (clerkAuth?.isSignedIn) {
+        console.log('🔐 Signing out from Clerk...');
+        try {
+          await clerkAuth.signOut();
+          console.log('✅ Signed out from Clerk successfully');
+        } catch (clerkError) {
+          console.error('❌ Error signing out from Clerk:', clerkError);
+          // Continue with Supabase signout even if Clerk fails
+        }
+      }
 
       // Sign out from Supabase (this will trigger the auth state change listener)
       console.log('🔐 Signing out from Supabase...');
@@ -442,12 +453,13 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('❌ Error signing out:', error);
 
-      // Force clear state even if Supabase signout fails
+      // Force clear state even if signout fails
       console.log('🆘 Forcing logout state clear...');
       setSession(null);
       setUser(null);
       setUserProfile(null);
       setEmailConfirmed(false);
+      setNeedsProfileCompletion(false);
       setLoading(false);
 
       // Still try to clear app data
@@ -460,11 +472,27 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         );
       }
 
-      // Force sign out even if there's an error
+      // Force sign out from Clerk even if there's an error
+      if (clerkAuth?.isSignedIn) {
+        try {
+          await clerkAuth.signOut();
+          console.log('✅ Force signed out from Clerk');
+        } catch (clerkForceError) {
+          console.error(
+            '❌ Force Clerk sign out also failed:',
+            clerkForceError,
+          );
+        }
+      }
+
+      // Force sign out from Supabase even if there's an error
       try {
         await supabase.auth.signOut();
       } catch (forceSignOutError) {
-        console.error('❌ Force sign out also failed:', forceSignOutError);
+        console.error(
+          '❌ Force Supabase sign out also failed:',
+          forceSignOutError,
+        );
       }
     }
   };
@@ -728,8 +756,8 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         '🔐 [AuthContext] Initiating Google OAuth sign-in via Clerk...',
       );
 
-      // Check if Clerk is available
-      if (!clerkAuth) {
+      // Check if Clerk SSO is available
+      if (!clerkSSO) {
         const error =
           'Clerk is not configured or not available. Please configure Clerk to use OAuth.';
         console.error('❌ [AuthContext]', error);
@@ -739,61 +767,103 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       // Mark that we're processing OAuth
       isProcessingOAuth.current = true;
 
-      // Convert Clerk auth to the interface expected by oauthService
-      const clerkAuthMethods: ClerkAuthMethods = {
-        signInWithOAuth: clerkAuth.signInWithOAuth.bind(clerkAuth),
-        getToken: clerkAuth.getToken.bind(clerkAuth),
-        userId: clerkAuth.userId,
-        isSignedIn: clerkAuth.isSignedIn,
-      };
-
-      // Convert Clerk user to the interface expected by oauthService
-      const clerkUserData: ClerkUser | null = clerkUser
-        ? {
-            id: clerkUser.id,
-            emailAddresses: clerkUser.emailAddresses || [],
-            firstName: clerkUser.firstName,
-            lastName: clerkUser.lastName,
-          }
-        : null;
-
-      // Initiate OAuth flow via Clerk
-      const oauthResult = await clerkSignInWithGoogle(
-        clerkAuthMethods,
-        clerkUserData,
+      // Use Clerk's useSSO hook to start OAuth flow
+      console.log(
+        '📋 [AuthContext] Calling Clerk startSSOFlow with strategy: oauth_google',
       );
+      const result = await clerkSSO.startSSOFlow({
+        strategy: 'oauth_google',
+        redirectUrl: 'creativebridge://auth/callback',
+      });
 
-      if (!oauthResult.success) {
+      console.log('🔄 [AuthContext] OAuth flow result:', {
+        createdSessionId: result.createdSessionId,
+        authSessionResult: result.authSessionResult?.type,
+      });
+
+      // Check if user cancelled the OAuth flow
+      if (
+        result.authSessionResult?.type === 'cancel' ||
+        result.authSessionResult?.type === 'dismiss'
+      ) {
         isProcessingOAuth.current = false;
-        console.error(
-          '❌ [AuthContext] OAuth initiation failed:',
-          oauthResult.error,
-        );
-        return {
-          error: oauthResult.error || 'Failed to initiate Google sign-in',
-        };
+        console.log('ℹ️ [AuthContext] Google sign-in was cancelled by user');
+        return {}; // Silent return for user cancellation
       }
 
-      console.log('✅ [AuthContext] Google OAuth flow initiated successfully');
-      console.log(
-        '📱 [AuthContext] Waiting for OAuth callback via deep linking...',
-      );
+      // If we got a session, activate it
+      if (result.createdSessionId && result.setActive) {
+        console.log(
+          '✅ [AuthContext] Google OAuth successful, activating session...',
+        );
+        await result.setActive({ session: result.createdSessionId });
+        console.log('✅ [AuthContext] Session activated successfully');
+      }
 
-      // OAuth flow is now in progress
-      // The callback will be handled via deep linking in App.tsx
-      // After the callback, Clerk will have the user signed in
-      // We'll complete the flow when we detect Clerk auth state change
+      // Sync with Supabase after successful OAuth
+      const syncResult = await syncClerkWithSupabase();
+      if (!syncResult.success) {
+        console.warn(
+          '⚠️ [AuthContext] OAuth succeeded but Supabase sync failed:',
+          syncResult.error,
+        );
+      }
 
-      // Return success - the actual completion will happen after OAuth callback
+      console.log('✅ [AuthContext] Google OAuth flow completed successfully');
+
+      // Return success - the auth state change listener will handle the rest
       return {};
     } catch (error) {
       isProcessingOAuth.current = false;
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      console.log(
+        '🔍 [AuthContext] Google sign-in caught error:',
+        errorMessage,
+      );
+
+      // Handle "already signed in" error - this means OAuth succeeded previously
+      // but Supabase wasn't synced. Try to sync now.
+      const isAlreadySignedIn = errorMessage
+        .toLowerCase()
+        .includes('already signed in');
+      console.log(
+        '🔍 [AuthContext] Is already signed in error?',
+        isAlreadySignedIn,
+      );
+
+      if (isAlreadySignedIn) {
+        console.log(
+          '🔄 [AuthContext] User already signed in with Clerk, attempting to sync with Supabase...',
+        );
+        try {
+          const syncResult = await syncClerkWithSupabase();
+          console.log('🔍 [AuthContext] Sync result:', syncResult);
+          if (syncResult.success) {
+            console.log(
+              '✅ [AuthContext] Synced existing Clerk session with Supabase',
+            );
+            return {}; // Success - user is now fully authenticated
+          } else {
+            console.error(
+              '❌ [AuthContext] Failed to sync existing Clerk session:',
+              syncResult.error,
+            );
+            return {
+              error: syncResult.error || 'Failed to sync authentication',
+            };
+          }
+        } catch (syncError) {
+          console.error('💥 [AuthContext] Error during sync:', syncError);
+          return { error: 'Failed to sync authentication' };
+        }
+      }
+
       console.error(
         '💥 [AuthContext] Unexpected error during Google sign-in:',
         error,
       );
-      const errorMessage =
-        error instanceof Error ? error.message : 'An unexpected error occurred';
       return { error: errorMessage };
     }
   };
@@ -804,8 +874,8 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         '🍎 [AuthContext] Initiating Apple OAuth sign-in via Clerk...',
       );
 
-      // Check if Clerk is available
-      if (!clerkAuth) {
+      // Check if Clerk SSO is available
+      if (!clerkSSO) {
         const error =
           'Clerk is not configured or not available. Please configure Clerk to use OAuth.';
         console.error('❌ [AuthContext]', error);
@@ -815,81 +885,107 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       // Mark that we're processing OAuth
       isProcessingOAuth.current = true;
 
-      // Convert Clerk auth to the interface expected by oauthService
-      const clerkAuthMethods: ClerkAuthMethods = {
-        signInWithOAuth: clerkAuth.signInWithOAuth.bind(clerkAuth),
-        getToken: clerkAuth.getToken.bind(clerkAuth),
-        userId: clerkAuth.userId,
-        isSignedIn: clerkAuth.isSignedIn,
-      };
-
-      // Convert Clerk user to the interface expected by oauthService
-      const clerkUserData: ClerkUser | null = clerkUser
-        ? {
-            id: clerkUser.id,
-            emailAddresses: clerkUser.emailAddresses || [],
-            firstName: clerkUser.firstName,
-            lastName: clerkUser.lastName,
-          }
-        : null;
-
-      // Initiate OAuth flow via Clerk
-      const oauthResult = await clerkSignInWithApple(
-        clerkAuthMethods,
-        clerkUserData,
+      // Use Clerk's useSSO hook to start OAuth flow
+      console.log(
+        '📋 [AuthContext] Calling Clerk startSSOFlow with strategy: oauth_apple',
+      );
+      console.log(
+        '📱 [AuthContext] Platform-specific handling: Clerk will use native Apple Sign In on iOS',
       );
 
-      if (!oauthResult.success) {
+      const result = await clerkSSO.startSSOFlow({
+        strategy: 'oauth_apple',
+        redirectUrl: 'creativebridge://auth/callback',
+      });
+
+      console.log('🔄 [AuthContext] Apple OAuth flow result:', {
+        createdSessionId: result.createdSessionId,
+        authSessionResult: result.authSessionResult?.type,
+      });
+
+      // Check if user cancelled the OAuth flow
+      if (
+        result.authSessionResult?.type === 'cancel' ||
+        result.authSessionResult?.type === 'dismiss'
+      ) {
         isProcessingOAuth.current = false;
-        console.error(
-          '❌ [AuthContext] Apple OAuth initiation failed:',
-          oauthResult.error,
-        );
-
-        // Handle user cancellation silently (no error shown per PRD)
-        if (
-          oauthResult.error?.includes('cancel') ||
-          oauthResult.error?.includes('cancelled')
-        ) {
-          console.log(
-            'ℹ️ [AuthContext] Apple sign-in was cancelled by user (silent return)',
-          );
-          return {}; // Silent return for user cancellation
-        }
-
-        return {
-          error: oauthResult.error || 'Failed to initiate Apple sign-in',
-        };
+        console.log('ℹ️ [AuthContext] Apple sign-in was cancelled by user');
+        return {}; // Silent return for user cancellation
       }
 
-      console.log('✅ [AuthContext] Apple OAuth flow initiated successfully');
-      console.log(
-        '📱 [AuthContext] Waiting for OAuth callback via deep linking...',
-      );
-      console.log(
-        '🍎 [AuthContext] Note: Apple may provide a private relay email - Clerk handles this automatically',
-      );
+      // If we got a session, activate it
+      if (result.createdSessionId && result.setActive) {
+        console.log(
+          '✅ [AuthContext] Apple OAuth successful, activating session...',
+        );
+        await result.setActive({ session: result.createdSessionId });
+        console.log('✅ [AuthContext] Session activated successfully');
+        console.log(
+          '🍎 [AuthContext] Note: Apple may provide a private relay email - Clerk handles this automatically',
+        );
+      }
 
-      // OAuth flow is now in progress
-      // The callback will be handled via deep linking in App.tsx
-      // After the callback, Clerk will have the user signed in
-      // We'll complete the flow when we detect Clerk auth state change
-      // The handleClerkOAuthCompletion function will:
-      // 1. Retrieve Clerk JWT using getToken()
-      // 2. Send Clerk JWT to Supabase for verification
-      // 3. Update user state (emailConfirmed will be set to true for OAuth users)
-      // 4. Handle Apple private relay email mapping (Clerk provides the email)
+      // Sync with Supabase after successful OAuth
+      const syncResult = await syncClerkWithSupabase();
+      if (!syncResult.success) {
+        console.warn(
+          '⚠️ [AuthContext] OAuth succeeded but Supabase sync failed:',
+          syncResult.error,
+        );
+      }
 
-      // Return success - the actual completion will happen after OAuth callback
+      console.log('✅ [AuthContext] Apple OAuth flow completed successfully');
+
+      // Return success - the auth state change listener will handle the rest
       return {};
     } catch (error) {
       isProcessingOAuth.current = false;
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      console.log('🔍 [AuthContext] Apple sign-in caught error:', errorMessage);
+
+      // Handle "already signed in" error - this means OAuth succeeded previously
+      // but Supabase wasn't synced. Try to sync now.
+      const isAlreadySignedIn = errorMessage
+        .toLowerCase()
+        .includes('already signed in');
+      console.log(
+        '🔍 [AuthContext] Is already signed in error?',
+        isAlreadySignedIn,
+      );
+
+      if (isAlreadySignedIn) {
+        console.log(
+          '🔄 [AuthContext] User already signed in with Clerk, attempting to sync with Supabase...',
+        );
+        try {
+          const syncResult = await syncClerkWithSupabase();
+          console.log('🔍 [AuthContext] Sync result:', syncResult);
+          if (syncResult.success) {
+            console.log(
+              '✅ [AuthContext] Synced existing Clerk session with Supabase',
+            );
+            return {}; // Success - user is now fully authenticated
+          } else {
+            console.error(
+              '❌ [AuthContext] Failed to sync existing Clerk session:',
+              syncResult.error,
+            );
+            return {
+              error: syncResult.error || 'Failed to sync authentication',
+            };
+          }
+        } catch (syncError) {
+          console.error('💥 [AuthContext] Error during sync:', syncError);
+          return { error: 'Failed to sync authentication' };
+        }
+      }
+
       console.error(
         '💥 [AuthContext] Unexpected error during Apple sign-in:',
         error,
       );
-      const errorMessage =
-        error instanceof Error ? error.message : 'An unexpected error occurred';
       return { error: errorMessage };
     }
   };
@@ -1116,7 +1212,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
         setNeedsProfileCompletion(!isComplete);
         console.log(
-          `📋 [AuthContext] Profile completion check: ${isComplete ? 'Complete' : 'Incomplete'}`,
+          `📋 [AuthContext] Profile completion check: ${
+            isComplete ? 'Complete' : 'Incomplete'
+          }`,
         );
         return;
       }
@@ -1153,7 +1251,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
         setNeedsProfileCompletion(!isComplete);
         console.log(
-          `📋 [AuthContext] Profile found in DB: ${isComplete ? 'Complete' : 'Incomplete'}`,
+          `📋 [AuthContext] Profile found in DB: ${
+            isComplete ? 'Complete' : 'Incomplete'
+          }`,
         );
 
         // Update context with profile if it exists
@@ -1168,27 +1268,36 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         );
       }
     } catch (error) {
-      console.error('❌ [AuthContext] Error checking profile completion:', error);
+      console.error(
+        '❌ [AuthContext] Error checking profile completion:',
+        error,
+      );
       // On error, assume profile needs completion to be safe
       setNeedsProfileCompletion(true);
     }
   }, [clerkUser?.id, session, emailConfirmed, userProfile]);
 
-  // Handle Clerk OAuth completion after callback
-  const handleClerkOAuthCompletion = useCallback(async () => {
-    // Only process if we're in the middle of an OAuth flow and Clerk user is signed in
-    if (!isProcessingOAuth.current || !clerkAuth?.isSignedIn || !clerkAuth) {
-      return;
+  /**
+   * Sync Clerk auth state with Supabase
+   * This can be called:
+   * 1. After OAuth flow completes
+   * 2. On app initialization when Clerk is signed in but Supabase isn't
+   * 3. When we get "already signed in" error during OAuth attempt
+   */
+  const syncClerkWithSupabase = useCallback(async (): Promise<{
+    success: boolean;
+    error?: string;
+  }> => {
+    if (!clerkAuth?.isSignedIn || !clerkAuth) {
+      console.log('⚠️ [AuthContext] Cannot sync: Clerk user is not signed in');
+      return { success: false, error: 'User is not signed in with Clerk' };
     }
 
     try {
-      console.log(
-        '🔄 [AuthContext] Detected Clerk OAuth completion, syncing with Supabase...',
-      );
+      console.log('🔄 [AuthContext] Syncing Clerk auth with Supabase...');
 
       // Convert Clerk auth to the interface expected by oauthService
       const clerkAuthMethods: ClerkAuthMethods = {
-        signInWithOAuth: clerkAuth.signInWithOAuth.bind(clerkAuth),
         getToken: clerkAuth.getToken.bind(clerkAuth),
         userId: clerkAuth.userId,
         isSignedIn: clerkAuth.isSignedIn,
@@ -1243,7 +1352,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         }
 
         isProcessingOAuth.current = false;
-        
+
         // Log error for monitoring and debugging
         console.error(
           '❌ [AuthContext] OAuth completion error details:',
@@ -1251,7 +1360,8 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
             {
               errorMessage,
               errorType,
-              clerkUserId: clerkUserData?.id || clerkAuthMethods.userId || 'unknown',
+              clerkUserId:
+                clerkUserData?.id || clerkAuthMethods.userId || 'unknown',
               timestamp: new Date().toISOString(),
             },
             null,
@@ -1377,26 +1487,69 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Mark OAuth processing as complete
       isProcessingOAuth.current = false;
+
+      return { success: true };
     } catch (error) {
       console.error(
-        '💥 [AuthContext] Error handling Clerk OAuth completion:',
+        '💥 [AuthContext] Error syncing Clerk with Supabase:',
         error,
       );
       isProcessingOAuth.current = false;
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error during sync';
+      return { success: false, error: errorMessage };
     }
   }, [clerkAuth, clerkUser, checkProfileCompletion]);
 
-  // Monitor Clerk auth state changes to detect OAuth completion
-  useEffect(() => {
-    // Check for OAuth completion when Clerk auth state changes
-    if (clerkAuth?.isSignedIn && isProcessingOAuth.current) {
-      handleClerkOAuthCompletion();
+  // Handle Clerk OAuth completion after callback (wraps syncClerkWithSupabase)
+  const handleClerkOAuthCompletion = useCallback(async () => {
+    // Only process if we're in the middle of an OAuth flow and Clerk user is signed in
+    if (!isProcessingOAuth.current || !clerkAuth?.isSignedIn) {
+      return;
     }
+
+    await syncClerkWithSupabase();
+  }, [clerkAuth?.isSignedIn, syncClerkWithSupabase]);
+
+  // Monitor Clerk auth state changes to detect OAuth completion or existing session
+  useEffect(() => {
+    const checkAndSync = async () => {
+      console.log('🔍 [AuthContext] Clerk auth state changed:', {
+        isSignedIn: clerkAuth?.isSignedIn,
+        userId: clerkAuth?.userId,
+        hasSession: !!session,
+        isProcessingOAuth: isProcessingOAuth.current,
+      });
+
+      // If Clerk is signed in but we don't have a session, try to sync
+      if (clerkAuth?.isSignedIn && !session && !loading) {
+        console.log(
+          '🔄 [AuthContext] Clerk signed in but no session - attempting sync...',
+        );
+        const syncResult = await syncClerkWithSupabase();
+        if (syncResult.success) {
+          console.log(
+            '✅ [AuthContext] Auto-synced Clerk session with Supabase',
+          );
+        } else {
+          console.error('❌ [AuthContext] Auto-sync failed:', syncResult.error);
+        }
+      }
+      // Check for OAuth completion when Clerk auth state changes during OAuth flow
+      else if (clerkAuth?.isSignedIn && isProcessingOAuth.current) {
+        handleClerkOAuthCompletion();
+      }
+    };
+
+    checkAndSync();
   }, [
     clerkAuth?.isSignedIn,
     clerkAuth?.userId,
     clerkUser?.id,
+    session,
+    loading,
     handleClerkOAuthCompletion,
+    syncClerkWithSupabase,
   ]);
 
   useEffect(() => {
@@ -1454,8 +1607,38 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           }
         }
 
-        // Check if Clerk user is signed in (for OAuth users)
-        if (clerkAuth?.isSignedIn && clerkUser && isProcessingOAuth.current) {
+        // Debug Clerk auth state
+        console.log('🔍 [AuthContext] Clerk auth state on init:', {
+          isSignedIn: clerkAuth?.isSignedIn,
+          userId: clerkAuth?.userId,
+          hasClerkUser: !!clerkUser,
+          clerkUserId: clerkUser?.id,
+        });
+
+        // Check if Clerk user is signed in but Supabase session is missing
+        // This can happen if OAuth completed but sync failed, or app was killed mid-flow
+        if (clerkAuth?.isSignedIn && !initialSession) {
+          console.log(
+            '🔐 [AuthContext] Clerk user is signed in but no Supabase session found. Syncing...',
+          );
+          const syncResult = await syncClerkWithSupabase();
+          if (syncResult.success) {
+            console.log(
+              '✅ [AuthContext] Successfully synced Clerk session with Supabase on init',
+            );
+          } else {
+            console.error(
+              '❌ [AuthContext] Failed to sync Clerk session on init:',
+              syncResult.error,
+            );
+          }
+        }
+        // Also handle case where we're in the middle of OAuth processing
+        else if (
+          clerkAuth?.isSignedIn &&
+          clerkUser &&
+          isProcessingOAuth.current
+        ) {
           console.log(
             '🔐 [AuthContext] Clerk user is signed in, checking for OAuth completion...',
           );
@@ -1579,19 +1762,23 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         authSubscription.unsubscribe();
       }
     };
-  }, [clerkAuth, clerkUser, handleClerkOAuthCompletion, checkProfileCompletion, emailConfirmed]);
+  }, [
+    clerkAuth,
+    clerkUser,
+    handleClerkOAuthCompletion,
+    checkProfileCompletion,
+    emailConfirmed,
+    syncClerkWithSupabase,
+  ]);
 
-  const refreshProfile = useCallback(
-    async (): Promise<void> => {
-      if (user?.id) {
-        const profile = await fetchUserProfile(user.id);
-        setUserProfile(profile);
-        // Check profile completion after refresh
-        await checkProfileCompletion();
-      }
-    },
-    [user?.id, checkProfileCompletion],
-  );
+  const refreshProfile = useCallback(async (): Promise<void> => {
+    if (user?.id) {
+      const profile = await fetchUserProfile(user.id);
+      setUserProfile(profile);
+      // Check profile completion after refresh
+      await checkProfileCompletion();
+    }
+  }, [user?.id, checkProfileCompletion]);
 
   const clearOAuthError = useCallback(() => {
     setOAuthError(null);

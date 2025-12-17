@@ -1,6 +1,7 @@
 import {
   useAuth as useClerkAuth,
   useUser as useClerkUser,
+  useSSO,
 } from '@clerk/clerk-expo';
 import { isClerkConfigured } from '../config/environment';
 
@@ -43,15 +44,16 @@ export function useSafeClerkAuth() {
   // when Clerk is configured
   const auth = useClerkAuth();
   const user = useClerkUser();
+  const sso = useSSO();
 
   // If Clerk is not configured, return null values
   // Note: The hooks are still called (React requirement), but we ignore their values
   // If ClerkProvider is not present, the hooks would have thrown already
   if (!isConfigured) {
-    return { clerkAuth: null, clerkUser: null };
+    return { clerkAuth: null, clerkUser: null, clerkSSO: null };
   }
 
   // Clerk is configured, return the hook values
   // If we get here and ClerkProvider is not present, the hooks would have thrown already
-  return { clerkAuth: auth, clerkUser: user };
+  return { clerkAuth: auth, clerkUser: user, clerkSSO: sso };
 }
