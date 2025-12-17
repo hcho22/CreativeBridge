@@ -68,24 +68,20 @@ export const AppleSignInButton: React.FC<AppleSignInButtonProps> = ({
     if (!isRetry) {
       const networkState = await checkNetworkBeforeOAuth();
       const networkError = getNetworkErrorMessage(networkState);
-      
+
       if (networkError) {
-        Alert.alert(
-          'No Internet Connection',
-          networkError,
-          [
-            {
-              text: 'Retry',
-              onPress: () => {
-                // Retry after a short delay
-                setTimeout(() => {
-                  handlePress(false);
-                }, 1000);
-              },
+        Alert.alert('No Internet Connection', networkError, [
+          {
+            text: 'Retry',
+            onPress: () => {
+              // Retry after a short delay
+              setTimeout(() => {
+                handlePress(false);
+              }, 1000);
             },
-            { text: 'OK', style: 'default' as const },
-          ],
-        );
+          },
+          { text: 'OK', style: 'default' as const },
+        ]);
         onSignInComplete?.(networkError);
         return;
       }
@@ -266,12 +262,11 @@ export const AppleSignInButton: React.FC<AppleSignInButtonProps> = ({
           </Text>
         </View>
       ) : (
-        // Show Apple icon and "Continue with Apple" text
+        // Show Apple icon centered
         <View style={styles.content}>
-          <View style={styles.iconContainer}>
+          <View style={[styles.iconContainer, styles.iconOnly]}>
             <Text style={styles.appleIcon}></Text>
           </View>
-          <Text style={styles.buttonText}>Continue with Apple</Text>
         </View>
       )}
     </TouchableOpacity>
@@ -299,6 +294,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
   },
   iconContainer: {
     width: 24,
@@ -308,6 +304,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: theme.spacing.sm,
+  },
+  iconOnly: {
+    marginRight: 0,
   },
   appleIcon: {
     fontSize: 16,

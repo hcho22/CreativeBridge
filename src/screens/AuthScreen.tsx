@@ -681,6 +681,46 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
               </>
             )}
 
+            {/* OAuth Sign-In Buttons - Primary Method */}
+            <View style={styles.socialButtonsRow}>
+              <GoogleSignInButton
+                disabled={loading}
+                style={styles.socialButton}
+                onSignInStart={() => {
+                  console.log('Google sign-in initiated');
+                }}
+                onSignInComplete={error => {
+                  if (error) {
+                    console.error('Google sign-in error:', error);
+                  } else {
+                    console.log('Google sign-in completed successfully');
+                  }
+                }}
+              />
+
+              <AppleSignInButton
+                disabled={loading}
+                style={styles.socialButton}
+                onSignInStart={() => {
+                  console.log('Apple sign-in initiated');
+                }}
+                onSignInComplete={error => {
+                  if (error) {
+                    console.error('Apple sign-in error:', error);
+                  } else {
+                    console.log('Apple sign-in completed successfully');
+                  }
+                }}
+              />
+            </View>
+
+            {/* OAuth Divider */}
+            <View style={styles.oauthDividerContainer}>
+              <View style={styles.oauthDividerLine} />
+              <Text style={styles.oauthDividerText}>OR</Text>
+              <View style={styles.oauthDividerLine} />
+            </View>
+
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Email Address</Text>
               <View style={styles.emailInputWrapper}>
@@ -1013,43 +1053,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
               </TouchableOpacity>
             )}
 
-            {/* OAuth Divider */}
-            <View style={styles.oauthDividerContainer}>
-              <View style={styles.oauthDividerLine} />
-              <Text style={styles.oauthDividerText}>OR</Text>
-              <View style={styles.oauthDividerLine} />
-            </View>
-
-            {/* Google Sign-In Button */}
-            <GoogleSignInButton
-              disabled={loading}
-              onSignInStart={() => {
-                console.log('Google sign-in initiated');
-              }}
-              onSignInComplete={error => {
-                if (error) {
-                  console.error('Google sign-in error:', error);
-                } else {
-                  console.log('Google sign-in completed successfully');
-                }
-              }}
-            />
-
-            {/* Apple Sign-In Button */}
-            <AppleSignInButton
-              disabled={loading}
-              onSignInStart={() => {
-                console.log('Apple sign-in initiated');
-              }}
-              onSignInComplete={error => {
-                if (error) {
-                  console.error('Apple sign-in error:', error);
-                } else {
-                  console.log('Apple sign-in completed successfully');
-                }
-              }}
-            />
-
             {/* Legal Links */}
             <View style={styles.legalLinksContainer}>
               <TouchableOpacity disabled={loading}>
@@ -1105,7 +1108,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 100,
   },
   formSection: {
     width: '100%',
@@ -1219,7 +1222,8 @@ const styles = StyleSheet.create({
   oauthDividerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 8,
+    marginTop: 8,
+    marginBottom: 8,
   },
   oauthDividerLine: {
     flex: 1,
@@ -1235,7 +1239,9 @@ const styles = StyleSheet.create({
   socialButtonsRow: {
     flexDirection: 'row',
     gap: 12,
-    marginVertical: 6,
+    marginTop: 0,
+    marginBottom: 16,
+    justifyContent: 'space-between',
   },
   socialButton: {
     flex: 1,

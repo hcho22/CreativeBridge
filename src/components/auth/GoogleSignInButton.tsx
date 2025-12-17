@@ -66,24 +66,20 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
     if (!isRetry) {
       const networkState = await checkNetworkBeforeOAuth();
       const networkError = getNetworkErrorMessage(networkState);
-      
+
       if (networkError) {
-        Alert.alert(
-          'No Internet Connection',
-          networkError,
-          [
-            {
-              text: 'Retry',
-              onPress: () => {
-                // Retry after a short delay
-                setTimeout(() => {
-                  handlePress(false);
-                }, 1000);
-              },
+        Alert.alert('No Internet Connection', networkError, [
+          {
+            text: 'Retry',
+            onPress: () => {
+              // Retry after a short delay
+              setTimeout(() => {
+                handlePress(false);
+              }, 1000);
             },
-            { text: 'OK', style: 'default' as const },
-          ],
-        );
+          },
+          { text: 'OK', style: 'default' as const },
+        ]);
         onSignInComplete?.(networkError);
         return;
       }
@@ -240,12 +236,11 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
           </Text>
         </View>
       ) : (
-        // Show Google icon and "Continue with Google" text
+        // Show Google icon centered
         <View style={styles.content}>
-          <View style={styles.iconContainer}>
+          <View style={[styles.iconContainer, styles.iconOnly]}>
             <Text style={styles.googleIcon}>G</Text>
           </View>
-          <Text style={styles.buttonText}>Continue with Google</Text>
         </View>
       )}
     </TouchableOpacity>
@@ -277,6 +272,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
   },
   iconContainer: {
     width: 24,
@@ -286,6 +282,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: theme.spacing.sm,
+  },
+  iconOnly: {
+    marginRight: 0,
   },
   googleIcon: {
     fontSize: 16,
