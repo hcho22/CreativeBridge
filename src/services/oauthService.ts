@@ -130,6 +130,17 @@ export async function signInWithGoogle(
 /**
  * Sign in with Apple OAuth using Clerk
  *
+ * Apple OAuth has several unique characteristics that Clerk handles automatically:
+ * 1. Private Relay Email: Apple may provide a private relay email (e.g., privaterelay@icloud.com)
+ *    instead of the user's real email. Clerk handles this transparently and provides the email
+ *    address in the Clerk user object, whether it's a real email or a private relay.
+ * 2. Platform-Specific Implementation:
+ *    - iOS: Clerk uses native Apple Sign In (ASWebAuthenticationSession) for better UX
+ *    - Android: Clerk uses web-based OAuth flow (browser/webview)
+ *    Clerk automatically selects the appropriate method based on the platform.
+ * 3. Email Privacy: Users can choose to hide their email, in which case Apple provides
+ *    a private relay email. Clerk stores this email and we can use it for account identification.
+ *
  * @param clerkAuth Clerk auth methods from useAuth() hook
  * @param clerkUser Optional Clerk user object from useUser() hook
  * @returns OAuth result with JWT and Supabase session
@@ -140,7 +151,7 @@ export async function signInWithApple(
 ): Promise<OAuthResult> {
   try {
     console.log(
-      '🔐 [OAuth Service] Initiating Apple OAuth sign-in via Clerk...',
+      '🍎 [OAuth Service] Initiating Apple OAuth sign-in via Clerk...',
     );
 
     // Check if Clerk is configured
@@ -154,29 +165,43 @@ export async function signInWithApple(
       };
     }
 
-    // Use Clerk's OAuth sign-in
-    // Note: Clerk's signInWithOAuth opens the OAuth provider in a browser/webview
-    // The OAuth callback is handled via deep linking (creativebridge://auth/callback)
-    // After the callback, Clerk automatically completes the authentication
+    // Use Clerk's OAuth sign-in with Apple strategy
+    // Platform-specific behavior (handled automatically by Clerk):
+    // - iOS: Uses native Apple Sign In (ASWebAuthenticationSession) for seamless UX
+    // - Android: Uses web-based OAuth flow in browser/webview
+    // Clerk automatically detects the platform and uses the appropriate method
     console.log(
       '📋 [OAuth Service] Calling Clerk signInWithOAuth with strategy: oauth_apple',
     );
+    console.log(
+      '📱 [OAuth Service] Platform-specific handling: Clerk will use native Apple Sign In on iOS, web OAuth on Android',
+    );
+
     await clerkAuth.signInWithOAuth({
       strategy: 'oauth_apple',
       redirectUrl: 'creativebridge://auth/callback',
     });
 
     console.log(
-      '🌐 [OAuth Service] OAuth flow initiated, waiting for callback via deep linking...',
+      '🌐 [OAuth Service] Apple OAuth flow initiated, waiting for callback via deep linking...',
     );
     console.log(
       '📱 [OAuth Service] OAuth callback will be handled automatically by Clerk via deep link',
+    );
+    console.log(
+      '🍎 [OAuth Service] Note: Apple may provide a private relay email - Clerk handles this automatically',
     );
 
     // Clerk's signInWithOAuth opens the OAuth provider and handles the callback automatically
     // After the callback completes, the user will be signed in to Clerk
     // We need to wait for the OAuth callback to complete before getting the JWT
     // The callback is handled via deep linking in App.tsx
+    //
+    // Apple-specific considerations:
+    // - If user chooses to hide email, Apple provides a private relay email
+    // - Clerk stores this email in the user object (emailAddresses array)
+    // - We can use this email for account identification (it's stable per user)
+    // - The email will be available in clerkUser.emailAddresses after authentication
 
     // For now, return success - the actual JWT retrieval and Supabase sync
     // should happen after the OAuth callback completes (handled in AuthContext)
@@ -185,6 +210,7 @@ export async function signInWithApple(
       success: true,
       // JWT and session will be available after OAuth callback completes
       // The caller should check auth state after OAuth callback
+      // Note: User email (including private relay) will be available in Clerk user object
     };
   } catch (error) {
     const errorMessage =
@@ -196,6 +222,40 @@ export async function signInWithApple(
       errorMessage,
     );
     console.error('💥 [OAuth Service] Error details:', error);
+
+    // Handle specific Apple OAuth errors
+    if (error instanceof Error) {
+      // User cancellation (common on Apple Sign In)
+      if (
+        error.message.includes('cancel') ||
+        error.message.includes('dismissed') ||
+        error.message.includes('user_cancelled')
+      ) {
+        console.log(
+          'ℹ️ [OAuth Service] Apple sign-in was cancelled by user (silent return)',
+        );
+        // Return success: false but don't show error to user (handled in UI)
+        return {
+          success: false,
+          error: 'User cancelled Apple sign-in',
+        };
+      }
+
+      // Network errors
+      if (
+        error.message.includes('network') ||
+        error.message.includes('connection')
+      ) {
+        console.error(
+          '🌐 [OAuth Service] Network error during Apple sign-in',
+          error.message,
+        );
+        return {
+          success: false,
+          error: 'Network error. Please check your connection and try again.',
+        };
+      }
+    }
 
     return {
       success: false,
@@ -265,15 +325,34 @@ export async function completeOAuthFlow(
     console.log('✅ [OAuth Service] Supabase session created successfully');
 
     // Extract user email from Clerk user object
+    // Note: For Apple OAuth, this may be a private relay email (e.g., privaterelay@icloud.com)
+    // Clerk handles Apple's email privacy feature automatically and provides the email
+    // (whether real or private relay) in the user object
     let userEmail: string | undefined;
     if (clerkUser?.emailAddresses && clerkUser.emailAddresses.length > 0) {
       userEmail = clerkUser.emailAddresses[0].emailAddress;
       console.log('📧 [OAuth Service] User email extracted:', userEmail);
+
+      // Log if this appears to be an Apple private relay email
+      if (
+        userEmail.includes('privaterelay') ||
+        userEmail.includes('icloud.com')
+      ) {
+        console.log(
+          '🍎 [OAuth Service] Apple private relay email detected - this is normal for Apple Sign In users who choose to hide their email',
+        );
+        console.log(
+          'ℹ️ [OAuth Service] Private relay emails are stable per user and can be used for account identification',
+        );
+      }
     } else if (clerkAuth.userId) {
       // Fallback: try to get email from Clerk auth if user object not provided
       console.log(
         '⚠️ [OAuth Service] Clerk user object not provided, using userId:',
         clerkAuth.userId,
+      );
+      console.log(
+        '⚠️ [OAuth Service] Email will not be available until user object is provided',
       );
     }
 

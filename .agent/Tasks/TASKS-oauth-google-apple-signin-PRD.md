@@ -635,17 +635,17 @@ describe('AuthScreen Google Integration', () => {
 
 **Implementation Steps:**
 
-- [ ] Open `src/services/oauthService.ts`
-- [ ] Implement `signInWithApple()` function
-- [ ] Use Clerk's `signInWithOAuth({ strategy: 'oauth_apple' })`
-- [ ] Handle Apple-specific requirements (private relay email - Clerk handles this)
-- [ ] Handle Clerk OAuth callback and session creation
-- [ ] Retrieve Clerk JWT token using `getToken()` after successful authentication
-- [ ] Send Clerk JWT to Supabase for verification
-- [ ] Extract user email from Clerk user object
-- [ ] Handle authentication errors gracefully
-- [ ] Add platform-specific logic (Clerk handles iOS native vs Android web)
-- [ ] Add logging for debugging OAuth flow
+- [x] Open `src/services/oauthService.ts`
+- [x] Implement `signInWithApple()` function
+- [x] Use Clerk's `signInWithOAuth({ strategy: 'oauth_apple' })`
+- [x] Handle Apple-specific requirements (private relay email - Clerk handles this)
+- [x] Handle Clerk OAuth callback and session creation
+- [x] Retrieve Clerk JWT token using `getToken()` after successful authentication
+- [x] Send Clerk JWT to Supabase for verification
+- [x] Extract user email from Clerk user object
+- [x] Handle authentication errors gracefully
+- [x] Add platform-specific logic (Clerk handles iOS native vs Android web)
+- [x] Add logging for debugging OAuth flow
 
 **Verification Test:**
 
@@ -716,16 +716,16 @@ describe('Apple OAuth Service', () => {
 
 **Implementation Steps:**
 
-- [ ] Open `src/context/AuthContext.tsx`
-- [ ] Add `signInWithApple()` method to `AuthContextType` interface
-- [ ] Implement `signInWithApple()` in `AuthProvider`
-- [ ] Handle OAuth session creation
-- [ ] Update user state after successful OAuth
-- [ ] Handle OAuth errors and return error messages
-- [ ] Ensure OAuth users bypass email confirmation
-- [ ] Update `emailConfirmed` state for OAuth users
-- [ ] Handle Apple private relay email mapping
-- [ ] Add OAuth user to auth state change listener
+- [x] Open `src/context/AuthContext.tsx`
+- [x] Add `signInWithApple()` method to `AuthContextType` interface
+- [x] Implement `signInWithApple()` in `AuthProvider`
+- [x] Handle OAuth session creation
+- [x] Update user state after successful OAuth
+- [x] Handle OAuth errors and return error messages
+- [x] Ensure OAuth users bypass email confirmation
+- [x] Update `emailConfirmed` state for OAuth users
+- [x] Handle Apple private relay email mapping
+- [x] Add OAuth user to auth state change listener
 
 **Verification Test:**
 

@@ -211,11 +211,12 @@ export const AppleSignInButton: React.FC<AppleSignInButtonProps> = ({
           </Text>
         </View>
       ) : (
-        // Center the Apple logo inside the button
-        <View style={styles.iconOnlyContent}>
+        // Show Apple icon and "Continue with Apple" text
+        <View style={styles.content}>
           <View style={styles.iconContainer}>
             <Text style={styles.appleIcon}></Text>
           </View>
+          <Text style={styles.buttonText}>Continue with Apple</Text>
         </View>
       )}
     </TouchableOpacity>
@@ -244,11 +245,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconOnlyContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   iconContainer: {
     width: 24,
     height: 24,
@@ -256,6 +252,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: theme.spacing.sm,
   },
   appleIcon: {
     fontSize: 16,
@@ -265,6 +262,7 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: theme.typography.fontSize.md,
     fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text,
     ...theme.typography.textStyles.button,
   },
   buttonTextDisabled: {

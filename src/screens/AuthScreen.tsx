@@ -27,6 +27,7 @@ import {
 import { AuthStackParamList } from '../navigation/AppNavigator';
 import { GradeLevel } from '../types/database';
 import { GoogleSignInButton } from '../components/auth/GoogleSignInButton';
+import { AppleSignInButton } from '../components/auth/AppleSignInButton';
 
 type AuthScreenNavigationProp = StackNavigationProp<AuthStackParamList, 'Auth'>;
 
@@ -1014,6 +1015,21 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
                   console.error('Google sign-in error:', error);
                 } else {
                   console.log('Google sign-in completed successfully');
+                }
+              }}
+            />
+
+            {/* Apple Sign-In Button */}
+            <AppleSignInButton
+              disabled={loading}
+              onSignInStart={() => {
+                console.log('Apple sign-in initiated');
+              }}
+              onSignInComplete={error => {
+                if (error) {
+                  console.error('Apple sign-in error:', error);
+                } else {
+                  console.log('Apple sign-in completed successfully');
                 }
               }}
             />
