@@ -125,6 +125,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
   // Track if we're processing an OAuth flow
   const isProcessingOAuth = useRef(false);
 
+  // Track if we're signing out to prevent re-syncing during logout
+  const isSigningOut = useRef(false);
+
   const fetchUserProfile = async (
     userId: string,
   ): Promise<UserProfile | null> => {
@@ -410,6 +413,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       console.log('🔐 Starting logout process...');
 
+      // Set signing out flag to prevent re-syncing during logout
+      isSigningOut.current = true;
+
       // Check if remember me is enabled before signing out
       const rememberMeData = await RememberMeStorage.getRememberMe();
 
@@ -446,6 +452,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Ensure loading is false after logout
       setLoading(false);
+
+      // Clear signing out flag
+      isSigningOut.current = false;
 
       console.log('✅ User signed out successfully', {
         rememberMeEnabled: rememberMeData?.isEnabled,
@@ -494,6 +503,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           forceSignOutError,
         );
       }
+
+      // Clear signing out flag
+      isSigningOut.current = false;
     }
   };
 
@@ -1413,6 +1425,40 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         '✅ [AuthContext] Email confirmed automatically for OAuth user (bypassed email confirmation)',
       );
 
+      // Create a synthetic user object for OAuth users
+      // This is needed because components like HomeScreen check for `user` to allow actions
+      // Since we don't create a Supabase session for OAuth users, we create a user-like object
+      const oauthUserId = oauthResult.clerkUserId || clerkAuth?.userId;
+      if (oauthUserId) {
+        const syntheticUser = {
+          id: oauthUserId,
+          email:
+            oauthResult.userEmail ||
+            clerkUser?.emailAddresses?.[0]?.emailAddress ||
+            '',
+          email_confirmed_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          app_metadata: { provider: 'clerk_oauth' },
+          user_metadata: {
+            clerk_user_id: oauthUserId,
+            full_name:
+              clerkUser?.firstName && clerkUser?.lastName
+                ? `${clerkUser.firstName} ${clerkUser.lastName}`
+                : clerkUser?.firstName || '',
+          },
+          aud: 'authenticated',
+          role: 'authenticated',
+        } as User;
+
+        console.log('👤 [AuthContext] Created synthetic user for OAuth:', {
+          id: syntheticUser.id,
+          email: syntheticUser.email,
+        });
+
+        setUser(syntheticUser);
+      }
+
       // Handle Apple private relay email mapping
       // Clerk provides the email (whether real or private relay) in oauthResult.userEmail
       if (oauthResult.userEmail) {
@@ -1518,13 +1564,22 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         isSignedIn: clerkAuth?.isSignedIn,
         userId: clerkAuth?.userId,
         hasSession: !!session,
+        hasUser: !!user,
         isProcessingOAuth: isProcessingOAuth.current,
+        isSigningOut: isSigningOut.current,
       });
 
-      // If Clerk is signed in but we don't have a session, try to sync
-      if (clerkAuth?.isSignedIn && !session && !loading) {
+      // Skip syncing if we're in the middle of signing out
+      if (isSigningOut.current) {
+        console.log('⏭️ [AuthContext] Skipping sync - signing out in progress');
+        return;
+      }
+
+      // If Clerk is signed in but we don't have a session or user, try to sync
+      // The check for !user prevents repeated syncing after synthetic user is created
+      if (clerkAuth?.isSignedIn && !session && !user && !loading) {
         console.log(
-          '🔄 [AuthContext] Clerk signed in but no session - attempting sync...',
+          '🔄 [AuthContext] Clerk signed in but no session/user - attempting sync...',
         );
         const syncResult = await syncClerkWithSupabase();
         if (syncResult.success) {
@@ -1547,6 +1602,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     clerkAuth?.userId,
     clerkUser?.id,
     session,
+    user,
     loading,
     handleClerkOAuthCompletion,
     syncClerkWithSupabase,
@@ -1554,6 +1610,14 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     const initializeAuth = async () => {
+      // Skip initialization if we're signing out
+      if (isSigningOut.current) {
+        console.log(
+          '⏭️ [AuthContext] Skipping auth init - signing out in progress',
+        );
+        return;
+      }
+
       try {
         console.log('🔄 Starting auth initialization...');
 
@@ -1577,33 +1641,56 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         } = await supabase.auth.getSession();
 
         if (error) {
-          console.error('❌ Error getting session:', error);
-          setLoading(false);
-          return;
-        }
-
-        console.log('✅ Session retrieved:', !!initialSession);
-        setSession(initialSession);
-        setUser(initialSession?.user ?? null);
-
-        if (initialSession?.user) {
-          console.log('👤 User found, checking email confirmation...');
-          setEmailConfirmed(!!initialSession.user.email_confirmed_at);
-
-          console.log('📋 Fetching user profile...');
-          try {
-            let profile = await fetchUserProfile(initialSession.user.id);
-            if (!profile) {
-              console.log(
-                'Creating new profile for user:',
-                initialSession.user.email,
-              );
-              profile = await createUserProfile(initialSession.user);
+          // Handle invalid refresh token by clearing the stale session data
+          // This is a known/expected error when session expires, so we log as warn not error
+          if (
+            error.code === 'refresh_token_not_found' ||
+            error.message?.includes('Refresh Token Not Found')
+          ) {
+            console.warn(
+              '⚠️ Session expired (refresh token not found) - clearing stale data...',
+            );
+            try {
+              // Sign out to clear the invalid session data
+              await supabase.auth.signOut();
+              console.log('✅ Cleared invalid session data');
+            } catch (signOutError) {
+              console.error('❌ Error clearing session:', signOutError);
             }
-            setUserProfile(profile);
-          } catch (profileError) {
-            console.error('Profile fetch/create error:', profileError);
-            setUserProfile(null);
+          } else {
+            // Log other session errors normally
+            console.error('❌ Error getting session:', error);
+          }
+
+          // Continue initialization with no session (treat as logged out)
+          setSession(null);
+          setUser(null);
+          // Don't set loading false yet - continue to check for Clerk auth below
+        } else {
+          // No error - process the session normally
+          console.log('✅ Session retrieved:', !!initialSession);
+          setSession(initialSession);
+          setUser(initialSession?.user ?? null);
+
+          if (initialSession?.user) {
+            console.log('👤 User found, checking email confirmation...');
+            setEmailConfirmed(!!initialSession.user.email_confirmed_at);
+
+            console.log('📋 Fetching user profile...');
+            try {
+              let profile = await fetchUserProfile(initialSession.user.id);
+              if (!profile) {
+                console.log(
+                  'Creating new profile for user:',
+                  initialSession.user.email,
+                );
+                profile = await createUserProfile(initialSession.user);
+              }
+              setUserProfile(profile);
+            } catch (profileError) {
+              console.error('Profile fetch/create error:', profileError);
+              setUserProfile(null);
+            }
           }
         }
 
@@ -1616,7 +1703,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         });
 
         // Check if Clerk user is signed in but Supabase session is missing
-        // This can happen if OAuth completed but sync failed, or app was killed mid-flow
+        // This can happen if OAuth completed but sync failed, or app was killed mid-flow, or refresh token was invalid
         if (clerkAuth?.isSignedIn && !initialSession) {
           console.log(
             '🔐 [AuthContext] Clerk user is signed in but no Supabase session found. Syncing...',
@@ -1680,6 +1767,14 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     let authSubscription: { unsubscribe: () => void } | null = null;
 
     const setupAuthListener = async () => {
+      // Skip setting up listener if we're signing out
+      if (isSigningOut.current) {
+        console.log(
+          '⏭️ [AuthContext] Skipping auth listener setup - signing out in progress',
+        );
+        return;
+      }
+
       try {
         // Ensure Supabase is ready before setting up listener
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -1700,6 +1795,8 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
             'Auth state changed:',
             event,
             currentSession?.user?.email,
+            'isSigningOut:',
+            isSigningOut.current,
           );
 
           // Handle sign out event specifically
@@ -1710,6 +1807,14 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
             setUserProfile(null);
             setEmailConfirmed(false);
             setLoading(false);
+            return;
+          }
+
+          // Skip processing auth changes during logout to prevent race conditions
+          if (isSigningOut.current) {
+            console.log(
+              '⏭️ [AuthContext] Skipping auth state change - signing out in progress',
+            );
             return;
           }
 
@@ -1754,7 +1859,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       }
     };
 
-    initializeAuth();
+    // Note: initializeAuth() is already called at line 1736, don't call twice
     setupAuthListener();
 
     return () => {

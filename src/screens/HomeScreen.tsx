@@ -23,6 +23,7 @@ import {
 import Clipboard from '@react-native-clipboard/clipboard';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useAuth } from '../context/AuthContext';
+import { useSafeClerkAuth } from '../hooks/useSafeClerkAuth';
 import { TabParamList } from '../navigation/AppNavigator';
 import { storyAgentService } from '../services/storyAgent';
 import { storyGenerationService } from '../services/storyGenerationService';
@@ -68,6 +69,12 @@ interface GenerationError {
 
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const { userProfile, user } = useAuth();
+  const { clerkAuth } = useSafeClerkAuth();
+
+  // For OAuth users, use Clerk user ID as fallback when Supabase user is not available
+  const effectiveUserId = user?.id || clerkAuth?.userId;
+  const isAuthenticated = !!user || clerkAuth?.isSignedIn;
+
   const [isGameActive, setIsGameActive] = useState(false);
   const [currentSession, setCurrentSession] = useState<StorySession | null>(
     null,
@@ -865,7 +872,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   );
 
   const handleContinueStoryOption = useCallback(() => {
-    if (!user) {
+    if (!isAuthenticated) {
       Alert.alert('Error', 'Please log in to continue a story');
       return;
     }
@@ -882,10 +889,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         [{ text: 'OK' }],
       );
     }
-  }, [user, navigation]);
+  }, [isAuthenticated, navigation]);
 
   const handleStartNewGame = async () => {
-    if (!user) {
+    if (!isAuthenticated || !effectiveUserId) {
       Alert.alert('Error', 'Please log in to start a story');
       return;
     }
@@ -906,9 +913,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       startSpinAnimation();
       simulateProgress(4000);
 
-      // Create new session
+      // Create new session using effective user ID (Supabase user or Clerk user)
       const newSession = await storySessionManager.createSession(
-        user.id,
+        effectiveUserId,
         gradeLevel,
         { difficulty: 1 },
       );
