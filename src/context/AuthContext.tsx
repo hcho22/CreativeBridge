@@ -128,6 +128,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
   // Track if we're signing out to prevent re-syncing during logout
   const isSigningOut = useRef(false);
 
+  // Track the last Clerk user ID we synced to prevent infinite sync loops
+  const lastSyncedClerkUserId = useRef<string | null>(null);
+
   const fetchUserProfile = async (
     userId: string,
   ): Promise<UserProfile | null> => {
@@ -415,6 +418,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Set signing out flag to prevent re-syncing during logout
       isSigningOut.current = true;
+      
+      // Clear the last synced Clerk user ID
+      lastSyncedClerkUserId.current = null;
 
       // Check if remember me is enabled before signing out
       const rememberMeData = await RememberMeStorage.getRememberMe();
@@ -517,10 +523,57 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     try {
+      // For OAuth users without a profile, create one using RPC function that bypasses RLS
+      if (!userProfile?.id) {
+        console.log('📋 [AuthContext] Creating profile for OAuth user');
+        
+        // Get Clerk user ID if available (for OAuth users)
+        const clerkUserId = clerkUser?.id || user.user_metadata?.clerk_user_id;
+        
+        if (!clerkUserId) {
+          console.error('❌ [AuthContext] No Clerk user ID available for profile creation');
+          return { error: 'Authentication error: No user ID available' };
+        }
+        
+        // Use RPC function to create profile (bypasses RLS)
+        const { data: createdProfile, error: createError } = await supabase
+          .rpc('create_oauth_user_profile', {
+            p_clerk_user_id: clerkUserId,
+            p_username: profile.username || user.email?.split('@')[0] || 'user',
+            p_display_name: profile.display_name || profile.username || user.email?.split('@')[0] || 'User',
+            p_preferred_grade_level: profile.preferred_grade_level || 'K-2',
+            p_email: user.email || null,
+            p_speech_enabled: profile.speech_enabled ?? true,
+          })
+          .single();
+
+        if (createError) {
+          console.error('❌ [AuthContext] Failed to create profile:', createError);
+          return { error: createError.message };
+        }
+
+        console.log('✅ [AuthContext] Profile created successfully:', createdProfile?.id);
+        
+        // Update the synthetic user's ID to match the generated profile ID
+        // This ensures that future operations that check user.id === profile.id will work
+        if (createdProfile && user.id !== createdProfile.id) {
+          console.log('🔗 [AuthContext] Updating synthetic user ID to match profile ID:', createdProfile.id);
+          setUser({
+            ...user,
+            id: createdProfile.id,
+          });
+        }
+        
+        setUserProfile(createdProfile as any);
+        setNeedsProfileCompletion(false);
+        return {};
+      }
+
+      // Update existing profile
       const { data: updatedProfile, error } = await supabase
         .from('user_profiles')
         .update(profile as any)
-        .eq('id', user.id)
+        .eq('id', userProfile.id)
         .select()
         .single();
 
@@ -531,6 +584,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       setUserProfile(updatedProfile);
       return {};
     } catch (error) {
+      console.error('💥 [AuthContext] Profile update/create error:', error);
       return { error: 'An unexpected error occurred' };
     }
   };
@@ -1206,8 +1260,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         return;
       }
 
-      // Only check if user is authenticated and email is confirmed
-      if (!session || !emailConfirmed) {
+      // Only check if email is confirmed
+      // Note: OAuth users don't have a Supabase session, so we don't check for it
+      if (!emailConfirmed) {
         setNeedsProfileCompletion(false);
         return;
       }
@@ -1303,6 +1358,12 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     if (!clerkAuth?.isSignedIn || !clerkAuth) {
       console.log('⚠️ [AuthContext] Cannot sync: Clerk user is not signed in');
       return { success: false, error: 'User is not signed in with Clerk' };
+    }
+
+    // Clear signing out flag if it's stuck - this is a new sign-in operation
+    if (isSigningOut.current) {
+      console.log('🔄 [AuthContext] Clearing stuck isSigningOut flag for new OAuth sign-in');
+      isSigningOut.current = false;
     }
 
     try {
@@ -1534,6 +1595,11 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       // Mark OAuth processing as complete
       isProcessingOAuth.current = false;
 
+      // Track that we've successfully synced this Clerk user ID
+      if (oauthResult.clerkUserId) {
+        lastSyncedClerkUserId.current = oauthResult.clerkUserId;
+      }
+
       return { success: true };
     } catch (error) {
       console.error(
@@ -1545,7 +1611,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         error instanceof Error ? error.message : 'Unknown error during sync';
       return { success: false, error: errorMessage };
     }
-  }, [clerkAuth, clerkUser, checkProfileCompletion]);
+  }, [clerkAuth, clerkUser]);
 
   // Handle Clerk OAuth completion after callback (wraps syncClerkWithSupabase)
   const handleClerkOAuthCompletion = useCallback(async () => {
@@ -1576,8 +1642,11 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       // If Clerk is signed in but we don't have a session or user, try to sync
-      // The check for !user prevents repeated syncing after synthetic user is created
-      if (clerkAuth?.isSignedIn && !session && !user && !loading) {
+      // Check if we've already synced this Clerk user ID to prevent infinite loops
+      const currentClerkUserId = clerkAuth?.userId;
+      const alreadySynced = currentClerkUserId === lastSyncedClerkUserId.current;
+      
+      if (clerkAuth?.isSignedIn && !session && !user && !loading && !alreadySynced) {
         console.log(
           '🔄 [AuthContext] Clerk signed in but no session/user - attempting sync...',
         );
@@ -1589,6 +1658,10 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         } else {
           console.error('❌ [AuthContext] Auto-sync failed:', syncResult.error);
         }
+      } else if (alreadySynced && clerkAuth?.isSignedIn && !user) {
+        console.log(
+          '⏭️ [AuthContext] Skipping sync - already synced this Clerk user ID',
+        );
       }
       // Check for OAuth completion when Clerk auth state changes during OAuth flow
       else if (clerkAuth?.isSignedIn && isProcessingOAuth.current) {
@@ -1600,12 +1673,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
   }, [
     clerkAuth?.isSignedIn,
     clerkAuth?.userId,
-    clerkUser?.id,
     session,
     user,
     loading,
-    handleClerkOAuthCompletion,
-    syncClerkWithSupabase,
   ]);
 
   useEffect(() => {
@@ -1867,14 +1937,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         authSubscription.unsubscribe();
       }
     };
-  }, [
-    clerkAuth,
-    clerkUser,
-    handleClerkOAuthCompletion,
-    checkProfileCompletion,
-    emailConfirmed,
-    syncClerkWithSupabase,
-  ]);
+  }, []);
 
   const refreshProfile = useCallback(async (): Promise<void> => {
     if (user?.id) {
