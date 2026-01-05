@@ -48,23 +48,51 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
     { value: '9-12', label: '9th - 12th Grade' },
   ];
 
-  // Pre-fill display name from Clerk user object
+  // Pre-fill username and display name from Clerk user object or user email
   useEffect(() => {
-    if (clerkUser && !displayName) {
-      const firstName = clerkUser.firstName || '';
-      const lastName = clerkUser.lastName || '';
+    // Pre-fill username from email if available
+    if (!username && !usernameTouched) {
+      let emailToUse: string | undefined;
+
+      // Try to get email from Clerk user first
+      if (clerkUser?.emailAddresses?.[0]?.emailAddress) {
+        emailToUse = clerkUser.emailAddresses[0].emailAddress;
+      }
+      // Fallback to user object email
+      else if (user?.email) {
+        emailToUse = user.email;
+      }
+
+      // Extract username from email
+      if (emailToUse) {
+        const emailPrefix = emailToUse.split('@')[0];
+        setUsername(emailPrefix);
+        console.log('🔤 [ProfileCompletion] Auto-filled username from email:', emailPrefix);
+      }
+    }
+
+    // Pre-fill display name from Clerk user object
+    if (!displayName) {
+      const firstName = clerkUser?.firstName || '';
+      const lastName = clerkUser?.lastName || '';
       if (firstName || lastName) {
         setDisplayName(`${firstName} ${lastName}`.trim());
-      } else if (clerkUser.emailAddresses?.[0]?.emailAddress) {
+      } else if (clerkUser?.emailAddresses?.[0]?.emailAddress) {
         // Fallback to email prefix if no name available
         const emailPrefix =
           clerkUser.emailAddresses[0].emailAddress.split('@')[0];
         setDisplayName(
           emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1),
         );
+      } else if (user?.email) {
+        // Final fallback to user object email
+        const emailPrefix = user.email.split('@')[0];
+        setDisplayName(
+          emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1),
+        );
       }
     }
-  }, [clerkUser, displayName]);
+  }, [clerkUser, user, username, displayName, usernameTouched]);
 
   // Real-time username validation
   useEffect(() => {

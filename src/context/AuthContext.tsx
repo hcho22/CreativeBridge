@@ -235,7 +235,21 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         userParam.email,
       );
 
-      const emailPrefix = userParam.email?.split('@')[0] || 'user';
+      // Generate unique username - avoid default 'user' which causes duplicates
+      // Try to extract email from userParam.email or clerkUser.user.emailAddresses
+      const email = userParam.email || clerkUser?.user?.emailAddresses?.[0]?.emailAddress;
+
+      let emailPrefix: string;
+      if (email) {
+        emailPrefix = email.split('@')[0];
+        console.log('📧 [createUserProfile] Extracting username from email:', emailPrefix, 'from', email);
+      } else {
+        // For users without email, create unique username using user ID suffix
+        const uniqueSuffix = userParam.id.slice(-8);
+        emailPrefix = `user_${uniqueSuffix}`;
+        console.log('🆔 [createUserProfile] No email available, using user ID suffix:', uniqueSuffix);
+      }
+
       const displayName =
         emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
 
@@ -535,12 +549,53 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           return { error: 'Authentication error: No user ID available' };
         }
         
+        // Generate unique username for OAuth users
+        // If no email or username provided, generate one using Clerk user ID suffix
+        const generateUniqueUsername = () => {
+          if (profile.username) return profile.username;
+
+          // Try to extract username from email (check both user.email and clerkUser.user.emailAddresses)
+          // clerkUser is UseUserReturn type, the actual user object is clerkUser.user
+          const email = user.email || clerkUser?.user?.emailAddresses?.[0]?.emailAddress;
+          if (email) {
+            const emailPrefix = email.split('@')[0];
+            console.log('📧 [AuthContext] Extracting username from email:', emailPrefix, 'from', email);
+            return emailPrefix;
+          }
+
+          // For users without email (e.g., Apple "Hide My Email"), create unique username
+          // Using last 8 characters of Clerk user ID for uniqueness
+          const uniqueSuffix = clerkUserId.slice(-8);
+          console.log('🆔 [AuthContext] No email available, using Clerk user ID suffix:', uniqueSuffix);
+          return `user_${uniqueSuffix}`;
+        };
+
+        const generateDisplayName = () => {
+          if (profile.display_name) return profile.display_name;
+          if (profile.username) return profile.username;
+
+          // Try to extract display name from email (check both user.email and clerkUser.user.emailAddresses)
+          // clerkUser is UseUserReturn type, the actual user object is clerkUser.user
+          const email = user.email || clerkUser?.user?.emailAddresses?.[0]?.emailAddress;
+          if (email) {
+            const emailPrefix = email.split('@')[0];
+            const displayName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
+            console.log('📧 [AuthContext] Extracting display name from email:', displayName);
+            return displayName;
+          }
+
+          // For users without email, use a friendly default with unique suffix
+          const uniqueSuffix = clerkUserId.slice(-8);
+          console.log('🆔 [AuthContext] No email available, using default display name with suffix:', uniqueSuffix);
+          return `User ${uniqueSuffix}`;
+        };
+
         // Use RPC function to create profile (bypasses RLS)
         const { data: createdProfile, error: createError } = await supabase
           .rpc('create_oauth_user_profile', {
             p_clerk_user_id: clerkUserId,
-            p_username: profile.username || user.email?.split('@')[0] || 'user',
-            p_display_name: profile.display_name || profile.username || user.email?.split('@')[0] || 'User',
+            p_username: generateUniqueUsername(),
+            p_display_name: generateDisplayName(),
             p_preferred_grade_level: profile.preferred_grade_level || 'K-2',
             p_email: user.email || null,
             p_speech_enabled: profile.speech_enabled ?? true,
