@@ -1,15 +1,9 @@
 // Story Selection Screen
 // Allows users to select from their previously created stories
 
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  StatusBar,
-  Alert,
-} from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, StatusBar, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
@@ -33,105 +27,20 @@ export const StorySelectionScreen: React.FC<StorySelectionScreenProps> = ({
   const activeNavigation = navigation || nav;
   const { user } = useAuth();
 
-  const [stories, setStories] = useState<GameSession[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Mock stories for now - will be replaced with actual data fetching
-  const mockStories: GameSession[] = [
-    {
-      id: 'story-1',
-      user_id: user?.id || 'mock-user',
-      created_at: '2024-01-15T10:30:00Z',
-      grade_level: 'K-2',
-      final_score: 150,
-      words_written: 45,
-      sentences_completed: 5,
-      challenges_completed: 2,
-      xp_earned: 100,
-      story_content:
-        'Once upon a time, there was a brave little mouse named Pip. Pip lived in a cozy hole under the old oak tree. Every day, Pip would venture out to find delicious crumbs and explore the garden.',
-      story_source: 'CreativeBridge',
-      story_metadata: {
-        title: 'The Adventures of Pip',
-        author: 'Young Writer',
-        genre: 'adventure',
-        word_count: 45,
-        last_edited: '2024-01-15T10:30:00Z',
-      },
-    },
-    {
-      id: 'story-2',
-      user_id: user?.id || 'mock-user',
-      created_at: '2024-01-10T14:20:00Z',
-      grade_level: '3-5',
-      final_score: 200,
-      words_written: 78,
-      sentences_completed: 8,
-      challenges_completed: 3,
-      xp_earned: 150,
-      story_content:
-        'The old lighthouse stood tall against the stormy sky. Sarah had always wondered what secrets it held. Tonight, with the storm raging outside, she finally decided to explore its mysterious chambers.',
-      story_source: 'CreativeBridge',
-      story_metadata: {
-        title: 'The Lighthouse Mystery',
-        author: 'Young Writer',
-        genre: 'mystery',
-        word_count: 78,
-        last_edited: '2024-01-10T14:20:00Z',
-      },
-    },
-    {
-      id: 'story-3',
-      user_id: user?.id || 'mock-user',
-      created_at: '2024-01-05T09:15:00Z',
-      grade_level: 'K-2',
-      final_score: 180,
-      words_written: 32,
-      sentences_completed: 4,
-      challenges_completed: 1,
-      xp_earned: 80,
-      story_content:
-        'In the magical forest, the trees could talk and the flowers could sing. Luna, a young fairy, was on her first quest to find the golden acorn that would save her village.',
-      story_source: 'Story_Quest',
-      story_metadata: {
-        title: "Luna's Quest",
-        author: 'Young Writer',
-        genre: 'fantasy',
-        word_count: 32,
-        last_edited: '2024-01-05T09:15:00Z',
-      },
-    },
-  ];
-
-  useEffect(() => {
-    loadUserStories();
-  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const loadUserStories = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      // TODO: Replace with actual API call
-      // const userStories = await storyManagementService.getUserStories(user?.id);
-
-      // Simulate loading delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      setStories(mockStories);
-    } catch (loadError) {
-      console.error('Error loading stories:', loadError);
-      setError('Failed to load your stories. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleStorySelect = (story: GameSession) => {
+    console.log('🎯 handleStorySelect called with story:', {
+      id: story.id,
+      title: story.story_metadata?.title || 'Untitled',
+      hasNavigation: !!activeNavigation,
+      navigationState: activeNavigation.getState(),
+    });
+
     try {
+      console.log('🚀 Attempting navigation to StoryPreviewEdit...');
       activeNavigation.navigate('StoryPreviewEdit', { story });
+      console.log('✅ Navigation command executed');
     } catch (error) {
+      console.error('❌ Navigation error:', error);
       console.warn('Navigation to StoryPreviewEdit not available:', error);
       Alert.alert(
         'Story Selected',
@@ -140,10 +49,6 @@ export const StorySelectionScreen: React.FC<StorySelectionScreenProps> = ({
         }". Story preview functionality is being developed.`,
       );
     }
-  };
-
-  const handleRefresh = () => {
-    loadUserStories();
   };
 
   const handleBack = () => {
@@ -172,22 +77,12 @@ export const StorySelectionScreen: React.FC<StorySelectionScreenProps> = ({
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
 
-      {error && (
-        <View style={styles.errorBanner}>
-          <Text style={styles.errorBannerText}>{error}</Text>
-        </View>
-      )}
-
       <StorySelectionModal
         visible={true}
-        stories={stories}
-        loading={loading}
-        onSelectStory={handleStorySelect}
-        onRefresh={handleRefresh}
+        userId={user.id}
+        onStorySelect={handleStorySelect}
         onClose={handleBack}
-        showCloseButton={false}
         title="Your Stories"
-        emptyMessage="No stories found. Create your first story to get started!"
       />
     </SafeAreaView>
   );

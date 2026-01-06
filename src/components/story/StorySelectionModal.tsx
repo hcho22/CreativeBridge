@@ -3,26 +3,25 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  Modal,
   View,
   Text,
   FlatList,
   TextInput,
   TouchableOpacity,
   RefreshControl,
-  ActivityIndicator,
   StyleSheet,
   Dimensions,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { GameSession, StorySource } from '../../types/database';
 import { StoryManagementService } from '../../services/storyManagementService';
 
+// Dimensions available for future responsive design
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const { width, height } = Dimensions.get('window');
 
 export interface StorySelectionModalProps {
-  visible: boolean;
+  visible?: boolean; // Optional, kept for API compatibility but not used internally
   onClose: () => void;
   onStorySelect: (story: GameSession) => void;
   userId: string;
@@ -73,15 +72,15 @@ const StoryCard: React.FC<StoryCardProps> = ({
     }
   };
 
-  const getStoryTitle = (story: GameSession) => {
+  const getStoryTitle = (storyItem: GameSession) => {
     // Try to extract title from metadata first
-    if (story.story_metadata?.title) {
-      return story.story_metadata.title;
+    if (storyItem.story_metadata?.title) {
+      return storyItem.story_metadata.title;
     }
 
     // Extract from content (first line if it looks like a title)
-    if (story.story_content) {
-      const firstLine = story.story_content.split('\n')[0].trim();
+    if (storyItem.story_content) {
+      const firstLine = storyItem.story_content.split('\n')[0].trim();
       if (
         firstLine.length > 0 &&
         firstLine.length < 60 &&
@@ -92,21 +91,40 @@ const StoryCard: React.FC<StoryCardProps> = ({
     }
 
     // Fallback to truncated content
-    const content = story.story_content || story.imported_story_content || '';
+    const content =
+      storyItem.story_content || storyItem.imported_story_content || '';
     return content.length > 40 ? `${content.substring(0, 40)}...` : content;
   };
 
-  const getStoryPreview = (story: GameSession) => {
-    const content = story.story_content || story.imported_story_content || '';
+  const getStoryPreview = (storyItem: GameSession) => {
+    const content =
+      storyItem.story_content || storyItem.imported_story_content || '';
     const lines = content.split('\n').filter(line => line.trim().length > 0);
 
     // Skip first line if it's being used as title
-    const title = getStoryTitle(story);
-    const isFirstLineTitle = lines[0] && lines[0].trim() === title;
+    const storyTitle = getStoryTitle(storyItem);
+    const isFirstLineTitle = lines[0] && lines[0].trim() === storyTitle;
     const previewLines = isFirstLineTitle ? lines.slice(1) : lines;
 
     const preview = previewLines.join(' ').substring(0, 120);
     return preview.length < content.length ? `${preview}...` : preview;
+  };
+
+  const getActualWordCount = (storyItem: GameSession) => {
+    // If words_written is set and non-zero, use it
+    if (storyItem.words_written > 0) {
+      return storyItem.words_written;
+    }
+
+    // Otherwise, calculate from content
+    const content =
+      storyItem.story_content || storyItem.imported_story_content || '';
+    if (!content.trim()) return 0;
+
+    return content
+      .trim()
+      .split(/\s+/)
+      .filter(word => word.length > 0).length;
   };
 
   const highlightSearchTerm = (text: string, term?: string) => {
@@ -133,7 +151,12 @@ const StoryCard: React.FC<StoryCardProps> = ({
   const sourceColor = getSourceColor(story.story_source);
 
   return (
-    <TouchableOpacity style={styles.storyCard} onPress={onPress}>
+    <TouchableOpacity
+      style={styles.storyCard}
+      onPress={onPress}
+      activeOpacity={0.7}
+      delayPressIn={0}
+    >
       <View style={styles.storyHeader}>
         <Text style={styles.storyTitle} numberOfLines={2}>
           {highlightSearchTerm(title, searchTerm)}
@@ -152,7 +175,9 @@ const StoryCard: React.FC<StoryCardProps> = ({
       <View style={styles.storyFooter}>
         <Text style={styles.storyDate}>{formatDate(story.created_at)}</Text>
         <View style={styles.storyStats}>
-          <Text style={styles.wordCount}>{story.words_written || 0} words</Text>
+          <Text style={styles.wordCount}>
+            {getActualWordCount(story)} words
+          </Text>
           {story.final_score > 0 && (
             <Text style={styles.score}>Score: {story.final_score}</Text>
           )}
@@ -184,11 +209,11 @@ const SkeletonCard: React.FC = () => (
 );
 
 export const StorySelectionModal: React.FC<StorySelectionModalProps> = ({
-  visible,
+  visible: _visible, // Unused, kept for API compatibility
   onClose,
   onStorySelect,
   userId,
-  title = 'Select a Story',
+  title: modalTitle = 'Select a Story',
   showOnlyCompleted = false,
   excludeStoryIds = [],
   initialSource,
@@ -288,8 +313,10 @@ export const StorySelectionModal: React.FC<StorySelectionModalProps> = ({
     }
 
     // Apply completed filter
+    // Note: Story completion feature is not yet implemented
+    // All stories have completed_at: null, so this filter is currently disabled in UI
     if (filters.completedOnly) {
-      filtered = filtered.filter(story => story.completed_at);
+      filtered = filtered.filter(story => !!story.completed_at);
     }
 
     // Apply search term
@@ -311,12 +338,12 @@ export const StorySelectionModal: React.FC<StorySelectionModalProps> = ({
     setFilteredStories(filtered);
   }, [stories, filters, searchTerm]);
 
-  // Load stories when modal opens
+  // Load stories when component mounts
   useEffect(() => {
-    if (visible && userId) {
+    if (userId) {
       loadStories();
     }
-  }, [visible, userId, loadStories]);
+  }, [userId, loadStories]);
 
   // Apply filters when stories or filters change
   useEffect(() => {
@@ -325,10 +352,17 @@ export const StorySelectionModal: React.FC<StorySelectionModalProps> = ({
 
   const handleStoryPress = useCallback(
     (story: GameSession) => {
+      console.log('📚 Story card pressed:', {
+        id: story.id,
+        title: story.story_metadata?.title || 'Untitled',
+        source: story.story_source,
+      });
+
+      // Call onStorySelect and let the parent handle navigation and modal dismissal
+      // DO NOT call onClose() here as it cancels the pending navigation
       onStorySelect(story);
-      onClose();
     },
-    [onStorySelect, onClose],
+    [onStorySelect],
   );
 
   const handleRefresh = useCallback(() => {
@@ -407,142 +441,137 @@ export const StorySelectionModal: React.FC<StorySelectionModalProps> = ({
   }, [loading, error, searchTerm, renderSkeleton, loadStories, clearSearch]);
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
-      <SafeAreaView style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <Text style={styles.closeButtonText}>✕</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>{title}</Text>
-          <View style={styles.headerSpacer} />
-        </View>
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+          <Text style={styles.closeButtonText}>✕</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>{modalTitle}</Text>
+        <View style={styles.headerSpacer} />
+      </View>
 
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search stories..."
-            value={searchTerm}
-            onChangeText={setSearchTerm}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          {searchTerm.length > 0 && (
-            <TouchableOpacity
-              style={styles.clearSearchButton}
-              onPress={clearSearch}
-            >
-              <Text style={styles.clearSearchText}>✕</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Filter Buttons */}
-        <View style={styles.filtersContainer}>
-          {/* Source Filter */}
-          <View style={styles.filterGroup}>
-            <Text style={styles.filterLabel}>Source:</Text>
-            <View style={styles.filterButtons}>
-              {sourceOptions.map(source => (
-                <TouchableOpacity
-                  key={source}
-                  style={[
-                    styles.filterButton,
-                    filters.source === source && styles.filterButtonActive,
-                  ]}
-                  onPress={() => setFilters(prev => ({ ...prev, source }))}
-                >
-                  <Text
-                    style={[
-                      styles.filterButtonText,
-                      filters.source === source &&
-                        styles.filterButtonTextActive,
-                    ]}
-                  >
-                    {source}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Date Range Filter */}
-          <View style={styles.filterGroup}>
-            <Text style={styles.filterLabel}>Date:</Text>
-            <View style={styles.filterButtons}>
-              {dateRangeOptions.map(option => (
-                <TouchableOpacity
-                  key={option.key}
-                  style={[
-                    styles.filterButton,
-                    filters.dateRange === option.key &&
-                      styles.filterButtonActive,
-                  ]}
-                  onPress={() =>
-                    setFilters(prev => ({
-                      ...prev,
-                      dateRange: option.key as any,
-                    }))
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.filterButtonText,
-                      filters.dateRange === option.key &&
-                        styles.filterButtonTextActive,
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Completed Only Toggle */}
-          {!showOnlyCompleted && (
-            <TouchableOpacity
-              style={styles.toggleButton}
-              onPress={() =>
-                setFilters(prev => ({
-                  ...prev,
-                  completedOnly: !prev.completedOnly,
-                }))
-              }
-            >
-              <Text style={styles.toggleButtonText}>
-                {filters.completedOnly ? '☑' : '☐'} Completed Only
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Results Count */}
-        <Text style={styles.resultsCount}>
-          {filteredStories.length}{' '}
-          {filteredStories.length === 1 ? 'story' : 'stories'}
-        </Text>
-
-        {/* Story List */}
-        <FlatList
-          data={filteredStories}
-          keyExtractor={item => item.id}
-          renderItem={renderStoryCard}
-          ListEmptyComponent={ListEmptyComponent}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-          }
-          contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search stories..."
+          value={searchTerm}
+          onChangeText={setSearchTerm}
+          autoCapitalize="none"
+          autoCorrect={false}
         />
-      </SafeAreaView>
-    </Modal>
+        {searchTerm.length > 0 && (
+          <TouchableOpacity
+            style={styles.clearSearchButton}
+            onPress={clearSearch}
+          >
+            <Text style={styles.clearSearchText}>✕</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Filter Buttons */}
+      <View style={styles.filtersContainer}>
+        {/* Source Filter */}
+        <View style={styles.filterGroup}>
+          <Text style={styles.filterLabel}>Source:</Text>
+          <View style={styles.filterButtons}>
+            {sourceOptions.map(source => (
+              <TouchableOpacity
+                key={source}
+                style={[
+                  styles.filterButton,
+                  filters.source === source && styles.filterButtonActive,
+                ]}
+                onPress={() => setFilters(prev => ({ ...prev, source }))}
+              >
+                <Text
+                  style={[
+                    styles.filterButtonText,
+                    filters.source === source && styles.filterButtonTextActive,
+                  ]}
+                >
+                  {source}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Date Range Filter */}
+        <View style={styles.filterGroup}>
+          <Text style={styles.filterLabel}>Date:</Text>
+          <View style={styles.filterButtons}>
+            {dateRangeOptions.map(option => (
+              <TouchableOpacity
+                key={option.key}
+                style={[
+                  styles.filterButton,
+                  filters.dateRange === option.key && styles.filterButtonActive,
+                ]}
+                onPress={() =>
+                  setFilters(prev => ({
+                    ...prev,
+                    dateRange: option.key as any,
+                  }))
+                }
+              >
+                <Text
+                  style={[
+                    styles.filterButtonText,
+                    filters.dateRange === option.key &&
+                      styles.filterButtonTextActive,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Completed Only Toggle */}
+        {/* Note: Hidden until story completion feature is implemented */}
+        {/* All stories currently have completed_at: null */}
+        {false && !showOnlyCompleted && (
+          <TouchableOpacity
+            style={styles.toggleButton}
+            onPress={() =>
+              setFilters(prev => ({
+                ...prev,
+                completedOnly: !prev.completedOnly,
+              }))
+            }
+          >
+            <Text style={styles.toggleButtonText}>
+              {filters.completedOnly ? '☑' : '☐'} Completed Only
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Results Count */}
+      <Text style={styles.resultsCount}>
+        {filteredStories.length}{' '}
+        {filteredStories.length === 1 ? 'story' : 'stories'}
+      </Text>
+
+      {/* Story List */}
+      <FlatList
+        data={filteredStories}
+        keyExtractor={item => item.id}
+        renderItem={renderStoryCard}
+        ListEmptyComponent={ListEmptyComponent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+        contentContainerStyle={styles.listContainer}
+        showsVerticalScrollIndicator={false}
+        removeClippedSubviews={false}
+        keyboardShouldPersistTaps="handled"
+      />
+    </SafeAreaView>
   );
 };
 
