@@ -11,10 +11,18 @@ import {
   RefreshControl,
   StyleSheet,
   Dimensions,
+  Image,
+  ActivityIndicator,
+  Alert,
+  ActionSheetIOS,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { GameSession, StorySource } from '../../types/database';
 import { StoryManagementService } from '../../services/storyManagementService';
+import Share from '../../utils/shareWrapper';
+import RNFS from '../../utils/rnfsWrapper';
+import FolderPickerUtil from '../../utils/folderPicker';
 
 // Dimensions available for future responsive design
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -48,6 +56,9 @@ const StoryCard: React.FC<StoryCardProps> = ({
   onPress,
   searchTerm,
 }) => {
+  const [imageLoading, setImageLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -56,6 +67,21 @@ const StoryCard: React.FC<StoryCardProps> = ({
       year: 'numeric',
     });
   };
+
+  // Get image URL with priority: Supabase > Replicate > none
+  const getImageUrl = () => {
+    if (story.supabase_image_url) {
+      return story.supabase_image_url;
+    }
+    if (story.generated_image_url) {
+      return story.generated_image_url;
+    }
+    return null;
+  };
+
+  const imageUrl = getImageUrl();
+  const hasImage = !!imageUrl;
+  const uploadStatus = story.image_upload_status;
 
   const getSourceColor = (source: StorySource) => {
     switch (source) {
@@ -150,6 +176,186 @@ const StoryCard: React.FC<StoryCardProps> = ({
   const preview = getStoryPreview(story);
   const sourceColor = getSourceColor(story.story_source);
 
+  // Handle long-press on thumbnail for download/share
+  const handleThumbnailLongPress = useCallback(() => {
+    if (!hasImage || !imageUrl || imageError) return;
+
+    const storyTitle = getStoryTitle(story);
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancel', 'Download Image', 'Share Image'],
+          cancelButtonIndex: 0,
+          title: storyTitle,
+        },
+        async (buttonIndex) => {
+          if (buttonIndex === 1) {
+            // Download
+            await downloadImage();
+          } else if (buttonIndex === 2) {
+            // Share
+            await shareImage();
+          }
+        },
+      );
+    } else {
+      // Android fallback - show simple alert with options
+      Alert.alert(
+        storyTitle,
+        'What would you like to do with this image?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Download', onPress: () => downloadImage() },
+          { text: 'Share', onPress: () => shareImage() },
+        ],
+      );
+    }
+  }, [hasImage, imageUrl, imageError, story]);
+
+  // Download image to device
+  const downloadImage = useCallback(async () => {
+    if (!imageUrl) return;
+
+    try {
+      const timestamp = new Date().getTime();
+      const filename = `story_${story.id}_${timestamp}.jpg`;
+      const tempPath = `${RNFS.DocumentDirectoryPath}/${filename}`;
+
+      // Download the image
+      const downloadResult = await RNFS.downloadFile({
+        fromUrl: imageUrl,
+        toFile: tempPath,
+      }).promise;
+
+      if (downloadResult.statusCode !== 200) {
+        throw new Error(`Download failed with status: ${downloadResult.statusCode}`);
+      }
+
+      // Use folder picker to save
+      const saveResult = await FolderPickerUtil.saveToUserSelectedFolder({
+        sourceFilePath: tempPath,
+        fileName: filename,
+        title: 'Save Story Image',
+      });
+
+      if (saveResult.success) {
+        Alert.alert('✅ Saved!', 'Image saved successfully!');
+      } else if (!saveResult.cancelled) {
+        throw new Error(saveResult.error || 'Save failed');
+      }
+
+      // Clean up temp file
+      await RNFS.unlink(tempPath);
+    } catch (error: any) {
+      console.error('Download failed:', error);
+      Alert.alert('❌ Download Failed', error.message || 'Could not download image');
+    }
+  }, [imageUrl, story.id]);
+
+  // Share image
+  const shareImage = useCallback(async () => {
+    if (!imageUrl) return;
+
+    try {
+      const timestamp = new Date().getTime();
+      const filename = `story_${story.id}_${timestamp}.jpg`;
+      const tempPath = `${RNFS.DocumentDirectoryPath}/${filename}`;
+
+      // Download for sharing
+      const downloadResult = await RNFS.downloadFile({
+        fromUrl: imageUrl,
+        toFile: tempPath,
+      }).promise;
+
+      if (downloadResult.statusCode !== 200) {
+        throw new Error(`Download failed with status: ${downloadResult.statusCode}`);
+      }
+
+      const shareUrl = `file://${tempPath}`;
+      const storyTitle = getStoryTitle(story);
+
+      await Share.open({
+        url: shareUrl,
+        title: storyTitle,
+        message: `Check out this story illustration: "${storyTitle}" 🎨`,
+        type: 'image/jpeg',
+        filename,
+      });
+
+      // Clean up temp file
+      await RNFS.unlink(tempPath);
+    } catch (error: any) {
+      if (error.message && !error.message.includes('cancelled')) {
+        console.error('Share failed:', error);
+        Alert.alert('❌ Share Failed', error.message || 'Could not share image');
+      }
+    }
+  }, [imageUrl, story]);
+
+  // Render image thumbnail or placeholder
+  const renderThumbnail = () => {
+    if (!hasImage) {
+      // No image - show placeholder
+      return (
+        <View style={styles.thumbnailPlaceholder}>
+          <Text style={styles.thumbnailPlaceholderIcon}>🖼️</Text>
+        </View>
+      );
+    }
+
+    return (
+      <TouchableOpacity
+        style={styles.thumbnailContainer}
+        onLongPress={handleThumbnailLongPress}
+        delayLongPress={500}
+        activeOpacity={0.8}
+      >
+        <Image
+          source={{ uri: imageUrl }}
+          style={styles.thumbnail}
+          onLoadStart={() => setImageLoading(true)}
+          onLoadEnd={() => setImageLoading(false)}
+          onError={() => {
+            setImageError(true);
+            setImageLoading(false);
+          }}
+        />
+
+        {/* Loading indicator */}
+        {imageLoading && !imageError && (
+          <View style={styles.thumbnailLoading}>
+            <ActivityIndicator size="small" color="#6f42c1" />
+          </View>
+        )}
+
+        {/* Error state */}
+        {imageError && (
+          <View style={styles.thumbnailError}>
+            <Text style={styles.thumbnailErrorIcon}>⚠️</Text>
+          </View>
+        )}
+
+        {/* Upload status indicator */}
+        {uploadStatus === 'pending' && !imageError && (
+          <View style={styles.uploadingBadge}>
+            <ActivityIndicator size="small" color="#fff" />
+          </View>
+        )}
+        {uploadStatus === 'uploaded' && !imageError && (
+          <View style={styles.uploadedBadge}>
+            <Text style={styles.uploadedBadgeText}>✓</Text>
+          </View>
+        )}
+        {uploadStatus === 'failed' && !imageError && (
+          <View style={styles.uploadFailedBadge}>
+            <Text style={styles.uploadFailedBadgeText}>!</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <TouchableOpacity
       style={styles.storyCard}
@@ -157,30 +363,38 @@ const StoryCard: React.FC<StoryCardProps> = ({
       activeOpacity={0.7}
       delayPressIn={0}
     >
-      <View style={styles.storyHeader}>
-        <Text style={styles.storyTitle} numberOfLines={2}>
-          {highlightSearchTerm(title, searchTerm)}
-        </Text>
-        <View
-          style={[styles.sourceIndicator, { backgroundColor: sourceColor }]}
-        >
-          <Text style={styles.sourceText}>{story.story_source}</Text>
-        </View>
-      </View>
+      <View style={styles.storyCardContent}>
+        {/* Image Thumbnail */}
+        {renderThumbnail()}
 
-      <Text style={styles.storyPreview} numberOfLines={3}>
-        {highlightSearchTerm(preview, searchTerm)}
-      </Text>
+        {/* Story Content */}
+        <View style={styles.storyTextContent}>
+          <View style={styles.storyHeader}>
+            <Text style={styles.storyTitle} numberOfLines={2}>
+              {highlightSearchTerm(title, searchTerm)}
+            </Text>
+            <View
+              style={[styles.sourceIndicator, { backgroundColor: sourceColor }]}
+            >
+              <Text style={styles.sourceText}>{story.story_source}</Text>
+            </View>
+          </View>
 
-      <View style={styles.storyFooter}>
-        <Text style={styles.storyDate}>{formatDate(story.created_at)}</Text>
-        <View style={styles.storyStats}>
-          <Text style={styles.wordCount}>
-            {getActualWordCount(story)} words
+          <Text style={styles.storyPreview} numberOfLines={2}>
+            {highlightSearchTerm(preview, searchTerm)}
           </Text>
-          {story.final_score > 0 && (
-            <Text style={styles.score}>Score: {story.final_score}</Text>
-          )}
+
+          <View style={styles.storyFooter}>
+            <Text style={styles.storyDate}>{formatDate(story.created_at)}</Text>
+            <View style={styles.storyStats}>
+              <Text style={styles.wordCount}>
+                {getActualWordCount(story)} words
+              </Text>
+              {story.final_score > 0 && (
+                <Text style={styles.score}>Score: {story.final_score}</Text>
+              )}
+            </View>
+          </View>
         </View>
       </View>
 
@@ -195,15 +409,23 @@ const StoryCard: React.FC<StoryCardProps> = ({
 
 const SkeletonCard: React.FC = () => (
   <View style={styles.skeletonCard}>
-    <View style={styles.skeletonHeader}>
-      <View style={styles.skeletonTitle} />
-      <View style={styles.skeletonSource} />
-    </View>
-    <View style={styles.skeletonPreview1} />
-    <View style={styles.skeletonPreview2} />
-    <View style={styles.skeletonFooter}>
-      <View style={styles.skeletonDate} />
-      <View style={styles.skeletonStats} />
+    <View style={styles.storyCardContent}>
+      {/* Skeleton thumbnail */}
+      <View style={styles.skeletonThumbnail} />
+
+      {/* Skeleton content */}
+      <View style={styles.storyTextContent}>
+        <View style={styles.skeletonHeader}>
+          <View style={styles.skeletonTitle} />
+          <View style={styles.skeletonSource} />
+        </View>
+        <View style={styles.skeletonPreview1} />
+        <View style={styles.skeletonPreview2} />
+        <View style={styles.skeletonFooter}>
+          <View style={styles.skeletonDate} />
+          <View style={styles.skeletonStats} />
+        </View>
+      </View>
     </View>
   </View>
 );
@@ -695,6 +917,105 @@ const styles = StyleSheet.create({
     elevation: 2,
     position: 'relative',
   },
+  storyCardContent: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  storyTextContent: {
+    flex: 1,
+  },
+  // Image Thumbnail Styles
+  thumbnailContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#f0f0f0',
+    position: 'relative',
+  },
+  thumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  thumbnailPlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    borderStyle: 'dashed',
+  },
+  thumbnailPlaceholderIcon: {
+    fontSize: 32,
+    opacity: 0.3,
+  },
+  thumbnailLoading: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  thumbnailError: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#f8d7da',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  thumbnailErrorIcon: {
+    fontSize: 24,
+  },
+  // Upload Status Badges
+  uploadingBadge: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    backgroundColor: 'rgba(111, 66, 193, 0.9)',
+    borderRadius: 12,
+    padding: 4,
+  },
+  uploadedBadge: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    backgroundColor: 'rgba(76, 175, 80, 0.9)',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  uploadedBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  uploadFailedBadge: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    backgroundColor: 'rgba(255, 152, 0, 0.9)',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  uploadFailedBadgeText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
   storyHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -771,6 +1092,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+  },
+  skeletonThumbnail: {
+    width: 80,
+    height: 80,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 8,
   },
   skeletonHeader: {
     flexDirection: 'row',

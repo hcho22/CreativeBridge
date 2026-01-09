@@ -1,0 +1,573 @@
+# ============================================================================
+# ALERT RULES CONFIGURATION
+# Task 7.3: Monitoring Setup - Story Completion & Image Persistence
+# ============================================================================
+#
+# This configuration defines alerting rules for monitoring the production
+# deployment of Story Completion Tracking and Image Persistence features.
+#
+# Integration: Supabase, Sentry, Slack, PagerDuty
+# Created: 2026-01-08
+# ============================================================================
+
+version: "1.0"
+environment: production
+feature: "story-completion-image-persistence"
+
+# ============================================================================
+# CRITICAL ALERTS (Immediate Response Required)
+# ============================================================================
+
+critical_alerts:
+  # Alert 1: Storage Quota Critical
+  - name: storage_quota_90_percent
+    description: "Supabase Storage usage exceeds 90% of quota"
+    metric: storage.used / storage.total
+    condition: "> 0.90"
+    evaluation_window: "5m"
+    severity: critical
+    priority: P0
+
+    notification_channels:
+      - pagerduty
+      - slack:critical
+      - email:engineering-oncall
+
+    actions:
+      - "Page on-call engineer immediately"
+      - "Review storage usage trends"
+      - "Consider quota increase or cleanup"
+      - "Check for stuck uploads or data bloat"
+
+    runbook_url: "https://docs.creativebridge.app/runbooks/storage-quota-critical"
+
+    suppression_rules:
+      - during_maintenance_window: true
+      - if_acknowledged_within: "10m"
+
+  # Alert 2: Image Upload Failure Rate Critical
+  - name: upload_failure_rate_critical
+    description: "Image upload failure rate exceeds 15% (critical threshold)"
+
+    sql_query: |
+      SELECT
+        COUNT(CASE WHEN image_upload_status = 'failed' THEN 1 END)::float /
+        NULLIF(COUNT(CASE WHEN generated_image_url IS NOT NULL THEN 1 END), 0) as failure_rate
+      FROM game_sessions
+      WHERE created_at >= NOW() - INTERVAL '1 hour'
+
+    condition: "failure_rate > 0.15"
+    evaluation_window: "5m"
+    severity: critical
+    priority: P0
+
+    notification_channels:
+      - pagerduty
+      - slack:critical
+      - email:engineering-oncall
+
+    actions:
+      - "Page on-call engineer"
+      - "Check Supabase Storage API status"
+      - "Review recent uploads for error patterns"
+      - "Consider temporary failover to Replicate-only mode"
+
+    context:
+      dashboard_url: "https://grafana.creativebridge.app/d/image-uploads"
+      sentry_query: "issue.tag:image_upload_error"
+
+    runbook_url: "https://docs.creativebridge.app/runbooks/upload-failure-critical"
+
+  # Alert 3: Story Completion Rate Crashed
+  - name: completion_rate_crashed
+    description: "Story completion rate dropped below 40% (normal: 70%+)"
+
+    sql_query: |
+      SELECT
+        COUNT(CASE WHEN completed_at IS NOT NULL THEN 1 END)::float /
+        NULLIF(COUNT(*), 0) as completion_rate
+      FROM game_sessions
+      WHERE created_at >= NOW() - INTERVAL '2 hours'
+
+    condition: "completion_rate < 0.40"
+    evaluation_window: "10m"
+    severity: critical
+    priority: P0
+
+    notification_channels:
+      - pagerduty
+      - slack:critical
+      - email:product-team
+
+    actions:
+      - "Page on-call engineer"
+      - "Check for UI bugs preventing story progression"
+      - "Review recent code deployments"
+      - "Verify database current_round logic"
+
+    runbook_url: "https://docs.creativebridge.app/runbooks/completion-rate-crash"
+
+  # Alert 4: XP Refund Spike
+  - name: xp_refund_spike_critical
+    description: "XP refund rate exceeds 20% indicating systemic image generation failure"
+
+    sql_query: |
+      SELECT
+        COUNT(CASE WHEN generation_status = 'refunded' THEN 1 END)::float /
+        NULLIF(COUNT(*), 0) as refund_rate
+      FROM image_generation_events
+      WHERE created_at >= NOW() - INTERVAL '1 hour'
+
+    condition: "refund_rate > 0.20"
+    evaluation_window: "10m"
+    severity: critical
+    priority: P0
+
+    notification_channels:
+      - pagerduty
+      - slack:critical
+      - email:engineering-oncall
+
+    actions:
+      - "Page on-call engineer"
+      - "Check Replicate API status and quotas"
+      - "Verify image generation service health"
+      - "Review error logs for API failures"
+
+    context:
+      replicate_status: "https://status.replicate.com"
+      api_dashboard: "https://grafana.creativebridge.app/d/replicate-api"
+
+    runbook_url: "https://docs.creativebridge.app/runbooks/xp-refund-spike"
+
+  # Alert 5: Data Integrity Violations
+  - name: data_integrity_violations
+    description: "Detected data inconsistencies in game_sessions table"
+
+    sql_query: |
+      SELECT COUNT(*) as violations
+      FROM game_sessions
+      WHERE created_at >= NOW() - INTERVAL '1 hour'
+        AND (
+          (completed_at IS NOT NULL AND current_round < 5) OR
+          (current_round > 5) OR
+          (supabase_image_url IS NOT NULL AND generated_image_url IS NULL)
+        )
+
+    condition: "violations > 10"
+    evaluation_window: "15m"
+    severity: critical
+    priority: P1
+
+    notification_channels:
+      - slack:critical
+      - email:engineering-team
+
+    actions:
+      - "Review application logic for race conditions"
+      - "Check database triggers and constraints"
+      - "Run data quality queries to identify patterns"
+      - "Create cleanup script if needed"
+
+    runbook_url: "https://docs.creativebridge.app/runbooks/data-integrity"
+
+# ============================================================================
+# WARNING ALERTS (Degraded Performance)
+# ============================================================================
+
+warning_alerts:
+  # Alert 6: Storage Quota 80% Warning
+  - name: storage_quota_80_percent
+    description: "Supabase Storage approaching capacity (80%)"
+    metric: storage.used / storage.total
+    condition: "> 0.80"
+    evaluation_window: "15m"
+    severity: warning
+    priority: P2
+
+    notification_channels:
+      - slack:warnings
+      - email:engineering-team
+
+    actions:
+      - "Review storage growth trends"
+      - "Plan quota increase or data cleanup"
+      - "Estimate time to 90% threshold"
+
+    runbook_url: "https://docs.creativebridge.app/runbooks/storage-quota-warning"
+
+  # Alert 7: Upload Failure Rate Warning
+  - name: upload_failure_rate_warning
+    description: "Image upload failure rate between 5-15% (target: <5%)"
+
+    sql_query: |
+      SELECT
+        COUNT(CASE WHEN image_upload_status = 'failed' THEN 1 END)::float /
+        NULLIF(COUNT(CASE WHEN generated_image_url IS NOT NULL THEN 1 END), 0) as failure_rate
+      FROM game_sessions
+      WHERE created_at >= NOW() - INTERVAL '1 hour'
+
+    condition: "failure_rate BETWEEN 0.05 AND 0.15"
+    evaluation_window: "10m"
+    severity: warning
+    priority: P2
+
+    notification_channels:
+      - slack:warnings
+      - email:engineering-team
+
+    actions:
+      - "Monitor closely for escalation"
+      - "Review error patterns"
+      - "Check Supabase API performance"
+      - "Verify retry logic is working"
+
+    runbook_url: "https://docs.creativebridge.app/runbooks/upload-failure-warning"
+
+  # Alert 8: Story Completion Rate Degraded
+  - name: completion_rate_degraded
+    description: "Story completion rate between 40-70% (normal: 70%+)"
+
+    sql_query: |
+      SELECT
+        COUNT(CASE WHEN completed_at IS NOT NULL THEN 1 END)::float /
+        NULLIF(COUNT(*), 0) as completion_rate
+      FROM game_sessions
+      WHERE created_at >= NOW() - INTERVAL '3 hours'
+
+    condition: "completion_rate BETWEEN 0.40 AND 0.70"
+    evaluation_window: "15m"
+    severity: warning
+    priority: P2
+
+    notification_channels:
+      - slack:warnings
+      - email:product-team
+
+    actions:
+      - "Analyze user drop-off by round"
+      - "Check for UX issues or bugs"
+      - "Review analytics for patterns"
+      - "Gather user feedback"
+
+    runbook_url: "https://docs.creativebridge.app/runbooks/completion-rate-degraded"
+
+  # Alert 9: Upload Response Time Slow
+  - name: upload_response_time_slow
+    description: "Average upload time exceeds 15 seconds (target: <10s)"
+
+    sql_query: |
+      SELECT AVG(
+        EXTRACT(EPOCH FROM (updated_at - created_at))
+      ) as avg_upload_time
+      FROM game_sessions
+      WHERE image_upload_status = 'uploaded'
+        AND created_at >= NOW() - INTERVAL '1 hour'
+        AND updated_at IS NOT NULL
+
+    condition: "avg_upload_time > 15"
+    evaluation_window: "10m"
+    severity: warning
+    priority: P2
+
+    notification_channels:
+      - slack:warnings
+      - email:engineering-team
+
+    actions:
+      - "Check Supabase Storage performance"
+      - "Review network latency"
+      - "Monitor Replicate download speeds"
+      - "Consider timeout adjustments"
+
+    runbook_url: "https://docs.creativebridge.app/runbooks/slow-uploads"
+
+  # Alert 10: Stuck Pending Uploads
+  - name: stuck_pending_uploads
+    description: "Images stuck in 'pending' status for >30 minutes"
+
+    sql_query: |
+      SELECT COUNT(*) as stuck_count
+      FROM game_sessions
+      WHERE image_upload_status = 'pending'
+        AND generated_image_url IS NOT NULL
+        AND created_at < NOW() - INTERVAL '30 minutes'
+
+    condition: "stuck_count > 10"
+    evaluation_window: "15m"
+    severity: warning
+    priority: P2
+
+    notification_channels:
+      - slack:warnings
+      - email:engineering-team
+
+    actions:
+      - "Investigate background upload worker"
+      - "Check for hanging processes"
+      - "Manually retry stuck uploads"
+      - "Review async upload logic"
+
+    runbook_url: "https://docs.creativebridge.app/runbooks/stuck-uploads"
+
+  # Alert 11: High Retry Attempts
+  - name: high_retry_attempts
+    description: "Average upload retry attempts >2.5 (target: <2.0)"
+
+    sql_query: |
+      SELECT AVG(image_upload_attempts) as avg_attempts
+      FROM game_sessions
+      WHERE image_upload_attempts > 0
+        AND created_at >= NOW() - INTERVAL '1 hour'
+
+    condition: "avg_attempts > 2.5"
+    evaluation_window: "15m"
+    severity: warning
+    priority: P2
+
+    notification_channels:
+      - slack:warnings
+      - email:engineering-team
+
+    actions:
+      - "Check network stability"
+      - "Review retry backoff logic"
+      - "Investigate Supabase API intermittent errors"
+      - "Consider adjusting retry strategy"
+
+    runbook_url: "https://docs.creativebridge.app/runbooks/high-retries"
+
+# ============================================================================
+# INFORMATIONAL ALERTS (FYI, No Action Required)
+# ============================================================================
+
+info_alerts:
+  # Alert 12: High Usage Period
+  - name: high_usage_period
+    description: "Story creation rate >100/hour (peak traffic)"
+
+    sql_query: |
+      SELECT COUNT(*) as stories_per_hour
+      FROM game_sessions
+      WHERE created_at >= NOW() - INTERVAL '1 hour'
+
+    condition: "stories_per_hour > 100"
+    evaluation_window: "5m"
+    severity: info
+    priority: P3
+
+    notification_channels:
+      - slack:analytics
+
+    actions:
+      - "Monitor system resources"
+      - "Ensure auto-scaling is functioning"
+      - "Track for capacity planning"
+
+  # Alert 13: Feature Adoption Milestone
+  - name: image_generation_milestone
+    description: "Image generation milestone reached (1000+ generations today)"
+
+    sql_query: |
+      SELECT COUNT(*) as daily_generations
+      FROM game_sessions
+      WHERE generated_image_url IS NOT NULL
+        AND created_at >= DATE_TRUNC('day', NOW())
+
+    condition: "daily_generations >= 1000"
+    evaluation_window: "1h"
+    severity: info
+    priority: P4
+
+    notification_channels:
+      - slack:analytics
+      - email:product-team
+
+    actions:
+      - "Celebrate with team"
+      - "Review user feedback"
+      - "Update stakeholders"
+
+  # Alert 14: New Error Pattern Detected
+  - name: new_error_pattern
+    description: "New image upload error type detected"
+
+    sql_query: |
+      SELECT DISTINCT image_upload_error
+      FROM game_sessions
+      WHERE image_upload_error IS NOT NULL
+        AND created_at >= NOW() - INTERVAL '1 hour'
+
+    # Trigger if new error not in known_errors list
+    condition: "new error not in known_errors"
+    evaluation_window: "15m"
+    severity: info
+    priority: P3
+
+    notification_channels:
+      - slack:engineering
+
+    actions:
+      - "Document new error type"
+      - "Add to error handling logic if needed"
+      - "Update monitoring queries"
+
+# ============================================================================
+# ALERT CONFIGURATION
+# ============================================================================
+
+global_settings:
+  # Evaluation Settings
+  evaluation_interval: "60s"  # Check alerts every minute
+  lookback_window: "5m"       # Default lookback for metrics
+
+  # Notification Settings
+  max_notifications_per_hour: 10
+  group_similar_alerts: true
+  alert_grouping_window: "15m"
+
+  # Escalation Policy
+  escalation_policy:
+    - step: 1
+      delay: "0m"
+      notify: ["slack:warnings", "email:engineering-team"]
+
+    - step: 2
+      delay: "15m"
+      condition: "not_acknowledged"
+      notify: ["pagerduty", "slack:critical"]
+
+    - step: 3
+      delay: "30m"
+      condition: "not_resolved"
+      notify: ["email:engineering-lead", "phone:oncall"]
+
+  # Auto-Resolution
+  auto_resolve:
+    enabled: true
+    threshold_duration: "15m"  # Auto-resolve if condition clears for 15min
+
+  # Quiet Hours (Reduce non-critical notifications)
+  quiet_hours:
+    enabled: true
+    timezone: "America/Los_Angeles"
+    start: "22:00"
+    end: "08:00"
+    suppress_levels: ["info", "warning"]
+    allow_critical: true
+
+# ============================================================================
+# NOTIFICATION CHANNELS
+# ============================================================================
+
+notification_channels:
+  slack:
+    critical:
+      webhook: "${SLACK_WEBHOOK_CRITICAL}"
+      channel: "#alerts-critical"
+      mention: "@oncall @engineering-lead"
+
+    warnings:
+      webhook: "${SLACK_WEBHOOK_WARNINGS}"
+      channel: "#alerts-warnings"
+      mention: "@engineering-team"
+
+    analytics:
+      webhook: "${SLACK_WEBHOOK_ANALYTICS}"
+      channel: "#analytics"
+      mention: ""
+
+    engineering:
+      webhook: "${SLACK_WEBHOOK_ENGINEERING}"
+      channel: "#engineering"
+      mention: ""
+
+  pagerduty:
+    integration_key: "${PAGERDUTY_INTEGRATION_KEY}"
+    service_id: "creativebridge-production"
+    escalation_policy: "creativebridge-critical"
+
+  email:
+    engineering-oncall:
+      addresses: ["oncall@creativebridge.app"]
+      priority: "high"
+
+    engineering-team:
+      addresses: ["engineering@creativebridge.app"]
+      priority: "normal"
+
+    engineering-lead:
+      addresses: ["eng-lead@creativebridge.app"]
+      priority: "urgent"
+
+    product-team:
+      addresses: ["product@creativebridge.app"]
+      priority: "normal"
+
+# ============================================================================
+# TESTING CONFIGURATION
+# ============================================================================
+
+testing:
+  # Test Mode (Send to test channels only)
+  test_mode: false
+  test_channels:
+    slack: "#alerts-testing"
+    email: "alerts-test@creativebridge.app"
+
+  # Alert Simulation
+  simulation_enabled: false
+  simulate_alerts:
+    - alert: "upload_failure_rate_warning"
+      interval: "1h"
+      purpose: "Verify notification delivery"
+
+  # Runbook Testing
+  runbook_validation:
+    enabled: true
+    validate_links: true
+    check_interval: "weekly"
+
+# ============================================================================
+# COMPLIANCE & AUDIT
+# ============================================================================
+
+compliance:
+  # Alert Logging
+  log_all_alerts: true
+  retention_period: "90d"
+  log_destination: "supabase.alert_logs"
+
+  # Audit Trail
+  track_acknowledgements: true
+  track_resolutions: true
+  track_escalations: true
+
+  # SLA Tracking
+  sla_targets:
+    critical_response_time: "5m"
+    critical_resolution_time: "30m"
+    warning_response_time: "30m"
+    warning_resolution_time: "4h"
+
+# ============================================================================
+# USAGE NOTES
+# ============================================================================
+#
+# This configuration file defines alerts for monitoring the Story Completion
+# and Image Persistence features. It should be deployed alongside the
+# monitoring service and integrated with Supabase, Slack, and PagerDuty.
+#
+# DEPLOYMENT:
+# 1. Set environment variables for notification channels
+# 2. Deploy to config/monitoring/alert-rules.yml
+# 3. Configure monitoring service to load this file
+# 4. Test alert delivery with simulation mode
+#
+# MAINTENANCE:
+# - Review and update thresholds quarterly
+# - Add new alerts as features evolve
+# - Archive obsolete alerts
+# - Keep runbooks up to date
+#
+# ============================================================================

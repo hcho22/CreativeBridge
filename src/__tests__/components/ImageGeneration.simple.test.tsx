@@ -91,10 +91,21 @@ describe('ImageGeneration Component - Simple Tests', () => {
     onImageGenerated: jest.fn(),
     onError: jest.fn(),
     disabled: false,
+    isStoryCompleted: true,
+    currentRound: 5,
+    maxRounds: 5,
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // Reset mock auth context to default values
+    mockAuthContext.getXPBalanceInfo.mockReturnValue({
+      hasEnoughXP: true,
+      currentXP: 2500,
+      shortfall: 0,
+      canGenerate: true,
+      maxGenerations: 2,
+    });
   });
 
   describe('Basic Rendering', () => {
@@ -150,6 +161,9 @@ describe('ImageGeneration Component - Simple Tests', () => {
         sessionId: 'session-123',
         gradeLevel: '3-5',
         wordCount: 100,
+        isStoryCompleted: true,
+        currentRound: 5,
+        maxRounds: 5,
       };
 
       expect(() => {
@@ -219,11 +233,18 @@ describe('ImageGeneration Component - Simple Tests', () => {
   });
 
   describe('Accessibility and User Experience', () => {
-    test('should provide helpful text for locked state', () => {
+    test('should provide helpful text for locked state when disabled', () => {
       const { getByText } = render(
-        <ImageGeneration {...defaultProps} disabled={true} />,
+        <ImageGeneration
+          {...defaultProps}
+          disabled={true}
+          isStoryCompleted={true}
+          currentRound={5}
+          maxRounds={5}
+        />,
       );
 
+      // When story is complete but generation is disabled, it shows the disabled message
       expect(
         getByText('Image generation is currently unavailable.'),
       ).toBeTruthy();
@@ -279,11 +300,67 @@ describe('ImageGeneration Component - Simple Tests', () => {
         sessionId: 'session-123',
         gradeLevel: 'K-2',
         wordCount: 50,
+        isStoryCompleted: true,
+        currentRound: 5,
+        maxRounds: 5,
       };
 
       expect(() => {
         render(<ImageGeneration {...propsWithoutCallbacks} />);
       }).not.toThrow();
+    });
+  });
+
+  describe('Story Completion Gating', () => {
+    test('should disable button when story is not complete', () => {
+      const { getByText } = render(
+        <ImageGeneration
+          {...defaultProps}
+          isStoryCompleted={false}
+          currentRound={3}
+          maxRounds={5}
+        />
+      );
+
+      const disabledTitle = getByText('Complete Your Story First');
+      expect(disabledTitle).toBeTruthy();
+
+      const progressText = getByText('Progress: Round 3/5');
+      expect(progressText).toBeTruthy();
+    });
+
+    test('should enable button when story is complete', () => {
+      const { queryByText } = render(
+        <ImageGeneration
+          {...defaultProps}
+          isStoryCompleted={true}
+          currentRound={5}
+          maxRounds={5}
+        />
+      );
+
+      // Should not show disabled state
+      const disabledTitle = queryByText('Complete Your Story First');
+      expect(disabledTitle).toBeNull();
+    });
+
+    test('should show correct progress for incomplete stories', () => {
+      const { getByText } = render(
+        <ImageGeneration
+          {...defaultProps}
+          isStoryCompleted={false}
+          currentRound={2}
+          maxRounds={5}
+        />
+      );
+
+      const message = getByText('Finish all 5 rounds to unlock image generation.');
+      const progress = getByText('Progress: Round 2/5');
+      const hint = getByText('💡 Keep writing to reach round 5!');
+
+      expect(message).toBeTruthy();
+      expect(progress).toBeTruthy();
+      expect(hint).toBeTruthy();
     });
   });
 });

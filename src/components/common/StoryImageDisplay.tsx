@@ -31,9 +31,18 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 export type ImageDisplayMode = 'responsive' | 'fullWidth';
 
 interface StoryImageDisplayProps {
+  // NEW: Image URL priority system (Task 4.2)
+  replicateUrl?: string; // Temporary Replicate.delivery URL
+  supabaseUrl?: string;  // Permanent Supabase Storage URL
+  uploadStatus?: 'pending' | 'uploaded' | 'failed'; // Upload status for badges
+  onRetryUpload?: () => void; // Callback for retry button
+
+  // Legacy support (deprecated - use replicateUrl/supabaseUrl instead)
   imageUrl?: string;
+
   storyTitle?: string;
   sessionId: string;
+  userId: string; // NEW: Required for retry operations
   onImageSaved?: (localPath: string) => void;
   onError?: (error: string) => void;
   onBackToOptions?: () => void;
@@ -79,12 +88,22 @@ interface ImageState {
   errorType?: 'network' | 'expired' | 'timeout' | 'unknown' | 'test-data';
   isConnected: boolean;
   isDownloadingForDisplay: boolean; // New flag for automatic download
+  // NEW: Fallback tracking for URL priority system (Task 4.2)
+  attemptedSupabaseUrl: boolean; // Track if we tried Supabase URL and it failed
+  currentUrlSource: 'supabase' | 'replicate' | 'legacy' | null; // Track which URL we're using
 }
 
 const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
+  // NEW: Priority URL system (Task 4.2)
+  replicateUrl,
+  supabaseUrl,
+  uploadStatus,
+  onRetryUpload,
+  // Legacy support
   imageUrl,
   storyTitle = 'Story Illustration',
   sessionId,
+  userId,
   onImageSaved,
   onError,
   onBackToOptions,
@@ -108,8 +127,28 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
   enableTouchFeedback = true,
   displayMode = 'responsive',
 }) => {
+  // NEW: URL Priority Logic - Prioritize Supabase URL over Replicate URL
+  // Falls back to legacy imageUrl if neither is provided
+  const effectiveImageUrl = React.useMemo(() => {
+    // Priority 1: Supabase URL (permanent storage)
+    if (supabaseUrl) {
+      console.log('🖼️ [DEBUG] Using Supabase URL (permanent storage)');
+      return supabaseUrl;
+    }
+    // Priority 2: Replicate URL (temporary)
+    if (replicateUrl) {
+      console.log('🖼️ [DEBUG] Using Replicate URL (temporary)');
+      return replicateUrl;
+    }
+    // Priority 3: Legacy imageUrl prop for backward compatibility
+    if (imageUrl) {
+      console.log('🖼️ [DEBUG] Using legacy imageUrl prop');
+      return imageUrl;
+    }
+    return undefined;
+  }, [supabaseUrl, replicateUrl, imageUrl]);
   const [state, setState] = useState<ImageState>({
-    isLoading: !!imageUrl,
+    isLoading: !!effectiveImageUrl,
     hasError: false,
     isDownloading: false,
     downloadProgress: 0,
@@ -118,6 +157,9 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
     errorType: undefined,
     isConnected: true,
     isDownloadingForDisplay: false,
+    // NEW: Initialize fallback tracking
+    attemptedSupabaseUrl: false,
+    currentUrlSource: supabaseUrl ? 'supabase' : replicateUrl ? 'replicate' : imageUrl ? 'legacy' : null,
   });
 
   // Temporarily using regular state instead of Reanimated
@@ -709,7 +751,7 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
   const createStoryImageForModal = useCallback((): StoryImage => {
     return {
       id: sessionId,
-      url: imageUrl || '',
+      url: effectiveImageUrl || '',
       title: storyTitle,
       storyText,
       createdAt,
@@ -721,10 +763,10 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
         dimensions: undefined,
       } : undefined,
     };
-  }, [sessionId, imageUrl, storyTitle, storyText, createdAt, metadata]);
+  }, [sessionId, effectiveImageUrl, storyTitle, storyText, createdAt, metadata]);
 
   const handleImagePress = useCallback(() => {
-    if (!enableFullScreen || !imageUrl) return;
+    if (!enableFullScreen || !effectiveImageUrl) return;
 
     // Animation temporarily disabled
     // if (enableTouchFeedback) {
@@ -740,11 +782,11 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
     // Track full-screen open event
     console.log('📊 Analytics: Full-screen image opened', {
       sessionId,
-      imageUrl: imageUrl.substring(0, 50) + '...',
+      imageUrl: effectiveImageUrl?.substring(0, 50) + '...',
       storyTitle,
       timestamp: new Date().toISOString(),
     });
-  }, [enableFullScreen, imageUrl, onFullScreenOpen, sessionId, storyTitle]);
+  }, [enableFullScreen, effectiveImageUrl, onFullScreenOpen, sessionId, storyTitle]);
 
   const handleFullScreenClose = useCallback(() => {
     setState(prev => ({ ...prev, showFullScreen: false }));
@@ -780,7 +822,7 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
   const handleImageLoad = useCallback(() => {
     console.log(
       '🖼️ [DEBUG] Image loaded successfully:',
-      imageUrl?.substring(0, 50) + '...',
+      effectiveImageUrl?.substring(0, 50) + '...',
     );
 
     // Clear any existing timeout
@@ -794,13 +836,13 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
       isLoading: false,
       hasError: false,
     }));
-  }, [imageUrl]);
+  }, [effectiveImageUrl]);
 
   const handleImageError = useCallback(
     async (error?: any) => {
       console.error(
         '🖼️ [DEBUG] Image failed to load:',
-        imageUrl?.substring(0, 50) + '...',
+        effectiveImageUrl?.substring(0, 50) + '...',
         error,
       );
 
@@ -808,6 +850,19 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
       if (loadingTimeoutRef.current) {
         clearTimeout(loadingTimeoutRef.current);
         loadingTimeoutRef.current = null;
+      }
+
+      // NEW: Fallback logic - if Supabase URL failed and we have Replicate URL, try that
+      if (supabaseUrl && replicateUrl && !state.attemptedSupabaseUrl) {
+        console.log('🖼️ [DEBUG] Supabase URL failed, attempting fallback to Replicate URL');
+        setState(prev => ({
+          ...prev,
+          attemptedSupabaseUrl: true,
+          currentUrlSource: 'replicate',
+          isLoading: true,
+          hasError: false,
+        }));
+        return; // Component will re-render with Replicate URL
       }
 
       // Determine error type
@@ -820,9 +875,9 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
         errorType = 'timeout';
       } else if (!state.isConnected) {
         errorType = 'network';
-      } else if (imageUrl) {
+      } else if (effectiveImageUrl) {
         // Check if the image URL is accessible
-        const urlCheck = await checkImageAvailability(imageUrl);
+        const urlCheck = await checkImageAvailability(effectiveImageUrl);
         errorType = (urlCheck.errorType as ImageState['errorType']) || 'unknown';
       }
 
@@ -846,7 +901,7 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
 
       onError?.(errorMessage);
     },
-    [onError, imageUrl, state.isConnected, checkImageAvailability],
+    [onError, effectiveImageUrl, supabaseUrl, replicateUrl, state.isConnected, state.attemptedSupabaseUrl, checkImageAvailability],
   );
 
   // Render placeholder when no image
@@ -1026,9 +1081,56 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
     </View>
   );
 
+  // NEW: Render upload status badge (Task 4.2)
+  const renderUploadStatusBadge = () => {
+    // Only show upload status if we have new props and an image is displayed
+    if (!uploadStatus || state.hasError || !effectiveImageUrl) return null;
+
+    return (
+      <View style={styles.uploadStatusBadgeContainer}>
+        {uploadStatus === 'pending' && (
+          <View style={styles.uploadStatusBadge}>
+            <ActivityIndicator size="small" color="#6f42c1" testID="upload-spinner" />
+            <Text style={styles.uploadStatusText}>
+              🔄 Backing up to permanent storage...
+            </Text>
+          </View>
+        )}
+
+        {uploadStatus === 'uploaded' && (
+          <View style={[styles.uploadStatusBadge, styles.uploadSuccessBadge]}>
+            <Text style={styles.uploadSuccessIcon}>✅</Text>
+            <Text style={styles.uploadSuccessText}>
+              Permanently saved
+            </Text>
+          </View>
+        )}
+
+        {uploadStatus === 'failed' && (
+          <View style={[styles.uploadStatusBadge, styles.uploadFailedBadge]}>
+            <View style={styles.uploadFailedHeader}>
+              <Text style={styles.uploadFailedIcon}>⚠️</Text>
+              <Text style={styles.uploadFailedText}>
+                Backup failed (image still available)
+              </Text>
+            </View>
+            {onRetryUpload && (
+              <TouchableOpacity
+                style={styles.retryBackupButton}
+                onPress={onRetryUpload}
+              >
+                <Text style={styles.retryBackupButtonText}>Retry Backup</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+      </View>
+    );
+  };
+
   // Render download/share action buttons
   const renderDownloadShareButtons = () => {
-    if (!imageUrl || state.hasError) return null;
+    if (!effectiveImageUrl || state.hasError) return null;
 
     return (
       <View style={styles.actionButtonsContainer}>
@@ -1091,13 +1193,13 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
   // Auto-download external URLs for reliable local display
   React.useEffect(() => {
     if (
-      imageUrl &&
+      effectiveImageUrl &&
       state.isLoading &&
       !state.isDownloadingForDisplay &&
       !state.hasError
     ) {
       // Prevent infinite loops by checking if this URL already failed
-      if (failedUrlsRef.current.has(imageUrl)) {
+      if (failedUrlsRef.current.has(effectiveImageUrl)) {
         console.log('🖼️ [DEBUG] URL previously failed, showing error state');
         setState(prev => ({
           ...prev,
@@ -1110,22 +1212,22 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
 
       console.log(
         '🖼️ [DEBUG] Processing image URL for local caching:',
-        imageUrl.substring(0, 50) + '...',
+        effectiveImageUrl.substring(0, 50) + '...',
       );
 
       // Check for test URLs first to avoid unnecessary network calls
       const isTestUrl =
-        imageUrl.includes('backup-service.com') ||
-        imageUrl.includes('example.com') ||
-        imageUrl.includes('test-') ||
-        imageUrl.includes('mock-') ||
-        imageUrl.includes('dall-e-generated-image');
+        effectiveImageUrl.includes('backup-service.com') ||
+        effectiveImageUrl.includes('example.com') ||
+        effectiveImageUrl.includes('test-') ||
+        effectiveImageUrl.includes('mock-') ||
+        effectiveImageUrl.includes('dall-e-generated-image');
 
       if (isTestUrl) {
         console.log(
           '🖼️ [DEBUG] Detected test/development URL, showing appropriate message',
         );
-        failedUrlsRef.current.add(imageUrl);
+        failedUrlsRef.current.add(effectiveImageUrl);
         setState(prev => ({
           ...prev,
           isLoading: false,
@@ -1137,13 +1239,13 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
 
       // Check if it's an external URL (Replicate.delivery, etc.)
       const isExternalUrl =
-        imageUrl.startsWith('http') && !imageUrl.startsWith('file://');
+        effectiveImageUrl.startsWith('http') && !effectiveImageUrl.startsWith('file://');
 
       if (isExternalUrl) {
         console.log(
           '🖼️ [DEBUG] External URL detected, downloading for local display',
         );
-        downloadImageForDisplay(imageUrl).then(localPath => {
+        downloadImageForDisplay(effectiveImageUrl).then(localPath => {
           if (localPath) {
             console.log(
               '🖼️ [DEBUG] Successfully cached image, ready for display',
@@ -1168,7 +1270,7 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
             console.log(
               '🖼️ [DEBUG] Failed to cache image, marking as failed to prevent retries',
             );
-            failedUrlsRef.current.add(imageUrl);
+            failedUrlsRef.current.add(effectiveImageUrl);
             setState(prev => ({
               ...prev,
               isLoading: false,
@@ -1188,7 +1290,7 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
       }
     }
   }, [
-    imageUrl,
+    effectiveImageUrl,
     state.isLoading,
     state.isDownloadingForDisplay,
     state.hasError,
@@ -1197,9 +1299,14 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
 
   // Main render
   console.log('🖼️ [DEBUG] StoryImageDisplay render:', {
-    imageUrl: imageUrl?.substring(0, 50) + '...',
+    effectiveImageUrl: effectiveImageUrl?.substring(0, 50) + '...',
+    supabaseUrl: supabaseUrl?.substring(0, 50) + '...',
+    replicateUrl: replicateUrl?.substring(0, 50) + '...',
+    uploadStatus,
+    currentUrlSource: state.currentUrlSource,
+    attemptedSupabaseUrl: state.attemptedSupabaseUrl,
     localPath: state.localPath?.substring(0, 50) + '...',
-    hasImageUrl: !!imageUrl,
+    hasEffectiveImageUrl: !!effectiveImageUrl,
     hasLocalPath: !!state.localPath,
     storyTitle,
     sessionId,
@@ -1208,8 +1315,8 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
     hasError: state.hasError,
   });
 
-  if (!imageUrl) {
-    console.log('🖼️ [DEBUG] No imageUrl, showing placeholder');
+  if (!effectiveImageUrl) {
+    console.log('🖼️ [DEBUG] No effectiveImageUrl, showing placeholder');
     return <View style={[getContainerStyle(), style]}>{renderPlaceholder()}</View>;
   }
 
@@ -1246,7 +1353,7 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
             <View style={[getImageContainerStyle()]}>
               <Image
                 source={{
-                  uri: state.localPath || imageUrl,
+                  uri: state.attemptedSupabaseUrl && replicateUrl ? state.localPath || replicateUrl : state.localPath || effectiveImageUrl,
                   cache: 'force-cache',
                 }}
                 style={[getImageStyle(), imageDimensions]}
@@ -1258,14 +1365,14 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
                   );
                   console.log(
                     '🖼️ [DEBUG] Using source:',
-                    state.localPath || imageUrl,
+                    state.localPath || effectiveImageUrl,
                   );
                   handleImageError(error.nativeEvent);
                 }}
                 onLoadStart={() => {
                   console.log(
                     '🖼️ [DEBUG] Image load started for:',
-                    (state.localPath || imageUrl).substring(0, 50) + '...',
+                    (state.localPath || effectiveImageUrl || '').substring(0, 50) + '...',
                   );
                 }}
                 onLoadEnd={() => {
@@ -1291,7 +1398,7 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
           <View style={getImageContainerStyle()} testID="image-container">
             <Image
               source={{
-                uri: state.localPath || imageUrl,
+                uri: state.attemptedSupabaseUrl && replicateUrl ? state.localPath || replicateUrl : state.localPath || effectiveImageUrl,
                 cache: 'force-cache',
               }}
               style={[getImageStyle(), imageDimensions]}
@@ -1303,14 +1410,14 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
                 );
                 console.log(
                   '🖼️ [DEBUG] Using source:',
-                  state.localPath || imageUrl,
+                  state.localPath || effectiveImageUrl,
                 );
                 handleImageError(error.nativeEvent);
               }}
               onLoadStart={() => {
                 console.log(
                   '🖼️ [DEBUG] Image load started for:',
-                  (state.localPath || imageUrl).substring(0, 50) + '...',
+                  (state.localPath || effectiveImageUrl || '').substring(0, 50) + '...',
                 );
               }}
               onLoadEnd={() => {
@@ -1321,6 +1428,7 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
             />
           </View>
         )}
+        {renderUploadStatusBadge()}
         {renderDownloadShareButtons()}
         {renderBackButton()}
       </View>
@@ -1638,6 +1746,73 @@ const styles = StyleSheet.create({
   zoomIconText: {
     fontSize: 16,
     color: '#ffffff',
+  },
+
+  // NEW: Upload status badge styles (Task 4.2)
+  uploadStatusBadgeContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginTop: 8,
+  },
+  uploadStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    gap: 8,
+  },
+  uploadStatusText: {
+    fontSize: 13,
+    color: '#6c757d',
+    fontWeight: '500',
+  },
+  uploadSuccessBadge: {
+    backgroundColor: '#d4edda',
+    borderColor: '#c3e6cb',
+  },
+  uploadSuccessIcon: {
+    fontSize: 16,
+  },
+  uploadSuccessText: {
+    fontSize: 13,
+    color: '#155724',
+    fontWeight: '600',
+  },
+  uploadFailedBadge: {
+    backgroundColor: '#fff3cd',
+    borderColor: '#ffeaa7',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  uploadFailedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  uploadFailedIcon: {
+    fontSize: 16,
+  },
+  uploadFailedText: {
+    fontSize: 13,
+    color: '#856404',
+    fontWeight: '500',
+    flex: 1,
+  },
+  retryBackupButton: {
+    backgroundColor: '#6f42c1',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  retryBackupButtonText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
 

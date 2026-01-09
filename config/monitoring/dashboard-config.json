@@ -1,0 +1,530 @@
+{
+  "version": "1.0",
+  "dashboards": [
+    {
+      "id": "story-completion-overview",
+      "title": "Story Completion & Image Persistence - Overview",
+      "description": "Primary dashboard for monitoring story completion and image upload health",
+      "refresh_interval": "5m",
+      "time_range": "last_24_hours",
+      "rows": [
+        {
+          "title": "Key Metrics",
+          "panels": [
+            {
+              "id": "completion-rate",
+              "title": "Story Completion Rate",
+              "type": "stat",
+              "size": "medium",
+              "query": {
+                "sql": "SELECT ROUND(COUNT(CASE WHEN completed_at IS NOT NULL THEN 1 END)::numeric / NULLIF(COUNT(*), 0) * 100, 1) as rate FROM game_sessions WHERE created_at >= NOW() - INTERVAL '24 hours'",
+                "metric": "rate"
+              },
+              "visualization": {
+                "unit": "percent",
+                "thresholds": {
+                  "good": 70,
+                  "warning": 50,
+                  "critical": 40
+                },
+                "colors": {
+                  "good": "#10B981",
+                  "warning": "#F59E0B",
+                  "critical": "#EF4444"
+                }
+              },
+              "target": "70%"
+            },
+            {
+              "id": "upload-success-rate",
+              "title": "Upload Success Rate",
+              "type": "stat",
+              "size": "medium",
+              "query": {
+                "sql": "SELECT ROUND(COUNT(CASE WHEN image_upload_status = 'uploaded' THEN 1 END)::numeric / NULLIF(COUNT(CASE WHEN generated_image_url IS NOT NULL THEN 1 END), 0) * 100, 1) as rate FROM game_sessions WHERE created_at >= NOW() - INTERVAL '24 hours'",
+                "metric": "rate"
+              },
+              "visualization": {
+                "unit": "percent",
+                "thresholds": {
+                  "good": 95,
+                  "warning": 85,
+                  "critical": 75
+                },
+                "colors": {
+                  "good": "#10B981",
+                  "warning": "#F59E0B",
+                  "critical": "#EF4444"
+                }
+              },
+              "target": "95%"
+            },
+            {
+              "id": "total-stories",
+              "title": "Total Stories (24h)",
+              "type": "stat",
+              "size": "small",
+              "query": {
+                "sql": "SELECT COUNT(*) as total FROM game_sessions WHERE created_at >= NOW() - INTERVAL '24 hours'",
+                "metric": "total"
+              },
+              "visualization": {
+                "unit": "count",
+                "sparkline": true
+              }
+            },
+            {
+              "id": "images-generated",
+              "title": "Images Generated (24h)",
+              "type": "stat",
+              "size": "small",
+              "query": {
+                "sql": "SELECT COUNT(*) as total FROM game_sessions WHERE generated_image_url IS NOT NULL AND created_at >= NOW() - INTERVAL '24 hours'",
+                "metric": "total"
+              },
+              "visualization": {
+                "unit": "count",
+                "sparkline": true
+              }
+            }
+          ]
+        },
+        {
+          "title": "Completion Trends",
+          "panels": [
+            {
+              "id": "completion-rate-trend",
+              "title": "Completion Rate Over Time",
+              "type": "timeseries",
+              "size": "large",
+              "query": {
+                "sql": "SELECT DATE_TRUNC('hour', created_at) as time, ROUND(COUNT(CASE WHEN completed_at IS NOT NULL THEN 1 END)::numeric / NULLIF(COUNT(*), 0) * 100, 1) as completion_rate FROM game_sessions WHERE created_at >= NOW() - INTERVAL '7 days' GROUP BY DATE_TRUNC('hour', created_at) ORDER BY time",
+                "time_column": "time",
+                "value_column": "completion_rate"
+              },
+              "visualization": {
+                "chart_type": "line",
+                "unit": "percent",
+                "y_axis": {
+                  "min": 0,
+                  "max": 100
+                },
+                "thresholds": [
+                  {
+                    "value": 70,
+                    "color": "#10B981",
+                    "label": "Target"
+                  },
+                  {
+                    "value": 50,
+                    "color": "#F59E0B",
+                    "label": "Warning"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "round-distribution",
+              "title": "Round Distribution",
+              "type": "bar",
+              "size": "medium",
+              "query": {
+                "sql": "SELECT current_round, COUNT(*) as count FROM game_sessions WHERE created_at >= NOW() - INTERVAL '24 hours' GROUP BY current_round ORDER BY current_round",
+                "category_column": "current_round",
+                "value_column": "count"
+              },
+              "visualization": {
+                "chart_type": "bar",
+                "orientation": "vertical",
+                "colors": ["#3B82F6", "#8B5CF6", "#EC4899", "#F59E0B", "#10B981"]
+              }
+            }
+          ]
+        },
+        {
+          "title": "Image Upload Performance",
+          "panels": [
+            {
+              "id": "upload-status-breakdown",
+              "title": "Upload Status Distribution",
+              "type": "pie",
+              "size": "medium",
+              "query": {
+                "sql": "SELECT COALESCE(image_upload_status, 'no_status') as status, COUNT(*) as count FROM game_sessions WHERE generated_image_url IS NOT NULL AND created_at >= NOW() - INTERVAL '24 hours' GROUP BY image_upload_status",
+                "category_column": "status",
+                "value_column": "count"
+              },
+              "visualization": {
+                "chart_type": "donut",
+                "colors": {
+                  "uploaded": "#10B981",
+                  "pending": "#F59E0B",
+                  "failed": "#EF4444",
+                  "no_status": "#6B7280"
+                },
+                "show_legend": true,
+                "show_percentage": true
+              }
+            },
+            {
+              "id": "upload-success-trend",
+              "title": "Upload Success Rate Trend",
+              "type": "timeseries",
+              "size": "large",
+              "query": {
+                "sql": "SELECT DATE_TRUNC('hour', created_at) as time, ROUND(COUNT(CASE WHEN image_upload_status = 'uploaded' THEN 1 END)::numeric / NULLIF(COUNT(CASE WHEN generated_image_url IS NOT NULL THEN 1 END), 0) * 100, 1) as success_rate FROM game_sessions WHERE created_at >= NOW() - INTERVAL '7 days' GROUP BY DATE_TRUNC('hour', created_at) ORDER BY time",
+                "time_column": "time",
+                "value_column": "success_rate"
+              },
+              "visualization": {
+                "chart_type": "area",
+                "unit": "percent",
+                "fill_opacity": 0.3,
+                "y_axis": {
+                  "min": 0,
+                  "max": 100
+                },
+                "thresholds": [
+                  {
+                    "value": 95,
+                    "color": "#10B981",
+                    "label": "Target"
+                  },
+                  {
+                    "value": 85,
+                    "color": "#F59E0B",
+                    "label": "Warning"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "retry-attempts",
+              "title": "Retry Attempts Distribution",
+              "type": "bar",
+              "size": "medium",
+              "query": {
+                "sql": "SELECT image_upload_attempts, COUNT(*) as count FROM game_sessions WHERE image_upload_attempts > 0 AND created_at >= NOW() - INTERVAL '24 hours' GROUP BY image_upload_attempts ORDER BY image_upload_attempts",
+                "category_column": "image_upload_attempts",
+                "value_column": "count"
+              },
+              "visualization": {
+                "chart_type": "bar",
+                "orientation": "vertical",
+                "colors": ["#10B981", "#F59E0B", "#EF4444"]
+              }
+            }
+          ]
+        },
+        {
+          "title": "Error Analysis",
+          "panels": [
+            {
+              "id": "top-errors",
+              "title": "Top Upload Errors",
+              "type": "table",
+              "size": "large",
+              "query": {
+                "sql": "SELECT image_upload_error as error, COUNT(*) as count, ROUND(COUNT(*)::numeric / (SELECT COUNT(*) FROM game_sessions WHERE image_upload_status = 'failed' AND created_at >= NOW() - INTERVAL '24 hours') * 100, 1) as percentage FROM game_sessions WHERE image_upload_status = 'failed' AND image_upload_error IS NOT NULL AND created_at >= NOW() - INTERVAL '24 hours' GROUP BY image_upload_error ORDER BY count DESC LIMIT 10",
+                "columns": ["error", "count", "percentage"]
+              },
+              "visualization": {
+                "columns": [
+                  {
+                    "field": "error",
+                    "title": "Error Message",
+                    "width": "60%"
+                  },
+                  {
+                    "field": "count",
+                    "title": "Occurrences",
+                    "width": "20%",
+                    "align": "right"
+                  },
+                  {
+                    "field": "percentage",
+                    "title": "% of Failures",
+                    "width": "20%",
+                    "align": "right",
+                    "suffix": "%"
+                  }
+                ],
+                "row_limit": 10
+              }
+            },
+            {
+              "id": "error-rate-timeline",
+              "title": "Error Rate Timeline",
+              "type": "timeseries",
+              "size": "medium",
+              "query": {
+                "sql": "SELECT DATE_TRUNC('hour', created_at) as time, ROUND(COUNT(CASE WHEN image_upload_status = 'failed' THEN 1 END)::numeric / NULLIF(COUNT(*), 0) * 100, 2) as error_rate FROM game_sessions WHERE created_at >= NOW() - INTERVAL '7 days' GROUP BY DATE_TRUNC('hour', created_at) ORDER BY time",
+                "time_column": "time",
+                "value_column": "error_rate"
+              },
+              "visualization": {
+                "chart_type": "line",
+                "unit": "percent",
+                "color": "#EF4444",
+                "y_axis": {
+                  "min": 0
+                },
+                "alert_line": {
+                  "value": 5,
+                  "color": "#F59E0B",
+                  "label": "Alert Threshold"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "title": "User Engagement",
+          "panels": [
+            {
+              "id": "image-generation-adoption",
+              "title": "Image Generation Adoption Rate",
+              "type": "stat",
+              "size": "medium",
+              "query": {
+                "sql": "SELECT ROUND(COUNT(CASE WHEN generated_image_url IS NOT NULL THEN 1 END)::numeric / NULLIF(COUNT(CASE WHEN completed_at IS NOT NULL THEN 1 END), 0) * 100, 1) as rate FROM game_sessions WHERE created_at >= NOW() - INTERVAL '24 hours'",
+                "metric": "rate"
+              },
+              "visualization": {
+                "unit": "percent",
+                "description": "% of completed stories that generate images",
+                "thresholds": {
+                  "good": 45,
+                  "warning": 30,
+                  "critical": 20
+                }
+              },
+              "target": "45%"
+            },
+            {
+              "id": "completion-funnel",
+              "title": "Story Completion Funnel",
+              "type": "funnel",
+              "size": "large",
+              "query": {
+                "sql": "WITH funnel AS (SELECT COUNT(*) as started, COUNT(CASE WHEN current_round >= 2 THEN 1 END) as r2, COUNT(CASE WHEN current_round >= 3 THEN 1 END) as r3, COUNT(CASE WHEN current_round >= 4 THEN 1 END) as r4, COUNT(CASE WHEN current_round >= 5 THEN 1 END) as r5, COUNT(CASE WHEN completed_at IS NOT NULL THEN 1 END) as completed, COUNT(CASE WHEN generated_image_url IS NOT NULL THEN 1 END) as generated FROM game_sessions WHERE created_at >= NOW() - INTERVAL '24 hours') SELECT 'Started' as stage, started as count FROM funnel UNION ALL SELECT 'Round 2', r2 FROM funnel UNION ALL SELECT 'Round 3', r3 FROM funnel UNION ALL SELECT 'Round 4', r4 FROM funnel UNION ALL SELECT 'Round 5', r5 FROM funnel UNION ALL SELECT 'Completed', completed FROM funnel UNION ALL SELECT 'Generated Image', generated FROM funnel",
+                "category_column": "stage",
+                "value_column": "count"
+              },
+              "visualization": {
+                "chart_type": "funnel",
+                "colors": ["#3B82F6", "#8B5CF6", "#EC4899", "#F59E0B", "#10B981", "#14B8A6", "#06B6D4"],
+                "show_percentage_drop": true
+              }
+            }
+          ]
+        }
+      ],
+      "annotations": [
+        {
+          "name": "Deployments",
+          "query": "deployment_events",
+          "color": "#6B7280",
+          "icon": "rocket"
+        },
+        {
+          "name": "Incidents",
+          "query": "incident_events",
+          "color": "#EF4444",
+          "icon": "alert"
+        }
+      ],
+      "variables": [
+        {
+          "name": "time_range",
+          "type": "interval",
+          "options": [
+            "1h",
+            "6h",
+            "24h",
+            "7d",
+            "30d"
+          ],
+          "default": "24h"
+        },
+        {
+          "name": "grade_level",
+          "type": "multi-select",
+          "query": "SELECT DISTINCT grade_level FROM game_sessions",
+          "all_option": true
+        }
+      ]
+    },
+    {
+      "id": "storage-capacity-planning",
+      "title": "Storage & Capacity Planning",
+      "description": "Monitor Supabase Storage usage and capacity trends",
+      "refresh_interval": "15m",
+      "time_range": "last_30_days",
+      "rows": [
+        {
+          "title": "Storage Metrics",
+          "panels": [
+            {
+              "id": "storage-usage",
+              "title": "Storage Usage",
+              "type": "stat",
+              "size": "large",
+              "query": {
+                "supabase_api": "storage.usage",
+                "metric": "total_mb"
+              },
+              "visualization": {
+                "unit": "megabytes",
+                "thresholds": {
+                  "good": 8000,
+                  "warning": 9000,
+                  "critical": 9500
+                },
+                "max_value": 10000,
+                "description": "Total: 10GB quota"
+              }
+            },
+            {
+              "id": "storage-growth",
+              "title": "Daily Storage Growth",
+              "type": "timeseries",
+              "size": "large",
+              "query": {
+                "sql": "SELECT DATE(created_at) as date, COUNT(*) * 2 as estimated_mb FROM game_sessions WHERE supabase_image_url IS NOT NULL GROUP BY DATE(created_at) ORDER BY date",
+                "time_column": "date",
+                "value_column": "estimated_mb"
+              },
+              "visualization": {
+                "chart_type": "bar",
+                "unit": "megabytes",
+                "cumulative": false,
+                "trend_line": true
+              }
+            },
+            {
+              "id": "projected-capacity",
+              "title": "Projected Days to 90% Capacity",
+              "type": "stat",
+              "size": "medium",
+              "query": {
+                "calculated": "days_to_capacity",
+                "method": "linear_regression"
+              },
+              "visualization": {
+                "unit": "days",
+                "thresholds": {
+                  "critical": 7,
+                  "warning": 30,
+                  "good": 60
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "operational-health",
+      "title": "Operational Health Dashboard",
+      "description": "Real-time system health for on-call engineers",
+      "refresh_interval": "1m",
+      "time_range": "last_1_hour",
+      "rows": [
+        {
+          "title": "Active Issues",
+          "panels": [
+            {
+              "id": "active-alerts",
+              "title": "Active Alerts",
+              "type": "list",
+              "size": "large",
+              "query": {
+                "source": "alert_system",
+                "filter": "status=active"
+              },
+              "visualization": {
+                "columns": ["severity", "alert_name", "triggered_at", "duration"],
+                "color_by_severity": true,
+                "sort_by": "severity",
+                "max_items": 20
+              }
+            },
+            {
+              "id": "stuck-uploads",
+              "title": "Stuck Uploads (>30min)",
+              "type": "stat",
+              "size": "small",
+              "query": {
+                "sql": "SELECT COUNT(*) as count FROM game_sessions WHERE image_upload_status = 'pending' AND created_at < NOW() - INTERVAL '30 minutes'",
+                "metric": "count"
+              },
+              "visualization": {
+                "unit": "count",
+                "thresholds": {
+                  "good": 0,
+                  "warning": 5,
+                  "critical": 10
+                },
+                "alert_on_value": true
+              }
+            },
+            {
+              "id": "recent-failures",
+              "title": "Upload Failures (Last Hour)",
+              "type": "stat",
+              "size": "small",
+              "query": {
+                "sql": "SELECT COUNT(*) as count FROM game_sessions WHERE image_upload_status = 'failed' AND created_at >= NOW() - INTERVAL '1 hour'",
+                "metric": "count"
+              },
+              "visualization": {
+                "unit": "count",
+                "thresholds": {
+                  "good": 0,
+                  "warning": 5,
+                  "critical": 10
+                },
+                "alert_on_value": true
+              }
+            }
+          ]
+        },
+        {
+          "title": "Quick Actions",
+          "panels": [
+            {
+              "id": "retry-stuck-button",
+              "title": "Retry Stuck Uploads",
+              "type": "action",
+              "action": {
+                "type": "api_call",
+                "endpoint": "/api/admin/retry-stuck-uploads",
+                "method": "POST",
+                "confirmation": true
+              }
+            },
+            {
+              "id": "clear-cache-button",
+              "title": "Clear Metrics Cache",
+              "type": "action",
+              "action": {
+                "type": "api_call",
+                "endpoint": "/api/admin/clear-metrics-cache",
+                "method": "POST",
+                "confirmation": false
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "global_settings": {
+    "theme": "dark",
+    "timezone": "America/Los_Angeles",
+    "auto_refresh": true,
+    "shared_crosshair": true,
+    "legend_position": "bottom"
+  }
+}

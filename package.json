@@ -12,6 +12,11 @@
     "prebuild": "expo prebuild",
     "prebuild:clean": "expo prebuild --clean",
     "test": "jest",
+    "test:coverage": "jest --coverage --coverageReporters=text --coverageReporters=html",
+    "test:unit": "jest --testPathPattern='(test|spec)\\.(ts|tsx)$' --testPathIgnorePatterns='integration|acceptance'",
+    "test:integration": "jest --testPathPattern='integration\\.test\\.(ts|tsx)$'",
+    "test:performance": "jest --config=jest.performance.config.js",
+    "test:watch": "jest --watch",
     "generate-icons": "node scripts/generate-app-icons.js",
     "generate-android-icons": "node scripts/generate-android-icons.js",
     "generate-all-assets": "npm run generate-icons && npm run generate-android-icons",
@@ -48,7 +53,26 @@
     "test:claude-skills": "jest --testPathPattern=claudeSkills",
     "test:claude-skills-integration": "jest --testPathPattern=integration/claudeSkills",
     "validate:database": "npx ts-node scripts/validate-database-migrations.ts",
-    "monitor:image-generation": "node scripts/monitor-rollout.js"
+    "monitor:image-generation": "node scripts/monitor-rollout.js",
+    "e2e:build:ios": "detox build --configuration ios.sim.debug",
+    "e2e:build:ios:release": "detox build --configuration ios.sim.release",
+    "e2e:build:android": "detox build --configuration android.emu.debug",
+    "e2e:build:android:release": "detox build --configuration android.emu.release",
+    "e2e:test:ios": "detox test --configuration ios.sim.debug",
+    "e2e:test:ios:release": "detox test --configuration ios.sim.release",
+    "e2e:test:android": "detox test --configuration android.emu.debug",
+    "e2e:test:android:release": "detox test --configuration android.emu.release",
+    "e2e:ios": "npm run e2e:build:ios && npm run e2e:test:ios",
+    "e2e:android": "npm run e2e:build:android && npm run e2e:test:android",
+    "e2e:all": "npm run e2e:ios && npm run e2e:android",
+    "deploy:pre-check": "bash scripts/pre-deployment-check.sh",
+    "deploy:smoke-tests": "npx ts-node scripts/smoke-tests-production.ts",
+    "deploy:monitor": "npx ts-node scripts/monitor-deployment.ts",
+    "deploy:verify": "npm run deploy:pre-check && npm run deploy:smoke-tests",
+    "monitoring:test": "npx tsx scripts/test-monitoring-setup.ts",
+    "monitoring:analytics": "psql $DATABASE_URL -f sql/analytics_queries.sql",
+    "monitor:errors": "npx ts-node scripts/monitor-errors-daily.ts",
+    "monitor:errors:watch": "npx ts-node scripts/monitor-errors-daily.ts && echo '\nNext run in 24 hours...'"
   },
   "dependencies": {
     "@clerk/clerk-expo": "^2.19.12",
@@ -127,7 +151,9 @@
     "react-test-renderer": "19.1.0",
     "reactotron-react-native": "^5.1.16",
     "ts-node": "^10.9.2",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "detox": "^20.18.0",
+    "ts-jest": "^29.1.2"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [

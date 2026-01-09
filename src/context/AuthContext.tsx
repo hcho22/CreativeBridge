@@ -87,6 +87,7 @@ interface AuthContextType {
     sessionId?: string,
     storyGradeLevel?: string,
     storyWordCount?: number,
+    storyCompleted?: boolean,
   ) => Promise<string | null>;
   signInWithGoogle: () => Promise<{ error?: string }>;
   signInWithApple: () => Promise<{ error?: string }>;
@@ -826,6 +827,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     sessionId?: string,
     storyGradeLevel?: string,
     storyWordCount?: number,
+    storyCompleted?: boolean,
   ): Promise<string | null> => {
     if (!user) {
       console.log(
@@ -846,9 +848,11 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         xpCost,
         storyGradeLevel,
         storyWordCount,
+        storyCompleted: storyCompleted ?? true, // Default to true for backward compatibility
         metadata: {
           userXPBefore: userProfile?.total_xp || 0,
           timestamp: new Date().toISOString(),
+          storyCompleted: storyCompleted ?? true,
         },
       });
 

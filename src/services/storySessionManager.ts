@@ -45,6 +45,15 @@ export interface StorySession {
   image_generation_cost?: number;
   local_image_path?: string; // For downloaded images
 
+  // NEW: Story completion tracking
+  current_round: number; // 1-5, story completes at round 5
+
+  // NEW: Image persistence fields (Supabase Storage)
+  supabase_image_url?: string;
+  image_upload_status?: 'pending' | 'uploaded' | 'failed';
+  image_upload_attempts?: number;
+  image_upload_error?: string;
+
   // Enhanced local fields for better UX
   contributions: StoryContribution[];
   isCompleted: boolean;
@@ -78,6 +87,12 @@ class StorySessionManager {
   private readonly SESSIONS_KEY = `${this.STORAGE_PREFIX}sessions`;
   private readonly CURRENT_SESSION_KEY = `${this.STORAGE_PREFIX}currentSession`;
   private readonly MAX_SESSIONS = 50; // Limit stored sessions
+  private readonly MAX_ROUNDS = 5; // Story completes after 5 rounds
+
+  // NEW: In-memory cache for frequently accessed sessions (BUG-567 optimization)
+  private sessionCache: Map<string, { session: StorySession; timestamp: number }> = new Map();
+  private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache TTL
+  private readonly MAX_CACHE_SIZE = 10; // Keep 10 most recent sessions in memory
 
   // Create a new story session in Supabase
   public async createSession(
@@ -114,6 +129,7 @@ class StorySessionManager {
       // Convert to enhanced StorySession format
       const newSession: StorySession = {
         ...(gameSession as any),
+        current_round: (gameSession as any).current_round || 1, // Initialize to round 1
         isCompleted: false,
         contributions: [],
         sessionStats: {
@@ -175,6 +191,18 @@ class StorySessionManager {
     }
     session.sentences_completed = session.contributions.length;
 
+    // NEW: Story completion tracking - increment round after AI response
+    if (type === 'ai') {
+      session.current_round = Math.min(session.current_round + 1, this.MAX_ROUNDS);
+
+      // Check if story should be completed (reached MAX_ROUNDS)
+      if (session.current_round >= this.MAX_ROUNDS && !session.isCompleted) {
+        console.log('🎉 Story reached MAX_ROUNDS - marking as complete');
+        session.isCompleted = true;
+        session.completed_at = new Date().toISOString();
+      }
+    }
+
     // Update local stats
     session.sessionStats.contributionCount = session.contributions.length;
     if (type === 'user') {
@@ -201,6 +229,13 @@ class StorySessionManager {
     preserveContributions: boolean = false,
   ): Promise<StorySession | null> {
     try {
+      // NEW: Check in-memory cache first (BUG-567 performance optimization)
+      const cached = this.getFromCache(sessionId);
+      if (cached && !preserveContributions) {
+        console.log('✨ Session loaded from in-memory cache (fast path)');
+        return cached;
+      }
+
       console.log('Fetching session from Supabase:', sessionId);
 
       // Check if we have this session in local cache first to preserve contributions
@@ -261,6 +296,13 @@ class StorySessionManager {
         generated_image_url: dbSession.generated_image_url,
         image_generation_timestamp: dbSession.image_generation_timestamp,
         image_generation_cost: dbSession.image_generation_cost,
+        // NEW: Story completion tracking
+        current_round: dbSession.current_round || 1,
+        // NEW: Image persistence fields
+        supabase_image_url: dbSession.supabase_image_url,
+        image_upload_status: dbSession.image_upload_status,
+        image_upload_attempts: dbSession.image_upload_attempts,
+        image_upload_error: dbSession.image_upload_error,
         isCompleted: !!dbSession.completed_at,
         contributions: existingContributions, // Preserve existing contributions or empty array
         sessionStats: {
@@ -306,6 +348,9 @@ class StorySessionManager {
         generated_image_url: session.generated_image_url,
         hasGeneratedImageUrl: !!session.generated_image_url,
       });
+
+      // NEW: Add to in-memory cache for faster subsequent access
+      this.addToCache(session);
 
       return session;
     } catch (error) {
@@ -382,10 +427,17 @@ class StorySessionManager {
         sentences_completed: session.sentences_completed,
         final_score: session.final_score,
         xp_earned: session.xp_earned,
-        completed_at: session.isCompleted ? new Date().toISOString() : null,
+        completed_at: session.completed_at || (session.isCompleted ? new Date().toISOString() : null),
         generated_image_url: session.generated_image_url || null,
         image_generation_timestamp: session.image_generation_timestamp || null,
         image_generation_cost: session.image_generation_cost || null,
+        // NEW: Story completion tracking
+        current_round: session.current_round,
+        // NEW: Image persistence fields
+        supabase_image_url: session.supabase_image_url || null,
+        image_upload_status: session.image_upload_status || null,
+        image_upload_attempts: session.image_upload_attempts || 0,
+        image_upload_error: session.image_upload_error || null,
       } as any;
 
       const { data: updatedSession, error } = await supabase
@@ -421,6 +473,13 @@ class StorySessionManager {
         image_generation_cost:
           updatedDbSession.image_generation_cost || undefined,
         local_image_path: session.local_image_path, // This is not stored in Supabase, only locally
+        // NEW: Story completion tracking
+        current_round: updatedDbSession.current_round || 1,
+        // NEW: Image persistence fields
+        supabase_image_url: updatedDbSession.supabase_image_url || undefined,
+        image_upload_status: updatedDbSession.image_upload_status || undefined,
+        image_upload_attempts: updatedDbSession.image_upload_attempts || undefined,
+        image_upload_error: updatedDbSession.image_upload_error || undefined,
         isCompleted: !!updatedDbSession.completed_at,
         contributions: session.contributions,
         sessionStats: session.sessionStats,
@@ -507,6 +566,34 @@ class StorySessionManager {
     console.log('Updating session with local image path:', {
       sessionId,
       localPath,
+    });
+
+    // Update session in Supabase and local cache
+    const updatedSession = await this.updateSession(session);
+    return updatedSession;
+  }
+
+  // NEW: Update session with Supabase image upload status
+  public async updateSessionWithSupabaseImage(
+    sessionId: string,
+    supabaseUrl: string,
+    uploadStatus: 'pending' | 'uploaded' | 'failed',
+    attempts: number = 0,
+    error?: string,
+  ): Promise<StorySession | null> {
+    const session = await this.getSession(sessionId, true); // Preserve contributions
+    if (!session) return null;
+
+    session.supabase_image_url = uploadStatus === 'uploaded' ? supabaseUrl : session.supabase_image_url;
+    session.image_upload_status = uploadStatus;
+    session.image_upload_attempts = attempts;
+    session.image_upload_error = error;
+
+    console.log('📤 Updating session with Supabase upload status:', {
+      sessionId,
+      status: uploadStatus,
+      attempts,
+      hasError: !!error,
     });
 
     // Update session in Supabase and local cache
@@ -718,12 +805,20 @@ class StorySessionManager {
         ? JSON.parse(sessionsData)
         : {};
 
-      sessions[session.id] = session;
+      // NEW: Cache session with image URLs for offline viewing
+      sessions[session.id] = {
+        ...session,
+        // Ensure image URLs are cached for offline access
+        generated_image_url: session.generated_image_url,
+        supabase_image_url: session.supabase_image_url, // Cache Supabase URL for offline viewing
+        image_upload_status: session.image_upload_status,
+      };
 
       // Clean up old sessions if needed
       await this.cleanupOldSessions(sessions);
 
       await AsyncStorage.setItem(this.SESSIONS_KEY, JSON.stringify(sessions));
+      console.log('📦 Session cached locally with image URLs for offline access');
     } catch (error) {
       console.error('Error caching session locally:', error);
     }
@@ -786,6 +881,68 @@ class StorySessionManager {
     for (let i = 0; i < sessionsToRemove; i++) {
       delete sessions[sessionList[i].id];
     }
+  }
+
+  // NEW: In-memory cache helpers (BUG-567 performance optimization)
+  /**
+   * Get session from in-memory cache if available and not expired
+   */
+  private getFromCache(sessionId: string): StorySession | null {
+    const cached = this.sessionCache.get(sessionId);
+    if (!cached) return null;
+
+    // Check if cache entry has expired
+    const age = Date.now() - cached.timestamp;
+    if (age > this.CACHE_TTL_MS) {
+      this.sessionCache.delete(sessionId);
+      return null;
+    }
+
+    return cached.session;
+  }
+
+  /**
+   * Add session to in-memory cache
+   */
+  private addToCache(session: StorySession): void {
+    // Enforce cache size limit (LRU eviction)
+    if (this.sessionCache.size >= this.MAX_CACHE_SIZE) {
+      // Find and remove oldest entry
+      let oldestKey: string | null = null;
+      let oldestTimestamp = Infinity;
+
+      this.sessionCache.forEach((value, key) => {
+        if (value.timestamp < oldestTimestamp) {
+          oldestTimestamp = value.timestamp;
+          oldestKey = key;
+        }
+      });
+
+      if (oldestKey) {
+        this.sessionCache.delete(oldestKey);
+      }
+    }
+
+    // Add new entry to cache
+    this.sessionCache.set(session.id, {
+      session,
+      timestamp: Date.now(),
+    });
+  }
+
+  /**
+   * Invalidate cache entry when session is updated
+   */
+  private invalidateCache(sessionId: string): void {
+    this.sessionCache.delete(sessionId);
+  }
+
+  /**
+   * Clear entire cache (useful for logout or memory pressure)
+   */
+  public clearCache(): void {
+    this.sessionCache.clear();
+    console.log('🧹 Session cache cleared');
   }
 }
 

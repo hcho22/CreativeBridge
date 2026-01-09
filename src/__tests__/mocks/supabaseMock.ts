@@ -165,6 +165,31 @@ export const createMockSupabaseClient = () => {
       }
     }),
 
+    // Storage API mock
+    storage: {
+      from: jest.fn().mockImplementation(bucket => ({
+        upload: jest.fn().mockResolvedValue({
+          data: { path: 'test-path.png' },
+          error: null,
+        }),
+        download: jest.fn().mockResolvedValue({
+          data: new Blob(['test'], { type: 'image/png' }),
+          error: null,
+        }),
+        remove: jest.fn().mockResolvedValue({
+          data: ['removed-file.png'],
+          error: null,
+        }),
+        getPublicUrl: jest.fn().mockReturnValue({
+          data: { publicUrl: 'https://supabase.co/storage/test.png' },
+        }),
+        list: jest.fn().mockResolvedValue({
+          data: [],
+          error: null,
+        }),
+      })),
+    },
+
     // Test utilities
     __testUtils: {
       clear: () => {

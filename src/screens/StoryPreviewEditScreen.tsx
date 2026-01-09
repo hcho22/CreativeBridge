@@ -111,27 +111,32 @@ export const StoryPreviewEditScreen: React.FC<StoryPreviewEditScreenProps> = ({
   };
 
   const handleContinue = (storyData: GameSession) => {
-    // TODO: Navigate to story continuation/AI generation flow
-    // For now, show a placeholder alert
-    Alert.alert(
-      'Continue Story',
-      `Starting AI continuation for "${
-        storyData.story_metadata?.title || 'Untitled Story'
-      }". This feature is being developed to seamlessly integrate with the existing story generation system.`,
-      [
-        {
-          text: 'OK',
-          onPress: () => {
-            // TODO: Navigate to story generation screen with imported content
-            console.log('Continuing story:', {
-              id: storyData.id,
-              title: storyData.story_metadata?.title,
-              content: storyData.story_content.substring(0, 100) + '...',
-            });
-          },
+    try {
+      console.log('📖 Starting story continuation for:', {
+        id: storyData.id,
+        title: storyData.story_metadata?.title,
+        source: storyData.story_source,
+        gradeLevel: storyData.grade_level,
+      });
+
+      // Navigate to Home screen with story continuation params
+      // HomeScreen will detect these params and load the story into the game
+      activeNavigation.navigate('Home', {
+        continueStory: {
+          sessionId: storyData.id,
+          importedContent: storyData.imported_story_content || storyData.story_content || '',
+          storySource: storyData.story_source,
+          gradeLevel: storyData.grade_level,
+          metadata: storyData.story_metadata,
         },
-      ],
-    );
+      });
+    } catch (error) {
+      console.error('❌ Error navigating to story continuation:', error);
+      Alert.alert(
+        'Navigation Error',
+        'Unable to start story continuation. Please try again.',
+      );
+    }
   };
 
   // Handle case where no story is provided
