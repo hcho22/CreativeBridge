@@ -1,0 +1,62 @@
+# Ralph Progress Log - CreativeBridge
+Started: 2026-01-12
+Ralph Version: Adapted for Claude Code CLI
+
+## Codebase Patterns
+
+### Project Structure
+- `src/services/` - Business logic layer (30+ specialized services)
+- `src/components/` - Reusable UI components (analytics, common, story)
+- `src/screens/` - Screen components for React Navigation
+- `src/types/` - TypeScript definitions and interfaces
+- `src/context/` - React Context providers (Auth, etc.)
+- `src/navigation/` - App navigation configuration
+- `sql/` - Database migrations for Supabase
+
+### Database Patterns (Supabase + PostgreSQL)
+- **RLS Policies:** Always include explicit `user_id` check in WHERE clause for user-scoped data
+- **Migrations:** Create in `sql/` directory, test locally before production
+- **TypeScript Types:** Update `src/types/database.ts` after schema changes
+- **Rollback:** Include rollback procedure in every migration file
+
+### React Native Patterns
+- **Offline-First:** Use AsyncStorage for local caching, sync with Supabase when online
+- **Platform-Specific:** Use `Platform.select()` for iOS/Android differences
+- **Navigation:** React Navigation v7 (tabs + stack)
+- **State Management:** React Context API (not Redux)
+
+### Testing Patterns (Jest)
+- **Coverage Requirement:** 70%+ maintained across all services
+- **Test Location:** `src/__tests__/` with subdirectories (security, database, services, components)
+- **Mocks:** Shared mocks in `src/__tests__/mocks/`
+- **Test Naming:** `[feature].test.ts` convention
+
+### AI Services Integration
+- **OpenAI (GPT-4):** Story generation - see `src/services/storyGenerationService.ts`
+- **Replicate (Stable Diffusion):** Image generation - see `src/services/imageGenerationService.ts`
+- **Claude Skills:** Advanced AI capabilities - see `src/services/claudeSkillsManager.ts`
+
+### XP & Gamification
+- **XP Events:** Track via `src/services/xpEventTracker.ts`
+- **Atomic Operations:** XP awards must happen atomically with triggering action
+- **Offline Queue:** Queue XP events if network unavailable
+
+### Common Gotchas
+- **Supabase Auth:** Email verification required; handle OAuth (Google, Apple)
+- **AsyncStorage:** Always await operations; handle storage quota errors
+- **Image Upload:** Use `src/services/imageStorageService.ts` for Supabase storage
+- **Story Completion:** Mark as complete only after all XP/image operations succeed
+- **Grade Levels:** Support K-2, 3-5, 6-8, 9-12 with age-appropriate content
+
+### Development Workflow
+1. Read `.agent/SOP/development_procedures.md` for detailed SOPs
+2. Follow git branching strategy: feature branches from main
+3. Run quality gates before commit: `npm test && npm run lint && npx tsc --noEmit`
+4. Update `.agent/` docs when adding significant features or patterns
+
+---
+
+# Iteration Log
+
+(Ralph iterations will be appended below)
+
