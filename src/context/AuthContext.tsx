@@ -1,7 +1,20 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+} from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import AsyncStorage from '../utils/asyncStorageWrapper';
 import { supabase } from '../services/supabase';
+import { useSafeClerkAuth } from '../hooks/useSafeClerkAuth';
+import {
+  completeOAuthFlow,
+  type ClerkAuthMethods,
+  type ClerkUser,
+} from '../services/oauthService';
 import type {
   UserProfile,
   UserProfileInsert,
@@ -12,7 +25,9 @@ import { xpEventTracker } from '../services/xpEventTracker';
 
 // Verify supabase is properly imported
 if (!supabase) {
-  console.error('❌ CRITICAL: Supabase client is not initialized at module load time');
+  console.error(
+    '❌ CRITICAL: Supabase client is not initialized at module load time',
+  );
 }
 
 interface SignUpData {
@@ -27,6 +42,8 @@ interface AuthContextType {
   userProfile: UserProfile | null;
   loading: boolean;
   emailConfirmed: boolean;
+  needsProfileCompletion: boolean;
+  oauthError: string | null; // Latest OAuth error (for display)
   signIn: (
     email: string,
     password: string,
@@ -70,7 +87,12 @@ interface AuthContextType {
     sessionId?: string,
     storyGradeLevel?: string,
     storyWordCount?: number,
+    storyCompleted?: boolean,
   ) => Promise<string | null>;
+  signInWithGoogle: () => Promise<{ error?: string }>;
+  signInWithApple: () => Promise<{ error?: string }>;
+  checkProfileCompletion: () => Promise<void>;
+  clearOAuthError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -87,12 +109,28 @@ interface AuthProviderProps {
   children: React.ReactNode;
 }
 
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+// Internal component that uses Clerk hooks - only rendered when ClerkProvider is present
+const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [emailConfirmed, setEmailConfirmed] = useState(false);
+  const [needsProfileCompletion, setNeedsProfileCompletion] = useState(false);
+  const [oauthError, setOAuthError] = useState<string | null>(null);
+
+  // Get Clerk auth and user hooks
+  // This component is only rendered when ClerkProvider is present, so hooks are safe
+  const { clerkAuth, clerkUser, clerkSSO } = useSafeClerkAuth();
+
+  // Track if we're processing an OAuth flow
+  const isProcessingOAuth = useRef(false);
+
+  // Track if we're signing out to prevent re-syncing during logout
+  const isSigningOut = useRef(false);
+
+  // Track the last Clerk user ID we synced to prevent infinite sync loops
+  const lastSyncedClerkUserId = useRef<string | null>(null);
 
   const fetchUserProfile = async (
     userId: string,
@@ -198,7 +236,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         userParam.email,
       );
 
-      const emailPrefix = userParam.email?.split('@')[0] || 'user';
+      // Generate unique username - avoid default 'user' which causes duplicates
+      // Try to extract email from userParam.email or clerkUser.user.emailAddresses
+      const email = userParam.email || clerkUser?.user?.emailAddresses?.[0]?.emailAddress;
+
+      let emailPrefix: string;
+      if (email) {
+        emailPrefix = email.split('@')[0];
+        console.log('📧 [createUserProfile] Extracting username from email:', emailPrefix, 'from', email);
+      } else {
+        // For users without email, create unique username using user ID suffix
+        const uniqueSuffix = userParam.id.slice(-8);
+        emailPrefix = `user_${uniqueSuffix}`;
+        console.log('🆔 [createUserProfile] No email available, using user ID suffix:', uniqueSuffix);
+      }
+
       const displayName =
         emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
 
@@ -379,19 +431,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       console.log('🔐 Starting logout process...');
 
+      // Set signing out flag to prevent re-syncing during logout
+      isSigningOut.current = true;
+      
+      // Clear the last synced Clerk user ID
+      lastSyncedClerkUserId.current = null;
+
       // Check if remember me is enabled before signing out
       const rememberMeData = await RememberMeStorage.getRememberMe();
 
-      // Clear local state immediately (before Supabase signOut)
+      // Clear local state immediately (before signouts)
       console.log('🧹 Clearing local state...');
       setLoading(true); // Show loading during logout
       setSession(null);
       setUser(null);
       setUserProfile(null);
       setEmailConfirmed(false);
+      setNeedsProfileCompletion(false);
 
       // Clear all app-related AsyncStorage data
       await clearAllAppData(rememberMeData?.isEnabled);
+
+      // Sign out from Clerk (for OAuth users)
+      if (clerkAuth?.isSignedIn) {
+        console.log('🔐 Signing out from Clerk...');
+        try {
+          await clerkAuth.signOut();
+          console.log('✅ Signed out from Clerk successfully');
+        } catch (clerkError) {
+          console.error('❌ Error signing out from Clerk:', clerkError);
+          // Continue with Supabase signout even if Clerk fails
+        }
+      }
 
       // Sign out from Supabase (this will trigger the auth state change listener)
       console.log('🔐 Signing out from Supabase...');
@@ -403,18 +474,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Ensure loading is false after logout
       setLoading(false);
 
+      // Clear signing out flag
+      isSigningOut.current = false;
+
       console.log('✅ User signed out successfully', {
         rememberMeEnabled: rememberMeData?.isEnabled,
       });
     } catch (error) {
       console.error('❌ Error signing out:', error);
 
-      // Force clear state even if Supabase signout fails
+      // Force clear state even if signout fails
       console.log('🆘 Forcing logout state clear...');
       setSession(null);
       setUser(null);
       setUserProfile(null);
       setEmailConfirmed(false);
+      setNeedsProfileCompletion(false);
       setLoading(false);
 
       // Still try to clear app data
@@ -427,12 +502,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         );
       }
 
-      // Force sign out even if there's an error
+      // Force sign out from Clerk even if there's an error
+      if (clerkAuth?.isSignedIn) {
+        try {
+          await clerkAuth.signOut();
+          console.log('✅ Force signed out from Clerk');
+        } catch (clerkForceError) {
+          console.error(
+            '❌ Force Clerk sign out also failed:',
+            clerkForceError,
+          );
+        }
+      }
+
+      // Force sign out from Supabase even if there's an error
       try {
         await supabase.auth.signOut();
       } catch (forceSignOutError) {
-        console.error('❌ Force sign out also failed:', forceSignOutError);
+        console.error(
+          '❌ Force Supabase sign out also failed:',
+          forceSignOutError,
+        );
       }
+
+      // Clear signing out flag
+      isSigningOut.current = false;
     }
   };
 
@@ -444,10 +538,98 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     try {
+      // For OAuth users without a profile, create one using RPC function that bypasses RLS
+      if (!userProfile?.id) {
+        console.log('📋 [AuthContext] Creating profile for OAuth user');
+        
+        // Get Clerk user ID if available (for OAuth users)
+        const clerkUserId = clerkUser?.id || user.user_metadata?.clerk_user_id;
+        
+        if (!clerkUserId) {
+          console.error('❌ [AuthContext] No Clerk user ID available for profile creation');
+          return { error: 'Authentication error: No user ID available' };
+        }
+        
+        // Generate unique username for OAuth users
+        // If no email or username provided, generate one using Clerk user ID suffix
+        const generateUniqueUsername = () => {
+          if (profile.username) return profile.username;
+
+          // Try to extract username from email (check both user.email and clerkUser.user.emailAddresses)
+          // clerkUser is UseUserReturn type, the actual user object is clerkUser.user
+          const email = user.email || clerkUser?.user?.emailAddresses?.[0]?.emailAddress;
+          if (email) {
+            const emailPrefix = email.split('@')[0];
+            console.log('📧 [AuthContext] Extracting username from email:', emailPrefix, 'from', email);
+            return emailPrefix;
+          }
+
+          // For users without email (e.g., Apple "Hide My Email"), create unique username
+          // Using last 8 characters of Clerk user ID for uniqueness
+          const uniqueSuffix = clerkUserId.slice(-8);
+          console.log('🆔 [AuthContext] No email available, using Clerk user ID suffix:', uniqueSuffix);
+          return `user_${uniqueSuffix}`;
+        };
+
+        const generateDisplayName = () => {
+          if (profile.display_name) return profile.display_name;
+          if (profile.username) return profile.username;
+
+          // Try to extract display name from email (check both user.email and clerkUser.user.emailAddresses)
+          // clerkUser is UseUserReturn type, the actual user object is clerkUser.user
+          const email = user.email || clerkUser?.user?.emailAddresses?.[0]?.emailAddress;
+          if (email) {
+            const emailPrefix = email.split('@')[0];
+            const displayName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
+            console.log('📧 [AuthContext] Extracting display name from email:', displayName);
+            return displayName;
+          }
+
+          // For users without email, use a friendly default with unique suffix
+          const uniqueSuffix = clerkUserId.slice(-8);
+          console.log('🆔 [AuthContext] No email available, using default display name with suffix:', uniqueSuffix);
+          return `User ${uniqueSuffix}`;
+        };
+
+        // Use RPC function to create profile (bypasses RLS)
+        const { data: createdProfile, error: createError } = await supabase
+          .rpc('create_oauth_user_profile', {
+            p_clerk_user_id: clerkUserId,
+            p_username: generateUniqueUsername(),
+            p_display_name: generateDisplayName(),
+            p_preferred_grade_level: profile.preferred_grade_level || 'K-2',
+            p_email: user.email || null,
+            p_speech_enabled: profile.speech_enabled ?? true,
+          })
+          .single();
+
+        if (createError) {
+          console.error('❌ [AuthContext] Failed to create profile:', createError);
+          return { error: createError.message };
+        }
+
+        console.log('✅ [AuthContext] Profile created successfully:', createdProfile?.id);
+        
+        // Update the synthetic user's ID to match the generated profile ID
+        // This ensures that future operations that check user.id === profile.id will work
+        if (createdProfile && user.id !== createdProfile.id) {
+          console.log('🔗 [AuthContext] Updating synthetic user ID to match profile ID:', createdProfile.id);
+          setUser({
+            ...user,
+            id: createdProfile.id,
+          });
+        }
+        
+        setUserProfile(createdProfile as any);
+        setNeedsProfileCompletion(false);
+        return {};
+      }
+
+      // Update existing profile
       const { data: updatedProfile, error } = await supabase
         .from('user_profiles')
         .update(profile as any)
-        .eq('id', user.id)
+        .eq('id', userProfile.id)
         .select()
         .single();
 
@@ -458,6 +640,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUserProfile(updatedProfile);
       return {};
     } catch (error) {
+      console.error('💥 [AuthContext] Profile update/create error:', error);
       return { error: 'An unexpected error occurred' };
     }
   };
@@ -644,6 +827,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     sessionId?: string,
     storyGradeLevel?: string,
     storyWordCount?: number,
+    storyCompleted?: boolean,
   ): Promise<string | null> => {
     if (!user) {
       console.log(
@@ -664,9 +848,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         xpCost,
         storyGradeLevel,
         storyWordCount,
+        storyCompleted: storyCompleted ?? true, // Default to true for backward compatibility
         metadata: {
           userXPBefore: userProfile?.total_xp || 0,
           timestamp: new Date().toISOString(),
+          storyCompleted: storyCompleted ?? true,
         },
       });
 
@@ -686,6 +872,246 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('💥 Error creating image generation event:', error);
       return null;
+    }
+  };
+
+  const signInWithGoogle = async (): Promise<{ error?: string }> => {
+    try {
+      console.log(
+        '🔐 [AuthContext] Initiating Google OAuth sign-in via Clerk...',
+      );
+
+      // Check if Clerk SSO is available
+      if (!clerkSSO) {
+        const error =
+          'Clerk is not configured or not available. Please configure Clerk to use OAuth.';
+        console.error('❌ [AuthContext]', error);
+        return { error };
+      }
+
+      // Mark that we're processing OAuth
+      isProcessingOAuth.current = true;
+
+      // Use Clerk's useSSO hook to start OAuth flow
+      console.log(
+        '📋 [AuthContext] Calling Clerk startSSOFlow with strategy: oauth_google',
+      );
+      const result = await clerkSSO.startSSOFlow({
+        strategy: 'oauth_google',
+        redirectUrl: 'creativebridge://auth/callback',
+      });
+
+      console.log('🔄 [AuthContext] OAuth flow result:', {
+        createdSessionId: result.createdSessionId,
+        authSessionResult: result.authSessionResult?.type,
+      });
+
+      // Check if user cancelled the OAuth flow
+      if (
+        result.authSessionResult?.type === 'cancel' ||
+        result.authSessionResult?.type === 'dismiss'
+      ) {
+        isProcessingOAuth.current = false;
+        console.log('ℹ️ [AuthContext] Google sign-in was cancelled by user');
+        return {}; // Silent return for user cancellation
+      }
+
+      // If we got a session, activate it
+      if (result.createdSessionId && result.setActive) {
+        console.log(
+          '✅ [AuthContext] Google OAuth successful, activating session...',
+        );
+        await result.setActive({ session: result.createdSessionId });
+        console.log('✅ [AuthContext] Session activated successfully');
+      }
+
+      // Sync with Supabase after successful OAuth
+      const syncResult = await syncClerkWithSupabase();
+      if (!syncResult.success) {
+        console.warn(
+          '⚠️ [AuthContext] OAuth succeeded but Supabase sync failed:',
+          syncResult.error,
+        );
+      }
+
+      console.log('✅ [AuthContext] Google OAuth flow completed successfully');
+
+      // Return success - the auth state change listener will handle the rest
+      return {};
+    } catch (error) {
+      isProcessingOAuth.current = false;
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      console.log(
+        '🔍 [AuthContext] Google sign-in caught error:',
+        errorMessage,
+      );
+
+      // Handle "already signed in" error - this means OAuth succeeded previously
+      // but Supabase wasn't synced. Try to sync now.
+      const isAlreadySignedIn = errorMessage
+        .toLowerCase()
+        .includes('already signed in');
+      console.log(
+        '🔍 [AuthContext] Is already signed in error?',
+        isAlreadySignedIn,
+      );
+
+      if (isAlreadySignedIn) {
+        console.log(
+          '🔄 [AuthContext] User already signed in with Clerk, attempting to sync with Supabase...',
+        );
+        try {
+          const syncResult = await syncClerkWithSupabase();
+          console.log('🔍 [AuthContext] Sync result:', syncResult);
+          if (syncResult.success) {
+            console.log(
+              '✅ [AuthContext] Synced existing Clerk session with Supabase',
+            );
+            return {}; // Success - user is now fully authenticated
+          } else {
+            console.error(
+              '❌ [AuthContext] Failed to sync existing Clerk session:',
+              syncResult.error,
+            );
+            return {
+              error: syncResult.error || 'Failed to sync authentication',
+            };
+          }
+        } catch (syncError) {
+          console.error('💥 [AuthContext] Error during sync:', syncError);
+          return { error: 'Failed to sync authentication' };
+        }
+      }
+
+      console.error(
+        '💥 [AuthContext] Unexpected error during Google sign-in:',
+        error,
+      );
+      return { error: errorMessage };
+    }
+  };
+
+  const signInWithApple = async (): Promise<{ error?: string }> => {
+    try {
+      console.log(
+        '🍎 [AuthContext] Initiating Apple OAuth sign-in via Clerk...',
+      );
+
+      // Check if Clerk SSO is available
+      if (!clerkSSO) {
+        const error =
+          'Clerk is not configured or not available. Please configure Clerk to use OAuth.';
+        console.error('❌ [AuthContext]', error);
+        return { error };
+      }
+
+      // Mark that we're processing OAuth
+      isProcessingOAuth.current = true;
+
+      // Use Clerk's useSSO hook to start OAuth flow
+      console.log(
+        '📋 [AuthContext] Calling Clerk startSSOFlow with strategy: oauth_apple',
+      );
+      console.log(
+        '📱 [AuthContext] Platform-specific handling: Clerk will use native Apple Sign In on iOS',
+      );
+
+      const result = await clerkSSO.startSSOFlow({
+        strategy: 'oauth_apple',
+        redirectUrl: 'creativebridge://auth/callback',
+      });
+
+      console.log('🔄 [AuthContext] Apple OAuth flow result:', {
+        createdSessionId: result.createdSessionId,
+        authSessionResult: result.authSessionResult?.type,
+      });
+
+      // Check if user cancelled the OAuth flow
+      if (
+        result.authSessionResult?.type === 'cancel' ||
+        result.authSessionResult?.type === 'dismiss'
+      ) {
+        isProcessingOAuth.current = false;
+        console.log('ℹ️ [AuthContext] Apple sign-in was cancelled by user');
+        return {}; // Silent return for user cancellation
+      }
+
+      // If we got a session, activate it
+      if (result.createdSessionId && result.setActive) {
+        console.log(
+          '✅ [AuthContext] Apple OAuth successful, activating session...',
+        );
+        await result.setActive({ session: result.createdSessionId });
+        console.log('✅ [AuthContext] Session activated successfully');
+        console.log(
+          '🍎 [AuthContext] Note: Apple may provide a private relay email - Clerk handles this automatically',
+        );
+      }
+
+      // Sync with Supabase after successful OAuth
+      const syncResult = await syncClerkWithSupabase();
+      if (!syncResult.success) {
+        console.warn(
+          '⚠️ [AuthContext] OAuth succeeded but Supabase sync failed:',
+          syncResult.error,
+        );
+      }
+
+      console.log('✅ [AuthContext] Apple OAuth flow completed successfully');
+
+      // Return success - the auth state change listener will handle the rest
+      return {};
+    } catch (error) {
+      isProcessingOAuth.current = false;
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      console.log('🔍 [AuthContext] Apple sign-in caught error:', errorMessage);
+
+      // Handle "already signed in" error - this means OAuth succeeded previously
+      // but Supabase wasn't synced. Try to sync now.
+      const isAlreadySignedIn = errorMessage
+        .toLowerCase()
+        .includes('already signed in');
+      console.log(
+        '🔍 [AuthContext] Is already signed in error?',
+        isAlreadySignedIn,
+      );
+
+      if (isAlreadySignedIn) {
+        console.log(
+          '🔄 [AuthContext] User already signed in with Clerk, attempting to sync with Supabase...',
+        );
+        try {
+          const syncResult = await syncClerkWithSupabase();
+          console.log('🔍 [AuthContext] Sync result:', syncResult);
+          if (syncResult.success) {
+            console.log(
+              '✅ [AuthContext] Synced existing Clerk session with Supabase',
+            );
+            return {}; // Success - user is now fully authenticated
+          } else {
+            console.error(
+              '❌ [AuthContext] Failed to sync existing Clerk session:',
+              syncResult.error,
+            );
+            return {
+              error: syncResult.error || 'Failed to sync authentication',
+            };
+          }
+        } catch (syncError) {
+          console.error('💥 [AuthContext] Error during sync:', syncError);
+          return { error: 'Failed to sync authentication' };
+        }
+      }
+
+      console.error(
+        '💥 [AuthContext] Unexpected error during Apple sign-in:',
+        error,
+      );
+      return { error: errorMessage };
     }
   };
 
@@ -879,8 +1305,448 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  /**
+   * Check if profile completion is needed for OAuth users
+   * This checks if:
+   * 1. User is an OAuth user (has Clerk user ID)
+   * 2. Profile doesn't exist OR profile is incomplete (missing username or grade level)
+   */
+  const checkProfileCompletion = useCallback(async (): Promise<void> => {
+    try {
+      // Only check for OAuth users (users with Clerk user ID)
+      if (!clerkUser?.id) {
+        setNeedsProfileCompletion(false);
+        return;
+      }
+
+      // Only check if email is confirmed
+      // Note: OAuth users don't have a Supabase session, so we don't check for it
+      if (!emailConfirmed) {
+        setNeedsProfileCompletion(false);
+        return;
+      }
+
+      const clerkUserId = clerkUser.id;
+
+      // Check if profile exists and is complete
+      if (userProfile) {
+        // Profile exists - check if it's complete
+        const isComplete =
+          userProfile.username &&
+          userProfile.username.trim().length > 0 &&
+          userProfile.preferred_grade_level;
+
+        setNeedsProfileCompletion(!isComplete);
+        console.log(
+          `📋 [AuthContext] Profile completion check: ${
+            isComplete ? 'Complete' : 'Incomplete'
+          }`,
+        );
+        return;
+      }
+
+      // No profile in context - check Supabase directly using Clerk user ID
+      console.log(
+        '📋 [AuthContext] Checking profile completion for Clerk user ID:',
+        clerkUserId,
+      );
+
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('clerk_user_id', clerkUserId)
+        .single();
+
+      if (profileError && profileError.code !== 'PGRST116') {
+        // PGRST116 is "not found" - that's okay, profile needs to be created
+        console.error(
+          '❌ [AuthContext] Error checking profile:',
+          profileError.message,
+        );
+        // On error, assume profile needs completion
+        setNeedsProfileCompletion(true);
+        return;
+      }
+
+      if (profile) {
+        // Profile exists in DB - check if it's complete
+        const isComplete =
+          profile.username &&
+          profile.username.trim().length > 0 &&
+          profile.preferred_grade_level;
+
+        setNeedsProfileCompletion(!isComplete);
+        console.log(
+          `📋 [AuthContext] Profile found in DB: ${
+            isComplete ? 'Complete' : 'Incomplete'
+          }`,
+        );
+
+        // Update context with profile if it exists
+        if (!userProfile) {
+          setUserProfile(profile);
+        }
+      } else {
+        // No profile found - needs completion
+        setNeedsProfileCompletion(true);
+        console.log(
+          '📋 [AuthContext] No profile found - profile completion needed',
+        );
+      }
+    } catch (error) {
+      console.error(
+        '❌ [AuthContext] Error checking profile completion:',
+        error,
+      );
+      // On error, assume profile needs completion to be safe
+      setNeedsProfileCompletion(true);
+    }
+  }, [clerkUser?.id, session, emailConfirmed, userProfile]);
+
+  /**
+   * Sync Clerk auth state with Supabase
+   * This can be called:
+   * 1. After OAuth flow completes
+   * 2. On app initialization when Clerk is signed in but Supabase isn't
+   * 3. When we get "already signed in" error during OAuth attempt
+   */
+  const syncClerkWithSupabase = useCallback(async (): Promise<{
+    success: boolean;
+    error?: string;
+  }> => {
+    if (!clerkAuth?.isSignedIn || !clerkAuth) {
+      console.log('⚠️ [AuthContext] Cannot sync: Clerk user is not signed in');
+      return { success: false, error: 'User is not signed in with Clerk' };
+    }
+
+    // Clear signing out flag if it's stuck - this is a new sign-in operation
+    if (isSigningOut.current) {
+      console.log('🔄 [AuthContext] Clearing stuck isSigningOut flag for new OAuth sign-in');
+      isSigningOut.current = false;
+    }
+
+    try {
+      console.log('🔄 [AuthContext] Syncing Clerk auth with Supabase...');
+
+      // Convert Clerk auth to the interface expected by oauthService
+      const clerkAuthMethods: ClerkAuthMethods = {
+        getToken: clerkAuth.getToken.bind(clerkAuth),
+        userId: clerkAuth.userId,
+        isSignedIn: clerkAuth.isSignedIn,
+      };
+
+      // Convert Clerk user to the interface expected by oauthService
+      const clerkUserData: ClerkUser | null = clerkUser
+        ? {
+            id: clerkUser.id,
+            emailAddresses: clerkUser.emailAddresses || [],
+            firstName: clerkUser.firstName,
+            lastName: clerkUser.lastName,
+          }
+        : null;
+
+      // Complete OAuth flow: get JWT and sync with Supabase
+      const oauthResult = await completeOAuthFlow(
+        clerkAuthMethods,
+        clerkUserData,
+      );
+
+      if (!oauthResult.success) {
+        const errorMessage =
+          oauthResult.error || 'Unknown error during OAuth completion';
+        const errorType = oauthResult.errorType || 'UNKNOWN';
+
+        console.error(
+          '❌ [AuthContext] Failed to complete OAuth flow:',
+          errorMessage,
+        );
+        console.error('❌ [AuthContext] Error type:', errorType);
+
+        // Log account linking errors for monitoring
+        if (
+          errorType === 'ACCOUNT_LINKING_CONFLICT' ||
+          errorType === 'DATABASE_ERROR'
+        ) {
+          console.error(
+            '⚠️ [AuthContext] Account linking error detected - user will see error message',
+          );
+          const errorContext = {
+            errorType,
+            errorMessage,
+            clerkUserId:
+              clerkUserData?.id || clerkAuthMethods.userId || 'unknown',
+            timestamp: new Date().toISOString(),
+          };
+          console.error(
+            '📊 [AuthContext] Account linking error context for monitoring:',
+            errorContext,
+          );
+        }
+
+        isProcessingOAuth.current = false;
+
+        // Log error for monitoring and debugging
+        console.error(
+          '❌ [AuthContext] OAuth completion error details:',
+          JSON.stringify(
+            {
+              errorMessage,
+              errorType,
+              clerkUserId:
+                clerkUserData?.id || clerkAuthMethods.userId || 'unknown',
+              timestamp: new Date().toISOString(),
+            },
+            null,
+            2,
+          ),
+        );
+
+        // Store error for display to user
+        // Use error handler to get user-friendly message
+        try {
+          const { handleOAuthError } = require('../utils/oauthErrorHandler');
+          const errorResult = handleOAuthError(errorMessage, {
+            provider: 'google', // Default, will be refined based on actual provider
+            attemptNumber: 1,
+          });
+
+          if (errorResult.shouldShowError) {
+            setOAuthError(errorResult.userMessage);
+            // Clear error after 10 seconds
+            setTimeout(() => {
+              setOAuthError(null);
+            }, 10000);
+          }
+        } catch (importError) {
+          // Fallback if error handler import fails
+          console.error('Error importing oauthErrorHandler:', importError);
+          setOAuthError(errorMessage);
+          setTimeout(() => {
+            setOAuthError(null);
+          }, 10000);
+        }
+
+        // Note: Error from OAuth completion is not directly returned to button components
+        // because the OAuth flow is asynchronous (initiation → callback → completion)
+        // If completion fails, the user won't be signed in and can try again
+        // The button components handle errors from the initiation phase
+        return;
+      }
+
+      console.log('✅ [AuthContext] OAuth flow completed successfully');
+
+      // Clear any previous OAuth errors on success
+      setOAuthError(null);
+
+      // OAuth users bypass email confirmation (handled by Clerk)
+      // This applies to both Google and Apple OAuth users
+      setEmailConfirmed(true);
+      console.log(
+        '✅ [AuthContext] Email confirmed automatically for OAuth user (bypassed email confirmation)',
+      );
+
+      // Create a synthetic user object for OAuth users
+      // This is needed because components like HomeScreen check for `user` to allow actions
+      // Since we don't create a Supabase session for OAuth users, we create a user-like object
+      const oauthUserId = oauthResult.clerkUserId || clerkAuth?.userId;
+      if (oauthUserId) {
+        const syntheticUser = {
+          id: oauthUserId,
+          email:
+            oauthResult.userEmail ||
+            clerkUser?.emailAddresses?.[0]?.emailAddress ||
+            '',
+          email_confirmed_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          app_metadata: { provider: 'clerk_oauth' },
+          user_metadata: {
+            clerk_user_id: oauthUserId,
+            full_name:
+              clerkUser?.firstName && clerkUser?.lastName
+                ? `${clerkUser.firstName} ${clerkUser.lastName}`
+                : clerkUser?.firstName || '',
+          },
+          aud: 'authenticated',
+          role: 'authenticated',
+        } as User;
+
+        console.log('👤 [AuthContext] Created synthetic user for OAuth:', {
+          id: syntheticUser.id,
+          email: syntheticUser.email,
+        });
+
+        setUser(syntheticUser);
+      }
+
+      // Handle Apple private relay email mapping
+      // Clerk provides the email (whether real or private relay) in oauthResult.userEmail
+      if (oauthResult.userEmail) {
+        console.log(
+          '📧 [AuthContext] User email from OAuth:',
+          oauthResult.userEmail,
+        );
+
+        // Log if this appears to be an Apple private relay email
+        if (
+          oauthResult.userEmail.includes('privaterelay') ||
+          oauthResult.userEmail.includes('icloud.com')
+        ) {
+          console.log(
+            '🍎 [AuthContext] Apple private relay email detected - this is normal for Apple Sign In users who choose to hide their email',
+          );
+          console.log(
+            'ℹ️ [AuthContext] Private relay emails are stable per user and can be used for account identification',
+          );
+        }
+      }
+
+      // Update user profile if available
+      // Note: Account linking is handled automatically by syncClerkUserIdToProfile
+      // which checks for existing Supabase profiles and links them to the Clerk user ID
+      if (oauthResult.clerkUserId) {
+        console.log(
+          '👤 [AuthContext] Looking up user profile with Clerk user ID:',
+          oauthResult.clerkUserId,
+        );
+        console.log(
+          '🔗 [AuthContext] Account linking was handled during OAuth completion',
+        );
+
+        // Find profile with Clerk user ID (account linking should have already happened)
+        const { data: profile, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('clerk_user_id', oauthResult.clerkUserId)
+          .single();
+
+        if (profileError && profileError.code !== 'PGRST116') {
+          // PGRST116 is "not found" - that's okay, profile will be created
+          console.error(
+            '❌ [AuthContext] Error finding profile:',
+            profileError.message,
+          );
+        }
+
+        if (profile) {
+          console.log('✅ [AuthContext] User profile found and loaded');
+          console.log(
+            '✅ [AuthContext] Profile ID:',
+            profile.id,
+            'Username:',
+            profile.username,
+          );
+          setUserProfile(profile);
+        } else {
+          // Profile will be created during profile completion (Task 5.1)
+          console.log(
+            '📋 [AuthContext] Profile not found. Will be created during profile completion',
+          );
+          console.log(
+            'ℹ️ [AuthContext] This is normal for new OAuth users or if account linking did not find a matching profile',
+          );
+        }
+
+        // Check if profile completion is needed after OAuth
+        await checkProfileCompletion();
+      }
+
+      // Mark OAuth processing as complete
+      isProcessingOAuth.current = false;
+
+      // Track that we've successfully synced this Clerk user ID
+      if (oauthResult.clerkUserId) {
+        lastSyncedClerkUserId.current = oauthResult.clerkUserId;
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error(
+        '💥 [AuthContext] Error syncing Clerk with Supabase:',
+        error,
+      );
+      isProcessingOAuth.current = false;
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error during sync';
+      return { success: false, error: errorMessage };
+    }
+  }, [clerkAuth, clerkUser]);
+
+  // Handle Clerk OAuth completion after callback (wraps syncClerkWithSupabase)
+  const handleClerkOAuthCompletion = useCallback(async () => {
+    // Only process if we're in the middle of an OAuth flow and Clerk user is signed in
+    if (!isProcessingOAuth.current || !clerkAuth?.isSignedIn) {
+      return;
+    }
+
+    await syncClerkWithSupabase();
+  }, [clerkAuth?.isSignedIn, syncClerkWithSupabase]);
+
+  // Monitor Clerk auth state changes to detect OAuth completion or existing session
+  useEffect(() => {
+    const checkAndSync = async () => {
+      console.log('🔍 [AuthContext] Clerk auth state changed:', {
+        isSignedIn: clerkAuth?.isSignedIn,
+        userId: clerkAuth?.userId,
+        hasSession: !!session,
+        hasUser: !!user,
+        isProcessingOAuth: isProcessingOAuth.current,
+        isSigningOut: isSigningOut.current,
+      });
+
+      // Skip syncing if we're in the middle of signing out
+      if (isSigningOut.current) {
+        console.log('⏭️ [AuthContext] Skipping sync - signing out in progress');
+        return;
+      }
+
+      // If Clerk is signed in but we don't have a session or user, try to sync
+      // Check if we've already synced this Clerk user ID to prevent infinite loops
+      const currentClerkUserId = clerkAuth?.userId;
+      const alreadySynced = currentClerkUserId === lastSyncedClerkUserId.current;
+      
+      if (clerkAuth?.isSignedIn && !session && !user && !loading && !alreadySynced) {
+        console.log(
+          '🔄 [AuthContext] Clerk signed in but no session/user - attempting sync...',
+        );
+        const syncResult = await syncClerkWithSupabase();
+        if (syncResult.success) {
+          console.log(
+            '✅ [AuthContext] Auto-synced Clerk session with Supabase',
+          );
+        } else {
+          console.error('❌ [AuthContext] Auto-sync failed:', syncResult.error);
+        }
+      } else if (alreadySynced && clerkAuth?.isSignedIn && !user) {
+        console.log(
+          '⏭️ [AuthContext] Skipping sync - already synced this Clerk user ID',
+        );
+      }
+      // Check for OAuth completion when Clerk auth state changes during OAuth flow
+      else if (clerkAuth?.isSignedIn && isProcessingOAuth.current) {
+        handleClerkOAuthCompletion();
+      }
+    };
+
+    checkAndSync();
+  }, [
+    clerkAuth?.isSignedIn,
+    clerkAuth?.userId,
+    session,
+    user,
+    loading,
+  ]);
+
   useEffect(() => {
     const initializeAuth = async () => {
+      // Skip initialization if we're signing out
+      if (isSigningOut.current) {
+        console.log(
+          '⏭️ [AuthContext] Skipping auth init - signing out in progress',
+        );
+        return;
+      }
+
       try {
         console.log('🔄 Starting auth initialization...');
 
@@ -904,34 +1770,101 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         } = await supabase.auth.getSession();
 
         if (error) {
-          console.error('❌ Error getting session:', error);
-          setLoading(false);
-          return;
+          // Handle invalid refresh token by clearing the stale session data
+          // This is a known/expected error when session expires, so we log as warn not error
+          if (
+            error.code === 'refresh_token_not_found' ||
+            error.message?.includes('Refresh Token Not Found')
+          ) {
+            console.warn(
+              '⚠️ Session expired (refresh token not found) - clearing stale data...',
+            );
+            try {
+              // Sign out to clear the invalid session data
+              await supabase.auth.signOut();
+              console.log('✅ Cleared invalid session data');
+            } catch (signOutError) {
+              console.error('❌ Error clearing session:', signOutError);
+            }
+          } else {
+            // Log other session errors normally
+            console.error('❌ Error getting session:', error);
+          }
+
+          // Continue initialization with no session (treat as logged out)
+          setSession(null);
+          setUser(null);
+          // Don't set loading false yet - continue to check for Clerk auth below
+        } else {
+          // No error - process the session normally
+          console.log('✅ Session retrieved:', !!initialSession);
+          setSession(initialSession);
+          setUser(initialSession?.user ?? null);
+
+          if (initialSession?.user) {
+            console.log('👤 User found, checking email confirmation...');
+            setEmailConfirmed(!!initialSession.user.email_confirmed_at);
+
+            console.log('📋 Fetching user profile...');
+            try {
+              let profile = await fetchUserProfile(initialSession.user.id);
+              if (!profile) {
+                console.log(
+                  'Creating new profile for user:',
+                  initialSession.user.email,
+                );
+                profile = await createUserProfile(initialSession.user);
+              }
+              setUserProfile(profile);
+            } catch (profileError) {
+              console.error('Profile fetch/create error:', profileError);
+              setUserProfile(null);
+            }
+          }
         }
 
-        console.log('✅ Session retrieved:', !!initialSession);
-        setSession(initialSession);
-        setUser(initialSession?.user ?? null);
+        // Debug Clerk auth state
+        console.log('🔍 [AuthContext] Clerk auth state on init:', {
+          isSignedIn: clerkAuth?.isSignedIn,
+          userId: clerkAuth?.userId,
+          hasClerkUser: !!clerkUser,
+          clerkUserId: clerkUser?.id,
+        });
 
-        if (initialSession?.user) {
-          console.log('👤 User found, checking email confirmation...');
-          setEmailConfirmed(!!initialSession.user.email_confirmed_at);
-
-          console.log('📋 Fetching user profile...');
-          try {
-            let profile = await fetchUserProfile(initialSession.user.id);
-            if (!profile) {
-              console.log(
-                'Creating new profile for user:',
-                initialSession.user.email,
-              );
-              profile = await createUserProfile(initialSession.user);
-            }
-            setUserProfile(profile);
-          } catch (profileError) {
-            console.error('Profile fetch/create error:', profileError);
-            setUserProfile(null);
+        // Check if Clerk user is signed in but Supabase session is missing
+        // This can happen if OAuth completed but sync failed, or app was killed mid-flow, or refresh token was invalid
+        if (clerkAuth?.isSignedIn && !initialSession) {
+          console.log(
+            '🔐 [AuthContext] Clerk user is signed in but no Supabase session found. Syncing...',
+          );
+          const syncResult = await syncClerkWithSupabase();
+          if (syncResult.success) {
+            console.log(
+              '✅ [AuthContext] Successfully synced Clerk session with Supabase on init',
+            );
+          } else {
+            console.error(
+              '❌ [AuthContext] Failed to sync Clerk session on init:',
+              syncResult.error,
+            );
           }
+        }
+        // Also handle case where we're in the middle of OAuth processing
+        else if (
+          clerkAuth?.isSignedIn &&
+          clerkUser &&
+          isProcessingOAuth.current
+        ) {
+          console.log(
+            '🔐 [AuthContext] Clerk user is signed in, checking for OAuth completion...',
+          );
+          // This will trigger the OAuth completion handler
+          await handleClerkOAuthCompletion();
+        }
+
+        // Check profile completion after initialization
+        if (initialSession?.user && emailConfirmed) {
+          await checkProfileCompletion();
         }
 
         console.log('🎉 Auth initialization complete!');
@@ -939,27 +1872,47 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } catch (error) {
         // Safely log the error without causing additional errors
         try {
-          const errorMessage = error instanceof Error ? error.message : String(error);
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
           const errorStack = error instanceof Error ? error.stack : undefined;
-          console.error('❌ Error initializing auth:', errorMessage, errorStack);
+          console.error(
+            '❌ Error initializing auth:',
+            errorMessage,
+            errorStack,
+          );
         } catch (logError) {
           // Fallback if even logging fails
-          console.error('❌ Error initializing auth (logging failed):', String(error));
+          console.error(
+            '❌ Error initializing auth (logging failed):',
+            String(error),
+          );
         }
         setLoading(false);
       }
     };
 
+    initializeAuth();
+
     let authSubscription: { unsubscribe: () => void } | null = null;
 
     const setupAuthListener = async () => {
+      // Skip setting up listener if we're signing out
+      if (isSigningOut.current) {
+        console.log(
+          '⏭️ [AuthContext] Skipping auth listener setup - signing out in progress',
+        );
+        return;
+      }
+
       try {
         // Ensure Supabase is ready before setting up listener
         await new Promise(resolve => setTimeout(resolve, 100));
 
         // Ensure supabase is initialized before use
         if (!supabase || !supabase.auth) {
-          console.error('❌ Supabase client is not initialized, cannot setup auth listener');
+          console.error(
+            '❌ Supabase client is not initialized, cannot setup auth listener',
+          );
           return;
         }
 
@@ -971,6 +1924,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             'Auth state changed:',
             event,
             currentSession?.user?.email,
+            'isSigningOut:',
+            isSigningOut.current,
           );
 
           // Handle sign out event specifically
@@ -984,12 +1939,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             return;
           }
 
+          // Skip processing auth changes during logout to prevent race conditions
+          if (isSigningOut.current) {
+            console.log(
+              '⏭️ [AuthContext] Skipping auth state change - signing out in progress',
+            );
+            return;
+          }
+
           setSession(currentSession);
           setUser(currentSession?.user ?? null);
 
           if (currentSession?.user) {
             // Check email confirmation status
-            setEmailConfirmed(!!currentSession.user.email_confirmed_at);
+            const isEmailConfirmed = !!currentSession.user.email_confirmed_at;
+            setEmailConfirmed(isEmailConfirmed);
 
             // Fetch or create user profile
             let profile = await fetchUserProfile(currentSession.user.id);
@@ -1001,9 +1965,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               profile = await createUserProfile(currentSession.user);
             }
             setUserProfile(profile);
+
+            // Check profile completion after profile is loaded (for OAuth users)
+            if (isEmailConfirmed && clerkUser?.id) {
+              // Use setTimeout to ensure state is updated before checking
+              setTimeout(async () => {
+                await checkProfileCompletion();
+              }, 100);
+            }
           } else {
             setUserProfile(null);
             setEmailConfirmed(false);
+            setNeedsProfileCompletion(false);
           }
 
           setLoading(false);
@@ -1015,7 +1988,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     };
 
-    initializeAuth();
+    // Note: initializeAuth() is already called at line 1736, don't call twice
     setupAuthListener();
 
     return () => {
@@ -1029,8 +2002,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (user?.id) {
       const profile = await fetchUserProfile(user.id);
       setUserProfile(profile);
+      // Check profile completion after refresh
+      await checkProfileCompletion();
     }
-  }, [user?.id]);
+  }, [user?.id, checkProfileCompletion]);
+
+  const clearOAuthError = useCallback(() => {
+    setOAuthError(null);
+  }, []);
 
   const value: AuthContextType = {
     session,
@@ -1038,6 +2017,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     userProfile,
     loading,
     emailConfirmed,
+    needsProfileCompletion,
+    oauthError,
     signIn,
     signUp,
     signOut,
@@ -1053,7 +2034,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     canGenerateImage,
     trackXPEvent,
     createImageGenerationEvent,
+    signInWithGoogle,
+    signInWithApple,
+    checkProfileCompletion,
+    clearOAuthError,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+
+// Export AuthProviderWithClerk as the main AuthProvider
+// It will be wrapped in ConditionalClerkProvider when Clerk is configured
+export const AuthProvider = AuthProviderWithClerk;

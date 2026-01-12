@@ -19,7 +19,15 @@ export type TabParamList = {
 
 // Stack navigation types for story continuation flow
 export type HomeStackParamList = {
-  Home: undefined;
+  Home: {
+    continueStory?: {
+      sessionId: string;
+      importedContent: string;
+      storySource: string;
+      gradeLevel: string;
+      metadata?: any;
+    };
+  } | undefined;
   ImportOptions: undefined;
   StorySelection: undefined;
   StoryPreviewEdit: {

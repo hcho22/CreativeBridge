@@ -9,5 +9,7 @@
   "ios": {
     "bundleIdentifier": "org.name.CreativeBridge"
   },
-  "owner": "hcho22"
+  "scheme": "creativebridge",
+  "owner": "hcho22",
+  "plugins": ["expo-web-browser"]
 }

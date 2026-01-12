@@ -12,6 +12,7 @@ import { useAuth } from '../../context/AuthContext';
 import { imageGenerationService } from '../../services/imageGeneration';
 import { xpEventTracker } from '../../services/xpEventTracker';
 import { storySessionManager } from '../../services/storySessionManager';
+import { imageStorageService } from '../../services/imageStorageService';
 import type { ErrorType, GradeLevel } from '../../types/database';
 
 interface ImageGenerationProps {
@@ -22,6 +23,10 @@ interface ImageGenerationProps {
   onImageGenerated?: (imageUrl: string) => void;
   onError?: (error: string) => void;
   disabled?: boolean;
+  // NEW: Story completion tracking props
+  isStoryCompleted: boolean;
+  currentRound: number;
+  maxRounds: number;
 }
 
 interface ImageGenerationState {
@@ -34,6 +39,10 @@ interface ImageGenerationState {
   isRetrying: boolean;
   generatedImageUrl: string | null;
   lastErrorTimestamp: number | null;
+  // NEW: Supabase upload status
+  uploadStatus: 'idle' | 'pending' | 'uploaded' | 'failed';
+  uploadError: string | null;
+  isRetryingUpload: boolean;
 }
 
 const ImageGeneration: React.FC<ImageGenerationProps> = ({
@@ -44,6 +53,10 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
   onImageGenerated,
   onError,
   disabled = false,
+  // NEW: Story completion tracking
+  isStoryCompleted,
+  currentRound,
+  maxRounds,
 }) => {
   const {
     userProfile,
@@ -64,6 +77,10 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
     isRetrying: false,
     generatedImageUrl: null,
     lastErrorTimestamp: null,
+    // NEW: Supabase upload tracking
+    uploadStatus: 'idle',
+    uploadError: null,
+    isRetryingUpload: false,
   });
 
   const [pulseAnim] = useState(new Animated.Value(1));
@@ -198,6 +215,114 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
     pulseAnim.setValue(1);
   }, [pulseAnim]);
 
+  // NEW: Upload image to Supabase Storage for permanent backup
+  // Runs asynchronously in the background - doesn't block user experience
+  const uploadToSupabaseStorage = useCallback(
+    async (replicateUrl: string, sessionId: string, userId: string) => {
+      try {
+        console.log('📤 Starting background upload to Supabase Storage...');
+
+        // Update UI state: upload pending
+        setState(prev => ({
+          ...prev,
+          uploadStatus: 'pending',
+          uploadError: null,
+        }));
+
+        // Mark upload as pending in database
+        await storySessionManager.updateSessionWithSupabaseImage(
+          sessionId,
+          '', // No URL yet
+          'pending',
+          0,
+        );
+
+        // Upload to Supabase Storage with retry logic
+        const uploadResult = await imageStorageService.uploadImageToSupabase(
+          replicateUrl,
+          sessionId,
+          userId,
+        );
+
+        if (uploadResult.success && uploadResult.supabaseUrl) {
+          // Update session with successful upload
+          await storySessionManager.updateSessionWithSupabaseImage(
+            sessionId,
+            uploadResult.supabaseUrl,
+            'uploaded',
+            uploadResult.attempts,
+          );
+
+          // Update UI state: upload successful
+          setState(prev => ({
+            ...prev,
+            uploadStatus: 'uploaded',
+            uploadError: null,
+          }));
+
+          console.log('✅ Supabase upload successful!');
+        } else {
+          // Update session with failure status
+          await storySessionManager.updateSessionWithSupabaseImage(
+            sessionId,
+            '',
+            'failed',
+            uploadResult.attempts,
+            uploadResult.error,
+          );
+
+          // Update UI state: upload failed
+          setState(prev => ({
+            ...prev,
+            uploadStatus: 'failed',
+            uploadError: uploadResult.error || 'Upload failed',
+          }));
+
+          console.error('❌ Supabase upload failed:', uploadResult.error);
+        }
+      } catch (error: any) {
+        console.error('❌ Unexpected error during Supabase upload:', error);
+
+        // Update session with failure status
+        await storySessionManager.updateSessionWithSupabaseImage(
+          sessionId,
+          '',
+          'failed',
+          0,
+          error.message || 'Unknown error',
+        );
+
+        // Update UI state: upload failed
+        setState(prev => ({
+          ...prev,
+          uploadStatus: 'failed',
+          uploadError: error.message || 'Unknown error',
+        }));
+      }
+    },
+    [],
+  );
+
+  // NEW: Retry failed Supabase upload
+  const handleRetryUpload = useCallback(async () => {
+    if (!state.generatedImageUrl || !userProfile?.id) {
+      console.error('Cannot retry: missing image URL or user ID');
+      return;
+    }
+
+    setState(prev => ({ ...prev, isRetryingUpload: true }));
+
+    try {
+      await uploadToSupabaseStorage(
+        state.generatedImageUrl,
+        sessionId,
+        userProfile.id,
+      );
+    } finally {
+      setState(prev => ({ ...prev, isRetryingUpload: false }));
+    }
+  }, [state.generatedImageUrl, sessionId, userProfile?.id, uploadToSupabaseStorage]);
+
   // Progress simulation for better UX
   const simulateProgress = useCallback(() => {
     const steps = [
@@ -221,6 +346,17 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
   }, []);
 
   const handleImageGeneration = useCallback(async () => {
+    // CRITICAL: Check story completion BEFORE any operations
+    // This prevents XP deduction for incomplete stories
+    if (!isStoryCompleted) {
+      Alert.alert(
+        '📝 Story Not Complete',
+        `Complete all ${maxRounds} rounds before generating an image.\n\nCurrent progress: Round ${currentRound}/${maxRounds}`,
+      );
+      return;
+    }
+
+    // Validate XP balance and other requirements
     if (!canGenerateImage() || disabled) {
       return;
     }
@@ -241,14 +377,15 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
     let imageEventId: string | null = null;
 
     try {
-      // Step 1: Create tracking event
+      // Step 1: Create tracking event (includes story_completed flag)
       imageEventId = await createImageGenerationEvent(
         sessionId,
         gradeLevel,
         wordCount,
+        isStoryCompleted, // Pass story completion status for tracking
       );
 
-      // Step 2: Deduct XP
+      // Step 2: Deduct XP (only after story completion validation passed)
       const deductionResult = await deductXP(
         IMAGE_GENERATION_COST,
         'AI story illustration generation',
@@ -305,7 +442,15 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
           generationResult.imageUrl!,
           IMAGE_GENERATION_COST,
         );
-        console.log('Session updated with image data');
+        console.log('✅ Session updated with Replicate image URL');
+
+        // NEW: Upload image to Supabase Storage for permanent backup
+        // This happens asynchronously - we don't block the user on this
+        uploadToSupabaseStorage(
+          generationResult.imageUrl!,
+          sessionId,
+          userProfile?.id || '',
+        );
       } catch (error) {
         console.error('Failed to update session with image data:', error);
       }
@@ -398,6 +543,9 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
       stopPulseAnimation();
     }
   }, [
+    isStoryCompleted,
+    currentRound,
+    maxRounds,
     canGenerateImage,
     disabled,
     deductXP,
@@ -413,6 +561,7 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
     startPulseAnimation,
     stopPulseAnimation,
     simulateProgress,
+    uploadToSupabaseStorage,
   ]);
 
   const renderXPBalanceDisplay = () => (
@@ -442,8 +591,10 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
   );
 
   const renderGenerationButton = () => {
+    // NEW: Include story completion check in disabled logic
+    const isDisabledByCompletion = !isStoryCompleted;
     const isButtonDisabled =
-      disabled || !xpBalanceInfo.canGenerate || state.isGenerating;
+      disabled || !xpBalanceInfo.canGenerate || state.isGenerating || isDisabledByCompletion;
 
     return (
       <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
@@ -506,7 +657,29 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
   };
 
   const renderDisabledState = () => {
-    if (xpBalanceInfo.canGenerate && !disabled) return null;
+    // NEW: Check story completion first, then XP balance
+    const isDisabledByCompletion = !isStoryCompleted;
+
+    if (xpBalanceInfo.canGenerate && !disabled && !isDisabledByCompletion) return null;
+
+    // NEW: Prioritize story completion message over other disabled states
+    if (isDisabledByCompletion) {
+      return (
+        <View style={styles.disabledContainer}>
+          <Text style={styles.disabledIcon}>📝</Text>
+          <Text style={styles.disabledTitle}>Complete Your Story First</Text>
+          <Text style={styles.disabledMessage}>
+            Finish all {maxRounds} rounds to unlock image generation.
+          </Text>
+          <Text style={styles.disabledProgress}>
+            Progress: Round {currentRound}/{maxRounds}
+          </Text>
+          <Text style={styles.disabledHint}>
+            💡 Keep writing to reach round {maxRounds}!
+          </Text>
+        </View>
+      );
+    }
 
     let disabledMessage = '';
     if (!xpBalanceInfo.hasEnoughXP) {
@@ -601,13 +774,72 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
     );
   };
 
+  // NEW: Render Supabase upload status indicator
+  const renderUploadStatus = () => {
+    if (state.uploadStatus === 'idle' || !state.generatedImageUrl) {
+      return null;
+    }
+
+    return (
+      <View style={styles.uploadStatusContainer}>
+        {state.uploadStatus === 'pending' && (
+          <View style={styles.uploadPendingContainer}>
+            <ActivityIndicator size="small" color="#6f42c1" />
+            <Text style={styles.uploadStatusText}>
+              Backing up image to cloud storage...
+            </Text>
+          </View>
+        )}
+
+        {state.uploadStatus === 'uploaded' && (
+          <View style={styles.uploadSuccessContainer}>
+            <Text style={styles.uploadSuccessIcon}>✅</Text>
+            <Text style={styles.uploadSuccessText}>
+              Image backed up successfully!
+            </Text>
+          </View>
+        )}
+
+        {state.uploadStatus === 'failed' && (
+          <View style={styles.uploadFailedContainer}>
+            <View style={styles.uploadFailedHeader}>
+              <Text style={styles.uploadFailedIcon}>⚠️</Text>
+              <Text style={styles.uploadFailedText}>
+                Backup failed: {state.uploadError}
+              </Text>
+            </View>
+            <Text style={styles.uploadFailedHint}>
+              Don't worry - your image is still saved! You can retry the backup.
+            </Text>
+            <TouchableOpacity
+              style={styles.retryUploadButton}
+              onPress={handleRetryUpload}
+              disabled={state.isRetryingUpload}
+            >
+              {state.isRetryingUpload ? (
+                <View style={styles.retryUploadButtonContent}>
+                  <ActivityIndicator size="small" color="#ffffff" />
+                  <Text style={styles.retryUploadButtonText}>Retrying...</Text>
+                </View>
+              ) : (
+                <Text style={styles.retryUploadButtonText}>
+                  🔄 Retry Backup
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
       {renderXPBalanceDisplay()}
       {renderGenerationButton()}
       {renderLoadingProgress()}
       {renderDisabledState()}
-
+      {renderUploadStatus()}
       {renderEnhancedErrorDisplay()}
     </View>
   );
@@ -787,6 +1019,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 8,
   },
+  disabledProgress: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#6f42c1',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
   disabledHint: {
     fontSize: 12,
     color: '#856404',
@@ -901,6 +1140,78 @@ const styles = StyleSheet.create({
     color: '#6c757d',
     fontSize: 12,
     fontWeight: '500',
+  },
+
+  // NEW: Supabase upload status styles
+  uploadStatusContainer: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#f8f9fa',
+  },
+  uploadPendingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  uploadStatusText: {
+    fontSize: 13,
+    color: '#6c757d',
+    marginLeft: 8,
+  },
+  uploadSuccessContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  uploadSuccessIcon: {
+    fontSize: 16,
+  },
+  uploadSuccessText: {
+    fontSize: 13,
+    color: '#28a745',
+    fontWeight: '500',
+  },
+  uploadFailedContainer: {
+    gap: 8,
+  },
+  uploadFailedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  uploadFailedIcon: {
+    fontSize: 16,
+  },
+  uploadFailedText: {
+    fontSize: 13,
+    color: '#dc3545',
+    fontWeight: '500',
+    flex: 1,
+  },
+  uploadFailedHint: {
+    fontSize: 12,
+    color: '#6c757d',
+    fontStyle: 'italic',
+  },
+  retryUploadButton: {
+    backgroundColor: '#6f42c1',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  retryUploadButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  retryUploadButtonText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '600',
+    marginLeft: 4,
   },
 });
 

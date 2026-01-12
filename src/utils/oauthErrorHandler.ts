@@ -4,6 +4,21 @@
  * Provides comprehensive error handling for OAuth authentication flows (Google, Apple).
  * Handles various error types including network errors, user cancellations, and provider errors.
  * Returns structured error information for consistent error handling across the app.
+ *
+ * Error Scenarios Handled:
+ * 1. User Cancellation - Silent return (no error shown to user)
+ * 2. Network Errors - Retryable with exponential backoff
+ * 3. Account Linking Errors - Not retryable, specific messages
+ * 4. Database Errors - Retryable with delay
+ * 5. Provider Errors (Clerk, Google, Apple) - Retryable with exponential backoff
+ * 6. Token/Expiration Errors - Retryable
+ * 7. Default/Unknown Errors - Generic message, retryable
+ *
+ * All errors include:
+ * - User-friendly error messages
+ * - Retry options when applicable
+ * - Fallback to email/password option
+ * - Exponential backoff for retries
  */
 
 export interface OAuthErrorOptions {
@@ -65,6 +80,20 @@ const OAUTH_ERROR_CODES = {
     'connection_error',
     'timeout',
     'offline',
+    'no internet',
+    'no_internet',
+    'network connection',
+    'connection lost',
+    'connection_lost',
+    'fetch failed',
+    'fetch_failed',
+    'request timeout',
+    'request_timeout',
+    'econnrefused',
+    'enotfound',
+    'eai_again',
+    'socket hang up',
+    'socket_hang_up',
   ],
 
   // Provider errors (retryable with delay)
@@ -74,6 +103,16 @@ const OAUTH_ERROR_CODES = {
     'invalid_request',
     'server_error',
     'service_unavailable',
+    'oauth_error',
+    'oauth_failed',
+    'clerk error',
+    'clerk_error',
+    'internal server error',
+    'internal_server_error',
+    'bad gateway',
+    'bad_gateway',
+    'gateway timeout',
+    'gateway_timeout',
   ],
 
   // Account linking errors (not retryable)
@@ -82,6 +121,24 @@ const OAUTH_ERROR_CODES = {
     'account_exists',
     'email_mismatch',
     'account_linking_failed',
+    'profile is already linked',
+    'already linked to a different',
+    'clerk account',
+    'different clerk account',
+    'account conflict',
+    'linking conflict',
+  ],
+
+  // Database errors during account linking
+  DATABASE_ERROR: [
+    'database_error',
+    'database_failed',
+    'failed to update profile',
+    'failed to link',
+    'pg_error',
+    'postgres_error',
+    'constraint violation',
+    'unique constraint',
   ],
 };
 
@@ -153,18 +210,51 @@ export function handleOAuthError(
 
   // Network errors - retryable
   if (matchesErrorPattern(error, OAUTH_ERROR_CODES.NETWORK_ERROR)) {
+    // Calculate exponential backoff for retries
+    const baseDelay = 2000;
+    const retryDelay = attemptNumber > 1 ? baseDelay * Math.pow(2, attemptNumber - 1) : baseDelay;
+    const maxDelay = 10000; // Cap at 10 seconds
+    const finalDelay = Math.min(retryDelay, maxDelay);
+
     return {
       shouldShowError: true,
       userMessage:
         'Connection error. Please check your internet connection and try again.',
       fallbackAvailable: true,
-      canRetry: true,
-      retryDelay: 2000,
+      canRetry: attemptNumber < 3, // Allow up to 2 retries for network errors
+      retryDelay: finalDelay,
     };
   }
 
   // Account linking errors - not retryable, specific message
   if (matchesErrorPattern(error, OAUTH_ERROR_CODES.ACCOUNT_ERROR)) {
+    // Profile already linked to different Clerk account
+    if (
+      errorString.includes('already linked') ||
+      errorString.includes('different clerk') ||
+      errorString.includes('account conflict')
+    ) {
+      return {
+        shouldShowError: true,
+        userMessage:
+          'This account is already linked to a different sign-in method. Please use your original sign-in method or contact support.',
+        fallbackAvailable: true,
+        canRetry: false,
+      };
+    }
+
+    // Email mismatch errors
+    if (errorString.includes('email') && errorString.includes('mismatch')) {
+      return {
+        shouldShowError: true,
+        userMessage:
+          'The email address does not match your account. Please sign in with the email address associated with your account.',
+        fallbackAvailable: true,
+        canRetry: false,
+      };
+    }
+
+    // Email already exists (but different account)
     if (errorString.includes('email') && errorString.includes('already')) {
       return {
         shouldShowError: true,
@@ -175,25 +265,77 @@ export function handleOAuthError(
       };
     }
 
+    // General account linking failure
     if (errorString.includes('linking')) {
       return {
         shouldShowError: true,
         userMessage:
-          'Unable to link account. Please contact support if this issue persists.',
+          'Unable to link your account. Please try signing in with your email and password, or contact support if this issue persists.',
         fallbackAvailable: true,
         canRetry: false,
       };
     }
+
+    // Default account error
+    return {
+      shouldShowError: true,
+      userMessage:
+        'There was an issue linking your account. Please sign in with your email and password instead.',
+      fallbackAvailable: true,
+      canRetry: false,
+    };
+  }
+
+  // Database errors during account linking
+  if (matchesErrorPattern(error, OAUTH_ERROR_CODES.DATABASE_ERROR)) {
+    // Check if it's a constraint violation (e.g., unique constraint on clerk_user_id)
+    if (
+      errorString.includes('constraint') ||
+      errorString.includes('unique') ||
+      errorString.includes('duplicate')
+    ) {
+      return {
+        shouldShowError: true,
+        userMessage:
+          'This account is already linked. Please sign in with your existing account.',
+        fallbackAvailable: true,
+        canRetry: false,
+      };
+    }
+
+    // General database error
+    return {
+      shouldShowError: true,
+      userMessage:
+        'Unable to save account information. Please try again or use email and password to sign in.',
+      fallbackAvailable: true,
+      canRetry: attemptNumber < 2, // Allow one retry for database errors
+      retryDelay: 2000,
+    };
   }
 
   // Provider errors - retryable with delay
   if (matchesErrorPattern(error, OAUTH_ERROR_CODES.PROVIDER_ERROR)) {
+    // Calculate exponential backoff for retries
+    const baseDelay = 3000;
+    const retryDelay = attemptNumber > 1 ? baseDelay * Math.pow(2, attemptNumber - 1) : baseDelay;
+    const maxDelay = 15000; // Cap at 15 seconds
+    const finalDelay = Math.min(retryDelay, maxDelay);
+
+    // Provide more specific messages for Clerk errors
+    let userMessage = 'Authentication failed. Please try again.';
+    if (errorString.includes('clerk')) {
+      userMessage = 'Authentication service temporarily unavailable. Please try again in a moment.';
+    } else if (errorString.includes('server') || errorString.includes('gateway')) {
+      userMessage = 'The authentication service is experiencing issues. Please try again in a moment.';
+    }
+
     return {
       shouldShowError: true,
-      userMessage: 'Authentication failed. Please try again.',
+      userMessage,
       fallbackAvailable: true,
       canRetry: attemptNumber < 2, // Allow one retry
-      retryDelay: 3000,
+      retryDelay: finalDelay,
     };
   }
 
@@ -227,13 +369,31 @@ export function handleOAuthError(
     };
   }
 
+  // Clerk-specific errors
+  if (errorString.includes('clerk') || errorString.includes('jwt') || errorString.includes('jwks')) {
+    return {
+      shouldShowError: true,
+      userMessage:
+        'Authentication service error. Please try again or use email and password to sign in.',
+      fallbackAvailable: true,
+      canRetry: attemptNumber < 2,
+      retryDelay: 3000,
+    };
+  }
+
   // Default error - generic message, retryable
+  // Calculate exponential backoff for retries
+  const baseDelay = 2000;
+  const retryDelay = attemptNumber > 1 ? baseDelay * Math.pow(2, attemptNumber - 1) : baseDelay;
+  const maxDelay = 8000; // Cap at 8 seconds
+  const finalDelay = Math.min(retryDelay, maxDelay);
+
   return {
     shouldShowError: true,
     userMessage:
       'An error occurred during sign-in. Please try again or use email and password.',
     fallbackAvailable: true,
     canRetry: attemptNumber < 2,
-    retryDelay: 2000,
+    retryDelay: finalDelay,
   };
 }

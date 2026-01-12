@@ -8,6 +8,57 @@ export interface StoryDownloadOptions {
   title?: string;
 }
 
+// Story Download History Record (matches story_download_history table)
+export interface StoryDownloadHistoryRecord {
+  id: string;
+  user_id: string;
+  story_session_id?: string;
+  file_name: string;
+  file_path: string;
+  story_title?: string;
+  story_word_count?: number;
+  story_character_count?: number;
+  story_grade_level?: string;
+  story_source: string;
+  download_method: string;
+  app_version?: string;
+  created_at: string;
+  completed_at?: string;
+  retry_count: number;
+  file_exists: boolean;
+  metadata: Record<string, any>;
+}
+
+export interface CreateDownloadRecordParams {
+  user_id: string;
+  story_session_id?: string;
+  file_name: string;
+  file_path: string;
+  story_title?: string;
+  story_word_count?: number;
+  story_character_count?: number;
+  story_grade_level?: string;
+  story_source?: string;
+  download_method?: string;
+  app_version?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface UpdateDownloadRecordParams {
+  record_id: string;
+  file_exists?: boolean;
+  retry_count?: number;
+  metadata?: Record<string, any>;
+}
+
+export interface DownloadAnalytics {
+  total_downloads: number;
+  downloads_today: number;
+  downloads_this_week: number;
+  downloads_this_month: number;
+  most_common_method: string;
+}
+
 export interface DownloadResult {
   success: boolean;
   cancelled?: boolean;

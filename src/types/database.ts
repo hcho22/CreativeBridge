@@ -14,6 +14,9 @@ export interface UserProfile {
   created_at: string;
   updated_at: string;
 
+  // OAuth Authentication (Clerk)
+  clerk_user_id?: string; // Clerk user ID for OAuth users (format: user_xxxxx)
+
   // Game Statistics
   total_xp: number;
   current_streak: number;
@@ -37,6 +40,9 @@ export interface UserProfile {
 
 // Story source types
 export type StorySource = 'New' | 'CreativeBridge' | 'Story_Quest' | 'File';
+
+// Image upload status types
+export type ImageUploadStatus = 'pending' | 'uploaded' | 'failed';
 
 // Game Session interface - matches game_sessions table
 export interface GameSession {
@@ -66,6 +72,15 @@ export interface GameSession {
   generated_image_url?: string;
   image_generation_timestamp?: string;
   image_generation_cost?: number;
+
+  // NEW: Story Completion Tracking
+  current_round: number; // 1-5, story completes at round 5
+
+  // NEW: Image Persistence Fields (Supabase Storage)
+  supabase_image_url?: string; // Permanent backup in Supabase Storage
+  image_upload_status?: ImageUploadStatus; // Upload status tracking
+  image_upload_attempts?: number; // Number of upload attempts (max 3)
+  image_upload_error?: string; // Last error message for debugging
 }
 
 // Leaderboard interfaces - match database views
@@ -131,7 +146,12 @@ export interface Database {
         Row: StoryDownloadHistoryRecord;
         Insert: Omit<
           StoryDownloadHistoryRecord,
-          'id' | 'created_at' | 'completed_at' | 'retry_count' | 'file_exists' | 'metadata'
+          | 'id'
+          | 'created_at'
+          | 'completed_at'
+          | 'retry_count'
+          | 'file_exists'
+          | 'metadata'
         > & {
           id?: string;
           created_at?: string;
@@ -410,6 +430,9 @@ export interface StoryWithImage {
   image_generation_cost: number;
   final_score: number;
   words_written: number;
+  // NEW: Supabase Storage fields
+  supabase_image_url?: string;
+  image_upload_status?: ImageUploadStatus;
 }
 
 export interface ImageGenerationStats {

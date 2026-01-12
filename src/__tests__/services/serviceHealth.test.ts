@@ -277,23 +277,23 @@ describe('Service Health Monitor', () => {
 
   describe('Health Monitoring Automation', () => {
     it('should start and stop monitoring correctly', () => {
-      expect(healthMonitor['isMonitoring']).toBe(false);
+      expect(healthMonitor.isMonitoring).toBe(false);
       
       healthMonitor.startMonitoring();
-      expect(healthMonitor['isMonitoring']).toBe(true);
-      expect(healthMonitor['monitoringInterval']).toBeDefined();
+      expect(healthMonitor.isMonitoring).toBe(true);
+      expect(healthMonitor.monitoringInterval).toBeDefined();
       
       healthMonitor.stopMonitoring();
-      expect(healthMonitor['isMonitoring']).toBe(false);
-      expect(healthMonitor['monitoringInterval']).toBeNull();
+      expect(healthMonitor.isMonitoring).toBe(false);
+      expect(healthMonitor.monitoringInterval).toBeNull();
     });
 
     it('should not start monitoring if already active', () => {
       healthMonitor.startMonitoring();
-      const firstInterval = healthMonitor['monitoringInterval'];
+      const firstInterval = healthMonitor.monitoringInterval;
       
       healthMonitor.startMonitoring(); // Try to start again
-      expect(healthMonitor['monitoringInterval']).toBe(firstInterval);
+      expect(healthMonitor.monitoringInterval).toBe(firstInterval);
     });
   });
 
@@ -444,8 +444,8 @@ describe('Service Health Monitor', () => {
       
       const customMonitor = new ServiceHealthMonitor(mockSkillManager, customConfig);
       
-      expect(customMonitor['config'].checkIntervalMs).toBe(60000);
-      expect(customMonitor['config'].degradationThreshold.errorRate).toBe(0.1);
+      expect(customMonitor.config.checkIntervalMs).toBe(60000);
+      expect(customMonitor.config.degradationThreshold.errorRate).toBe(0.1);
     });
 
     it('should reset all metrics when requested', () => {

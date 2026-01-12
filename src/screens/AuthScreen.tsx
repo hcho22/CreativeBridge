@@ -44,6 +44,8 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
     resendConfirmation,
     checkEmailConfirmation,
     resetPassword,
+    oauthError,
+    clearOAuthError,
   } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -70,6 +72,20 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
+
+  // Show OAuth errors from AuthContext
+  useEffect(() => {
+    if (oauthError) {
+      Alert.alert('Sign-In Error', oauthError, [
+        {
+          text: 'OK',
+          onPress: () => {
+            clearOAuthError();
+          },
+        },
+      ]);
+    }
+  }, [oauthError, clearOAuthError]);
 
   const isValidPassword = (passwordParam: string): boolean => {
     const validation = validatePassword(passwordParam);
@@ -665,25 +681,8 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
               </>
             )}
 
-            {/* Social Login Buttons Row */}
+            {/* OAuth Sign-In Buttons - Primary Method */}
             <View style={styles.socialButtonsRow}>
-              {/* Apple Sign-In Button */}
-              <AppleSignInButton
-                disabled={loading}
-                style={styles.socialButton}
-                onSignInStart={() => {
-                  console.log('Apple sign-in initiated');
-                }}
-                onSignInComplete={error => {
-                  if (error) {
-                    console.error('Apple sign-in error:', error);
-                  } else {
-                    console.log('Apple sign-in completed successfully');
-                  }
-                }}
-              />
-
-              {/* Google Sign-In Button */}
               <GoogleSignInButton
                 disabled={loading}
                 style={styles.socialButton}
@@ -695,6 +694,21 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
                     console.error('Google sign-in error:', error);
                   } else {
                     console.log('Google sign-in completed successfully');
+                  }
+                }}
+              />
+
+              <AppleSignInButton
+                disabled={loading}
+                style={styles.socialButton}
+                onSignInStart={() => {
+                  console.log('Apple sign-in initiated');
+                }}
+                onSignInComplete={error => {
+                  if (error) {
+                    console.error('Apple sign-in error:', error);
+                  } else {
+                    console.log('Apple sign-in completed successfully');
                   }
                 }}
               />
@@ -1094,7 +1108,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 100,
   },
   formSection: {
     width: '100%',
@@ -1208,7 +1222,8 @@ const styles = StyleSheet.create({
   oauthDividerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 8,
+    marginTop: 8,
+    marginBottom: 8,
   },
   oauthDividerLine: {
     flex: 1,
@@ -1224,7 +1239,9 @@ const styles = StyleSheet.create({
   socialButtonsRow: {
     flexDirection: 'row',
     gap: 12,
-    marginVertical: 6,
+    marginTop: 0,
+    marginBottom: 16,
+    justifyContent: 'space-between',
   },
   socialButton: {
     flex: 1,

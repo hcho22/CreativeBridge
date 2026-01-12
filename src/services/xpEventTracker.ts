@@ -22,6 +22,7 @@ export interface ImageGenerationXPEvent {
   xpCost: number;
   storyGradeLevel?: string;
   storyWordCount?: number;
+  storyCompleted?: boolean; // NEW: Track whether story was completed before image generation
   metadata?: Record<string, any>;
 }
 

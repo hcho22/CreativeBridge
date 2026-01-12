@@ -700,7 +700,7 @@ class ReadingComprehensionOptimizerService {
       .filter(e => e.context.readingSpeed > 0)
       .reduce((sum, e) => sum + e.context.readingSpeed, 0) / events.length || 100;
 
-    const expectedSpeed = this.config.gradeLevelBaselines['Grade3'].expectedReadingSpeed; // Default
+    const expectedSpeed = this.config.gradeLevelBaselines.Grade3.expectedReadingSpeed; // Default
 
     return (lookups + rereads) > events.length * 0.2 || 
            pauses > events.length * 0.3 ||
@@ -715,7 +715,7 @@ class ReadingComprehensionOptimizerService {
     const avgComprehension = events
       .reduce((sum, e) => sum + e.context.comprehensionLevel, 0) / events.length;
 
-    const expectedSpeed = this.config.gradeLevelBaselines['Grade3'].expectedReadingSpeed; // Default
+    const expectedSpeed = this.config.gradeLevelBaselines.Grade3.expectedReadingSpeed; // Default
 
     return avgReadingSpeed > expectedSpeed * 1.2 && avgComprehension > 0.8;
   }

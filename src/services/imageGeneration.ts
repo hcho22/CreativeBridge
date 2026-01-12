@@ -4,6 +4,7 @@
 import { supabase } from './supabase';
 import { errorLogger } from './errorLogger';
 import { getImageGenerationConfig } from './environment';
+import { imageStorageService } from './imageStorageService';
 import type {
   GradeLevel,
   GenerationStatus,
@@ -7957,6 +7958,62 @@ class ImageGenerationService {
     }
   }
 
+  /**
+   * Upload generated image to Supabase Storage asynchronously
+   * This runs in the background without blocking the user experience
+   *
+   * @param replicateUrl - The Replicate image URL to upload
+   * @param sessionId - Game session ID
+   * @param userId - User ID for folder organization
+   */
+  private async uploadToSupabaseAsync(
+    replicateUrl: string,
+    sessionId: string,
+    userId: string,
+  ): Promise<void> {
+    try {
+      console.log('🔄 Starting background Supabase upload...');
+
+      // Set status to pending in database
+      await supabase
+        .from('game_sessions')
+        .update({ image_upload_status: 'pending' })
+        .eq('id', sessionId);
+
+      // Upload to Supabase with retry logic
+      const uploadResult = await imageStorageService.uploadImageToSupabase(
+        replicateUrl,
+        sessionId,
+        userId,
+      );
+
+      // Update database with upload result
+      const updateData: any = {
+        image_upload_attempts: uploadResult.attempts,
+      };
+
+      if (uploadResult.success) {
+        updateData.supabase_image_url = uploadResult.supabaseUrl;
+        updateData.image_upload_status = 'uploaded';
+        updateData.image_upload_error = null;
+        console.log('✅ Supabase upload completed successfully');
+      } else {
+        updateData.image_upload_status = 'failed';
+        updateData.image_upload_error = uploadResult.error;
+        console.error('❌ Supabase upload failed:', uploadResult.error);
+      }
+
+      await supabase
+        .from('game_sessions')
+        .update(updateData)
+        .eq('id', sessionId);
+
+    } catch (error) {
+      console.error('❌ Background Supabase upload error:', error);
+      // Don't throw - this is non-blocking background operation
+    }
+  }
+
   private async callReplicateAPI(
     prompt: string,
     timeoutMs: number,
@@ -8325,6 +8382,10 @@ class ImageGenerationService {
             })
           : Promise.resolve(),
       ]);
+
+      // Asynchronously upload to Supabase Storage (don't block user)
+      // This runs in the background and won't affect the user's experience
+      this.uploadToSupabaseAsync(imageUrl, request.sessionId, request.userId);
 
       return {
         success: true,

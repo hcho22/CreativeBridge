@@ -55,9 +55,12 @@ export const StoryPreviewEdit: React.FC<StoryPreviewEditProps> = ({
   autoSave = false,
   autoSaveDelay = 2000,
 }) => {
+  // Get story content - prioritize story_content, fallback to imported_story_content
+  const storyContent = story.story_content || story.imported_story_content || '';
+
   const [isEditing, setIsEditing] = useState(initialEditMode);
-  const [editedContent, setEditedContent] = useState(story.story_content || '');
-  const [originalContent] = useState(story.story_content || '');
+  const [editedContent, setEditedContent] = useState(storyContent);
+  const [originalContent] = useState(storyContent);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showMetadata, setShowMetadata] = useState(false);

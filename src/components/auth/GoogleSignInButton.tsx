@@ -16,6 +16,10 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { theme } from '../../constants/theme';
 import { handleOAuthError } from '../../utils/oauthErrorHandler';
+import {
+  checkNetworkBeforeOAuth,
+  getNetworkErrorMessage,
+} from '../../utils/oauthNetworkCheck';
 
 interface GoogleSignInButtonProps {
   /**
@@ -50,10 +54,35 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
 }) => {
   const { signInWithGoogle } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   const handlePress = async (isRetry = false) => {
     if (loading || externalDisabled) {
       return;
+    }
+
+    // Check network connectivity before attempting OAuth
+    if (!isRetry) {
+      const networkState = await checkNetworkBeforeOAuth();
+      const networkError = getNetworkErrorMessage(networkState);
+
+      if (networkError) {
+        Alert.alert('No Internet Connection', networkError, [
+          {
+            text: 'Retry',
+            onPress: () => {
+              // Retry after a short delay
+              setTimeout(() => {
+                handlePress(false);
+              }, 1000);
+            },
+          },
+          { text: 'OK', style: 'default' as const },
+        ]);
+        onSignInComplete?.(networkError);
+        return;
+      }
     }
 
     setLoading(true);
@@ -66,9 +95,10 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
         console.error('Google sign-in error:', result.error);
 
         // Use comprehensive error handler
+        const currentAttempt = isRetry ? retryCount + 1 : 1;
         const errorResult = handleOAuthError(result.error, {
           provider: 'google',
-          attemptNumber: isRetry ? 2 : 1,
+          attemptNumber: currentAttempt,
         });
 
         // Handle user cancellation silently (no error shown per PRD)
@@ -95,8 +125,9 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
           buttons.push({
             text: 'Retry',
             onPress: () => {
-              // Retry after delay
+              // Retry after delay (exponential backoff)
               const delay = errorResult.retryDelay || 2000;
+              setRetryCount(prev => prev + 1);
               setTimeout(() => {
                 handlePress(true);
               }, delay);
@@ -117,9 +148,13 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
       } else {
         console.log('Google sign-in initiated successfully');
 
-        // Show success feedback (brief, non-intrusive)
+        // Show brief success feedback (visual indicator)
+        setShowSuccess(true);
+        setTimeout(() => {
+          setShowSuccess(false);
+        }, 2000); // Show success state for 2 seconds
+
         // The auth state change listener will handle navigation
-        // We don't show an alert here as it would be too intrusive
         // Success is indicated by navigation to the app
         onSignInComplete?.();
       }
@@ -127,9 +162,10 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
       console.error('Unexpected error during Google sign-in:', error);
 
       // Use error handler for unexpected errors too
+      const currentAttempt = isRetry ? retryCount + 1 : 1;
       const errorResult = handleOAuthError(error, {
         provider: 'google',
-        attemptNumber: isRetry ? 2 : 1,
+        attemptNumber: currentAttempt,
       });
 
       let errorMessage = errorResult.userMessage;
@@ -144,6 +180,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
           text: 'Retry',
           onPress: () => {
             const delay = errorResult.retryDelay || 2000;
+            setRetryCount(prev => prev + 1);
             setTimeout(() => {
               handlePress(true);
             }, delay);
@@ -163,11 +200,16 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
     }
   };
 
-  const isDisabled = loading || externalDisabled;
+  const isDisabled = loading || externalDisabled || showSuccess;
 
   return (
     <TouchableOpacity
-      style={[styles.button, isDisabled && styles.buttonDisabled, style]}
+      style={[
+        styles.button,
+        isDisabled && styles.buttonDisabled,
+        showSuccess && styles.buttonSuccess,
+        style,
+      ]}
       onPress={handlePress}
       disabled={isDisabled}
       activeOpacity={0.7}
@@ -186,10 +228,17 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
           />
           <Text style={styles.buttonText}>Signing in...</Text>
         </View>
+      ) : showSuccess ? (
+        <View style={styles.content}>
+          <Text style={styles.successIcon}>✓</Text>
+          <Text style={[styles.buttonText, styles.successText]}>
+            Sign-in successful!
+          </Text>
+        </View>
       ) : (
-        // Center the Google logo inside the button
-        <View style={styles.iconOnlyContent}>
-          <View style={styles.iconContainer}>
+        // Show Google icon centered
+        <View style={styles.content}>
+          <View style={[styles.iconContainer, styles.iconOnly]}>
             <Text style={styles.googleIcon}>G</Text>
           </View>
         </View>
@@ -223,11 +272,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  iconOnlyContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    position: 'relative',
   },
   iconContainer: {
     width: 24,
@@ -236,6 +281,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#4285F4', // Google blue
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: theme.spacing.sm,
+  },
+  iconOnly: {
+    marginRight: 0,
   },
   googleIcon: {
     fontSize: 16,
@@ -258,6 +307,19 @@ const styles = StyleSheet.create({
   },
   loadingSpinner: {
     marginRight: theme.spacing.sm,
+  },
+  buttonSuccess: {
+    backgroundColor: '#d4edda',
+    borderColor: '#28a745',
+  },
+  successIcon: {
+    fontSize: 20,
+    fontWeight: theme.typography.fontWeight.bold,
+    color: '#28a745',
+    marginRight: theme.spacing.sm,
+  },
+  successText: {
+    color: '#28a745',
   },
 });
 

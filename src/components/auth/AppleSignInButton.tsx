@@ -17,6 +17,10 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { theme } from '../../constants/theme';
 import { handleOAuthError } from '../../utils/oauthErrorHandler';
+import {
+  checkNetworkBeforeOAuth,
+  getNetworkErrorMessage,
+} from '../../utils/oauthNetworkCheck';
 
 interface AppleSignInButtonProps {
   /**
@@ -52,10 +56,35 @@ export const AppleSignInButton: React.FC<AppleSignInButtonProps> = ({
 }) => {
   const { signInWithApple } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   const handlePress = async (isRetry = false) => {
     if (loading || externalDisabled) {
       return;
+    }
+
+    // Check network connectivity before attempting OAuth
+    if (!isRetry) {
+      const networkState = await checkNetworkBeforeOAuth();
+      const networkError = getNetworkErrorMessage(networkState);
+
+      if (networkError) {
+        Alert.alert('No Internet Connection', networkError, [
+          {
+            text: 'Retry',
+            onPress: () => {
+              // Retry after a short delay
+              setTimeout(() => {
+                handlePress(false);
+              }, 1000);
+            },
+          },
+          { text: 'OK', style: 'default' as const },
+        ]);
+        onSignInComplete?.(networkError);
+        return;
+      }
     }
 
     setLoading(true);
@@ -68,9 +97,10 @@ export const AppleSignInButton: React.FC<AppleSignInButtonProps> = ({
         console.error('Apple sign-in error:', result.error);
 
         // Use comprehensive error handler
+        const currentAttempt = isRetry ? retryCount + 1 : 1;
         const errorResult = handleOAuthError(result.error, {
           provider: 'apple',
-          attemptNumber: isRetry ? 2 : 1,
+          attemptNumber: currentAttempt,
         });
 
         // Handle user cancellation silently (no error shown per PRD)
@@ -97,8 +127,9 @@ export const AppleSignInButton: React.FC<AppleSignInButtonProps> = ({
           buttons.push({
             text: 'Retry',
             onPress: () => {
-              // Retry after delay
+              // Retry after delay (exponential backoff)
               const delay = errorResult.retryDelay || 2000;
+              setRetryCount(prev => prev + 1);
               setTimeout(() => {
                 handlePress(true);
               }, delay);
@@ -119,9 +150,13 @@ export const AppleSignInButton: React.FC<AppleSignInButtonProps> = ({
       } else {
         console.log('Apple sign-in initiated successfully');
 
-        // Show success feedback (brief, non-intrusive)
+        // Show brief success feedback (visual indicator)
+        setShowSuccess(true);
+        setTimeout(() => {
+          setShowSuccess(false);
+        }, 2000); // Show success state for 2 seconds
+
         // The auth state change listener will handle navigation
-        // We don't show an alert here as it would be too intrusive
         // Success is indicated by navigation to the app
         onSignInComplete?.();
       }
@@ -129,9 +164,10 @@ export const AppleSignInButton: React.FC<AppleSignInButtonProps> = ({
       console.error('Unexpected error during Apple sign-in:', error);
 
       // Use error handler for unexpected errors too
+      const currentAttempt = isRetry ? retryCount + 1 : 1;
       const errorResult = handleOAuthError(error, {
         provider: 'apple',
-        attemptNumber: isRetry ? 2 : 1,
+        attemptNumber: currentAttempt,
       });
 
       let errorMessage = errorResult.userMessage;
@@ -146,6 +182,7 @@ export const AppleSignInButton: React.FC<AppleSignInButtonProps> = ({
           text: 'Retry',
           onPress: () => {
             const delay = errorResult.retryDelay || 2000;
+            setRetryCount(prev => prev + 1);
             setTimeout(() => {
               handlePress(true);
             }, delay);
@@ -165,7 +202,7 @@ export const AppleSignInButton: React.FC<AppleSignInButtonProps> = ({
     }
   };
 
-  const isDisabled = loading || externalDisabled;
+  const isDisabled = loading || externalDisabled || showSuccess;
 
   // Apple button styling: dark gray background
   const buttonBackgroundColor = theme.colors.surface;
@@ -178,10 +215,17 @@ export const AppleSignInButton: React.FC<AppleSignInButtonProps> = ({
         {
           backgroundColor: isDisabled
             ? theme.colors.disabled
+            : showSuccess
+            ? '#d4edda'
             : buttonBackgroundColor,
-          borderColor: isDisabled ? theme.colors.disabled : buttonBorderColor,
+          borderColor: isDisabled
+            ? theme.colors.disabled
+            : showSuccess
+            ? '#28a745'
+            : buttonBorderColor,
         },
         isDisabled && styles.buttonDisabled,
+        showSuccess && styles.buttonSuccess,
         style,
       ]}
       onPress={handlePress}
@@ -210,10 +254,17 @@ export const AppleSignInButton: React.FC<AppleSignInButtonProps> = ({
             Signing in...
           </Text>
         </View>
+      ) : showSuccess ? (
+        <View style={styles.content}>
+          <Text style={styles.successIcon}>✓</Text>
+          <Text style={[styles.buttonText, styles.successText]}>
+            Sign-in successful!
+          </Text>
+        </View>
       ) : (
-        // Center the Apple logo inside the button
-        <View style={styles.iconOnlyContent}>
-          <View style={styles.iconContainer}>
+        // Show Apple icon centered
+        <View style={styles.content}>
+          <View style={[styles.iconContainer, styles.iconOnly]}>
             <Text style={styles.appleIcon}></Text>
           </View>
         </View>
@@ -243,11 +294,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  iconOnlyContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    position: 'relative',
   },
   iconContainer: {
     width: 24,
@@ -256,6 +303,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: theme.spacing.sm,
+  },
+  iconOnly: {
+    marginRight: 0,
   },
   appleIcon: {
     fontSize: 16,
@@ -265,6 +316,7 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: theme.typography.fontSize.md,
     fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text,
     ...theme.typography.textStyles.button,
   },
   buttonTextDisabled: {
@@ -277,6 +329,19 @@ const styles = StyleSheet.create({
   },
   loadingSpinner: {
     marginRight: theme.spacing.sm,
+  },
+  buttonSuccess: {
+    backgroundColor: '#d4edda',
+    borderColor: '#28a745',
+  },
+  successIcon: {
+    fontSize: 20,
+    fontWeight: theme.typography.fontWeight.bold,
+    color: '#28a745',
+    marginRight: theme.spacing.sm,
+  },
+  successText: {
+    color: '#28a745',
   },
 });
 

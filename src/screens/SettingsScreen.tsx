@@ -42,7 +42,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       });
 
       if (result.error) {
-        Alert.alert('Error', 'Failed to update speech settings');
+        Alert.alert('Profile Setup Required', result.error);
         setSpeechEnabled(!value); // Revert on error
       } else {
         Alert.alert(
@@ -66,7 +66,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       });
 
       if (result.error) {
-        Alert.alert('Error', 'Failed to update grade level preference');
+        Alert.alert('Profile Setup Required', result.error);
         setSelectedGradeLevel(
           (userProfile?.preferred_grade_level as GradeLevel) || 'K-2',
         ); // Revert on error

@@ -3,26 +3,33 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  Modal,
   View,
   Text,
   FlatList,
   TextInput,
   TouchableOpacity,
   RefreshControl,
-  ActivityIndicator,
   StyleSheet,
   Dimensions,
+  Image,
+  ActivityIndicator,
   Alert,
+  ActionSheetIOS,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { GameSession, StorySource } from '../../types/database';
 import { StoryManagementService } from '../../services/storyManagementService';
+import Share from '../../utils/shareWrapper';
+import RNFS from '../../utils/rnfsWrapper';
+import FolderPickerUtil from '../../utils/folderPicker';
 
+// Dimensions available for future responsive design
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const { width, height } = Dimensions.get('window');
 
 export interface StorySelectionModalProps {
-  visible: boolean;
+  visible?: boolean; // Optional, kept for API compatibility but not used internally
   onClose: () => void;
   onStorySelect: (story: GameSession) => void;
   userId: string;
@@ -49,6 +56,9 @@ const StoryCard: React.FC<StoryCardProps> = ({
   onPress,
   searchTerm,
 }) => {
+  const [imageLoading, setImageLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -57,6 +67,21 @@ const StoryCard: React.FC<StoryCardProps> = ({
       year: 'numeric',
     });
   };
+
+  // Get image URL with priority: Supabase > Replicate > none
+  const getImageUrl = () => {
+    if (story.supabase_image_url) {
+      return story.supabase_image_url;
+    }
+    if (story.generated_image_url) {
+      return story.generated_image_url;
+    }
+    return null;
+  };
+
+  const imageUrl = getImageUrl();
+  const hasImage = !!imageUrl;
+  const uploadStatus = story.image_upload_status;
 
   const getSourceColor = (source: StorySource) => {
     switch (source) {
@@ -73,15 +98,15 @@ const StoryCard: React.FC<StoryCardProps> = ({
     }
   };
 
-  const getStoryTitle = (story: GameSession) => {
+  const getStoryTitle = (storyItem: GameSession) => {
     // Try to extract title from metadata first
-    if (story.story_metadata?.title) {
-      return story.story_metadata.title;
+    if (storyItem.story_metadata?.title) {
+      return storyItem.story_metadata.title;
     }
 
     // Extract from content (first line if it looks like a title)
-    if (story.story_content) {
-      const firstLine = story.story_content.split('\n')[0].trim();
+    if (storyItem.story_content) {
+      const firstLine = storyItem.story_content.split('\n')[0].trim();
       if (
         firstLine.length > 0 &&
         firstLine.length < 60 &&
@@ -92,21 +117,40 @@ const StoryCard: React.FC<StoryCardProps> = ({
     }
 
     // Fallback to truncated content
-    const content = story.story_content || story.imported_story_content || '';
+    const content =
+      storyItem.story_content || storyItem.imported_story_content || '';
     return content.length > 40 ? `${content.substring(0, 40)}...` : content;
   };
 
-  const getStoryPreview = (story: GameSession) => {
-    const content = story.story_content || story.imported_story_content || '';
+  const getStoryPreview = (storyItem: GameSession) => {
+    const content =
+      storyItem.story_content || storyItem.imported_story_content || '';
     const lines = content.split('\n').filter(line => line.trim().length > 0);
 
     // Skip first line if it's being used as title
-    const title = getStoryTitle(story);
-    const isFirstLineTitle = lines[0] && lines[0].trim() === title;
+    const storyTitle = getStoryTitle(storyItem);
+    const isFirstLineTitle = lines[0] && lines[0].trim() === storyTitle;
     const previewLines = isFirstLineTitle ? lines.slice(1) : lines;
 
     const preview = previewLines.join(' ').substring(0, 120);
     return preview.length < content.length ? `${preview}...` : preview;
+  };
+
+  const getActualWordCount = (storyItem: GameSession) => {
+    // If words_written is set and non-zero, use it
+    if (storyItem.words_written > 0) {
+      return storyItem.words_written;
+    }
+
+    // Otherwise, calculate from content
+    const content =
+      storyItem.story_content || storyItem.imported_story_content || '';
+    if (!content.trim()) return 0;
+
+    return content
+      .trim()
+      .split(/\s+/)
+      .filter(word => word.length > 0).length;
   };
 
   const highlightSearchTerm = (text: string, term?: string) => {
@@ -132,30 +176,225 @@ const StoryCard: React.FC<StoryCardProps> = ({
   const preview = getStoryPreview(story);
   const sourceColor = getSourceColor(story.story_source);
 
-  return (
-    <TouchableOpacity style={styles.storyCard} onPress={onPress}>
-      <View style={styles.storyHeader}>
-        <Text style={styles.storyTitle} numberOfLines={2}>
-          {highlightSearchTerm(title, searchTerm)}
-        </Text>
-        <View
-          style={[styles.sourceIndicator, { backgroundColor: sourceColor }]}
-        >
-          <Text style={styles.sourceText}>{story.story_source}</Text>
+  // Handle long-press on thumbnail for download/share
+  const handleThumbnailLongPress = useCallback(() => {
+    if (!hasImage || !imageUrl || imageError) return;
+
+    const storyTitle = getStoryTitle(story);
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancel', 'Download Image', 'Share Image'],
+          cancelButtonIndex: 0,
+          title: storyTitle,
+        },
+        async (buttonIndex) => {
+          if (buttonIndex === 1) {
+            // Download
+            await downloadImage();
+          } else if (buttonIndex === 2) {
+            // Share
+            await shareImage();
+          }
+        },
+      );
+    } else {
+      // Android fallback - show simple alert with options
+      Alert.alert(
+        storyTitle,
+        'What would you like to do with this image?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Download', onPress: () => downloadImage() },
+          { text: 'Share', onPress: () => shareImage() },
+        ],
+      );
+    }
+  }, [hasImage, imageUrl, imageError, story]);
+
+  // Download image to device
+  const downloadImage = useCallback(async () => {
+    if (!imageUrl) return;
+
+    try {
+      const timestamp = new Date().getTime();
+      const filename = `story_${story.id}_${timestamp}.jpg`;
+      const tempPath = `${RNFS.DocumentDirectoryPath}/${filename}`;
+
+      // Download the image
+      const downloadResult = await RNFS.downloadFile({
+        fromUrl: imageUrl,
+        toFile: tempPath,
+      }).promise;
+
+      if (downloadResult.statusCode !== 200) {
+        throw new Error(`Download failed with status: ${downloadResult.statusCode}`);
+      }
+
+      // Use folder picker to save
+      const saveResult = await FolderPickerUtil.saveToUserSelectedFolder({
+        sourceFilePath: tempPath,
+        fileName: filename,
+        title: 'Save Story Image',
+      });
+
+      if (saveResult.success) {
+        Alert.alert('✅ Saved!', 'Image saved successfully!');
+      } else if (!saveResult.cancelled) {
+        throw new Error(saveResult.error || 'Save failed');
+      }
+
+      // Clean up temp file
+      await RNFS.unlink(tempPath);
+    } catch (error: any) {
+      console.error('Download failed:', error);
+      Alert.alert('❌ Download Failed', error.message || 'Could not download image');
+    }
+  }, [imageUrl, story.id]);
+
+  // Share image
+  const shareImage = useCallback(async () => {
+    if (!imageUrl) return;
+
+    try {
+      const timestamp = new Date().getTime();
+      const filename = `story_${story.id}_${timestamp}.jpg`;
+      const tempPath = `${RNFS.DocumentDirectoryPath}/${filename}`;
+
+      // Download for sharing
+      const downloadResult = await RNFS.downloadFile({
+        fromUrl: imageUrl,
+        toFile: tempPath,
+      }).promise;
+
+      if (downloadResult.statusCode !== 200) {
+        throw new Error(`Download failed with status: ${downloadResult.statusCode}`);
+      }
+
+      const shareUrl = `file://${tempPath}`;
+      const storyTitle = getStoryTitle(story);
+
+      await Share.open({
+        url: shareUrl,
+        title: storyTitle,
+        message: `Check out this story illustration: "${storyTitle}" 🎨`,
+        type: 'image/jpeg',
+        filename,
+      });
+
+      // Clean up temp file
+      await RNFS.unlink(tempPath);
+    } catch (error: any) {
+      if (error.message && !error.message.includes('cancelled')) {
+        console.error('Share failed:', error);
+        Alert.alert('❌ Share Failed', error.message || 'Could not share image');
+      }
+    }
+  }, [imageUrl, story]);
+
+  // Render image thumbnail or placeholder
+  const renderThumbnail = () => {
+    if (!hasImage) {
+      // No image - show placeholder
+      return (
+        <View style={styles.thumbnailPlaceholder}>
+          <Text style={styles.thumbnailPlaceholderIcon}>🖼️</Text>
         </View>
-      </View>
+      );
+    }
 
-      <Text style={styles.storyPreview} numberOfLines={3}>
-        {highlightSearchTerm(preview, searchTerm)}
-      </Text>
+    return (
+      <TouchableOpacity
+        style={styles.thumbnailContainer}
+        onLongPress={handleThumbnailLongPress}
+        delayLongPress={500}
+        activeOpacity={0.8}
+      >
+        <Image
+          source={{ uri: imageUrl }}
+          style={styles.thumbnail}
+          onLoadStart={() => setImageLoading(true)}
+          onLoadEnd={() => setImageLoading(false)}
+          onError={() => {
+            setImageError(true);
+            setImageLoading(false);
+          }}
+        />
 
-      <View style={styles.storyFooter}>
-        <Text style={styles.storyDate}>{formatDate(story.created_at)}</Text>
-        <View style={styles.storyStats}>
-          <Text style={styles.wordCount}>{story.words_written || 0} words</Text>
-          {story.final_score > 0 && (
-            <Text style={styles.score}>Score: {story.final_score}</Text>
-          )}
+        {/* Loading indicator */}
+        {imageLoading && !imageError && (
+          <View style={styles.thumbnailLoading}>
+            <ActivityIndicator size="small" color="#6f42c1" />
+          </View>
+        )}
+
+        {/* Error state */}
+        {imageError && (
+          <View style={styles.thumbnailError}>
+            <Text style={styles.thumbnailErrorIcon}>⚠️</Text>
+          </View>
+        )}
+
+        {/* Upload status indicator */}
+        {uploadStatus === 'pending' && !imageError && (
+          <View style={styles.uploadingBadge}>
+            <ActivityIndicator size="small" color="#fff" />
+          </View>
+        )}
+        {uploadStatus === 'uploaded' && !imageError && (
+          <View style={styles.uploadedBadge}>
+            <Text style={styles.uploadedBadgeText}>✓</Text>
+          </View>
+        )}
+        {uploadStatus === 'failed' && !imageError && (
+          <View style={styles.uploadFailedBadge}>
+            <Text style={styles.uploadFailedBadgeText}>!</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
+  return (
+    <TouchableOpacity
+      style={styles.storyCard}
+      onPress={onPress}
+      activeOpacity={0.7}
+      delayPressIn={0}
+    >
+      <View style={styles.storyCardContent}>
+        {/* Image Thumbnail */}
+        {renderThumbnail()}
+
+        {/* Story Content */}
+        <View style={styles.storyTextContent}>
+          <View style={styles.storyHeader}>
+            <Text style={styles.storyTitle} numberOfLines={2}>
+              {highlightSearchTerm(title, searchTerm)}
+            </Text>
+            <View
+              style={[styles.sourceIndicator, { backgroundColor: sourceColor }]}
+            >
+              <Text style={styles.sourceText}>{story.story_source}</Text>
+            </View>
+          </View>
+
+          <Text style={styles.storyPreview} numberOfLines={2}>
+            {highlightSearchTerm(preview, searchTerm)}
+          </Text>
+
+          <View style={styles.storyFooter}>
+            <Text style={styles.storyDate}>{formatDate(story.created_at)}</Text>
+            <View style={styles.storyStats}>
+              <Text style={styles.wordCount}>
+                {getActualWordCount(story)} words
+              </Text>
+              {story.final_score > 0 && (
+                <Text style={styles.score}>Score: {story.final_score}</Text>
+              )}
+            </View>
+          </View>
         </View>
       </View>
 
@@ -170,25 +409,33 @@ const StoryCard: React.FC<StoryCardProps> = ({
 
 const SkeletonCard: React.FC = () => (
   <View style={styles.skeletonCard}>
-    <View style={styles.skeletonHeader}>
-      <View style={styles.skeletonTitle} />
-      <View style={styles.skeletonSource} />
-    </View>
-    <View style={styles.skeletonPreview1} />
-    <View style={styles.skeletonPreview2} />
-    <View style={styles.skeletonFooter}>
-      <View style={styles.skeletonDate} />
-      <View style={styles.skeletonStats} />
+    <View style={styles.storyCardContent}>
+      {/* Skeleton thumbnail */}
+      <View style={styles.skeletonThumbnail} />
+
+      {/* Skeleton content */}
+      <View style={styles.storyTextContent}>
+        <View style={styles.skeletonHeader}>
+          <View style={styles.skeletonTitle} />
+          <View style={styles.skeletonSource} />
+        </View>
+        <View style={styles.skeletonPreview1} />
+        <View style={styles.skeletonPreview2} />
+        <View style={styles.skeletonFooter}>
+          <View style={styles.skeletonDate} />
+          <View style={styles.skeletonStats} />
+        </View>
+      </View>
     </View>
   </View>
 );
 
 export const StorySelectionModal: React.FC<StorySelectionModalProps> = ({
-  visible,
+  visible: _visible, // Unused, kept for API compatibility
   onClose,
   onStorySelect,
   userId,
-  title = 'Select a Story',
+  title: modalTitle = 'Select a Story',
   showOnlyCompleted = false,
   excludeStoryIds = [],
   initialSource,
@@ -288,8 +535,10 @@ export const StorySelectionModal: React.FC<StorySelectionModalProps> = ({
     }
 
     // Apply completed filter
+    // Note: Story completion feature is not yet implemented
+    // All stories have completed_at: null, so this filter is currently disabled in UI
     if (filters.completedOnly) {
-      filtered = filtered.filter(story => story.completed_at);
+      filtered = filtered.filter(story => !!story.completed_at);
     }
 
     // Apply search term
@@ -311,12 +560,12 @@ export const StorySelectionModal: React.FC<StorySelectionModalProps> = ({
     setFilteredStories(filtered);
   }, [stories, filters, searchTerm]);
 
-  // Load stories when modal opens
+  // Load stories when component mounts
   useEffect(() => {
-    if (visible && userId) {
+    if (userId) {
       loadStories();
     }
-  }, [visible, userId, loadStories]);
+  }, [userId, loadStories]);
 
   // Apply filters when stories or filters change
   useEffect(() => {
@@ -325,10 +574,17 @@ export const StorySelectionModal: React.FC<StorySelectionModalProps> = ({
 
   const handleStoryPress = useCallback(
     (story: GameSession) => {
+      console.log('📚 Story card pressed:', {
+        id: story.id,
+        title: story.story_metadata?.title || 'Untitled',
+        source: story.story_source,
+      });
+
+      // Call onStorySelect and let the parent handle navigation and modal dismissal
+      // DO NOT call onClose() here as it cancels the pending navigation
       onStorySelect(story);
-      onClose();
     },
-    [onStorySelect, onClose],
+    [onStorySelect],
   );
 
   const handleRefresh = useCallback(() => {
@@ -407,142 +663,137 @@ export const StorySelectionModal: React.FC<StorySelectionModalProps> = ({
   }, [loading, error, searchTerm, renderSkeleton, loadStories, clearSearch]);
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
-      <SafeAreaView style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <Text style={styles.closeButtonText}>✕</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>{title}</Text>
-          <View style={styles.headerSpacer} />
-        </View>
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+          <Text style={styles.closeButtonText}>✕</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>{modalTitle}</Text>
+        <View style={styles.headerSpacer} />
+      </View>
 
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search stories..."
-            value={searchTerm}
-            onChangeText={setSearchTerm}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          {searchTerm.length > 0 && (
-            <TouchableOpacity
-              style={styles.clearSearchButton}
-              onPress={clearSearch}
-            >
-              <Text style={styles.clearSearchText}>✕</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Filter Buttons */}
-        <View style={styles.filtersContainer}>
-          {/* Source Filter */}
-          <View style={styles.filterGroup}>
-            <Text style={styles.filterLabel}>Source:</Text>
-            <View style={styles.filterButtons}>
-              {sourceOptions.map(source => (
-                <TouchableOpacity
-                  key={source}
-                  style={[
-                    styles.filterButton,
-                    filters.source === source && styles.filterButtonActive,
-                  ]}
-                  onPress={() => setFilters(prev => ({ ...prev, source }))}
-                >
-                  <Text
-                    style={[
-                      styles.filterButtonText,
-                      filters.source === source &&
-                        styles.filterButtonTextActive,
-                    ]}
-                  >
-                    {source}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Date Range Filter */}
-          <View style={styles.filterGroup}>
-            <Text style={styles.filterLabel}>Date:</Text>
-            <View style={styles.filterButtons}>
-              {dateRangeOptions.map(option => (
-                <TouchableOpacity
-                  key={option.key}
-                  style={[
-                    styles.filterButton,
-                    filters.dateRange === option.key &&
-                      styles.filterButtonActive,
-                  ]}
-                  onPress={() =>
-                    setFilters(prev => ({
-                      ...prev,
-                      dateRange: option.key as any,
-                    }))
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.filterButtonText,
-                      filters.dateRange === option.key &&
-                        styles.filterButtonTextActive,
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Completed Only Toggle */}
-          {!showOnlyCompleted && (
-            <TouchableOpacity
-              style={styles.toggleButton}
-              onPress={() =>
-                setFilters(prev => ({
-                  ...prev,
-                  completedOnly: !prev.completedOnly,
-                }))
-              }
-            >
-              <Text style={styles.toggleButtonText}>
-                {filters.completedOnly ? '☑' : '☐'} Completed Only
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Results Count */}
-        <Text style={styles.resultsCount}>
-          {filteredStories.length}{' '}
-          {filteredStories.length === 1 ? 'story' : 'stories'}
-        </Text>
-
-        {/* Story List */}
-        <FlatList
-          data={filteredStories}
-          keyExtractor={item => item.id}
-          renderItem={renderStoryCard}
-          ListEmptyComponent={ListEmptyComponent}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-          }
-          contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search stories..."
+          value={searchTerm}
+          onChangeText={setSearchTerm}
+          autoCapitalize="none"
+          autoCorrect={false}
         />
-      </SafeAreaView>
-    </Modal>
+        {searchTerm.length > 0 && (
+          <TouchableOpacity
+            style={styles.clearSearchButton}
+            onPress={clearSearch}
+          >
+            <Text style={styles.clearSearchText}>✕</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Filter Buttons */}
+      <View style={styles.filtersContainer}>
+        {/* Source Filter */}
+        <View style={styles.filterGroup}>
+          <Text style={styles.filterLabel}>Source:</Text>
+          <View style={styles.filterButtons}>
+            {sourceOptions.map(source => (
+              <TouchableOpacity
+                key={source}
+                style={[
+                  styles.filterButton,
+                  filters.source === source && styles.filterButtonActive,
+                ]}
+                onPress={() => setFilters(prev => ({ ...prev, source }))}
+              >
+                <Text
+                  style={[
+                    styles.filterButtonText,
+                    filters.source === source && styles.filterButtonTextActive,
+                  ]}
+                >
+                  {source}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Date Range Filter */}
+        <View style={styles.filterGroup}>
+          <Text style={styles.filterLabel}>Date:</Text>
+          <View style={styles.filterButtons}>
+            {dateRangeOptions.map(option => (
+              <TouchableOpacity
+                key={option.key}
+                style={[
+                  styles.filterButton,
+                  filters.dateRange === option.key && styles.filterButtonActive,
+                ]}
+                onPress={() =>
+                  setFilters(prev => ({
+                    ...prev,
+                    dateRange: option.key as any,
+                  }))
+                }
+              >
+                <Text
+                  style={[
+                    styles.filterButtonText,
+                    filters.dateRange === option.key &&
+                      styles.filterButtonTextActive,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Completed Only Toggle */}
+        {/* Note: Hidden until story completion feature is implemented */}
+        {/* All stories currently have completed_at: null */}
+        {false && !showOnlyCompleted && (
+          <TouchableOpacity
+            style={styles.toggleButton}
+            onPress={() =>
+              setFilters(prev => ({
+                ...prev,
+                completedOnly: !prev.completedOnly,
+              }))
+            }
+          >
+            <Text style={styles.toggleButtonText}>
+              {filters.completedOnly ? '☑' : '☐'} Completed Only
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Results Count */}
+      <Text style={styles.resultsCount}>
+        {filteredStories.length}{' '}
+        {filteredStories.length === 1 ? 'story' : 'stories'}
+      </Text>
+
+      {/* Story List */}
+      <FlatList
+        data={filteredStories}
+        keyExtractor={item => item.id}
+        renderItem={renderStoryCard}
+        ListEmptyComponent={ListEmptyComponent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+        contentContainerStyle={styles.listContainer}
+        showsVerticalScrollIndicator={false}
+        removeClippedSubviews={false}
+        keyboardShouldPersistTaps="handled"
+      />
+    </SafeAreaView>
   );
 };
 
@@ -666,6 +917,105 @@ const styles = StyleSheet.create({
     elevation: 2,
     position: 'relative',
   },
+  storyCardContent: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  storyTextContent: {
+    flex: 1,
+  },
+  // Image Thumbnail Styles
+  thumbnailContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#f0f0f0',
+    position: 'relative',
+  },
+  thumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  thumbnailPlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    borderStyle: 'dashed',
+  },
+  thumbnailPlaceholderIcon: {
+    fontSize: 32,
+    opacity: 0.3,
+  },
+  thumbnailLoading: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  thumbnailError: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#f8d7da',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  thumbnailErrorIcon: {
+    fontSize: 24,
+  },
+  // Upload Status Badges
+  uploadingBadge: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    backgroundColor: 'rgba(111, 66, 193, 0.9)',
+    borderRadius: 12,
+    padding: 4,
+  },
+  uploadedBadge: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    backgroundColor: 'rgba(76, 175, 80, 0.9)',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  uploadedBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  uploadFailedBadge: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    backgroundColor: 'rgba(255, 152, 0, 0.9)',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  uploadFailedBadgeText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
   storyHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -742,6 +1092,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+  },
+  skeletonThumbnail: {
+    width: 80,
+    height: 80,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 8,
   },
   skeletonHeader: {
     flexDirection: 'row',

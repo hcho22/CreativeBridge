@@ -21,9 +21,11 @@ import {
   KeyboardEvent,
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
+import { useRoute, RouteProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useAuth } from '../context/AuthContext';
-import { TabParamList } from '../navigation/AppNavigator';
+import { useSafeClerkAuth } from '../hooks/useSafeClerkAuth';
+import { TabParamList, HomeStackParamList } from '../navigation/AppNavigator';
 import { storyAgentService } from '../services/storyAgent';
 import { storyGenerationService } from '../services/storyGenerationService';
 import { apiClient } from '../services/api';
@@ -41,6 +43,7 @@ import ChallengeDisplay from '../components/common/ChallengeDisplay';
 import ImageGeneration from '../components/common/ImageGeneration';
 import StoryImageDisplay from '../components/common/StoryImageDisplay';
 import { storyDownloadService } from '../services/storyDownloadService';
+import { imageStorageService } from '../services/imageStorageService';
 import RNFS, { rnfsWrapper } from '../utils/rnfsWrapper';
 import { VoiceInput } from '../components/common/VoiceInput';
 import Share from '../utils/shareWrapper';
@@ -68,6 +71,14 @@ interface GenerationError {
 
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const { userProfile, user } = useAuth();
+  const { clerkAuth } = useSafeClerkAuth();
+  const route = useRoute<RouteProp<HomeStackParamList, 'Home'>>();
+
+  // Use user profile ID (Supabase UUID) for database operations when available
+  // This ensures OAuth users use proper UUIDs instead of Clerk user IDs for Supabase operations
+  const effectiveUserId = userProfile?.id || user?.id || clerkAuth?.userId;
+  const isAuthenticated = !!user || clerkAuth?.isSignedIn;
+
   const [isGameActive, setIsGameActive] = useState(false);
   const [currentSession, setCurrentSession] = useState<StorySession | null>(
     null,
@@ -865,7 +876,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   );
 
   const handleContinueStoryOption = useCallback(() => {
-    if (!user) {
+    if (!isAuthenticated) {
       Alert.alert('Error', 'Please log in to continue a story');
       return;
     }
@@ -882,11 +893,99 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         [{ text: 'OK' }],
       );
     }
-  }, [user, navigation]);
+  }, [isAuthenticated, navigation]);
+
+  // Handle story continuation from imported stories
+  useEffect(() => {
+    const continueStoryParams = route.params?.continueStory;
+
+    if (continueStoryParams && isAuthenticated && effectiveUserId && !isGameActive) {
+      console.log('📖 Detected story continuation request:', {
+        sessionId: continueStoryParams.sessionId,
+        source: continueStoryParams.storySource,
+        gradeLevel: continueStoryParams.gradeLevel,
+      });
+
+      // Start the imported story continuation
+      handleContinueImportedStory(continueStoryParams);
+    }
+  }, [route.params?.continueStory, isAuthenticated, effectiveUserId, isGameActive]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleContinueImportedStory = async (continueParams: NonNullable<HomeStackParamList['Home']>['continueStory']) => {
+    if (!continueParams || !effectiveUserId) return;
+
+    try {
+      console.log('🚀 Starting imported story continuation...');
+
+      setLoadingState(prev => ({
+        ...prev,
+        isGenerating: true,
+        generationProgress: 0,
+        currentTask: 'Loading your story...',
+      }));
+
+      startSpinAnimation();
+
+      // Load the existing session from the database
+      const existingSession = await storySessionManager.getSession(continueParams.sessionId);
+
+      if (existingSession) {
+        console.log('✅ Loaded existing session:', existingSession.id);
+
+        // Set up the game with the imported story
+        setCurrentSession(existingSession);
+        setIsGameActive(true);
+        startFadeAnimation();
+
+        // Initialize challenge system
+        initializeChallengeSystem();
+
+        // Reset round counter
+        setCurrentRound(1);
+        setIsGameCompleted(false);
+
+        console.log('🎮 Story continuation started successfully');
+      } else {
+        throw new Error('Failed to load story session');
+      }
+    } catch (error) {
+      console.error('❌ Error continuing imported story:', error);
+      Alert.alert(
+        'Error Loading Story',
+        'Unable to load the selected story. Please try again.',
+        [{ text: 'OK' }],
+      );
+    } finally {
+      stopSpinAnimation();
+      setLoadingState(prev => ({
+        ...prev,
+        isGenerating: false,
+        generationProgress: 0,
+        currentTask: '',
+      }));
+    }
+  };
 
   const handleStartNewGame = async () => {
-    if (!user) {
+    if (!isAuthenticated || !effectiveUserId) {
       Alert.alert('Error', 'Please log in to start a story');
+      return;
+    }
+
+    // Check if effectiveUserId is a valid UUID for database operations
+    // Clerk user IDs start with "user_" and are not valid UUIDs for Supabase
+    const isClerkUserId = effectiveUserId.startsWith('user_');
+    if (isClerkUserId && !userProfile?.id) {
+      Alert.alert(
+        'Profile Setup Required',
+        'Please complete your profile setup before starting a story. This ensures your progress is properly saved.',
+        [
+          {
+            text: 'Complete Profile',
+            onPress: () => navigation.navigate('Profile'),
+          },
+        ],
+      );
       return;
     }
 
@@ -906,9 +1005,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       startSpinAnimation();
       simulateProgress(4000);
 
-      // Create new session
+      // Create new session using effective user ID (prioritizes user profile ID for proper UUID)
       const newSession = await storySessionManager.createSession(
-        user.id,
+        effectiveUserId,
         gradeLevel,
         { difficulty: 1 },
       );
@@ -1390,6 +1489,54 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       ],
     );
   }, []);
+
+  const handleRetryImageUpload = useCallback(async () => {
+    if (!currentSession || !effectiveUserId) {
+      console.error('❌ Cannot retry upload: missing session or user ID');
+      return;
+    }
+
+    try {
+      console.log('🔄 Retrying Supabase image upload...');
+
+      // Show loading alert
+      Alert.alert(
+        '🔄 Retrying Upload',
+        'Attempting to backup your image to permanent storage...',
+      );
+
+      const result = await imageStorageService.retryFailedUpload(
+        currentSession.id,
+        effectiveUserId,
+      );
+
+      if (result.success) {
+        Alert.alert(
+          '✅ Success',
+          'Image backup completed successfully! Your image is now permanently saved.',
+        );
+
+        // Reload session to get updated upload status
+        const updatedSession = await storySessionManager.getSession(
+          currentSession.id,
+        );
+        if (updatedSession) {
+          setCurrentSession(updatedSession);
+        }
+      } else {
+        Alert.alert(
+          '❌ Retry Failed',
+          result.error || 'Upload failed. Please try again later.',
+        );
+      }
+    } catch (error: any) {
+      console.error('❌ Retry upload error:', error);
+      Alert.alert(
+        '❌ Error',
+        error.message || 'An unexpected error occurred while retrying the upload.',
+      );
+    }
+  }, [currentSession, effectiveUserId]);
 
   const handleDownloadStory = useCallback(async () => {
     if (!currentSession) {
@@ -1982,18 +2129,26 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 onImageGenerated={handleImageGenerated}
                 onError={handleImageGenerationError}
                 disabled={!isGameCompleted}
+                isStoryCompleted={isGameCompleted}
+                currentRound={currentRound}
+                maxRounds={MAX_ROUNDS}
               />
             )}
 
             {/* Generated Image Display */}
             {(() => {
               const shouldShowImage =
-                (generatedImageUrl || currentSession?.generated_image_url) &&
+                (generatedImageUrl ||
+                 currentSession?.generated_image_url ||
+                 currentSession?.supabase_image_url) &&
                 currentSession;
               console.log('🖼️ [DEBUG] Image display check:', {
                 generatedImageUrl: generatedImageUrl?.substring(0, 50) + '...',
                 sessionImageUrl:
                   currentSession?.generated_image_url?.substring(0, 50) + '...',
+                supabaseImageUrl:
+                  currentSession?.supabase_image_url?.substring(0, 50) + '...',
+                uploadStatus: currentSession?.image_upload_status,
                 hasCurrentSession: !!currentSession,
                 shouldShowImage,
               });
@@ -2001,11 +2156,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             })() ? (
               <View style={styles.imageDisplayContainerOverlay}>
                 <StoryImageDisplay
-                  imageUrl={
+                  replicateUrl={
                     generatedImageUrl ||
                     currentSession?.generated_image_url ||
-                    ''
+                    undefined
                   }
+                  supabaseUrl={currentSession?.supabase_image_url || undefined}
+                  uploadStatus={currentSession?.image_upload_status}
                   storyTitle={`${
                     currentSession?.story_content
                       ?.split(' ')
@@ -2013,10 +2170,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                       .join(' ') || 'Your Story'
                   }...`}
                   sessionId={currentSession?.id || ''}
+                  userId={effectiveUserId || ''}
                   showBackButton={true}
                   displayMode="responsive"
                   enableFullScreen={false}
                   onBackToOptions={() => setShowCompletionOptions(true)}
+                  onRetryUpload={handleRetryImageUpload}
                   onImageSaved={localPath => {
                     console.log('✅ [DEBUG] Image saved locally:', localPath);
                     // Update session with local image path
