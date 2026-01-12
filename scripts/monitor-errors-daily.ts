@@ -20,7 +20,10 @@ import * as path from 'path';
 // Configuration
 const SUPABASE_URL = process.env.SUPABASE_URL || '';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
-const REPORT_OUTPUT_DIR = path.join(__dirname, '../.agent/Monitoring/error-reports');
+const REPORT_OUTPUT_DIR = path.join(
+  __dirname,
+  '../.agent/Monitoring/error-reports',
+);
 
 // Initialize Supabase client
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
@@ -55,7 +58,7 @@ interface ErrorMetrics {
 function categorizeErrorPriority(
   errorType: string,
   affectedUsers: number,
-  errorRate: number
+  errorRate: number,
 ): ErrorPriority {
   // P0: Blocks core functionality or affects majority of users
   if (
@@ -98,7 +101,9 @@ async function fetchErrorLogs(): Promise<ErrorMetrics> {
     // Query 1: Image upload failures
     const { data: uploadErrors, error: uploadError } = await supabase
       .from('game_sessions')
-      .select('id, image_upload_status, image_upload_error, image_upload_attempts, created_at')
+      .select(
+        'id, image_upload_status, image_upload_error, image_upload_attempts, created_at',
+      )
       .eq('image_upload_status', 'failed')
       .gte('created_at', yesterday);
 
@@ -107,7 +112,7 @@ async function fetchErrorLogs(): Promise<ErrorMetrics> {
     }
 
     // Query 2: Sessions with unusual timeout patterns
-    const { data: timeoutSessions, error: timeoutError } = await supabase
+    const { error: timeoutError } = await supabase
       .from('game_sessions')
       .select('id, created_at, completed_at')
       .gte('created_at', yesterday)
@@ -138,7 +143,7 @@ async function fetchErrorLogs(): Promise<ErrorMetrics> {
     if (uploadErrors) {
       const errorGroups: Record<string, any[]> = {};
 
-      uploadErrors.forEach((error) => {
+      uploadErrors.forEach(error => {
         const errorMsg = error.image_upload_error || 'Unknown error';
         const errorKey = errorMsg.substring(0, 50); // Group by first 50 chars
 
@@ -148,16 +153,22 @@ async function fetchErrorLogs(): Promise<ErrorMetrics> {
         errorGroups[errorKey].push(error);
 
         // Categorize error type
-        if (errorMsg.includes('timeout') || errorMsg.includes('Download timeout')) {
+        if (
+          errorMsg.includes('timeout') ||
+          errorMsg.includes('Download timeout')
+        ) {
           metrics.timeoutErrors++;
-          metrics.errorsByType['timeout'] = (metrics.errorsByType['timeout'] || 0) + 1;
+          metrics.errorsByType.timeout =
+            (metrics.errorsByType.timeout || 0) + 1;
         } else if (errorMsg.includes('Network') || errorMsg.includes('fetch')) {
           metrics.apiFailures++;
-          metrics.errorsByType['network'] = (metrics.errorsByType['network'] || 0) + 1;
+          metrics.errorsByType.network =
+            (metrics.errorsByType.network || 0) + 1;
         } else if (errorMsg.includes('Storage') || errorMsg.includes('quota')) {
-          metrics.errorsByType['storage'] = (metrics.errorsByType['storage'] || 0) + 1;
+          metrics.errorsByType.storage =
+            (metrics.errorsByType.storage || 0) + 1;
         } else {
-          metrics.errorsByType['other'] = (metrics.errorsByType['other'] || 0) + 1;
+          metrics.errorsByType.other = (metrics.errorsByType.other || 0) + 1;
         }
       });
 
@@ -167,7 +178,7 @@ async function fetchErrorLogs(): Promise<ErrorMetrics> {
           const priority = categorizeErrorPriority(
             errorKey,
             errors.length,
-            errors.length / (uploadErrors.length || 1)
+            errors.length / (uploadErrors.length || 1),
           );
 
           metrics.errorsByPriority[priority]++;
@@ -219,10 +230,18 @@ function generateErrorReport(metrics: ErrorMetrics): string {
   report += `## Error Priority Breakdown\n\n`;
   report += `| Priority | Count | SLA |\n`;
   report += `|----------|-------|-----|\n`;
-  report += `| ${ErrorPriority.P0_CRITICAL} | ${metrics.errorsByPriority[ErrorPriority.P0_CRITICAL]} | Fix within 4 hours |\n`;
-  report += `| ${ErrorPriority.P1_HIGH} | ${metrics.errorsByPriority[ErrorPriority.P1_HIGH]} | Fix within 48 hours |\n`;
-  report += `| ${ErrorPriority.P2_MEDIUM} | ${metrics.errorsByPriority[ErrorPriority.P2_MEDIUM]} | Fix within 1 week |\n`;
-  report += `| ${ErrorPriority.P3_LOW} | ${metrics.errorsByPriority[ErrorPriority.P3_LOW]} | Backlog |\n\n`;
+  report += `| ${ErrorPriority.P0_CRITICAL} | ${
+    metrics.errorsByPriority[ErrorPriority.P0_CRITICAL]
+  } | Fix within 4 hours |\n`;
+  report += `| ${ErrorPriority.P1_HIGH} | ${
+    metrics.errorsByPriority[ErrorPriority.P1_HIGH]
+  } | Fix within 48 hours |\n`;
+  report += `| ${ErrorPriority.P2_MEDIUM} | ${
+    metrics.errorsByPriority[ErrorPriority.P2_MEDIUM]
+  } | Fix within 1 week |\n`;
+  report += `| ${ErrorPriority.P3_LOW} | ${
+    metrics.errorsByPriority[ErrorPriority.P3_LOW]
+  } | Backlog |\n\n`;
 
   // Error Types
   report += `## Error Types\n\n`;
@@ -241,7 +260,11 @@ function generateErrorReport(metrics: ErrorMetrics): string {
         report += `- **Affected Users:** ${error.count}\n`;
         report += `- **First Seen:** ${error.firstSeen}\n`;
         report += `- **Last Seen:** ${error.lastSeen}\n`;
-        report += `- **Priority:** ${categorizeErrorPriority(error.message, error.count, error.count / metrics.totalErrors)}\n\n`;
+        report += `- **Priority:** ${categorizeErrorPriority(
+          error.message,
+          error.count,
+          error.count / metrics.totalErrors,
+        )}\n\n`;
       });
   } else {
     report += `## Critical Errors\n\n`;
@@ -252,7 +275,9 @@ function generateErrorReport(metrics: ErrorMetrics): string {
   report += `## Recommendations\n\n`;
 
   if (metrics.errorsByPriority[ErrorPriority.P0_CRITICAL] > 0) {
-    report += `🚨 **URGENT:** ${metrics.errorsByPriority[ErrorPriority.P0_CRITICAL]} P0 errors require immediate attention!\n\n`;
+    report += `🚨 **URGENT:** ${
+      metrics.errorsByPriority[ErrorPriority.P0_CRITICAL]
+    } P0 errors require immediate attention!\n\n`;
   }
 
   if (metrics.timeoutErrors > metrics.uploadFailures * 0.3) {
@@ -312,15 +337,20 @@ function checkAlerts(metrics: ErrorMetrics): void {
   // Alert 1: P0 errors detected
   if (metrics.errorsByPriority[ErrorPriority.P0_CRITICAL] > 0) {
     alerts.push(
-      `🚨 CRITICAL: ${metrics.errorsByPriority[ErrorPriority.P0_CRITICAL]} P0 errors detected requiring immediate attention!`
+      `🚨 CRITICAL: ${
+        metrics.errorsByPriority[ErrorPriority.P0_CRITICAL]
+      } P0 errors detected requiring immediate attention!`,
     );
   }
 
   // Alert 2: Upload failure rate > 10%
-  const uploadFailureRate = metrics.uploadFailures / Math.max(metrics.totalErrors, 1);
+  const uploadFailureRate =
+    metrics.uploadFailures / Math.max(metrics.totalErrors, 1);
   if (uploadFailureRate > 0.1) {
     alerts.push(
-      `⚠️  HIGH: Upload failure rate at ${(uploadFailureRate * 100).toFixed(1)}% (threshold: 10%)`
+      `⚠️  HIGH: Upload failure rate at ${(uploadFailureRate * 100).toFixed(
+        1,
+      )}% (threshold: 10%)`,
     );
   }
 
@@ -332,9 +362,9 @@ function checkAlerts(metrics: ErrorMetrics): void {
 
   if (alerts.length > 0) {
     console.log('\n🚨 ALERTS TRIGGERED:\n');
-    alerts.forEach((alert) => console.log(alert));
+    alerts.forEach(alert => console.log(alert));
     console.log(
-      '\n📧 In production, these alerts would be sent via email/Slack/PagerDuty'
+      '\n📧 In production, these alerts would be sent via email/Slack/PagerDuty',
     );
   } else {
     console.log('✅ No critical alerts - system healthy');
@@ -374,4 +404,10 @@ if (require.main === module) {
   main();
 }
 
-export { fetchErrorLogs, generateErrorReport, categorizeErrorPriority, ErrorMetrics, ErrorPriority };
+export {
+  fetchErrorLogs,
+  generateErrorReport,
+  categorizeErrorPriority,
+  ErrorMetrics,
+  ErrorPriority,
+};
