@@ -37,6 +37,26 @@ export interface EnvironmentConfig {
     version: string;
     environment: 'development' | 'production';
   };
+  featureFlags: {
+    /**
+     * USE_LLM_PROMPT_GENERATION - Enable GPT-4 story analysis for image generation
+     *
+     * When enabled (true):
+     * - Uses GPT-4 Turbo to analyze story text and generate optimized image prompts
+     * - Automatically falls back to keyword extraction on LLM failure
+     * - Improves image-to-story relevance and visual coherence
+     *
+     * When disabled (false):
+     * - Uses traditional keyword extraction method
+     * - No LLM API calls made
+     *
+     * Default: false (safe deployment - no behavior change until explicitly enabled)
+     *
+     * Cost Impact: ~$0.01-0.02 per image generation when enabled
+     * Rollback: Set to false to immediately revert to keyword extraction
+     */
+    useLlmPromptGeneration: boolean;
+  };
 }
 
 // For React Native, we need to handle environment variables differently
@@ -73,6 +93,10 @@ const getEnvironmentConfig = (): EnvironmentConfig => {
       name: 'CreativeBridge',
       version: '1.0.0',
       environment: __DEV__ ? 'development' : 'production',
+    },
+    featureFlags: {
+      // Default to false for safe deployment - no behavior change until explicitly enabled
+      useLlmPromptGeneration: false,
     },
   };
 

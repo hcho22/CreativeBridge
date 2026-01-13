@@ -1,0 +1,165 @@
+{
+  "project": "CreativeBridge",
+  "branchName": "ralph/image-generation-quality-improvement",
+  "description": "Image Generation Quality Improvement - Replace keyword extraction with GPT-4 story analysis for better image-to-story relevance",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add story analysis prompt templates to openai.ts",
+      "description": "As a developer, I need GPT-4 prompt templates for story analysis so the LLM can extract visual elements from narrative text.",
+      "acceptanceCriteria": [
+        "Add story analysis prompt template in src/services/openai.ts",
+        "Prompt template extracts: main subject, setting, mood, key visual elements, artistic style",
+        "Template includes instructions for concise output (under 200 tokens)",
+        "Template includes composition guidance (single cohesive scene, clear focal point)",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Add LLM API call with retry logic in openai.ts",
+      "description": "As a developer, I need a reliable GPT-4 Turbo API call function so story analysis can handle rate limits and transient failures.",
+      "acceptanceCriteria": [
+        "Add function that calls GPT-4 Turbo with story analysis prompt",
+        "Implement exponential backoff retry logic (max 3 retries)",
+        "Handle rate limits, timeouts, and API errors gracefully",
+        "Function accepts story text and returns optimized image prompt string",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Add generatePromptWithLLM() method to imageGeneration.ts",
+      "description": "As a developer, I need a method that orchestrates LLM-based prompt generation so it can be integrated into the main image generation flow.",
+      "acceptanceCriteria": [
+        "Add generatePromptWithLLM() method in src/services/imageGeneration.ts",
+        "Method accepts story text parameter",
+        "Method calls GPT-4 story analysis function from openai.ts",
+        "Method returns optimized image generation prompt string",
+        "Add error handling that throws on failure (fallback handled separately)",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Implement automatic fallback wrapper for LLM prompt generation",
+      "description": "As a user, I want image generation to continue working when LLM fails, so my experience is uninterrupted.",
+      "acceptanceCriteria": [
+        "Add fallback wrapper function in imageGeneration.ts that tries LLM first",
+        "On LLM failure, automatically call existing keyword extraction method",
+        "Log LLM failures with context (story ID, error type, timestamp) for monitoring",
+        "No user-facing error messages for LLM failures",
+        "Safety filtering preserved in both LLM and fallback paths",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Add USE_LLM_PROMPT_GENERATION feature flag",
+      "description": "As a developer, I need a feature flag to control LLM usage so we can safely enable/disable the feature in production.",
+      "acceptanceCriteria": [
+        "Add USE_LLM_PROMPT_GENERATION feature flag to environment config",
+        "Default value is false for safe deployment",
+        "Feature flag is easily toggleable without code changes",
+        "Document feature flag in environment variables file or config",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Integrate LLM prompt generation into generateImage() flow",
+      "description": "As a developer, I need to wire the LLM prompt generation into the main image generation workflow so it becomes the primary method when enabled.",
+      "acceptanceCriteria": [
+        "Modify generateImage() flow in imageGeneration.ts around line 8261",
+        "Check USE_LLM_PROMPT_GENERATION feature flag",
+        "If true, use LLM prompt generation with fallback wrapper",
+        "If false, use existing keyword extraction method",
+        "Preserve existing safety filtering after prompt generation",
+        "No breaking changes to generateImage() API contract",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Optimize Stable Diffusion parameters in callReplicateAPI()",
+      "description": "As a user, I want higher quality generated images with better prompt adherence, even if generation takes slightly longer.",
+      "acceptanceCriteria": [
+        "Modify callReplicateAPI() method in imageGeneration.ts (lines 8017-8099)",
+        "Add comprehensive negative_prompt: 'blurry, out of focus, distorted, deformed, multiple scenes, split image, collage, low quality, pixelated, grainy, watermark, text, letters, numbers, cropped, cut off'",
+        "Set num_inference_steps: 50 for better quality",
+        "Set guidance_scale: 7.5 for better prompt adherence",
+        "Add scheduler: 'DPMSolverMultistep' for improved quality",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Add basic error logging for LLM operations",
+      "description": "As a developer, I need visibility into LLM failures and generation times so I can monitor system health.",
+      "acceptanceCriteria": [
+        "Log LLM API call errors with error details",
+        "Log when automatic fallback to keyword extraction occurs",
+        "Log generation time for LLM path vs fallback path",
+        "Logs include sufficient context for debugging (timestamp, story ID if available)",
+        "Use existing logging infrastructure (no new dependencies)",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Add unit tests for LLM prompt generation logic",
+      "description": "As a developer, I need tests to verify LLM integration works correctly so regressions are caught early.",
+      "acceptanceCriteria": [
+        "Add unit test for generatePromptWithLLM() method",
+        "Add unit test for fallback wrapper (happy path and failure scenarios)",
+        "Add unit test for feature flag behavior (enabled vs disabled)",
+        "Mock GPT-4 API calls to avoid external dependencies in tests",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Document LLM prompt engineering best practices",
+      "description": "As a future developer, I need documentation on how the LLM prompt system works so I can maintain and improve it.",
+      "acceptanceCriteria": [
+        "Add comments in code explaining LLM prompt template design",
+        "Document fallback behavior and error handling approach",
+        "Document feature flag usage and rollout procedure",
+        "Add example of story input and generated prompt output",
+        "Document rollback procedure (disable feature flag)",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
