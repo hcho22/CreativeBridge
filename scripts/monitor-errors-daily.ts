@@ -404,10 +404,5 @@ if (require.main === module) {
   main();
 }
 
-export {
-  fetchErrorLogs,
-  generateErrorReport,
-  categorizeErrorPriority,
-  ErrorMetrics,
-  ErrorPriority,
-};
+export { fetchErrorLogs, generateErrorReport, categorizeErrorPriority };
+export type { ErrorMetrics, ErrorPriority };

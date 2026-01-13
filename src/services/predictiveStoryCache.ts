@@ -1,13 +1,21 @@
 /**
  * Predictive Story Cache Service
- * 
+ *
  * Enhanced cache service with Claude-powered decision making and pre-loading
  * Task 3.2: Predictive Cache Management System
  */
 
-import { storyCacheService, CacheEntry, CacheConfig, CacheStats } from './storyCache';
-import { contentPredictionService, StoryContextAnalysis } from './contentPrediction';
-import { StoryRequest, StoryResponse, GradeLevel } from '../types/story';
+import {
+  storyCacheService,
+  CacheEntry,
+  CacheConfig,
+  CacheStats,
+} from './storyCache';
+import {
+  contentPredictionService,
+  StoryContextAnalysis,
+} from './contentPrediction';
+// import { StoryRequest, StoryResponse, GradeLevel } from '../types/story';
 import { ContentPrediction } from '../types/claudeSkills';
 import { structuredLogger } from '../utils/logger';
 import DeviceInfo from 'react-native-device-info';
@@ -68,9 +76,13 @@ export class PredictiveStoryCacheService {
 
     // Initialize device capabilities asynchronously
     this.initializeDeviceCapabilities().catch(error => {
-      structuredLogger.error('Failed to initialize device capabilities', {}, error);
+      structuredLogger.error(
+        'Failed to initialize device capabilities',
+        {},
+        error,
+      );
     });
-    
+
     this.startPreloadTimer();
     this.startInvalidationTimer();
   }
@@ -80,7 +92,9 @@ export class PredictiveStoryCacheService {
    */
   private async initializeDeviceCapabilities(): Promise<void> {
     try {
-      const totalMemory = await DeviceInfo.getTotalMemory().catch(() => 2 * 1024 * 1024 * 1024); // Default 2GB
+      const totalMemory = await DeviceInfo.getTotalMemory().catch(
+        () => 2 * 1024 * 1024 * 1024,
+      ); // Default 2GB
       const availableMemory = totalMemory * 0.3; // Assume 30% available for cache
 
       // Determine device tier
@@ -125,7 +139,11 @@ export class PredictiveStoryCacheService {
         totalMemory: this.deviceCapabilities.totalMemory,
       });
     } catch (error) {
-      structuredLogger.error('Failed to initialize device capabilities', {}, error as Error);
+      structuredLogger.error(
+        'Failed to initialize device capabilities',
+        {},
+        error as Error,
+      );
       // Fallback to medium tier
       this.deviceCapabilities = {
         totalMemory: 4 * 1024 * 1024 * 1024,
@@ -142,7 +160,9 @@ export class PredictiveStoryCacheService {
    */
   async generateIntelligentCacheKey(request: StoryRequest): Promise<string> {
     // Analyze story context
-    const contextAnalysis = await contentPredictionService.analyzeStoryContext(request);
+    const contextAnalysis = await contentPredictionService.analyzeStoryContext(
+      request,
+    );
 
     // Generate key components
     const gradeLevel = request.gradeLevel;
@@ -163,7 +183,8 @@ export class PredictiveStoryCacheService {
     const baseKey = keyComponents.join(':');
 
     // Add confidence indicator for cache prioritization
-    const confidenceTier = confidence > 0.8 ? 'high' : confidence > 0.6 ? 'medium' : 'low';
+    const confidenceTier =
+      confidence > 0.8 ? 'high' : confidence > 0.6 ? 'medium' : 'low';
     const intelligentKey = `${baseKey}:${confidenceTier}`;
 
     return intelligentKey;
@@ -208,7 +229,9 @@ export class PredictiveStoryCacheService {
     // Try to find similar cached content
     const similarKey = await this.findSimilarCachedContent(request);
     if (similarKey) {
-      const similarCached = await storyCacheService.get<StoryResponse>(similarKey);
+      const similarCached = await storyCacheService.get<StoryResponse>(
+        similarKey,
+      );
       if (similarCached) {
         // Cache the result with the new key for future hits
         await this.set(request, similarCached);
@@ -222,7 +245,11 @@ export class PredictiveStoryCacheService {
   /**
    * Set cached story with intelligent key
    */
-  async set(request: StoryRequest, response: StoryResponse, ttl?: number): Promise<void> {
+  async set(
+    request: StoryRequest,
+    response: StoryResponse,
+    ttl?: number,
+  ): Promise<void> {
     const key = await this.generateIntelligentCacheKey(request);
     await storyCacheService.set(key, response, ttl, {
       request: {
@@ -239,8 +266,12 @@ export class PredictiveStoryCacheService {
   /**
    * Find similar cached content based on context
    */
-  private async findSimilarCachedContent(request: StoryRequest): Promise<string | null> {
-    const contextAnalysis = await contentPredictionService.analyzeStoryContext(request);
+  private async findSimilarCachedContent(
+    request: StoryRequest,
+  ): Promise<string | null> {
+    const contextAnalysis = await contentPredictionService.analyzeStoryContext(
+      request,
+    );
     const allKeys = storyCacheService.getCacheKeys();
 
     let bestMatch: string | null = null;
@@ -297,7 +328,7 @@ export class PredictiveStoryCacheService {
 
       // Filter by confidence threshold
       const highConfidencePredictions = predictions.filter(
-        p => p.confidence >= this.config.preloadConfidenceThreshold
+        p => p.confidence >= this.config.preloadConfidenceThreshold,
       );
 
       // Sort by priority
@@ -327,11 +358,15 @@ export class PredictiveStoryCacheService {
 
     // Analyze recent stories to predict patterns
     if (userContext.recentStories && userContext.recentStories.length > 0) {
-      const recentStory = userContext.recentStories[userContext.recentStories.length - 1];
-      const contextAnalysis = await contentPredictionService.analyzeStoryContext(recentStory);
+      const recentStory =
+        userContext.recentStories[userContext.recentStories.length - 1];
+      const contextAnalysis =
+        await contentPredictionService.analyzeStoryContext(recentStory);
 
       // Predict likely continuations
-      const predictions = await contentPredictionService.predictContent(contextAnalysis);
+      const predictions = await contentPredictionService.predictContent(
+        contextAnalysis,
+      );
 
       if (predictions) {
         // Create preload candidates based on predictions
@@ -349,7 +384,10 @@ export class PredictiveStoryCacheService {
                 userInput: prediction.content.substring(0, 100),
               },
               confidence: prediction.confidence,
-              priority: this.calculatePreloadPriority(prediction, contextAnalysis),
+              priority: this.calculatePreloadPriority(
+                prediction,
+                contextAnalysis,
+              ),
               predictedContent: prediction,
             };
 
@@ -360,7 +398,8 @@ export class PredictiveStoryCacheService {
     }
 
     // Add common patterns for the grade level
-    const commonPatterns = contentPredictionService.getStoryPatterns()
+    const commonPatterns = contentPredictionService
+      .getStoryPatterns()
       .filter(p => p.gradeLevel === userContext.gradeLevel);
 
     for (const pattern of commonPatterns.slice(0, 3)) {
@@ -388,7 +427,7 @@ export class PredictiveStoryCacheService {
    */
   private calculatePreloadPriority(
     prediction: ContentPrediction,
-    context: StoryContextAnalysis
+    context: StoryContextAnalysis,
   ): number {
     let priority = prediction.confidence * 50; // Base priority from confidence
 
@@ -414,7 +453,10 @@ export class PredictiveStoryCacheService {
 
     // Check if we have space in cache
     const stats = storyCacheService.getStats();
-    if (stats.cacheSize >= (this.deviceCapabilities?.recommendedCacheSize || 100) * 0.9) {
+    if (
+      stats.cacheSize >=
+      (this.deviceCapabilities?.recommendedCacheSize || 100) * 0.9
+    ) {
       return; // Cache nearly full, skip preloading
     }
 
@@ -440,7 +482,7 @@ export class PredictiveStoryCacheService {
 
     // Remove processed items
     this.preloadQueue = this.preloadQueue.filter(
-      item => !toPreload.includes(item)
+      item => !toPreload.includes(item),
     );
   }
 
@@ -493,7 +535,9 @@ export class PredictiveStoryCacheService {
   private calculateInvalidationScore(pattern: CacheUsagePattern): number {
     const now = Date.now();
     const timeSinceLastAccess = now - pattern.lastAccessed;
-    const avgTimeBetweenAccesses = this.calculateAverageTimeBetweenAccesses(pattern.accessTimes);
+    const avgTimeBetweenAccesses = this.calculateAverageTimeBetweenAccesses(
+      pattern.accessTimes,
+    );
 
     // Higher score = more likely to be invalidated
     let score = 0;
@@ -506,7 +550,8 @@ export class PredictiveStoryCacheService {
 
     // Long time between accesses (longer = more likely to invalidate)
     if (avgTimeBetweenAccesses > 0) {
-      score += Math.min(avgTimeBetweenAccesses / (7 * 24 * 60 * 60 * 1000), 1) * 0.3; // Normalize to 7 days
+      score +=
+        Math.min(avgTimeBetweenAccesses / (7 * 24 * 60 * 60 * 1000), 1) * 0.3; // Normalize to 7 days
     }
 
     return score;
@@ -523,7 +568,9 @@ export class PredictiveStoryCacheService {
       intervals.push(accessTimes[i] - accessTimes[i - 1]);
     }
 
-    return intervals.reduce((sum, interval) => sum + interval, 0) / intervals.length;
+    return (
+      intervals.reduce((sum, interval) => sum + interval, 0) / intervals.length
+    );
   }
 
   /**
@@ -656,4 +703,3 @@ export class PredictiveStoryCacheService {
 
 // Export singleton instance
 export const predictiveStoryCacheService = new PredictiveStoryCacheService();
-

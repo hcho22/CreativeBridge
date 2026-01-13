@@ -1,17 +1,25 @@
 /**
  * Automatic Fallback Manager
- * 
+ *
  * Coordinates automatic fallback triggers based on service health and handles
  * graceful degradation across the entire system
  * Task 6.3: Service Degradation Handling - Automatic fallback triggers
  */
 
 import { structuredLogger } from '../utils/logger';
-import { ServiceHealthMonitor, ServiceDegradationEvent, ServiceHealthStatus } from './serviceHealth';
+import {
+  ServiceHealthMonitor,
+  ServiceDegradationEvent,
+  ServiceHealthStatus,
+} from './serviceHealth';
 import { ProgressiveEnhancementService } from './progressiveEnhancement';
 import { NetworkAdapterService } from './networkAdapter';
-import { SkillManager, SkillError, SkillErrorCode } from '../types/claudeSkills';
-import { StoryRequest, StoryResponse } from '../types/story';
+import {
+  SkillManager,
+  SkillError,
+  SkillErrorCode,
+} from '../types/claudeSkills';
+// import { StoryRequest, StoryResponse } from '../types/story';
 
 export interface FallbackStrategy {
   strategyId: string;
@@ -34,7 +42,14 @@ export interface FallbackTrigger {
 }
 
 export interface FallbackAction {
-  actionType: 'disable_service' | 'enable_fallback' | 'switch_mode' | 'reduce_quality' | 'cache_only' | 'offline_mode' | 'user_notification';
+  actionType:
+    | 'disable_service'
+    | 'enable_fallback'
+    | 'switch_mode'
+    | 'reduce_quality'
+    | 'cache_only'
+    | 'offline_mode'
+    | 'user_notification';
   target: string; // service name, feature, or component
   parameters: Record<string, any>;
   rollbackAction?: FallbackAction;
@@ -71,12 +86,12 @@ export class AutomaticFallbackManager {
   private progressiveEnhancement: ProgressiveEnhancementService;
   private networkAdapter: NetworkAdapterService;
   private skillManager: SkillManager;
-  
+
   private fallbackStrategies: Map<string, FallbackStrategy> = new Map();
   private activeFallbacks: Map<string, FallbackState> = new Map();
   private systemDegradation: SystemDegradationStatus;
   private fallbackHistory: FallbackState[] = [];
-  
+
   private isActive: boolean = false;
   private recoveryCheckInterval: NodeJS.Timeout | null = null;
 
@@ -84,18 +99,18 @@ export class AutomaticFallbackManager {
     healthMonitor: ServiceHealthMonitor,
     progressiveEnhancement: ProgressiveEnhancementService,
     networkAdapter: NetworkAdapterService,
-    skillManager: SkillManager
+    skillManager: SkillManager,
   ) {
     this.healthMonitor = healthMonitor;
     this.progressiveEnhancement = progressiveEnhancement;
     this.networkAdapter = networkAdapter;
     this.skillManager = skillManager;
-    
+
     this.systemDegradation = {
       overall: 'normal',
       activeFallbacks: [],
       availableFeatures: [],
-      disabledFeatures: []
+      disabledFeatures: [],
     };
 
     this.initializeFallbackStrategies();
@@ -112,13 +127,13 @@ export class AutomaticFallbackManager {
     }
 
     this.isActive = true;
-    
+
     // Start recovery monitoring
     this.startRecoveryMonitoring();
-    
+
     structuredLogger.info('Automatic fallback manager activated', {
       strategiesCount: this.fallbackStrategies.size,
-      monitoringServices: this.getMonitoredServices()
+      monitoringServices: this.getMonitoredServices(),
     });
   }
 
@@ -129,12 +144,12 @@ export class AutomaticFallbackManager {
     if (!this.isActive) return;
 
     this.isActive = false;
-    
+
     if (this.recoveryCheckInterval) {
       clearInterval(this.recoveryCheckInterval);
       this.recoveryCheckInterval = null;
     }
-    
+
     structuredLogger.info('Automatic fallback manager deactivated');
   }
 
@@ -144,7 +159,7 @@ export class AutomaticFallbackManager {
   public getSystemStatus(): SystemDegradationStatus {
     return {
       ...this.systemDegradation,
-      activeFallbacks: [...this.systemDegradation.activeFallbacks]
+      activeFallbacks: [...this.systemDegradation.activeFallbacks],
     };
   }
 
@@ -163,7 +178,9 @@ export class AutomaticFallbackManager {
       return null;
     }
 
-    return this.systemDegradation.userMessage || this.generateDefaultUserMessage();
+    return (
+      this.systemDegradation.userMessage || this.generateDefaultUserMessage()
+    );
   }
 
   /**
@@ -171,7 +188,7 @@ export class AutomaticFallbackManager {
    */
   public async manuallyTriggerFallback(
     serviceName: string,
-    reason: string = 'Manual intervention'
+    reason: string = 'Manual intervention',
   ): Promise<boolean> {
     try {
       const mockEvent: ServiceDegradationEvent = {
@@ -181,14 +198,17 @@ export class AutomaticFallbackManager {
         timestamp: new Date(),
         reason,
         triggeringMetrics: {},
-        recommendedActions: ['Activate fallback mechanisms']
+        recommendedActions: ['Activate fallback mechanisms'],
       };
 
       await this.handleServiceDegradation(mockEvent);
       return true;
-
     } catch (error) {
-      structuredLogger.error('Manual fallback trigger failed', { serviceName, reason }, error as Error);
+      structuredLogger.error(
+        'Manual fallback trigger failed',
+        { serviceName, reason },
+        error as Error,
+      );
       return false;
     }
   }
@@ -199,12 +219,16 @@ export class AutomaticFallbackManager {
   public async revertFallback(strategyId: string): Promise<boolean> {
     const fallbackState = this.activeFallbacks.get(strategyId);
     if (!fallbackState) {
-      structuredLogger.warn('Cannot revert fallback - not found', { strategyId });
+      structuredLogger.warn('Cannot revert fallback - not found', {
+        strategyId,
+      });
       return false;
     }
 
     if (!fallbackState.canRevert) {
-      structuredLogger.warn('Cannot revert fallback - not reversible', { strategyId });
+      structuredLogger.warn('Cannot revert fallback - not reversible', {
+        strategyId,
+      });
       return false;
     }
 
@@ -212,7 +236,11 @@ export class AutomaticFallbackManager {
       await this.executeFallbackReversion(fallbackState);
       return true;
     } catch (error) {
-      structuredLogger.error('Fallback reversion failed', { strategyId }, error as Error);
+      structuredLogger.error(
+        'Fallback reversion failed',
+        { strategyId },
+        error as Error,
+      );
       return false;
     }
   }
@@ -227,7 +255,7 @@ export class AutomaticFallbackManager {
       description: 'Handle complete Claude Skills API unavailability',
       trigger: {
         servicePattern: 'claude_skills_api',
-        healthThreshold: 'unavailable'
+        healthThreshold: 'unavailable',
       },
       actions: [
         {
@@ -237,32 +265,32 @@ export class AutomaticFallbackManager {
           rollbackAction: {
             actionType: 'enable_fallback',
             target: 'claude_skills_api',
-            parameters: {}
-          }
+            parameters: {},
+          },
         },
         {
           actionType: 'enable_fallback',
           target: 'story_generation',
           parameters: {
             mode: 'template_based',
-            qualityLevel: 'basic'
-          }
+            qualityLevel: 'basic',
+          },
         },
         {
           actionType: 'cache_only',
           target: 'content_cache',
           parameters: {
-            aggressiveCaching: true
-          }
+            aggressiveCaching: true,
+          },
         },
         {
           actionType: 'user_notification',
           target: 'system_status',
           parameters: {
             message: 'Using offline mode for story creation',
-            type: 'info'
-          }
-        }
+            type: 'info',
+          },
+        },
       ],
       priority: 1,
       canRevert: true,
@@ -270,8 +298,8 @@ export class AutomaticFallbackManager {
         functionalityLoss: 0.6,
         performanceImpact: 0.2, // Actually faster due to no network calls
         userExperienceImpact: 0.4,
-        dataAvailability: 0.3
-      }
+        dataAvailability: 0.3,
+      },
     });
 
     // Strategy 2: Story generation degraded
@@ -282,7 +310,7 @@ export class AutomaticFallbackManager {
       trigger: {
         servicePattern: 'story_generation',
         healthThreshold: 'degraded',
-        responseTimeThreshold: 3000
+        responseTimeThreshold: 3000,
       },
       actions: [
         {
@@ -291,17 +319,17 @@ export class AutomaticFallbackManager {
           parameters: {
             mode: 'progressive_enhancement',
             retryStrategy: 'conservative',
-            fallbackChain: 'story_generation'
-          }
+            fallbackChain: 'story_generation',
+          },
         },
         {
           actionType: 'reduce_quality',
           target: 'content_quality',
           parameters: {
             qualityLevel: 'standard',
-            timeoutReduction: 0.5
-          }
-        }
+            timeoutReduction: 0.5,
+          },
+        },
       ],
       priority: 2,
       canRevert: true,
@@ -309,8 +337,8 @@ export class AutomaticFallbackManager {
         functionalityLoss: 0.2,
         performanceImpact: -0.1, // Performance improvement
         userExperienceImpact: 0.15,
-        dataAvailability: 0.1
-      }
+        dataAvailability: 0.1,
+      },
     });
 
     // Strategy 3: Network connectivity issues
@@ -321,12 +349,15 @@ export class AutomaticFallbackManager {
       trigger: {
         servicePattern: '*',
         healthThreshold: 'degraded',
-        customCondition: (status) => {
+        customCondition: status => {
           // Check if degradation is network-related
-          return status.issues.some(issue => 
-            issue.includes('timeout') || issue.includes('network') || issue.includes('connectivity')
+          return status.issues.some(
+            issue =>
+              issue.includes('timeout') ||
+              issue.includes('network') ||
+              issue.includes('connectivity'),
           );
-        }
+        },
       },
       actions: [
         {
@@ -334,25 +365,25 @@ export class AutomaticFallbackManager {
           target: 'network_adapter',
           parameters: {
             adaptationLevel: 'aggressive',
-            enableOfflineMode: true
-          }
+            enableOfflineMode: true,
+          },
         },
         {
           actionType: 'cache_only',
           target: 'content_cache',
           parameters: {
             preferCache: true,
-            maxCacheAge: 3600000 // 1 hour
-          }
+            maxCacheAge: 3600000, // 1 hour
+          },
         },
         {
           actionType: 'reduce_quality',
           target: 'all_services',
           parameters: {
             compression: true,
-            simplifiedRequests: true
-          }
-        }
+            simplifiedRequests: true,
+          },
+        },
       ],
       priority: 3,
       canRevert: true,
@@ -360,47 +391,49 @@ export class AutomaticFallbackManager {
         functionalityLoss: 0.3,
         performanceImpact: -0.2,
         userExperienceImpact: 0.2,
-        dataAvailability: 0.4
-      }
+        dataAvailability: 0.4,
+      },
     });
 
     // Strategy 4: Multiple services unavailable (emergency)
     this.fallbackStrategies.set('multiple_services_emergency', {
       strategyId: 'multiple_services_emergency',
       name: 'Multiple Services Emergency',
-      description: 'Emergency fallback when multiple critical services are unavailable',
+      description:
+        'Emergency fallback when multiple critical services are unavailable',
       trigger: {
         servicePattern: '*',
         healthThreshold: 'unavailable',
-        customCondition: (status) => {
+        customCondition: status => {
           const systemHealth = this.healthMonitor.getSystemHealth();
           return systemHealth.unavailableServices.length >= 2;
-        }
+        },
       },
       actions: [
         {
           actionType: 'offline_mode',
           target: 'entire_system',
           parameters: {
-            emergencyMode: true
-          }
+            emergencyMode: true,
+          },
         },
         {
           actionType: 'cache_only',
           target: 'all_content',
           parameters: {
-            readOnly: true
-          }
+            readOnly: true,
+          },
         },
         {
           actionType: 'user_notification',
           target: 'system_status',
           parameters: {
-            message: 'System is in emergency offline mode. Core features available with limited functionality.',
+            message:
+              'System is in emergency offline mode. Core features available with limited functionality.',
             type: 'warning',
-            persistent: true
-          }
-        }
+            persistent: true,
+          },
+        },
       ],
       priority: 1, // Highest priority for emergency
       canRevert: true,
@@ -408,40 +441,44 @@ export class AutomaticFallbackManager {
         functionalityLoss: 0.8,
         performanceImpact: 0.1,
         userExperienceImpact: 0.7,
-        dataAvailability: 0.9
-      }
+        dataAvailability: 0.9,
+      },
     });
 
     structuredLogger.info('Fallback strategies initialized', {
       strategiesCount: this.fallbackStrategies.size,
-      strategies: Array.from(this.fallbackStrategies.keys())
+      strategies: Array.from(this.fallbackStrategies.keys()),
     });
   }
 
   private setupHealthMonitoringIntegration(): void {
-    this.healthMonitor.addDegradationListener(async (event: ServiceDegradationEvent) => {
-      if (this.isActive) {
-        await this.handleServiceDegradation(event);
-      }
-    });
+    this.healthMonitor.addDegradationListener(
+      async (event: ServiceDegradationEvent) => {
+        if (this.isActive) {
+          await this.handleServiceDegradation(event);
+        }
+      },
+    );
   }
 
-  private async handleServiceDegradation(event: ServiceDegradationEvent): Promise<void> {
+  private async handleServiceDegradation(
+    event: ServiceDegradationEvent,
+  ): Promise<void> {
     try {
       structuredLogger.info('Handling service degradation', {
         service: event.service,
         previousStatus: event.previousStatus,
         newStatus: event.newStatus,
-        reason: event.reason
+        reason: event.reason,
       });
 
       // Find applicable fallback strategies
       const applicableStrategies = this.findApplicableStrategies(event);
-      
+
       if (applicableStrategies.length === 0) {
         structuredLogger.debug('No applicable fallback strategies found', {
           service: event.service,
-          status: event.newStatus
+          status: event.newStatus,
         });
         return;
       }
@@ -453,16 +490,21 @@ export class AutomaticFallbackManager {
 
       // Update system status
       this.updateSystemDegradationStatus();
-
     } catch (error) {
-      structuredLogger.error('Service degradation handling failed', {
-        service: event.service,
-        status: event.newStatus
-      }, error as Error);
+      structuredLogger.error(
+        'Service degradation handling failed',
+        {
+          service: event.service,
+          status: event.newStatus,
+        },
+        error as Error,
+      );
     }
   }
 
-  private findApplicableStrategies(event: ServiceDegradationEvent): FallbackStrategy[] {
+  private findApplicableStrategies(
+    event: ServiceDegradationEvent,
+  ): FallbackStrategy[] {
     const applicable: FallbackStrategy[] = [];
 
     for (const strategy of this.fallbackStrategies.values()) {
@@ -479,9 +521,12 @@ export class AutomaticFallbackManager {
     return applicable.sort((a, b) => a.priority - b.priority);
   }
 
-  private isStrategyApplicable(strategy: FallbackStrategy, event: ServiceDegradationEvent): boolean {
+  private isStrategyApplicable(
+    strategy: FallbackStrategy,
+    event: ServiceDegradationEvent,
+  ): boolean {
     const trigger = strategy.trigger;
-    
+
     // Check service pattern match
     if (!this.matchesServicePattern(trigger.servicePattern, event.service)) {
       return false;
@@ -493,18 +538,29 @@ export class AutomaticFallbackManager {
     }
 
     // Check specific thresholds
-    if (trigger.errorRateThreshold && 
-        (!event.triggeringMetrics.errorRate || event.triggeringMetrics.errorRate < trigger.errorRateThreshold)) {
+    if (
+      trigger.errorRateThreshold &&
+      (!event.triggeringMetrics.errorRate ||
+        event.triggeringMetrics.errorRate < trigger.errorRateThreshold)
+    ) {
       return false;
     }
 
-    if (trigger.responseTimeThreshold &&
-        (!event.triggeringMetrics.averageResponseTime || event.triggeringMetrics.averageResponseTime < trigger.responseTimeThreshold)) {
+    if (
+      trigger.responseTimeThreshold &&
+      (!event.triggeringMetrics.averageResponseTime ||
+        event.triggeringMetrics.averageResponseTime <
+          trigger.responseTimeThreshold)
+    ) {
       return false;
     }
 
-    if (trigger.consecutiveFailuresThreshold &&
-        (!event.triggeringMetrics.consecutiveFailures || event.triggeringMetrics.consecutiveFailures < trigger.consecutiveFailuresThreshold)) {
+    if (
+      trigger.consecutiveFailuresThreshold &&
+      (!event.triggeringMetrics.consecutiveFailures ||
+        event.triggeringMetrics.consecutiveFailures <
+          trigger.consecutiveFailuresThreshold)
+    ) {
       return false;
     }
 
@@ -522,22 +578,25 @@ export class AutomaticFallbackManager {
   private matchesServicePattern(pattern: string, serviceName: string): boolean {
     if (pattern === '*') return true;
     if (pattern === serviceName) return true;
-    
+
     // Simple wildcard matching
     if (pattern.endsWith('*')) {
       const prefix = pattern.slice(0, -1);
       return serviceName.startsWith(prefix);
     }
-    
+
     if (pattern.startsWith('*')) {
       const suffix = pattern.slice(1);
       return serviceName.endsWith(suffix);
     }
-    
+
     return false;
   }
 
-  private meetsHealthThreshold(threshold: 'degraded' | 'unavailable', status: ServiceHealthStatus['status']): boolean {
+  private meetsHealthThreshold(
+    threshold: 'degraded' | 'unavailable',
+    status: ServiceHealthStatus['status'],
+  ): boolean {
     switch (threshold) {
       case 'degraded':
         return status === 'degraded' || status === 'unavailable';
@@ -548,12 +607,15 @@ export class AutomaticFallbackManager {
     }
   }
 
-  private async executeFallbackStrategy(strategy: FallbackStrategy, event: ServiceDegradationEvent): Promise<void> {
+  private async executeFallbackStrategy(
+    strategy: FallbackStrategy,
+    event: ServiceDegradationEvent,
+  ): Promise<void> {
     try {
       structuredLogger.info('Executing fallback strategy', {
         strategyId: strategy.strategyId,
         service: event.service,
-        actionsCount: strategy.actions.length
+        actionsCount: strategy.actions.length,
       });
 
       const fallbackState: FallbackState = {
@@ -563,7 +625,7 @@ export class AutomaticFallbackManager {
         actionsExecuted: [],
         currentImpact: strategy.estimatedImpact,
         canRevert: strategy.canRevert,
-        revertConditions: []
+        revertConditions: [],
       };
 
       // Execute each action in the strategy
@@ -571,19 +633,23 @@ export class AutomaticFallbackManager {
         try {
           await this.executeFallbackAction(action);
           fallbackState.actionsExecuted.push(action);
-          
+
           structuredLogger.debug('Fallback action executed', {
             strategyId: strategy.strategyId,
             actionType: action.actionType,
-            target: action.target
+            target: action.target,
           });
         } catch (actionError) {
-          structuredLogger.error('Fallback action failed', {
-            strategyId: strategy.strategyId,
-            actionType: action.actionType,
-            target: action.target
-          }, actionError as Error);
-          
+          structuredLogger.error(
+            'Fallback action failed',
+            {
+              strategyId: strategy.strategyId,
+              actionType: action.actionType,
+              target: action.target,
+            },
+            actionError as Error,
+          );
+
           // Continue with other actions even if one fails
         }
       }
@@ -595,14 +661,17 @@ export class AutomaticFallbackManager {
       structuredLogger.info('Fallback strategy executed', {
         strategyId: strategy.strategyId,
         actionsExecuted: fallbackState.actionsExecuted.length,
-        estimatedImpact: strategy.estimatedImpact
+        estimatedImpact: strategy.estimatedImpact,
       });
-
     } catch (error) {
-      structuredLogger.error('Fallback strategy execution failed', {
-        strategyId: strategy.strategyId,
-        service: event.service
-      }, error as Error);
+      structuredLogger.error(
+        'Fallback strategy execution failed',
+        {
+          strategyId: strategy.strategyId,
+          service: event.service,
+        },
+        error as Error,
+      );
     }
   }
 
@@ -634,59 +703,85 @@ export class AutomaticFallbackManager {
     }
   }
 
-  private async disableService(target: string, parameters: Record<string, any>): Promise<void> {
+  private async disableService(
+    target: string,
+    parameters: Record<string, any>,
+  ): Promise<void> {
     structuredLogger.info('Disabling service', { target, parameters });
     // Implementation would disable the specific service
     this.systemDegradation.disabledFeatures.push(target);
   }
 
-  private async enableFallback(target: string, parameters: Record<string, any>): Promise<void> {
+  private async enableFallback(
+    target: string,
+    parameters: Record<string, any>,
+  ): Promise<void> {
     structuredLogger.info('Enabling fallback', { target, parameters });
     // Implementation would enable fallback for the target
   }
 
-  private async switchMode(target: string, parameters: Record<string, any>): Promise<void> {
+  private async switchMode(
+    target: string,
+    parameters: Record<string, any>,
+  ): Promise<void> {
     structuredLogger.info('Switching mode', { target, parameters });
-    
-    if (target === 'story_generation' && parameters.mode === 'progressive_enhancement') {
+
+    if (
+      target === 'story_generation' &&
+      parameters.mode === 'progressive_enhancement'
+    ) {
       // Already implemented in our progressive enhancement service
       this.progressiveEnhancement.updateNetworkConditionsManually({
-        quality: 'poor' // Force degraded mode
+        quality: 'poor', // Force degraded mode
       });
     }
   }
 
-  private async reduceQuality(target: string, parameters: Record<string, any>): Promise<void> {
+  private async reduceQuality(
+    target: string,
+    parameters: Record<string, any>,
+  ): Promise<void> {
     structuredLogger.info('Reducing quality', { target, parameters });
     // Implementation would reduce quality for the target service
   }
 
-  private async enableCacheOnly(target: string, parameters: Record<string, any>): Promise<void> {
+  private async enableCacheOnly(
+    target: string,
+    parameters: Record<string, any>,
+  ): Promise<void> {
     structuredLogger.info('Enabling cache-only mode', { target, parameters });
     // Implementation would switch to cache-only operation
   }
 
-  private async enableOfflineMode(target: string, parameters: Record<string, any>): Promise<void> {
+  private async enableOfflineMode(
+    target: string,
+    parameters: Record<string, any>,
+  ): Promise<void> {
     structuredLogger.info('Enabling offline mode', { target, parameters });
-    
+
     if (target === 'entire_system') {
       // Activate network adapter offline mode
       await this.networkAdapter.handleConnectionLoss();
     }
   }
 
-  private async sendUserNotification(target: string, parameters: Record<string, any>): Promise<void> {
+  private async sendUserNotification(
+    target: string,
+    parameters: Record<string, any>,
+  ): Promise<void> {
     structuredLogger.info('Sending user notification', { target, parameters });
-    
+
     if (parameters.message) {
       this.systemDegradation.userMessage = parameters.message;
     }
   }
 
-  private async executeFallbackReversion(fallbackState: FallbackState): Promise<void> {
+  private async executeFallbackReversion(
+    fallbackState: FallbackState,
+  ): Promise<void> {
     try {
       structuredLogger.info('Reverting fallback strategy', {
-        strategyId: fallbackState.strategyId
+        strategyId: fallbackState.strategyId,
       });
 
       // Execute rollback actions in reverse order
@@ -699,18 +794,21 @@ export class AutomaticFallbackManager {
 
       // Remove from active fallbacks
       this.activeFallbacks.delete(fallbackState.strategyId);
-      
+
       // Update system status
       this.updateSystemDegradationStatus();
 
       structuredLogger.info('Fallback strategy reverted', {
-        strategyId: fallbackState.strategyId
+        strategyId: fallbackState.strategyId,
       });
-
     } catch (error) {
-      structuredLogger.error('Fallback reversion failed', {
-        strategyId: fallbackState.strategyId
-      }, error as Error);
+      structuredLogger.error(
+        'Fallback reversion failed',
+        {
+          strategyId: fallbackState.strategyId,
+        },
+        error as Error,
+      );
       throw error;
     }
   }
@@ -725,24 +823,30 @@ export class AutomaticFallbackManager {
     if (this.activeFallbacks.size === 0) return;
 
     const systemHealth = this.healthMonitor.getSystemHealth();
-    
+
     for (const [strategyId, fallbackState] of this.activeFallbacks.entries()) {
       if (!fallbackState.canRevert) continue;
 
-      const serviceHealth = this.healthMonitor.getServiceHealth(fallbackState.trigger.service);
-      
+      const serviceHealth = this.healthMonitor.getServiceHealth(
+        fallbackState.trigger.service,
+      );
+
       // Check if service has recovered
       if (serviceHealth?.status === 'healthy') {
-        const timeSinceActivation = Date.now() - fallbackState.activatedAt.getTime();
-        
+        const timeSinceActivation =
+          Date.now() - fallbackState.activatedAt.getTime();
+
         // Wait at least 2 minutes before reverting to ensure stability
         if (timeSinceActivation > 120000) {
-          structuredLogger.info('Service recovery detected, reverting fallback', {
-            strategyId,
-            service: fallbackState.trigger.service,
-            timeSinceActivation
-          });
-          
+          structuredLogger.info(
+            'Service recovery detected, reverting fallback',
+            {
+              strategyId,
+              service: fallbackState.trigger.service,
+              timeSinceActivation,
+            },
+          );
+
           await this.revertFallback(strategyId);
         }
       }
@@ -751,14 +855,18 @@ export class AutomaticFallbackManager {
 
   private updateSystemDegradationStatus(): void {
     const activeFallbacks = Array.from(this.activeFallbacks.values());
-    
+
     // Determine overall system status
     let overall: SystemDegradationStatus['overall'] = 'normal';
-    
+
     if (activeFallbacks.length > 0) {
-      const hasEmergency = activeFallbacks.some(f => f.currentImpact.functionalityLoss > 0.7);
-      const hasCritical = activeFallbacks.some(f => f.currentImpact.functionalityLoss > 0.4);
-      
+      const hasEmergency = activeFallbacks.some(
+        f => f.currentImpact.functionalityLoss > 0.7,
+      );
+      const hasCritical = activeFallbacks.some(
+        f => f.currentImpact.functionalityLoss > 0.4,
+      );
+
       if (hasEmergency) {
         overall = 'emergency';
       } else if (hasCritical || activeFallbacks.length > 2) {
@@ -774,23 +882,32 @@ export class AutomaticFallbackManager {
       availableFeatures: this.getAvailableFeatures(),
       disabledFeatures: [...this.systemDegradation.disabledFeatures],
       estimatedRecoveryTime: this.estimateRecoveryTime(),
-      userMessage: this.systemDegradation.userMessage
+      userMessage: this.systemDegradation.userMessage,
     };
   }
 
   private getAvailableFeatures(): string[] {
-    const allFeatures = ['story_generation', 'content_prediction', 'personalization', 'quality_assessment'];
-    return allFeatures.filter(feature => !this.systemDegradation.disabledFeatures.includes(feature));
+    const allFeatures = [
+      'story_generation',
+      'content_prediction',
+      'personalization',
+      'quality_assessment',
+    ];
+    return allFeatures.filter(
+      feature => !this.systemDegradation.disabledFeatures.includes(feature),
+    );
   }
 
   private estimateRecoveryTime(): number | undefined {
     if (this.activeFallbacks.size === 0) return undefined;
-    
+
     // Simple estimation based on service health trends
     // In a real implementation, this would be more sophisticated
-    return Math.max(...Array.from(this.activeFallbacks.values()).map(f => 
-      (Date.now() - f.activatedAt.getTime()) * 2 // Estimate double the time already spent
-    ));
+    return Math.max(
+      ...Array.from(this.activeFallbacks.values()).map(
+        f => (Date.now() - f.activatedAt.getTime()) * 2, // Estimate double the time already spent
+      ),
+    );
   }
 
   private generateDefaultUserMessage(): string {
@@ -798,7 +915,7 @@ export class AutomaticFallbackManager {
       case 'degraded':
         return 'Some features are temporarily running in reduced mode to ensure the best experience.';
       case 'critical':
-        return 'We\'re experiencing some technical difficulties. Core features remain available with limited functionality.';
+        return "We're experiencing some technical difficulties. Core features remain available with limited functionality.";
       case 'emergency':
         return 'The system is in emergency mode. Basic story creation is available offline while we work to restore full service.';
       default:
@@ -831,12 +948,13 @@ export class AutomaticFallbackManager {
   } {
     const history = this.fallbackHistory;
     const successfulReversions = history.length - this.activeFallbacks.size;
-    
+
     let averageActivationTime = 0;
     if (history.length > 0) {
       const totalTime = history.reduce((sum, state) => {
-        const endTime = this.activeFallbacks.has(state.strategyId) ? 
-          Date.now() : Date.now(); // Simplified - would track actual reversion time
+        const endTime = this.activeFallbacks.has(state.strategyId)
+          ? Date.now()
+          : Date.now(); // Simplified - would track actual reversion time
         return sum + (endTime - state.activatedAt.getTime());
       }, 0);
       averageActivationTime = totalTime / history.length;
@@ -845,18 +963,20 @@ export class AutomaticFallbackManager {
     // Find most triggered strategy
     const strategyCounts: Record<string, number> = {};
     history.forEach(state => {
-      strategyCounts[state.strategyId] = (strategyCounts[state.strategyId] || 0) + 1;
+      strategyCounts[state.strategyId] =
+        (strategyCounts[state.strategyId] || 0) + 1;
     });
-    
-    const mostTriggeredStrategy = Object.entries(strategyCounts)
-      .sort(([, a], [, b]) => b - a)[0]?.[0] || null;
+
+    const mostTriggeredStrategy =
+      Object.entries(strategyCounts).sort(([, a], [, b]) => b - a)[0]?.[0] ||
+      null;
 
     return {
       totalActivations: history.length,
       successfulReversions,
       currentlyActive: this.activeFallbacks.size,
       averageActivationTime,
-      mostTriggeredStrategy
+      mostTriggeredStrategy,
     };
   }
 }

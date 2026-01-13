@@ -1,11 +1,15 @@
 /**
  * Enhanced Error Handling Tests
- * 
+ *
  * Tests for Task 2.3: Error Handling & Logging Enhancement
  */
 
-import { errorHandler, ErrorLevel, ErrorCategory } from '../../services/errorHandler';
-import { SkillError, SkillErrorCode, SkillType } from '../../types/claudeSkills';
+// import { errorHandler, ErrorLevel, ErrorCategory } from '../../services/errorHandler';
+import {
+  SkillError,
+  SkillErrorCode,
+  SkillType,
+} from '../../types/claudeSkills';
 import { structuredLogger } from '../../utils/logger';
 import { auditLogger } from '../../services/auditLogger';
 
@@ -34,24 +38,43 @@ describe('Enhanced Error Handling', () => {
         {
           userId: 'user-1',
           sessionId: 'session-1',
-        }
+        },
       );
 
       expect(processedError.category).toBe(ErrorCategory.CLAUDE_SKILLS);
       expect(processedError.level).toBe(ErrorLevel.WARNING); // Network errors are warnings
       expect(processedError.isRetryable).toBe(true);
-      expect(processedError.context.metadata?.skillType).toBe('ContentPredictionSkill');
-      expect(processedError.context.metadata?.errorCode).toBe(SkillErrorCode.NETWORK_ERROR);
+      expect(processedError.context.metadata?.skillType).toBe(
+        'ContentPredictionSkill',
+      );
+      expect(processedError.context.metadata?.errorCode).toBe(
+        SkillErrorCode.NETWORK_ERROR,
+      );
     });
 
     test('Error code mapping works correctly', async () => {
       const errorCodes = [
-        { code: SkillErrorCode.CONFIGURATION_ERROR, expectedLevel: ErrorLevel.CRITICAL },
-        { code: SkillErrorCode.AUTHENTICATION_ERROR, expectedLevel: ErrorLevel.CRITICAL },
+        {
+          code: SkillErrorCode.CONFIGURATION_ERROR,
+          expectedLevel: ErrorLevel.CRITICAL,
+        },
+        {
+          code: SkillErrorCode.AUTHENTICATION_ERROR,
+          expectedLevel: ErrorLevel.CRITICAL,
+        },
         { code: SkillErrorCode.SKILL_TIMEOUT, expectedLevel: ErrorLevel.ERROR },
-        { code: SkillErrorCode.RATE_LIMIT_EXCEEDED, expectedLevel: ErrorLevel.ERROR },
-        { code: SkillErrorCode.NETWORK_ERROR, expectedLevel: ErrorLevel.WARNING },
-        { code: SkillErrorCode.SKILL_UNAVAILABLE, expectedLevel: ErrorLevel.WARNING },
+        {
+          code: SkillErrorCode.RATE_LIMIT_EXCEEDED,
+          expectedLevel: ErrorLevel.ERROR,
+        },
+        {
+          code: SkillErrorCode.NETWORK_ERROR,
+          expectedLevel: ErrorLevel.WARNING,
+        },
+        {
+          code: SkillErrorCode.SKILL_UNAVAILABLE,
+          expectedLevel: ErrorLevel.WARNING,
+        },
       ];
 
       for (const { code, expectedLevel } of errorCodes) {
@@ -65,7 +88,7 @@ describe('Enhanced Error Handling', () => {
         const processedError = await errorHandler.handleSkillError(
           skillError,
           'ContentPredictionSkill',
-          'skill-123'
+          'skill-123',
         );
 
         expect(processedError.level).toBe(expectedLevel);
@@ -90,13 +113,13 @@ describe('Enhanced Error Handling', () => {
       const retryableProcessed = await errorHandler.handleSkillError(
         retryableError,
         'ContentPredictionSkill',
-        'skill-123'
+        'skill-123',
       );
 
       const nonRetryableProcessed = await errorHandler.handleSkillError(
         nonRetryableError,
         'ContentPredictionSkill',
-        'skill-123'
+        'skill-123',
       );
 
       expect(retryableProcessed.isRetryable).toBe(true);
@@ -121,7 +144,7 @@ describe('Enhanced Error Handling', () => {
           userId: 'user-2',
           sessionId: 'session-2',
           metadata: { correlationId: 'corr-123' },
-        }
+        },
       );
 
       expect(structuredLogger.logSkillError).toHaveBeenCalledWith(
@@ -134,7 +157,7 @@ describe('Enhanced Error Handling', () => {
           sessionId: 'session-2',
           skillType: 'QualityAssessmentSkill',
           skillId: 'skill-456',
-        })
+        }),
       );
     });
 
@@ -158,7 +181,7 @@ describe('Enhanced Error Handling', () => {
             password: 'secret-password',
             apiKey: 'secret-key',
           },
-        }
+        },
       );
 
       // In production, sensitive data should be redacted
@@ -181,7 +204,7 @@ describe('Enhanced Error Handling', () => {
         'skill-123',
         {
           metadata: { correlationId },
-        }
+        },
       );
 
       expect(structuredLogger.logSkillError).toHaveBeenCalledWith(
@@ -190,7 +213,7 @@ describe('Enhanced Error Handling', () => {
         expect.any(Object),
         expect.objectContaining({
           correlationId,
-        })
+        }),
       );
     });
   });
@@ -207,7 +230,7 @@ describe('Enhanced Error Handling', () => {
       const processedError = await errorHandler.handleSkillError(
         recoverableError,
         'ContentPredictionSkill',
-        'skill-123'
+        'skill-123',
       );
 
       expect(processedError.isRetryable).toBe(true);
@@ -225,7 +248,7 @@ describe('Enhanced Error Handling', () => {
       const processedError = await errorHandler.handleSkillError(
         nonRetryableError,
         'ContentPredictionSkill',
-        'skill-123'
+        'skill-123',
       );
 
       expect(processedError.isRetryable).toBe(false);
@@ -233,4 +256,3 @@ describe('Enhanced Error Handling', () => {
     });
   });
 });
-

@@ -1,13 +1,17 @@
 /**
  * Predictive Failure Prevention Service
- * 
+ *
  * Implements intelligent failure prediction and proactive prevention measures
  * Task 6.1: Context-Aware Error Handling - Predictive failure prevention
  */
 
 import { structuredLogger } from '../utils/logger';
-import { StoryRequest, StoryResponse, GradeLevel } from '../types/story';
-import { SkillManager, SkillError, SkillErrorCode } from '../types/claudeSkills';
+// import { StoryRequest, StoryResponse, GradeLevel } from '../types/story';
+import {
+  SkillManager,
+  SkillError,
+  SkillErrorCode,
+} from '../types/claudeSkills';
 import { FailurePrediction, StoryContext } from './contextualFallback';
 
 interface FailurePattern {
@@ -35,12 +39,15 @@ interface FailurePattern {
 }
 
 interface SystemHealth {
-  skillAvailability: Record<string, {
-    status: 'available' | 'degraded' | 'unavailable';
-    latency: number;
-    errorRate: number;
-    lastChecked: Date;
-  }>;
+  skillAvailability: Record<
+    string,
+    {
+      status: 'available' | 'degraded' | 'unavailable';
+      latency: number;
+      errorRate: number;
+      lastChecked: Date;
+    }
+  >;
   networkQuality: {
     bandwidth: number;
     latency: number;
@@ -96,7 +103,7 @@ export class PredictiveFailurePreventionService {
     predictionsTotal: 0,
     predictionsCorrect: 0,
     preventionsAttempted: 0,
-    preventionsSuccessful: 0
+    preventionsSuccessful: 0,
   };
 
   constructor(skillManager: SkillManager) {
@@ -117,30 +124,40 @@ export class PredictiveFailurePreventionService {
       averageLatency: number;
       networkCondition: 'excellent' | 'good' | 'poor' | 'offline';
       deviceType: 'phone' | 'tablet' | 'desktop';
-    }
+    },
   ): Promise<FailurePrediction> {
     try {
       structuredLogger.info('Predicting failure risk', {
         gradeLevel: request.gradeLevel,
         storyLength: request.storySoFar?.length || 0,
         hasContext: !!storyContext,
-        recentFailures: sessionMetrics?.recentFailures || 0
+        recentFailures: sessionMetrics?.recentFailures || 0,
       });
 
       // Update system health before prediction
       await this.updateSystemHealth();
 
       // Analyze multiple risk factors
-      const riskFactors = await this.analyzeRiskFactors(request, storyContext, sessionMetrics);
-      
+      const riskFactors = await this.analyzeRiskFactors(
+        request,
+        storyContext,
+        sessionMetrics,
+      );
+
       // Calculate overall risk score using prediction model
       const riskScore = this.calculateRiskScore(riskFactors);
 
       // Determine preventive strategy
-      const preventiveStrategy = this.selectPreventiveStrategy(riskScore, riskFactors);
+      const preventiveStrategy = this.selectPreventiveStrategy(
+        riskScore,
+        riskFactors,
+      );
 
       // Generate specific preventive actions
-      const preventiveActions = await this.generatePreventiveActions(riskFactors, preventiveStrategy);
+      const preventiveActions = await this.generatePreventiveActions(
+        riskFactors,
+        preventiveStrategy,
+      );
 
       this.preventionMetrics.predictionsTotal++;
 
@@ -148,30 +165,40 @@ export class PredictiveFailurePreventionService {
         riskScore: Math.min(100, Math.max(0, riskScore)),
         riskFactors,
         preventiveActions,
-        recommendedPreventiveStrategy: preventiveStrategy
+        recommendedPreventiveStrategy: preventiveStrategy,
       };
 
       structuredLogger.info('Failure risk prediction completed', {
         riskScore: prediction.riskScore,
         riskFactors: prediction.riskFactors.length,
         recommendedStrategy: prediction.recommendedPreventiveStrategy,
-        preventiveActions: prediction.preventiveActions.length
+        preventiveActions: prediction.preventiveActions.length,
       });
 
       return prediction;
     } catch (error) {
-      structuredLogger.error('Failure risk prediction failed', {}, error as Error);
-      
+      structuredLogger.error(
+        'Failure risk prediction failed',
+        {},
+        error as Error,
+      );
+
       // Return conservative prediction on failure
       return {
         riskScore: 75, // High risk when prediction fails
-        riskFactors: [{
-          factor: 'prediction_system_failure',
-          severity: 'high',
-          description: 'Unable to assess risk - prediction system encountered an error'
-        }],
-        preventiveActions: ['Enable aggressive fallback mode', 'Monitor system closely'],
-        recommendedPreventiveStrategy: 'fallback_preload'
+        riskFactors: [
+          {
+            factor: 'prediction_system_failure',
+            severity: 'high',
+            description:
+              'Unable to assess risk - prediction system encountered an error',
+          },
+        ],
+        preventiveActions: [
+          'Enable aggressive fallback mode',
+          'Monitor system closely',
+        ],
+        recommendedPreventiveStrategy: 'fallback_preload',
       };
     }
   }
@@ -182,7 +209,7 @@ export class PredictiveFailurePreventionService {
   public async executePreventiveMeasures(
     prediction: FailurePrediction,
     request: StoryRequest,
-    priority: 'background' | 'immediate' = 'background'
+    priority: 'background' | 'immediate' = 'background',
   ): Promise<{
     actionsExecuted: string[];
     successful: string[];
@@ -201,11 +228,14 @@ export class PredictiveFailurePreventionService {
         riskScore: prediction.riskScore,
         strategy: prediction.recommendedPreventiveStrategy,
         priority,
-        actionsCount: prediction.preventiveActions.length
+        actionsCount: prediction.preventiveActions.length,
       });
 
       // Create concrete preventive actions based on predictions
-      const preventiveActions = await this.createPreventiveActions(prediction, request);
+      const preventiveActions = await this.createPreventiveActions(
+        prediction,
+        request,
+      );
 
       // Sort actions by priority and success probability
       const sortedActions = preventiveActions.sort((a, b) => {
@@ -235,32 +265,37 @@ export class PredictiveFailurePreventionService {
           if (success) {
             successful.push(action.action);
             this.preventionMetrics.preventionsSuccessful++;
-            
+
             structuredLogger.debug('Preventive action successful', {
               action: action.action,
               duration: actionDuration,
-              resourceCost: action.resourceCost
+              resourceCost: action.resourceCost,
             });
           } else {
             failed.push(action.action);
-            
+
             structuredLogger.warn('Preventive action failed', {
               action: action.action,
-              duration: actionDuration
+              duration: actionDuration,
             });
           }
 
           // Break if we've used too many resources
           if (resourcesUsed > 0.8) {
-            structuredLogger.info('Resource limit reached, stopping preventive actions');
+            structuredLogger.info(
+              'Resource limit reached, stopping preventive actions',
+            );
             break;
           }
-
         } catch (actionError) {
           failed.push(action.action);
-          structuredLogger.error('Preventive action error', {
-            action: action.action
-          }, actionError as Error);
+          structuredLogger.error(
+            'Preventive action error',
+            {
+              action: action.action,
+            },
+            actionError as Error,
+          );
         }
       }
 
@@ -268,16 +303,17 @@ export class PredictiveFailurePreventionService {
 
       // Store active preventions for monitoring
       const requestKey = this.generateRequestKey(request);
-      this.activePreventions.set(requestKey, preventiveActions.filter(a => 
-        successful.includes(a.action)
-      ));
+      this.activePreventions.set(
+        requestKey,
+        preventiveActions.filter(a => successful.includes(a.action)),
+      );
 
       structuredLogger.info('Preventive measures execution completed', {
         actionsExecuted: actionsExecuted.length,
         successful: successful.length,
         failed: failed.length,
         totalExecutionTime,
-        resourcesUsed: Math.round(resourcesUsed * 100)
+        resourcesUsed: Math.round(resourcesUsed * 100),
       });
 
       return {
@@ -285,17 +321,21 @@ export class PredictiveFailurePreventionService {
         successful,
         failed,
         totalExecutionTime,
-        resourcesUsed
+        resourcesUsed,
       };
     } catch (error) {
-      structuredLogger.error('Preventive measures execution failed', {}, error as Error);
-      
+      structuredLogger.error(
+        'Preventive measures execution failed',
+        {},
+        error as Error,
+      );
+
       return {
         actionsExecuted: [],
         successful: [],
         failed: ['execution_system_failure'],
         totalExecutionTime: 0,
-        resourcesUsed: 0
+        resourcesUsed: 0,
       };
     }
   }
@@ -307,13 +347,14 @@ export class PredictiveFailurePreventionService {
     actualError: SkillError | Error,
     originalRequest: StoryRequest,
     prediction?: FailurePrediction,
-    preventiveMeasures?: string[]
+    preventiveMeasures?: string[],
   ): Promise<void> {
     try {
       structuredLogger.info('Learning from failure', {
-        errorType: actualError instanceof SkillError ? actualError.code : 'unknown',
+        errorType:
+          actualError instanceof SkillError ? actualError.code : 'unknown',
         hadPrediction: !!prediction,
-        preventiveMeasuresUsed: preventiveMeasures?.length || 0
+        preventiveMeasuresUsed: preventiveMeasures?.length || 0,
       });
 
       // Update prediction accuracy if we had a prediction
@@ -333,9 +374,12 @@ export class PredictiveFailurePreventionService {
       if (this.preventionMetrics.predictionsTotal % 100 === 0) {
         await this.retrainPredictionModel();
       }
-
     } catch (error) {
-      structuredLogger.error('Learning from failure failed', {}, error as Error);
+      structuredLogger.error(
+        'Learning from failure failed',
+        {},
+        error as Error,
+      );
     }
   }
 
@@ -345,11 +389,12 @@ export class PredictiveFailurePreventionService {
   public async validatePrediction(
     prediction: FailurePrediction,
     actualOutcome: 'success' | 'failure',
-    responseTime?: number
+    responseTime?: number,
   ): Promise<void> {
     try {
-      const wasCorrect = (prediction.riskScore > 60 && actualOutcome === 'failure') ||
-                        (prediction.riskScore <= 60 && actualOutcome === 'success');
+      const wasCorrect =
+        (prediction.riskScore > 60 && actualOutcome === 'failure') ||
+        (prediction.riskScore <= 60 && actualOutcome === 'success');
 
       this.updatePredictionAccuracy(prediction, !wasCorrect);
 
@@ -361,11 +406,16 @@ export class PredictiveFailurePreventionService {
         riskScore: prediction.riskScore,
         actualOutcome,
         wasCorrect,
-        accuracy: this.preventionMetrics.predictionsCorrect / this.preventionMetrics.predictionsTotal
+        accuracy:
+          this.preventionMetrics.predictionsCorrect /
+          this.preventionMetrics.predictionsTotal,
       });
-
     } catch (error) {
-      structuredLogger.error('Prediction validation failed', {}, error as Error);
+      structuredLogger.error(
+        'Prediction validation failed',
+        {},
+        error as Error,
+      );
     }
   }
 
@@ -374,13 +424,15 @@ export class PredictiveFailurePreventionService {
   private async analyzeRiskFactors(
     request: StoryRequest,
     storyContext?: StoryContext,
-    sessionMetrics?: any
-  ): Promise<Array<{
-    factor: string;
-    severity: 'low' | 'medium' | 'high';
-    description: string;
-    mitigation?: string;
-  }>> {
+    sessionMetrics?: any,
+  ): Promise<
+    Array<{
+      factor: string;
+      severity: 'low' | 'medium' | 'high';
+      description: string;
+      mitigation?: string;
+    }>
+  > {
     const riskFactors = [];
 
     // Story complexity analysis
@@ -389,7 +441,7 @@ export class PredictiveFailurePreventionService {
         factor: 'high_story_complexity',
         severity: 'medium' as const,
         description: 'Long story context increases processing complexity',
-        mitigation: 'Use story summarization before processing'
+        mitigation: 'Use story summarization before processing',
       });
     }
 
@@ -399,7 +451,7 @@ export class PredictiveFailurePreventionService {
         factor: 'high_memory_usage',
         severity: 'high' as const,
         description: 'Device memory usage is critically high',
-        mitigation: 'Clear cache and reduce memory footprint'
+        mitigation: 'Clear cache and reduce memory footprint',
       });
     }
 
@@ -408,36 +460,41 @@ export class PredictiveFailurePreventionService {
         factor: 'high_network_latency',
         severity: 'medium' as const,
         description: 'Network latency may cause timeouts',
-        mitigation: 'Use shorter timeouts and enable offline mode'
+        mitigation: 'Use shorter timeouts and enable offline mode',
       });
     }
 
     // Historical pattern analysis
-    const historicalRisk = this.analyzeHistoricalPatterns(request, sessionMetrics);
+    const historicalRisk = this.analyzeHistoricalPatterns(
+      request,
+      sessionMetrics,
+    );
     if (historicalRisk > 0.6) {
       riskFactors.push({
         factor: 'historical_failure_pattern',
         severity: 'high' as const,
         description: 'Similar requests have failed frequently in the past',
-        mitigation: 'Use alternative generation strategy'
+        mitigation: 'Use alternative generation strategy',
       });
     }
 
     // Service availability
-    for (const [skillType, health] of Object.entries(this.systemHealth.skillAvailability)) {
+    for (const [skillType, health] of Object.entries(
+      this.systemHealth.skillAvailability,
+    )) {
       if (health.status === 'unavailable') {
         riskFactors.push({
           factor: 'service_unavailable',
           severity: 'high' as const,
           description: `${skillType} service is currently unavailable`,
-          mitigation: 'Route to fallback service'
+          mitigation: 'Route to fallback service',
         });
       } else if (health.status === 'degraded') {
         riskFactors.push({
           factor: 'service_degraded',
           severity: 'medium' as const,
           description: `${skillType} service is experiencing degraded performance`,
-          mitigation: 'Increase timeout and prepare fallback'
+          mitigation: 'Increase timeout and prepare fallback',
         });
       }
     }
@@ -448,7 +505,7 @@ export class PredictiveFailurePreventionService {
         factor: 'high_system_load',
         severity: 'medium' as const,
         description: 'System is under high load',
-        mitigation: 'Queue request or use cached content'
+        mitigation: 'Queue request or use cached content',
       });
     }
 
@@ -475,7 +532,8 @@ export class PredictiveFailurePreventionService {
     // Apply prediction model weights if available
     if (this.predictionModel.featureImportance) {
       for (const factor of riskFactors) {
-        const importance = this.predictionModel.featureImportance[factor.factor] || 1;
+        const importance =
+          this.predictionModel.featureImportance[factor.factor] || 1;
         baseScore = baseScore * importance;
       }
     }
@@ -485,7 +543,7 @@ export class PredictiveFailurePreventionService {
 
   private selectPreventiveStrategy(
     riskScore: number,
-    riskFactors: any[]
+    riskFactors: any[],
   ): 'cache_warmup' | 'fallback_preload' | 'skill_bypass' | 'none' {
     if (riskScore > 80) {
       return 'skill_bypass';
@@ -493,20 +551,22 @@ export class PredictiveFailurePreventionService {
       return 'fallback_preload';
     } else if (riskScore > 30) {
       // Check specific risk factors
-      const hasNetworkRisk = riskFactors.some(f => f.factor.includes('network'));
+      const hasNetworkRisk = riskFactors.some(f =>
+        f.factor.includes('network'),
+      );
       const hasMemoryRisk = riskFactors.some(f => f.factor.includes('memory'));
-      
+
       if (hasNetworkRisk || hasMemoryRisk) {
         return 'cache_warmup';
       }
     }
-    
+
     return 'none';
   }
 
   private async generatePreventiveActions(
     riskFactors: any[],
-    strategy: string
+    strategy: string,
   ): Promise<string[]> {
     const actions: string[] = [];
 
@@ -538,7 +598,7 @@ export class PredictiveFailurePreventionService {
 
   private async createPreventiveActions(
     prediction: FailurePrediction,
-    request: StoryRequest
+    request: StoryRequest,
   ): Promise<PreventiveAction[]> {
     const actions: PreventiveAction[] = [];
 
@@ -559,7 +619,7 @@ export class PredictiveFailurePreventionService {
           } catch {
             return false;
           }
-        }
+        },
       });
     }
 
@@ -580,12 +640,14 @@ export class PredictiveFailurePreventionService {
           } catch {
             return false;
           }
-        }
+        },
       });
     }
 
     // Memory cleanup action
-    const hasMemoryRisk = prediction.riskFactors.some(f => f.factor.includes('memory'));
+    const hasMemoryRisk = prediction.riskFactors.some(f =>
+      f.factor.includes('memory'),
+    );
     if (hasMemoryRisk) {
       actions.push({
         action: 'memory_cleanup',
@@ -604,12 +666,14 @@ export class PredictiveFailurePreventionService {
           } catch {
             return false;
           }
-        }
+        },
       });
     }
 
     // Network optimization action
-    const hasNetworkRisk = prediction.riskFactors.some(f => f.factor.includes('network'));
+    const hasNetworkRisk = prediction.riskFactors.some(f =>
+      f.factor.includes('network'),
+    );
     if (hasNetworkRisk) {
       actions.push({
         action: 'network_optimization',
@@ -626,7 +690,7 @@ export class PredictiveFailurePreventionService {
           } catch {
             return false;
           }
-        }
+        },
       });
     }
 
@@ -635,40 +699,50 @@ export class PredictiveFailurePreventionService {
 
   private analyzeHistoricalPatterns(
     request: StoryRequest,
-    sessionMetrics?: any
+    sessionMetrics?: any,
   ): number {
     // Simple historical analysis based on stored patterns
     const key = `${request.gradeLevel}_${request.storySoFar?.length || 0}`;
     const pattern = this.failurePatterns.get(key);
-    
+
     if (!pattern) return 0;
 
     // Calculate risk based on frequency and recency
-    const daysSinceLastFailure = (Date.now() - pattern.lastOccurrence.getTime()) / (1000 * 60 * 60 * 24);
-    const recencyFactor = Math.max(0, 1 - (daysSinceLastFailure / 30)); // Decay over 30 days
-    
+    const daysSinceLastFailure =
+      (Date.now() - pattern.lastOccurrence.getTime()) / (1000 * 60 * 60 * 24);
+    const recencyFactor = Math.max(0, 1 - daysSinceLastFailure / 30); // Decay over 30 days
+
     return (pattern.frequency / 100) * recencyFactor;
   }
 
-  private updatePredictionAccuracy(prediction: FailurePrediction, wasFailure: boolean): void {
+  private updatePredictionAccuracy(
+    prediction: FailurePrediction,
+    wasFailure: boolean,
+  ): void {
     // Simple accuracy tracking - in production this would be more sophisticated
     const currentAccuracy = this.predictionModel.accuracy;
     const totalPredictions = this.preventionMetrics.predictionsTotal;
-    
-    const wasCorrect = (prediction.riskScore > 60 && wasFailure) || 
-                      (prediction.riskScore <= 60 && !wasFailure);
-    
+
+    const wasCorrect =
+      (prediction.riskScore > 60 && wasFailure) ||
+      (prediction.riskScore <= 60 && !wasFailure);
+
     // Update running average accuracy
-    this.predictionModel.accuracy = (currentAccuracy * (totalPredictions - 1) + (wasCorrect ? 1 : 0)) / totalPredictions;
+    this.predictionModel.accuracy =
+      (currentAccuracy * (totalPredictions - 1) + (wasCorrect ? 1 : 0)) /
+      totalPredictions;
   }
 
   private async recordFailurePattern(
     error: SkillError | Error,
-    request: StoryRequest
+    request: StoryRequest,
   ): Promise<void> {
-    const errorType = error instanceof SkillError ? error.code : 'unknown' as any;
-    const key = `${errorType}_${request.gradeLevel}_${request.storySoFar?.length || 0}`;
-    
+    const errorType =
+      error instanceof SkillError ? error.code : ('unknown' as any);
+    const key = `${errorType}_${request.gradeLevel}_${
+      request.storySoFar?.length || 0
+    }`;
+
     let pattern = this.failurePatterns.get(key);
     if (!pattern) {
       pattern = {
@@ -678,29 +752,29 @@ export class PredictiveFailurePreventionService {
         lastOccurrence: new Date(),
         context: {
           gradeLevel: request.gradeLevel,
-          storyLength: request.storySoFar?.length || 0
+          storyLength: request.storySoFar?.length || 0,
         },
         precursors: [],
-        preventionStrategies: []
+        preventionStrategies: [],
       };
     }
-    
+
     pattern.frequency++;
     pattern.lastOccurrence = new Date();
-    
+
     this.failurePatterns.set(key, pattern);
   }
 
   private async updatePreventionEffectiveness(
     preventiveMeasures: string[],
-    wasSuccessful: boolean
+    wasSuccessful: boolean,
   ): Promise<void> {
     // Update effectiveness metrics for prevention strategies
     for (const measure of preventiveMeasures) {
       // In a real implementation, this would update strategy effectiveness tracking
       structuredLogger.debug('Updating prevention effectiveness', {
         measure,
-        wasSuccessful
+        wasSuccessful,
       });
     }
   }
@@ -709,16 +783,18 @@ export class PredictiveFailurePreventionService {
     try {
       structuredLogger.info('Retraining prediction model', {
         totalPredictions: this.preventionMetrics.predictionsTotal,
-        currentAccuracy: this.predictionModel.accuracy
+        currentAccuracy: this.predictionModel.accuracy,
       });
 
       // In a real implementation, this would retrain the ML model
       // For now, we'll just update the model metadata
       this.predictionModel.lastTraining = new Date();
-      
+
       // Simulate accuracy improvement from retraining
-      this.predictionModel.accuracy = Math.min(1, this.predictionModel.accuracy * 1.02);
-      
+      this.predictionModel.accuracy = Math.min(
+        1,
+        this.predictionModel.accuracy * 1.02,
+      );
     } catch (error) {
       structuredLogger.error('Model retraining failed', {}, error as Error);
     }
@@ -727,31 +803,31 @@ export class PredictiveFailurePreventionService {
   private initializeSystemHealth(): void {
     this.systemHealth = {
       skillAvailability: {
-        'StoryGenerationSkill': {
+        StoryGenerationSkill: {
           status: 'available',
           latency: 1000,
           errorRate: 0.05,
-          lastChecked: new Date()
-        }
+          lastChecked: new Date(),
+        },
       },
       networkQuality: {
         bandwidth: 100,
         latency: 50,
         packetLoss: 0.01,
-        stability: 0.9
+        stability: 0.9,
       },
       devicePerformance: {
         memoryUsage: 0.6,
         cpuUsage: 0.3,
         batteryLevel: 0.8,
-        thermalState: 'normal'
+        thermalState: 'normal',
       },
       loadMetrics: {
         concurrent_requests: 2,
         queue_length: 0,
         average_response_time: 1200,
-        cache_hit_ratio: 0.7
-      }
+        cache_hit_ratio: 0.7,
+      },
     };
   }
 
@@ -763,13 +839,13 @@ export class PredictiveFailurePreventionService {
       precision: 0.8,
       recall: 0.7,
       featureImportance: {
-        'high_story_complexity': 1.2,
-        'high_memory_usage': 1.5,
-        'high_network_latency': 1.1,
-        'historical_failure_pattern': 1.4,
-        'service_unavailable': 2.0,
-        'high_system_load': 1.3
-      }
+        high_story_complexity: 1.2,
+        high_memory_usage: 1.5,
+        high_network_latency: 1.1,
+        historical_failure_pattern: 1.4,
+        service_unavailable: 2.0,
+        high_system_load: 1.3,
+      },
     };
   }
 
@@ -783,9 +859,11 @@ export class PredictiveFailurePreventionService {
   private async updateSystemHealth(): Promise<void> {
     try {
       // Update skill availability
-      for (const skillType of Object.keys(this.systemHealth.skillAvailability)) {
+      for (const skillType of Object.keys(
+        this.systemHealth.skillAvailability,
+      )) {
         const health = this.systemHealth.skillAvailability[skillType];
-        
+
         // Simulate health check (in real implementation, this would ping the service)
         const isAvailable = Math.random() > 0.05; // 95% availability
         health.status = isAvailable ? 'available' : 'degraded';
@@ -799,20 +877,25 @@ export class PredictiveFailurePreventionService {
       this.systemHealth.networkQuality.stability = Math.random() * 0.3 + 0.7;
 
       // Update device performance
-      this.systemHealth.devicePerformance.memoryUsage = Math.random() * 0.4 + 0.4;
+      this.systemHealth.devicePerformance.memoryUsage =
+        Math.random() * 0.4 + 0.4;
       this.systemHealth.devicePerformance.cpuUsage = Math.random() * 0.5 + 0.2;
 
       // Update load metrics
-      this.systemHealth.loadMetrics.concurrent_requests = Math.floor(Math.random() * 20);
-      this.systemHealth.loadMetrics.average_response_time = Math.random() * 1000 + 800;
-
+      this.systemHealth.loadMetrics.concurrent_requests = Math.floor(
+        Math.random() * 20,
+      );
+      this.systemHealth.loadMetrics.average_response_time =
+        Math.random() * 1000 + 800;
     } catch (error) {
       structuredLogger.error('System health update failed', {}, error as Error);
     }
   }
 
   private generateRequestKey(request: StoryRequest): string {
-    return `${request.gradeLevel}_${request.storySoFar?.length || 0}_${Date.now()}`;
+    return `${request.gradeLevel}_${
+      request.storySoFar?.length || 0
+    }_${Date.now()}`;
   }
 
   /**
@@ -826,11 +909,17 @@ export class PredictiveFailurePreventionService {
     modelVersion: string;
     lastModelUpdate: Date;
   } {
-    const predictionAccuracy = this.preventionMetrics.predictionsTotal > 0 ? 
-      this.preventionMetrics.predictionsCorrect / this.preventionMetrics.predictionsTotal : 0;
-    
-    const preventionSuccessRate = this.preventionMetrics.preventionsAttempted > 0 ?
-      this.preventionMetrics.preventionsSuccessful / this.preventionMetrics.preventionsAttempted : 0;
+    const predictionAccuracy =
+      this.preventionMetrics.predictionsTotal > 0
+        ? this.preventionMetrics.predictionsCorrect /
+          this.preventionMetrics.predictionsTotal
+        : 0;
+
+    const preventionSuccessRate =
+      this.preventionMetrics.preventionsAttempted > 0
+        ? this.preventionMetrics.preventionsSuccessful /
+          this.preventionMetrics.preventionsAttempted
+        : 0;
 
     return {
       predictionAccuracy,
@@ -838,7 +927,7 @@ export class PredictiveFailurePreventionService {
       totalPredictions: this.preventionMetrics.predictionsTotal,
       totalPreventions: this.preventionMetrics.preventionsAttempted,
       modelVersion: this.predictionModel.modelVersion,
-      lastModelUpdate: this.predictionModel.lastTraining
+      lastModelUpdate: this.predictionModel.lastTraining,
     };
   }
 
@@ -850,10 +939,10 @@ export class PredictiveFailurePreventionService {
       clearInterval(this.healthCheckInterval);
       this.healthCheckInterval = null;
     }
-    
+
     structuredLogger.info('Predictive failure prevention service shutdown', {
       totalPredictions: this.preventionMetrics.predictionsTotal,
-      finalAccuracy: this.predictionModel.accuracy
+      finalAccuracy: this.predictionModel.accuracy,
     });
   }
 }

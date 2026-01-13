@@ -1,13 +1,16 @@
 /**
  * Service Restoration Manager
- * 
+ *
  * Manages gradual service restoration after outages or degradation
  * Task 6.3: Service Degradation Handling - Gradual service restoration component
  */
 
 import { structuredLogger } from '../utils/logger';
-import { ServiceHealthMonitor, ServiceHealthStatus, ServiceMetrics } from './serviceHealth';
-import { AutomaticFallbackManager, SystemDegradationStatus } from './automaticFallbackManager';
+// import { ServiceHealthMonitor, ServiceHealthStatus, ServiceMetrics } from './serviceHealth';
+import {
+  AutomaticFallbackManager,
+  SystemDegradationStatus,
+} from './automaticFallbackManager';
 import { SkillManager } from '../types/claudeSkills';
 
 export interface RestorationPhase {
@@ -23,14 +26,27 @@ export interface RestorationPhase {
 }
 
 export interface RestorationCondition {
-  type: 'service_health' | 'time_elapsed' | 'stability_window' | 'user_load' | 'error_rate' | 'custom';
+  type:
+    | 'service_health'
+    | 'time_elapsed'
+    | 'stability_window'
+    | 'user_load'
+    | 'error_rate'
+    | 'custom';
   target?: string; // service name if applicable
   threshold: any; // type-specific threshold value
   description: string;
 }
 
 export interface RestorationAction {
-  actionType: 'enable_service' | 'increase_capacity' | 'restore_features' | 'clear_fallbacks' | 'update_config' | 'run_tests' | 'user_notification';
+  actionType:
+    | 'enable_service'
+    | 'increase_capacity'
+    | 'restore_features'
+    | 'clear_fallbacks'
+    | 'update_config'
+    | 'run_tests'
+    | 'user_notification';
   target: string;
   parameters: Record<string, any>;
   timeout?: number;
@@ -47,7 +63,11 @@ export interface SuccessCriteria {
 
 export interface RollbackTrigger {
   condition: RestorationCondition;
-  action: 'pause_restoration' | 'rollback_phase' | 'rollback_all' | 'activate_emergency';
+  action:
+    | 'pause_restoration'
+    | 'rollback_phase'
+    | 'rollback_all'
+    | 'activate_emergency';
   reason: string;
 }
 
@@ -66,7 +86,12 @@ export interface RestorationExecution {
   startTime: Date;
   currentPhase: number;
   phaseExecutions: PhaseExecution[];
-  overallStatus: 'in_progress' | 'completed' | 'failed' | 'paused' | 'rolled_back';
+  overallStatus:
+    | 'in_progress'
+    | 'completed'
+    | 'failed'
+    | 'paused'
+    | 'rolled_back';
   errors: string[];
   metrics: RestorationMetrics;
 }
@@ -75,7 +100,13 @@ export interface PhaseExecution {
   phaseId: string;
   startTime: Date;
   endTime?: Date;
-  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'skipped' | 'rolled_back';
+  status:
+    | 'pending'
+    | 'in_progress'
+    | 'completed'
+    | 'failed'
+    | 'skipped'
+    | 'rolled_back';
   actionsExecuted: RestorationAction[];
   conditionsChecked: RestorationCondition[];
   errors: string[];
@@ -101,14 +132,14 @@ export class ServiceRestorationManager {
   private restorationPlans: Map<string, RestorationPlan> = new Map();
   private activeRestorations: Map<string, RestorationExecution> = new Map();
   private restorationHistory: RestorationExecution[] = [];
-  
+
   private isEnabled: boolean = false;
   private monitoringInterval: NodeJS.Timeout | null = null;
 
   constructor(
     healthMonitor: ServiceHealthMonitor,
     fallbackManager: AutomaticFallbackManager,
-    skillManager: SkillManager
+    skillManager: SkillManager,
   ) {
     this.healthMonitor = healthMonitor;
     this.fallbackManager = fallbackManager;
@@ -128,10 +159,10 @@ export class ServiceRestorationManager {
 
     this.isEnabled = true;
     this.startRestorationMonitoring();
-    
+
     structuredLogger.info('Service restoration manager enabled', {
       plansCount: this.restorationPlans.size,
-      plans: Array.from(this.restorationPlans.keys())
+      plans: Array.from(this.restorationPlans.keys()),
     });
   }
 
@@ -142,19 +173,19 @@ export class ServiceRestorationManager {
     if (!this.isEnabled) return;
 
     this.isEnabled = false;
-    
+
     if (this.monitoringInterval) {
       clearInterval(this.monitoringInterval);
       this.monitoringInterval = null;
     }
-    
+
     // Pause any active restorations
     for (const execution of this.activeRestorations.values()) {
       if (execution.overallStatus === 'in_progress') {
         execution.overallStatus = 'paused';
       }
     }
-    
+
     structuredLogger.info('Service restoration manager disabled');
   }
 
@@ -162,40 +193,49 @@ export class ServiceRestorationManager {
    * Manually trigger restoration for specific services
    */
   public async triggerRestoration(
-    services: string[], 
+    services: string[],
     planId?: string,
-    force: boolean = false
+    force: boolean = false,
   ): Promise<string | null> {
     try {
       // Find appropriate restoration plan
-      const plan = planId ? 
-        this.restorationPlans.get(planId) :
-        this.findBestRestorationPlan(services);
+      const plan = planId
+        ? this.restorationPlans.get(planId)
+        : this.findBestRestorationPlan(services);
 
       if (!plan) {
-        structuredLogger.warn('No suitable restoration plan found', { services, planId });
+        structuredLogger.warn('No suitable restoration plan found', {
+          services,
+          planId,
+        });
         return null;
       }
 
       // Check if we should start restoration
       if (!force && !this.shouldStartRestoration(services)) {
-        structuredLogger.info('Restoration conditions not met', { services, planId: plan.planId });
+        structuredLogger.info('Restoration conditions not met', {
+          services,
+          planId: plan.planId,
+        });
         return null;
       }
 
       // Start restoration execution
       const executionId = await this.startRestorationExecution(plan, services);
-      
+
       structuredLogger.info('Manual restoration triggered', {
         services,
         planId: plan.planId,
-        executionId
+        executionId,
       });
-      
-      return executionId;
 
+      return executionId;
     } catch (error) {
-      structuredLogger.error('Failed to trigger restoration', { services, planId }, error as Error);
+      structuredLogger.error(
+        'Failed to trigger restoration',
+        { services, planId },
+        error as Error,
+      );
       return null;
     }
   }
@@ -213,14 +253,16 @@ export class ServiceRestorationManager {
       enabled: this.isEnabled,
       activeRestorations: this.activeRestorations.size,
       restorationExecutions: Array.from(this.activeRestorations.values()),
-      systemStatus: this.fallbackManager.getSystemStatus()
+      systemStatus: this.fallbackManager.getSystemStatus(),
     };
   }
 
   /**
    * Get restoration execution details
    */
-  public getRestorationExecution(executionId: string): RestorationExecution | undefined {
+  public getRestorationExecution(
+    executionId: string,
+  ): RestorationExecution | undefined {
     return this.activeRestorations.get(executionId);
   }
 
@@ -249,7 +291,7 @@ export class ServiceRestorationManager {
 
     execution.overallStatus = 'in_progress';
     structuredLogger.info('Restoration resumed', { executionId });
-    
+
     // Continue execution
     await this.continueRestorationExecution(execution);
     return true;
@@ -267,7 +309,11 @@ export class ServiceRestorationManager {
       structuredLogger.info('Restoration cancelled', { executionId });
       return true;
     } catch (error) {
-      structuredLogger.error('Failed to cancel restoration', { executionId }, error as Error);
+      structuredLogger.error(
+        'Failed to cancel restoration',
+        { executionId },
+        error as Error,
+      );
       return false;
     }
   }
@@ -290,41 +336,41 @@ export class ServiceRestorationManager {
               type: 'service_health',
               target: '*',
               threshold: 'degraded', // At least degraded, preferably healthy
-              description: 'Service health must be at least degraded'
+              description: 'Service health must be at least degraded',
             },
             {
               type: 'stability_window',
               threshold: 60000, // 1 minute
-              description: 'Service must be stable for 1 minute'
-            }
+              description: 'Service must be stable for 1 minute',
+            },
           ],
           actions: [
             {
               actionType: 'run_tests',
               target: 'service_connectivity',
               parameters: { testDepth: 'basic' },
-              retryable: true
-            }
+              retryable: true,
+            },
           ],
           successCriteria: {
             healthThreshold: 'degraded',
             stabilityPeriod: 30000,
             maxErrorRate: 0.1,
-            minSuccessRate: 0.9
+            minSuccessRate: 0.9,
           },
           rollbackTriggers: [
             {
               condition: {
                 type: 'service_health',
                 threshold: 'unavailable',
-                description: 'Service becomes unavailable during verification'
+                description: 'Service becomes unavailable during verification',
               },
               action: 'pause_restoration',
-              reason: 'Service health deteriorated'
-            }
+              reason: 'Service health deteriorated',
+            },
           ],
           estimatedDuration: 120000, // 2 minutes
-          canSkip: false
+          canSkip: false,
         },
         {
           phaseId: 'gradual_restoration',
@@ -335,48 +381,49 @@ export class ServiceRestorationManager {
               type: 'service_health',
               target: '*',
               threshold: 'healthy',
-              description: 'Service health must be healthy'
-            }
+              description: 'Service health must be healthy',
+            },
           ],
           actions: [
             {
               actionType: 'restore_features',
               target: 'primary_functionality',
-              parameters: { 
+              parameters: {
                 percentage: 25,
-                monitor: true 
+                monitor: true,
               },
-              retryable: true
+              retryable: true,
             },
             {
               actionType: 'user_notification',
               target: 'restoration_progress',
               parameters: {
-                message: 'Service restoration in progress - 25% functionality restored',
-                type: 'info'
+                message:
+                  'Service restoration in progress - 25% functionality restored',
+                type: 'info',
               },
-              retryable: false
-            }
+              retryable: false,
+            },
           ],
           successCriteria: {
             healthThreshold: 'healthy',
             stabilityPeriod: 120000, // 2 minutes
             maxErrorRate: 0.05,
-            minSuccessRate: 0.95
+            minSuccessRate: 0.95,
           },
           rollbackTriggers: [
             {
               condition: {
                 type: 'error_rate',
                 threshold: 0.15,
-                description: 'Error rate exceeds 15%'
+                description: 'Error rate exceeds 15%',
               },
               action: 'rollback_phase',
-              reason: 'High error rate detected'
-            }
+              reason: 'High error rate detected',
+            },
           ],
           estimatedDuration: 180000, // 3 minutes
-          canSkip: false
+          canSkip: false,
         },
         {
           phaseId: 'full_restoration',
@@ -386,59 +433,60 @@ export class ServiceRestorationManager {
             {
               type: 'time_elapsed',
               threshold: 300000, // 5 minutes since start
-              description: '5 minutes must have elapsed since restoration start'
-            }
+              description:
+                '5 minutes must have elapsed since restoration start',
+            },
           ],
           actions: [
             {
               actionType: 'restore_features',
               target: 'all_functionality',
-              parameters: { 
+              parameters: {
                 percentage: 100,
-                enableAdvancedFeatures: true 
+                enableAdvancedFeatures: true,
               },
-              retryable: true
+              retryable: true,
             },
             {
               actionType: 'clear_fallbacks',
               target: 'service_fallbacks',
               parameters: {},
-              retryable: true
+              retryable: true,
             },
             {
               actionType: 'user_notification',
               target: 'restoration_complete',
               parameters: {
                 message: 'Service fully restored - all features available',
-                type: 'success'
+                type: 'success',
               },
-              retryable: false
-            }
+              retryable: false,
+            },
           ],
           successCriteria: {
             healthThreshold: 'healthy',
             stabilityPeriod: 300000, // 5 minutes
             maxErrorRate: 0.02,
-            minSuccessRate: 0.98
+            minSuccessRate: 0.98,
           },
           rollbackTriggers: [
             {
               condition: {
                 type: 'error_rate',
                 threshold: 0.1,
-                description: 'Error rate exceeds 10% during full restoration'
+                description: 'Error rate exceeds 10% during full restoration',
               },
               action: 'rollback_phase',
-              reason: 'Full restoration failed'
-            }
+              reason: 'Full restoration failed',
+            },
           ],
           estimatedDuration: 300000, // 5 minutes
-          canSkip: false
-        }
+          canSkip: false,
+        },
       ],
       totalEstimatedDuration: 600000, // 10 minutes total
       applicableToServices: ['*'], // Any service
-      priority: 1
+      priority: 1,
     });
 
     // Plan 2: Critical System Recovery
@@ -455,36 +503,37 @@ export class ServiceRestorationManager {
             {
               type: 'custom',
               threshold: () => this.assessCriticalSystemReadiness(),
-              description: 'Critical system readiness assessment'
-            }
+              description: 'Critical system readiness assessment',
+            },
           ],
           actions: [
             {
               actionType: 'run_tests',
               target: 'system_infrastructure',
               parameters: { testDepth: 'comprehensive' },
-              retryable: true
+              retryable: true,
             },
             {
               actionType: 'user_notification',
               target: 'restoration_start',
               parameters: {
-                message: 'System recovery initiated. Core features will be restored gradually.',
+                message:
+                  'System recovery initiated. Core features will be restored gradually.',
                 type: 'info',
-                persistent: true
+                persistent: true,
               },
-              retryable: false
-            }
+              retryable: false,
+            },
           ],
           successCriteria: {
             healthThreshold: 'degraded',
             stabilityPeriod: 120000,
             maxErrorRate: 0.2,
-            minSuccessRate: 0.8
+            minSuccessRate: 0.8,
           },
           rollbackTriggers: [],
           estimatedDuration: 300000, // 5 minutes
-          canSkip: false
+          canSkip: false,
         },
         {
           phaseId: 'core_services_restoration',
@@ -495,34 +544,34 @@ export class ServiceRestorationManager {
               type: 'service_health',
               target: 'claude_skills_api',
               threshold: 'degraded',
-              description: 'Claude Skills API must be at least degraded'
-            }
+              description: 'Claude Skills API must be at least degraded',
+            },
           ],
           actions: [
             {
               actionType: 'enable_service',
               target: 'claude_skills_api',
-              parameters: { 
+              parameters: {
                 limitedMode: true,
-                maxConcurrentRequests: 10 
+                maxConcurrentRequests: 10,
               },
-              retryable: true
+              retryable: true,
             },
             {
               actionType: 'restore_features',
               target: 'story_generation',
-              parameters: { 
+              parameters: {
                 basicMode: true,
-                useCache: true 
+                useCache: true,
               },
-              retryable: true
-            }
+              retryable: true,
+            },
           ],
           successCriteria: {
             healthThreshold: 'degraded',
             stabilityPeriod: 180000,
             maxErrorRate: 0.1,
-            minSuccessRate: 0.9
+            minSuccessRate: 0.9,
           },
           rollbackTriggers: [
             {
@@ -530,14 +579,14 @@ export class ServiceRestorationManager {
                 type: 'service_health',
                 target: 'claude_skills_api',
                 threshold: 'unavailable',
-                description: 'Claude Skills API becomes unavailable'
+                description: 'Claude Skills API becomes unavailable',
               },
               action: 'rollback_all',
-              reason: 'Core service failure'
-            }
+              reason: 'Core service failure',
+            },
           ],
           estimatedDuration: 420000, // 7 minutes
-          canSkip: false
+          canSkip: false,
         },
         {
           phaseId: 'enhanced_services_restoration',
@@ -547,63 +596,67 @@ export class ServiceRestorationManager {
             {
               type: 'time_elapsed',
               threshold: 600000, // 10 minutes since start
-              description: '10 minutes must have elapsed'
+              description: '10 minutes must have elapsed',
             },
             {
               type: 'user_load',
               threshold: 0.5, // 50% normal load
-              description: 'System load must be manageable'
-            }
+              description: 'System load must be manageable',
+            },
           ],
           actions: [
             {
               actionType: 'restore_features',
               target: 'advanced_features',
-              parameters: { 
+              parameters: {
                 personalization: true,
                 contentPrediction: true,
-                qualityAssessment: true 
+                qualityAssessment: true,
               },
-              retryable: true
+              retryable: true,
             },
             {
               actionType: 'update_config',
               target: 'performance_settings',
-              parameters: { 
-                restoreOptimalSettings: true 
+              parameters: {
+                restoreOptimalSettings: true,
               },
-              retryable: true
-            }
+              retryable: true,
+            },
           ],
           successCriteria: {
             healthThreshold: 'healthy',
             stabilityPeriod: 300000,
             maxErrorRate: 0.03,
-            minSuccessRate: 0.97
+            minSuccessRate: 0.97,
           },
           rollbackTriggers: [
             {
               condition: {
                 type: 'error_rate',
                 threshold: 0.08,
-                description: 'Error rate exceeds 8%'
+                description: 'Error rate exceeds 8%',
               },
               action: 'rollback_phase',
-              reason: 'Enhanced features causing instability'
-            }
+              reason: 'Enhanced features causing instability',
+            },
           ],
           estimatedDuration: 480000, // 8 minutes
-          canSkip: true
-        }
+          canSkip: true,
+        },
       ],
       totalEstimatedDuration: 1200000, // 20 minutes total
-      applicableToServices: ['claude_skills_api', 'story_generation', 'content_prediction'],
-      priority: 0 // Highest priority
+      applicableToServices: [
+        'claude_skills_api',
+        'story_generation',
+        'content_prediction',
+      ],
+      priority: 0, // Highest priority
     });
 
     structuredLogger.info('Restoration plans initialized', {
       plansCount: this.restorationPlans.size,
-      plans: Array.from(this.restorationPlans.keys())
+      plans: Array.from(this.restorationPlans.keys()),
     });
   }
 
@@ -618,29 +671,43 @@ export class ServiceRestorationManager {
     if (!this.isEnabled) return;
 
     const systemStatus = this.fallbackManager.getSystemStatus();
-    
+
     // Only consider restoration if system is degraded but not in emergency
-    if (systemStatus.overall === 'normal' || systemStatus.overall === 'emergency') {
+    if (
+      systemStatus.overall === 'normal' ||
+      systemStatus.overall === 'emergency'
+    ) {
       return;
     }
 
     // Check each disabled service for restoration potential
     const systemHealth = this.healthMonitor.getSystemHealth();
-    
+
     for (const serviceName of systemHealth.unavailableServices) {
       const serviceHealth = this.healthMonitor.getServiceHealth(serviceName);
-      
+
       // If service health improved, consider restoration
-      if (serviceHealth?.status === 'healthy' || serviceHealth?.status === 'degraded') {
-        const hasActiveRestoration = Array.from(this.activeRestorations.values())
-          .some(exec => exec.planId.includes(serviceName) && exec.overallStatus === 'in_progress');
-        
-        if (!hasActiveRestoration && this.shouldStartRestoration([serviceName])) {
+      if (
+        serviceHealth?.status === 'healthy' ||
+        serviceHealth?.status === 'degraded'
+      ) {
+        const hasActiveRestoration = Array.from(
+          this.activeRestorations.values(),
+        ).some(
+          exec =>
+            exec.planId.includes(serviceName) &&
+            exec.overallStatus === 'in_progress',
+        );
+
+        if (
+          !hasActiveRestoration &&
+          this.shouldStartRestoration([serviceName])
+        ) {
           structuredLogger.info('Restoration opportunity detected', {
             service: serviceName,
-            currentHealth: serviceHealth.status
+            currentHealth: serviceHealth.status,
           });
-          
+
           await this.triggerRestoration([serviceName]);
         }
       }
@@ -673,32 +740,48 @@ export class ServiceRestorationManager {
     return true;
   }
 
-  private findBestRestorationPlan(services: string[]): RestorationPlan | undefined {
+  private findBestRestorationPlan(
+    services: string[],
+  ): RestorationPlan | undefined {
     const plans = Array.from(this.restorationPlans.values());
-    
+
     // Filter plans applicable to these services
-    const applicablePlans = plans.filter(plan =>
-      plan.applicableToServices.includes('*') || 
-      services.some(service => plan.applicableToServices.includes(service))
+    const applicablePlans = plans.filter(
+      plan =>
+        plan.applicableToServices.includes('*') ||
+        services.some(service => plan.applicableToServices.includes(service)),
     );
 
     if (applicablePlans.length === 0) return undefined;
 
     // Choose plan based on priority and scope
     const systemStatus = this.fallbackManager.getSystemStatus();
-    
+
     if (systemStatus.overall === 'critical' || services.length > 2) {
       // Use critical recovery plan for widespread issues
-      return applicablePlans.find(plan => plan.planId === 'critical_system_recovery') || applicablePlans[0];
+      return (
+        applicablePlans.find(
+          plan => plan.planId === 'critical_system_recovery',
+        ) || applicablePlans[0]
+      );
     } else {
       // Use basic recovery for individual services
-      return applicablePlans.find(plan => plan.planId === 'basic_service_recovery') || applicablePlans[0];
+      return (
+        applicablePlans.find(
+          plan => plan.planId === 'basic_service_recovery',
+        ) || applicablePlans[0]
+      );
     }
   }
 
-  private async startRestorationExecution(plan: RestorationPlan, services: string[]): Promise<string> {
-    const executionId = `resto_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-    
+  private async startRestorationExecution(
+    plan: RestorationPlan,
+    services: string[],
+  ): Promise<string> {
+    const executionId = `resto_${Date.now()}_${Math.random()
+      .toString(36)
+      .substr(2, 5)}`;
+
     const execution: RestorationExecution = {
       planId: plan.planId,
       startTime: new Date(),
@@ -714,26 +797,28 @@ export class ServiceRestorationManager {
         rollbacksTriggered: 0,
         finalSuccessRate: 0,
         userImpactScore: 0.5,
-        systemStabilityScore: 0.5
-      }
+        systemStabilityScore: 0.5,
+      },
     };
 
     this.activeRestorations.set(executionId, execution);
-    
+
     structuredLogger.info('Restoration execution started', {
       executionId,
       planId: plan.planId,
       services,
-      estimatedDuration: plan.totalEstimatedDuration
+      estimatedDuration: plan.totalEstimatedDuration,
     });
 
     // Start executing phases
     await this.continueRestorationExecution(execution);
-    
+
     return executionId;
   }
 
-  private async continueRestorationExecution(execution: RestorationExecution): Promise<void> {
+  private async continueRestorationExecution(
+    execution: RestorationExecution,
+  ): Promise<void> {
     if (execution.overallStatus !== 'in_progress') return;
 
     const plan = this.restorationPlans.get(execution.planId);
@@ -744,51 +829,65 @@ export class ServiceRestorationManager {
     }
 
     try {
-      while (execution.currentPhase < plan.phases.length && execution.overallStatus === 'in_progress') {
+      while (
+        execution.currentPhase < plan.phases.length &&
+        execution.overallStatus === 'in_progress'
+      ) {
         const phase = plan.phases[execution.currentPhase];
         await this.executeRestorationPhase(execution, phase);
-        
+
         if (execution.overallStatus === 'in_progress') {
           execution.currentPhase++;
         }
       }
 
       // If all phases completed successfully
-      if (execution.currentPhase >= plan.phases.length && execution.overallStatus === 'in_progress') {
+      if (
+        execution.currentPhase >= plan.phases.length &&
+        execution.overallStatus === 'in_progress'
+      ) {
         execution.overallStatus = 'completed';
         await this.finalizeRestoration(execution);
       }
-
     } catch (error) {
-      structuredLogger.error('Restoration execution failed', {
-        planId: execution.planId
-      }, error as Error);
-      
+      structuredLogger.error(
+        'Restoration execution failed',
+        {
+          planId: execution.planId,
+        },
+        error as Error,
+      );
+
       execution.overallStatus = 'failed';
       execution.errors.push((error as Error).message);
     }
   }
 
-  private async executeRestorationPhase(execution: RestorationExecution, phase: RestorationPhase): Promise<void> {
+  private async executeRestorationPhase(
+    execution: RestorationExecution,
+    phase: RestorationPhase,
+  ): Promise<void> {
     const phaseExecution: PhaseExecution = {
       phaseId: phase.phaseId,
       startTime: new Date(),
       status: 'in_progress',
       actionsExecuted: [],
       conditionsChecked: [],
-      errors: []
+      errors: [],
     };
 
     execution.phaseExecutions.push(phaseExecution);
-    
+
     try {
       structuredLogger.info('Starting restoration phase', {
         phaseId: phase.phaseId,
-        phaseName: phase.name
+        phaseName: phase.name,
       });
 
       // Check conditions
-      const conditionsMet = await this.checkRestorationConditions(phase.conditions);
+      const conditionsMet = await this.checkRestorationConditions(
+        phase.conditions,
+      );
       phaseExecution.conditionsChecked = [...phase.conditions];
 
       if (!conditionsMet && !phase.canSkip) {
@@ -803,7 +902,7 @@ export class ServiceRestorationManager {
         execution.metrics.phasesSkipped++;
         structuredLogger.info('Restoration phase skipped', {
           phaseId: phase.phaseId,
-          reason: 'Conditions not met but phase is skippable'
+          reason: 'Conditions not met but phase is skippable',
         });
         return;
       }
@@ -816,63 +915,69 @@ export class ServiceRestorationManager {
         } catch (actionError) {
           const errorMsg = `Action failed: ${action.actionType} on ${action.target}`;
           phaseExecution.errors.push(errorMsg);
-          
+
           if (!action.retryable) {
             throw new Error(errorMsg);
           }
-          
+
           structuredLogger.warn('Restoration action failed but continuing', {
             phaseId: phase.phaseId,
             actionType: action.actionType,
-            error: (actionError as Error).message
+            error: (actionError as Error).message,
           });
         }
       }
 
       // Verify success criteria
       const success = await this.verifyPhaseSuccess(phase.successCriteria);
-      
+
       if (success) {
         phaseExecution.status = 'completed';
         execution.metrics.phasesCompleted++;
-        
+
         structuredLogger.info('Restoration phase completed', {
           phaseId: phase.phaseId,
-          duration: Date.now() - phaseExecution.startTime.getTime()
+          duration: Date.now() - phaseExecution.startTime.getTime(),
         });
       } else {
         phaseExecution.status = 'failed';
         execution.metrics.phasesFailed++;
         execution.overallStatus = 'failed';
-        
+
         structuredLogger.error('Restoration phase failed verification', {
-          phaseId: phase.phaseId
+          phaseId: phase.phaseId,
         });
       }
-
     } catch (error) {
       phaseExecution.status = 'failed';
       phaseExecution.errors.push((error as Error).message);
       execution.metrics.phasesFailed++;
       execution.overallStatus = 'failed';
-      
-      structuredLogger.error('Restoration phase execution failed', {
-        phaseId: phase.phaseId
-      }, error as Error);
+
+      structuredLogger.error(
+        'Restoration phase execution failed',
+        {
+          phaseId: phase.phaseId,
+        },
+        error as Error,
+      );
     } finally {
       phaseExecution.endTime = new Date();
-      phaseExecution.duration = phaseExecution.endTime.getTime() - phaseExecution.startTime.getTime();
+      phaseExecution.duration =
+        phaseExecution.endTime.getTime() - phaseExecution.startTime.getTime();
     }
   }
 
-  private async checkRestorationConditions(conditions: RestorationCondition[]): Promise<boolean> {
+  private async checkRestorationConditions(
+    conditions: RestorationCondition[],
+  ): Promise<boolean> {
     for (const condition of conditions) {
       const met = await this.evaluateCondition(condition);
       if (!met) {
         structuredLogger.debug('Restoration condition not met', {
           type: condition.type,
           target: condition.target,
-          description: condition.description
+          description: condition.description,
         });
         return false;
       }
@@ -880,20 +985,27 @@ export class ServiceRestorationManager {
     return true;
   }
 
-  private async evaluateCondition(condition: RestorationCondition): Promise<boolean> {
+  private async evaluateCondition(
+    condition: RestorationCondition,
+  ): Promise<boolean> {
     switch (condition.type) {
       case 'service_health':
-        const serviceHealth = condition.target === '*' ? 
-          this.healthMonitor.getSystemHealth() :
-          this.healthMonitor.getServiceHealth(condition.target!);
-        
+        const serviceHealth =
+          condition.target === '*'
+            ? this.healthMonitor.getSystemHealth()
+            : this.healthMonitor.getServiceHealth(condition.target!);
+
         if (condition.target === '*') {
-          const health = serviceHealth as ReturnType<typeof this.healthMonitor.getSystemHealth>;
+          const health = serviceHealth as ReturnType<
+            typeof this.healthMonitor.getSystemHealth
+          >;
           return health.overall !== 'unavailable';
         } else {
           const health = serviceHealth as ServiceHealthStatus;
-          return health?.status === condition.threshold || 
-                 (condition.threshold === 'degraded' && health?.status === 'healthy');
+          return (
+            health?.status === condition.threshold ||
+            (condition.threshold === 'degraded' && health?.status === 'healthy')
+          );
         }
 
       case 'time_elapsed':
@@ -923,7 +1035,9 @@ export class ServiceRestorationManager {
     }
   }
 
-  private async executeRestorationAction(action: RestorationAction): Promise<void> {
+  private async executeRestorationAction(
+    action: RestorationAction,
+  ): Promise<void> {
     switch (action.actionType) {
       case 'enable_service':
         await this.enableService(action.target, action.parameters);
@@ -938,7 +1052,10 @@ export class ServiceRestorationManager {
         await this.runTests(action.target, action.parameters);
         break;
       case 'user_notification':
-        await this.sendRestorationNotification(action.target, action.parameters);
+        await this.sendRestorationNotification(
+          action.target,
+          action.parameters,
+        );
         break;
       case 'increase_capacity':
         await this.increaseCapacity(action.target, action.parameters);
@@ -951,24 +1068,36 @@ export class ServiceRestorationManager {
     }
   }
 
-  private async enableService(target: string, parameters: Record<string, any>): Promise<void> {
+  private async enableService(
+    target: string,
+    parameters: Record<string, any>,
+  ): Promise<void> {
     structuredLogger.info('Enabling service', { target, parameters });
     // Implementation would enable the specific service
   }
 
-  private async restoreFeatures(target: string, parameters: Record<string, any>): Promise<void> {
+  private async restoreFeatures(
+    target: string,
+    parameters: Record<string, any>,
+  ): Promise<void> {
     structuredLogger.info('Restoring features', { target, parameters });
     // Implementation would restore specific features
   }
 
-  private async clearFallbacks(target: string, parameters: Record<string, any>): Promise<void> {
+  private async clearFallbacks(
+    target: string,
+    parameters: Record<string, any>,
+  ): Promise<void> {
     structuredLogger.info('Clearing fallbacks', { target, parameters });
     // Implementation would clear relevant fallbacks
   }
 
-  private async runTests(target: string, parameters: Record<string, any>): Promise<void> {
+  private async runTests(
+    target: string,
+    parameters: Record<string, any>,
+  ): Promise<void> {
     structuredLogger.info('Running restoration tests', { target, parameters });
-    
+
     // Basic connectivity test
     if (target === 'service_connectivity') {
       const systemHealth = this.healthMonitor.getSystemHealth();
@@ -978,26 +1107,45 @@ export class ServiceRestorationManager {
     }
   }
 
-  private async sendRestorationNotification(target: string, parameters: Record<string, any>): Promise<void> {
-    structuredLogger.info('Sending restoration notification', { target, parameters });
+  private async sendRestorationNotification(
+    target: string,
+    parameters: Record<string, any>,
+  ): Promise<void> {
+    structuredLogger.info('Sending restoration notification', {
+      target,
+      parameters,
+    });
     // Implementation would send user notification
   }
 
-  private async increaseCapacity(target: string, parameters: Record<string, any>): Promise<void> {
-    structuredLogger.info('Increasing service capacity', { target, parameters });
+  private async increaseCapacity(
+    target: string,
+    parameters: Record<string, any>,
+  ): Promise<void> {
+    structuredLogger.info('Increasing service capacity', {
+      target,
+      parameters,
+    });
     // Implementation would increase system capacity
   }
 
-  private async updateConfiguration(target: string, parameters: Record<string, any>): Promise<void> {
+  private async updateConfiguration(
+    target: string,
+    parameters: Record<string, any>,
+  ): Promise<void> {
     structuredLogger.info('Updating configuration', { target, parameters });
     // Implementation would update service configuration
   }
 
-  private async verifyPhaseSuccess(criteria: SuccessCriteria): Promise<boolean> {
+  private async verifyPhaseSuccess(
+    criteria: SuccessCriteria,
+  ): Promise<boolean> {
     // Check health threshold
     const systemHealth = this.healthMonitor.getSystemHealth();
-    const healthMet = systemHealth.overall === criteria.healthThreshold || 
-                     (criteria.healthThreshold === 'degraded' && systemHealth.overall === 'healthy');
+    const healthMet =
+      systemHealth.overall === criteria.healthThreshold ||
+      (criteria.healthThreshold === 'degraded' &&
+        systemHealth.overall === 'healthy');
 
     if (!healthMet) return false;
 
@@ -1012,11 +1160,14 @@ export class ServiceRestorationManager {
     return true;
   }
 
-  private async rollbackRestoration(execution: RestorationExecution, reason: string): Promise<void> {
+  private async rollbackRestoration(
+    execution: RestorationExecution,
+    reason: string,
+  ): Promise<void> {
     try {
       structuredLogger.info('Rolling back restoration', {
         planId: execution.planId,
-        reason
+        reason,
       });
 
       execution.overallStatus = 'rolled_back';
@@ -1024,36 +1175,46 @@ export class ServiceRestorationManager {
       execution.metrics.rollbacksTriggered++;
 
       // Implementation would reverse restoration actions
-      
     } catch (error) {
-      structuredLogger.error('Restoration rollback failed', {
-        planId: execution.planId
-      }, error as Error);
+      structuredLogger.error(
+        'Restoration rollback failed',
+        {
+          planId: execution.planId,
+        },
+        error as Error,
+      );
     }
   }
 
-  private async finalizeRestoration(execution: RestorationExecution): Promise<void> {
-    execution.metrics.totalDuration = Date.now() - execution.startTime.getTime();
-    
+  private async finalizeRestoration(
+    execution: RestorationExecution,
+  ): Promise<void> {
+    execution.metrics.totalDuration =
+      Date.now() - execution.startTime.getTime();
+
     // Calculate final metrics
     const systemHealth = this.healthMonitor.getSystemHealth();
-    execution.metrics.systemStabilityScore = systemHealth.overall === 'normal' ? 1 : 0.7;
+    execution.metrics.systemStabilityScore =
+      systemHealth.overall === 'normal' ? 1 : 0.7;
     execution.metrics.userImpactScore = 0.2; // Low impact after successful restoration
 
     // Move to history
-    this.restorationHistory.push({...execution});
+    this.restorationHistory.push({ ...execution });
     this.activeRestorations.delete(execution.planId);
 
     structuredLogger.info('Restoration completed successfully', {
       planId: execution.planId,
       totalDuration: execution.metrics.totalDuration,
-      phasesCompleted: execution.metrics.phasesCompleted
+      phasesCompleted: execution.metrics.phasesCompleted,
     });
   }
 
   private async assessCriticalSystemReadiness(): Promise<boolean> {
     const systemHealth = this.healthMonitor.getSystemHealth();
-    return systemHealth.unavailableServices.length < systemHealth.availableServices.length;
+    return (
+      systemHealth.unavailableServices.length <
+      systemHealth.availableServices.length
+    );
   }
 
   /**
@@ -1068,11 +1229,15 @@ export class ServiceRestorationManager {
     recentHistory: RestorationExecution[];
   } {
     const history = this.restorationHistory;
-    const successful = history.filter(exec => exec.overallStatus === 'completed').length;
-    
+    const successful = history.filter(
+      exec => exec.overallStatus === 'completed',
+    ).length;
+
     let averageTime = 0;
     if (history.length > 0) {
-      averageTime = history.reduce((sum, exec) => sum + exec.metrics.totalDuration, 0) / history.length;
+      averageTime =
+        history.reduce((sum, exec) => sum + exec.metrics.totalDuration, 0) /
+        history.length;
     }
 
     // Find most used plan
@@ -1080,17 +1245,18 @@ export class ServiceRestorationManager {
     history.forEach(exec => {
       planCounts[exec.planId] = (planCounts[exec.planId] || 0) + 1;
     });
-    
-    const mostUsedPlan = Object.entries(planCounts)
-      .sort(([, a], [, b]) => b - a)[0]?.[0] || null;
+
+    const mostUsedPlan =
+      Object.entries(planCounts).sort(([, a], [, b]) => b - a)[0]?.[0] || null;
 
     return {
       totalRestorations: history.length,
       successfulRestorations: successful,
       averageRestorationTime: averageTime,
-      restorationSuccessRate: history.length > 0 ? successful / history.length : 1,
+      restorationSuccessRate:
+        history.length > 0 ? successful / history.length : 1,
       mostUsedPlan,
-      recentHistory: history.slice(-10) // Last 10 restorations
+      recentHistory: history.slice(-10), // Last 10 restorations
     };
   }
 }

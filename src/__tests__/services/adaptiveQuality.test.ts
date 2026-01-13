@@ -1,14 +1,24 @@
 /**
  * Adaptive Quality Thresholds Tests
- * 
+ *
  * Tests for the adaptive quality threshold system
  * Task 5.2: Adaptive Quality Thresholds
  */
 
-import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
-import { ContentQualityService, QualityAssessmentMetrics } from '../../services/contentQuality';
+import {
+  jest,
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+} from '@jest/globals';
+import {
+  ContentQualityService,
+  QualityAssessmentMetrics,
+} from '../../services/contentQuality';
 import { userPreferencesService } from '../../services/userPreferences';
-import { StoryRequest, StoryResponse } from '../../types/story';
+// import { StoryRequest, StoryResponse } from '../../types/story';
 import { SkillManager } from '../../types/claudeSkills';
 
 jest.mock('../../utils/logger');
@@ -63,13 +73,18 @@ describe('Adaptive Quality Thresholds', () => {
             userRating: assessment.userRating,
             retryCount: 0,
             shareCount: 0,
-          }
+          },
         );
       }
 
       // Get adaptive quality standards
-      const adaptedStandards = await qualityService.getAdaptiveQualityStandards('K-2', userId);
-      const baseStandards = await qualityService.getAdaptiveQualityStandards('K-2');
+      const adaptedStandards = await qualityService.getAdaptiveQualityStandards(
+        'K-2',
+        userId,
+      );
+      const baseStandards = await qualityService.getAdaptiveQualityStandards(
+        'K-2',
+      );
 
       // Verify adaptation occurred
       expect(adaptedStandards).toBeDefined();
@@ -118,7 +133,9 @@ describe('Adaptive Quality Thresholds', () => {
       expect(analysis.qualityEngagementCorrelation).toBeLessThan(0); // Negative correlation expected from test data
       expect(analysis.optimalQualityRange).toBeDefined();
       expect(analysis.insights).toHaveLength(2);
-      expect(analysis.insights[0]).toContain('Quality scores may be too strict');
+      expect(analysis.insights[0]).toContain(
+        'Quality scores may be too strict',
+      );
     });
 
     it('should provide fallback when insufficient data for correlation', () => {
@@ -127,7 +144,9 @@ describe('Adaptive Quality Thresholds', () => {
 
       expect(analysis.qualityEngagementCorrelation).toBe(0);
       expect(analysis.optimalQualityRange).toEqual({ min: 80, max: 95 });
-      expect(analysis.insights).toEqual(['Insufficient data for correlation analysis']);
+      expect(analysis.insights).toEqual([
+        'Insufficient data for correlation analysis',
+      ]);
     });
   });
 
@@ -149,7 +168,7 @@ describe('Adaptive Quality Thresholds', () => {
         await userPreferencesService.recordQualityFeedback(
           improvement.score / 100, // Convert to 0-1 scale
           improvement.satisfaction / 5, // Convert to 0-1 scale
-          0.8 // Consistent engagement
+          0.8, // Consistent engagement
         );
 
         // Small delay to ensure timestamp ordering
@@ -176,7 +195,7 @@ describe('Adaptive Quality Thresholds', () => {
         await userPreferencesService.recordQualityFeedback(
           pref.score / 100,
           pref.satisfaction / 5,
-          pref.engagement
+          pref.engagement,
         );
       }
 
@@ -195,14 +214,16 @@ describe('Adaptive Quality Thresholds', () => {
         await userPreferencesService.recordQualityFeedback(
           pref.score / 100,
           pref.satisfaction / 5,
-          pref.engagement
+          pref.engagement,
         );
       }
 
       const updatedPrefs = userPreferencesService.getQualityPreferences();
-      
+
       // Quality preference should adapt upward
-      expect(updatedPrefs!.preferredQualityLevel).toBeGreaterThan(initialQualityLevel);
+      expect(updatedPrefs!.preferredQualityLevel).toBeGreaterThan(
+        initialQualityLevel,
+      );
     });
   });
 
@@ -242,12 +263,17 @@ describe('Adaptive Quality Thresholds', () => {
       };
 
       const userId = 'educational-preservation-user';
-      const result = await qualityService.assessContent(story, request, true, userId);
+      const result = await qualityService.assessContent(
+        story,
+        request,
+        true,
+        userId,
+      );
 
       // Educational value should be maintained
       expect(result.metrics.educationalValue).toBe(90);
       expect(result.passed).toBe(true);
-      
+
       // Verify that adaptive thresholds don't compromise educational standards
       expect(result.metrics.educationalValue).toBeGreaterThanOrEqual(80);
     });
@@ -266,20 +292,29 @@ describe('Adaptive Quality Thresholds', () => {
         await userPreferencesService.recordQualityFeedback(
           feedback.score / 100,
           feedback.satisfaction / 5,
-          feedback.engagement
+          feedback.engagement,
         );
       }
 
       // Get adapted standards
-      const adaptedStandards = await qualityService.getAdaptiveQualityStandards('K-2', userId);
-      const baseStandards = await qualityService.getAdaptiveQualityStandards('K-2');
+      const adaptedStandards = await qualityService.getAdaptiveQualityStandards(
+        'K-2',
+        userId,
+      );
+      const baseStandards = await qualityService.getAdaptiveQualityStandards(
+        'K-2',
+      );
 
       // Educational value threshold should not be severely compromised
-      const adaptedEducationalThreshold = adaptedStandards.minimumScores.educationalValue || 80;
-      const baseEducationalThreshold = baseStandards.minimumScores.educationalValue || 80;
+      const adaptedEducationalThreshold =
+        adaptedStandards.minimumScores.educationalValue || 80;
+      const baseEducationalThreshold =
+        baseStandards.minimumScores.educationalValue || 80;
 
       // Allow some adaptation but maintain educational floor
-      expect(adaptedEducationalThreshold).toBeGreaterThanOrEqual(baseEducationalThreshold - 15);
+      expect(adaptedEducationalThreshold).toBeGreaterThanOrEqual(
+        baseEducationalThreshold - 15,
+      );
     });
   });
 
@@ -307,7 +342,9 @@ describe('Adaptive Quality Thresholds', () => {
       const userId = 'confidence-test-user';
 
       // Test with insufficient data
-      const adaptiveMetrics = (qualityService as any).createInitialAdaptiveMetrics(userId, 'K-2');
+      const adaptiveMetrics = (
+        qualityService as any
+      ).createInitialAdaptiveMetrics(userId, 'K-2');
       expect(adaptiveMetrics.confidenceLevel).toBe(0);
 
       // Simulate sufficient quality feedback history
@@ -321,7 +358,9 @@ describe('Adaptive Quality Thresholds', () => {
         });
       }
 
-      const confidence = (qualityService as any).calculateAdaptationConfidence(adaptiveMetrics);
+      const confidence = (qualityService as any).calculateAdaptationConfidence(
+        adaptiveMetrics,
+      );
       expect(confidence).toBeGreaterThan(0.3); // Should have meaningful confidence with sufficient data
       expect(confidence).toBeLessThanOrEqual(1.0); // Should not exceed maximum confidence
     });

@@ -1,18 +1,21 @@
 /**
  * Enhanced Story Agent Service with Content Prediction
- * 
+ *
  * Wraps storyAgentService with ContentPredictionSkill integration
  * Task 3.1: Content Prediction Skill Integration
  */
 
 import { storyAgentService } from './storyAgent';
-import { StoryRequest, StoryResponse, GradeLevel } from '../types/story';
+// import { StoryRequest, StoryResponse, GradeLevel } from '../types/story';
 import {
   SkillEnhancedServiceFactory,
   SkillEnhancedServiceConfig,
 } from './base/SkillEnhancedService';
 import { getClaudeSkillsManager } from './claudeSkillsManager';
-import { contentPredictionService, StoryContextAnalysis } from './contentPrediction';
+import {
+  contentPredictionService,
+  StoryContextAnalysis,
+} from './contentPrediction';
 import { SkillExecutionPlan } from './base/SkillOrchestrator';
 import { structuredLogger } from '../utils/logger';
 
@@ -30,7 +33,7 @@ class EnhancedStoryAgentService {
     if (this.isInitialized) return;
 
     const skillManager = await getClaudeSkillsManager();
-    
+
     const config: SkillEnhancedServiceConfig = {
       enabled: true,
       skillTypes: ['ContentPredictionSkill'],
@@ -55,7 +58,9 @@ class EnhancedStoryAgentService {
           } else {
             return await storyAgentService.generateStoryStarter({
               gradeLevel: request.gradeLevel,
-              theme: request.userInput?.includes('theme') ? 'adventure' : undefined,
+              theme: request.userInput?.includes('theme')
+                ? 'adventure'
+                : undefined,
             });
           }
         },
@@ -65,8 +70,9 @@ class EnhancedStoryAgentService {
       {
         buildSkillExecutionPlan: async (request: StoryRequest) => {
           // Analyze story context
-          const contextAnalysis = await contentPredictionService.analyzeStoryContext(request);
-          
+          const contextAnalysis =
+            await contentPredictionService.analyzeStoryContext(request);
+
           // Only use prediction if context confidence is high enough
           if (contextAnalysis.confidence < 0.5) {
             return null; // Skip skill execution, use original service
@@ -97,17 +103,22 @@ class EnhancedStoryAgentService {
             stopOnError: false,
           };
         },
-        processSkillResults: async (request: StoryRequest, orchestrationResult: any) => {
+        processSkillResults: async (
+          request: StoryRequest,
+          orchestrationResult: any,
+        ) => {
           // Get prediction results
-          const predictionResult = orchestrationResult.results.get('ContentPredictionSkill_1.0.0');
-          
+          const predictionResult = orchestrationResult.results.get(
+            'ContentPredictionSkill_1.0.0',
+          );
+
           if (predictionResult?.success && predictionResult.data) {
             const predictions = predictionResult.data.predictions || [];
-            
+
             // Use prediction to enhance story generation
             // For now, we'll use predictions to inform caching decisions
             // The actual story generation still uses the original service
-            
+
             structuredLogger.info('Content prediction available for caching', {
               skillType: 'ContentPredictionSkill',
               predictionsCount: predictions.length,
@@ -128,7 +139,7 @@ class EnhancedStoryAgentService {
             });
           }
         },
-      }
+      },
     );
 
     this.isInitialized = true;
@@ -141,7 +152,7 @@ class EnhancedStoryAgentService {
     gradeLevel: GradeLevel,
     theme?: string,
     character?: string,
-    setting?: string
+    setting?: string,
   ): Promise<StoryResponse> {
     if (!this.isInitialized) {
       await this.initialize();
@@ -183,4 +194,3 @@ class EnhancedStoryAgentService {
 
 // Export singleton instance
 export const enhancedStoryAgentService = new EnhancedStoryAgentService();
-

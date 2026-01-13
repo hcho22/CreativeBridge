@@ -1,12 +1,12 @@
 /**
  * Network Adapter Service
- * 
+ *
  * Provides network condition monitoring and adaptive behavior for Claude Skills integration
  * Task 6.2: Progressive Enhancement System - Network adaptation component
  */
 
 import { structuredLogger } from '../utils/logger';
-import { StoryRequest, StoryResponse, GradeLevel } from '../types/story';
+// import { StoryRequest, StoryResponse, GradeLevel } from '../types/story';
 
 export interface NetworkConditions {
   type: 'wifi' | 'cellular' | 'offline' | 'unknown';
@@ -34,16 +34,31 @@ export interface NetworkRequirement {
 }
 
 export interface NetworkAdaptation {
-  adaptation: 'reduce_quality' | 'compress_data' | 'cache_aggressive' | 'offline_mode' | 'minimal_requests' | 'batch_requests';
+  adaptation:
+    | 'reduce_quality'
+    | 'compress_data'
+    | 'cache_aggressive'
+    | 'offline_mode'
+    | 'minimal_requests'
+    | 'batch_requests';
   trigger: AdaptationTrigger;
-  implementation: (request: StoryRequest, conditions: NetworkConditions) => Promise<AdaptedRequest>;
+  implementation: (
+    request: StoryRequest,
+    conditions: NetworkConditions,
+  ) => Promise<AdaptedRequest>;
   reversible: boolean;
   qualityImpact: number; // 0-1, impact on content quality
   performanceGain: number; // 0-1, expected performance improvement
 }
 
 export interface AdaptationTrigger {
-  condition: 'bandwidth_low' | 'latency_high' | 'packet_loss_high' | 'stability_low' | 'connection_lost' | 'quality_degraded';
+  condition:
+    | 'bandwidth_low'
+    | 'latency_high'
+    | 'packet_loss_high'
+    | 'stability_low'
+    | 'connection_lost'
+    | 'quality_degraded';
   threshold: number;
   windowSize: number; // time window in ms for evaluation
   consecutiveOccurrences: number;
@@ -103,7 +118,7 @@ export class NetworkAdapterService {
     successfulAdaptations: 0,
     qualityImpact: 0,
     performanceGain: 0,
-    userSatisfactionScore: 85
+    userSatisfactionScore: 85,
   };
 
   constructor() {
@@ -116,13 +131,15 @@ export class NetworkAdapterService {
   /**
    * Adapt request based on current network conditions
    */
-  public async adaptRequestForNetwork(request: StoryRequest): Promise<AdaptedRequest> {
+  public async adaptRequestForNetwork(
+    request: StoryRequest,
+  ): Promise<AdaptedRequest> {
     try {
       structuredLogger.info('Adapting request for network conditions', {
         networkQuality: this.currentConditions.quality,
         bandwidth: this.currentConditions.bandwidth,
         latency: this.currentConditions.latency,
-        requestType: 'story_generation'
+        requestType: 'story_generation',
       });
 
       // Update current conditions before adaptation
@@ -139,23 +156,25 @@ export class NetworkAdapterService {
 
       for (const adaptation of requiredAdaptations) {
         try {
-          const result = await adaptation.implementation(adaptedRequest, this.currentConditions);
+          const result = await adaptation.implementation(
+            adaptedRequest,
+            this.currentConditions,
+          );
           adaptedRequest = result.modifiedRequest;
           appliedAdaptations.push(adaptation.adaptation);
-          
+
           totalQualityImpact += adaptation.qualityImpact;
           totalPerformanceGain += adaptation.performanceGain;
 
           structuredLogger.debug('Network adaptation applied', {
             adaptation: adaptation.adaptation,
             qualityImpact: adaptation.qualityImpact,
-            performanceGain: adaptation.performanceGain
+            performanceGain: adaptation.performanceGain,
           });
-
         } catch (adaptationError) {
           structuredLogger.warn('Network adaptation failed', {
             adaptation: adaptation.adaptation,
-            error: (adaptationError as Error).message
+            error: (adaptationError as Error).message,
           });
         }
       }
@@ -165,9 +184,9 @@ export class NetworkAdapterService {
 
       // Update metrics
       this.adaptationMetrics.totalAdaptations++;
-      this.adaptationMetrics.qualityImpact = 
+      this.adaptationMetrics.qualityImpact =
         (this.adaptationMetrics.qualityImpact + totalQualityImpact) / 2;
-      this.adaptationMetrics.performanceGain = 
+      this.adaptationMetrics.performanceGain =
         (this.adaptationMetrics.performanceGain + totalPerformanceGain) / 2;
 
       const result: AdaptedRequest = {
@@ -175,25 +194,26 @@ export class NetworkAdapterService {
         adaptations: appliedAdaptations,
         modifiedRequest: adaptedRequest,
         expectedBehavior: {
-          reducedLatency: this.calculateExpectedLatencyReduction(appliedAdaptations),
-          reliabilityImprovement: this.calculateReliabilityImprovement(appliedAdaptations),
-          qualityImpact: Math.max(0, Math.min(1, totalQualityImpact))
+          reducedLatency:
+            this.calculateExpectedLatencyReduction(appliedAdaptations),
+          reliabilityImprovement:
+            this.calculateReliabilityImprovement(appliedAdaptations),
+          qualityImpact: Math.max(0, Math.min(1, totalQualityImpact)),
         },
-        fallbackPlan
+        fallbackPlan,
       };
 
       structuredLogger.info('Request adaptation completed', {
         adaptationsApplied: appliedAdaptations.length,
         expectedLatencyReduction: result.expectedBehavior.reducedLatency,
         qualityImpact: result.expectedBehavior.qualityImpact,
-        fallbackOptions: fallbackPlan.length
+        fallbackOptions: fallbackPlan.length,
       });
 
       return result;
-
     } catch (error) {
       structuredLogger.error('Request adaptation failed', {}, error as Error);
-      
+
       // Return original request with minimal adaptation
       return {
         originalRequest: request,
@@ -202,9 +222,9 @@ export class NetworkAdapterService {
         expectedBehavior: {
           reducedLatency: 0,
           reliabilityImprovement: 0,
-          qualityImpact: 0
+          qualityImpact: 0,
         },
-        fallbackPlan: ['offline_mode', 'cache_only']
+        fallbackPlan: ['offline_mode', 'cache_only'],
       };
     }
   }
@@ -222,14 +242,16 @@ export class NetworkAdapterService {
     try {
       await this.updateNetworkConditions();
 
-      const strategy = this.adaptationStrategies.get(operationType) || 
-                      this.adaptationStrategies.get('default')!;
+      const strategy =
+        this.adaptationStrategies.get(operationType) ||
+        this.adaptationStrategies.get('default')!;
 
       const requirements = strategy.networkRequirement;
       const conditions = this.currentConditions;
 
       // Evaluate each requirement
-      const bandwidthOk = conditions.effectiveBandwidth >= requirements.minBandwidth;
+      const bandwidthOk =
+        conditions.effectiveBandwidth >= requirements.minBandwidth;
       const latencyOk = conditions.latency <= requirements.maxLatency;
       const packetLossOk = conditions.packetLoss <= requirements.maxPacketLoss;
       const stabilityOk = conditions.stability >= requirements.minStability;
@@ -245,14 +267,20 @@ export class NetworkAdapterService {
           adaptationsNeeded = ['offline_mode'];
         } else if (conditions.quality === 'poor') {
           recommendation = 'adapt';
-          adaptationsNeeded = this.identifyNeededAdaptations(requirements, conditions);
+          adaptationsNeeded = this.identifyNeededAdaptations(
+            requirements,
+            conditions,
+          );
         } else {
           recommendation = 'defer';
         }
       }
 
       // Calculate estimated latency and reliability
-      const estimatedLatency = this.estimateOperationLatency(operationType, conditions);
+      const estimatedLatency = this.estimateOperationLatency(
+        operationType,
+        conditions,
+      );
       const reliabilityScore = this.calculateReliabilityScore(conditions);
 
       structuredLogger.debug('Network viability check completed', {
@@ -261,7 +289,7 @@ export class NetworkAdapterService {
         recommendation,
         estimatedLatency,
         reliabilityScore,
-        adaptationsNeeded: adaptationsNeeded.length
+        adaptationsNeeded: adaptationsNeeded.length,
       });
 
       return {
@@ -269,18 +297,21 @@ export class NetworkAdapterService {
         recommendation,
         estimatedLatency,
         reliabilityScore,
-        adaptationsNeeded
+        adaptationsNeeded,
       };
-
     } catch (error) {
-      structuredLogger.error('Network viability check failed', {}, error as Error);
-      
+      structuredLogger.error(
+        'Network viability check failed',
+        {},
+        error as Error,
+      );
+
       return {
         viable: false,
         recommendation: 'offline',
         estimatedLatency: 10000,
         reliabilityScore: 0.1,
-        adaptationsNeeded: ['offline_mode']
+        adaptationsNeeded: ['offline_mode'],
       };
     }
   }
@@ -298,29 +329,33 @@ export class NetworkAdapterService {
     };
   }> {
     try {
-      structuredLogger.warn('Connection loss detected, activating offline mode');
+      structuredLogger.warn(
+        'Connection loss detected, activating offline mode',
+      );
 
       // Update conditions to offline
       this.currentConditions.quality = 'offline';
       this.currentConditions.type = 'offline';
 
       // Get available offline capabilities
-      const availableCapabilities = Array.from(this.offlineCapabilities.values())
-        .filter(cap => cap.offline);
+      const availableCapabilities = Array.from(
+        this.offlineCapabilities.values(),
+      ).filter(cap => cap.offline);
 
       // Determine graceful degradation steps
       const degradationSteps = [
         'Activate offline content cache',
         'Switch to local story generation',
         'Enable minimal interface mode',
-        'Preserve user progress locally'
+        'Preserve user progress locally',
       ];
 
       // Prepare user communication
       const userCommunication = {
-        message: "You're now in offline mode. You can continue creating stories with locally available content.",
+        message:
+          "You're now in offline mode. You can continue creating stories with locally available content.",
         type: 'info' as const,
-        persistent: true
+        persistent: true,
       };
 
       // Record connection loss in history
@@ -329,31 +364,34 @@ export class NetworkAdapterService {
         conditions: { ...this.currentConditions },
         success: false,
         responseTime: 0,
-        errors: ['connection_lost']
+        errors: ['connection_lost'],
       });
 
       structuredLogger.info('Offline mode activated', {
         availableCapabilities: availableCapabilities.length,
-        degradationSteps: degradationSteps.length
+        degradationSteps: degradationSteps.length,
       });
 
       return {
         offlineCapabilities: availableCapabilities,
         gracefulDegradation: degradationSteps,
-        userCommunication
+        userCommunication,
       };
-
     } catch (error) {
-      structuredLogger.error('Connection loss handling failed', {}, error as Error);
-      
+      structuredLogger.error(
+        'Connection loss handling failed',
+        {},
+        error as Error,
+      );
+
       return {
         offlineCapabilities: [],
         gracefulDegradation: ['Emergency offline mode activated'],
         userCommunication: {
-          message: "Connection lost. Some features may be limited.",
+          message: 'Connection lost. Some features may be limited.',
           type: 'warning',
-          persistent: true
-        }
+          persistent: true,
+        },
       };
     }
   }
@@ -384,7 +422,7 @@ export class NetworkAdapterService {
       if (this.currentConditions.quality !== 'offline') {
         restoredCapabilities.push('online_story_generation');
         restoredCapabilities.push('cloud_personalization');
-        
+
         // Remove offline-only adaptations
         if (this.activeAdaptations.has('offline_mode')) {
           this.activeAdaptations.delete('offline_mode');
@@ -403,50 +441,56 @@ export class NetworkAdapterService {
         timestamp: new Date(),
         conditions: { ...this.currentConditions },
         success: true,
-        responseTime: 0
+        responseTime: 0,
       });
 
       const userCommunication = {
         message: `Connection restored! All features are now available.`,
         type: 'success' as const,
-        duration: 3000
+        duration: 3000,
       };
 
       structuredLogger.info('Connection recovery handled', {
         restoredCapabilities: restoredCapabilities.length,
         adaptationChanges: adaptationChanges.length,
-        newQuality: this.currentConditions.quality
+        newQuality: this.currentConditions.quality,
       });
 
       return {
         restoredCapabilities,
         adaptationChanges,
-        userCommunication
+        userCommunication,
       };
-
     } catch (error) {
-      structuredLogger.error('Connection recovery handling failed', {}, error as Error);
-      
+      structuredLogger.error(
+        'Connection recovery handling failed',
+        {},
+        error as Error,
+      );
+
       return {
         restoredCapabilities: [],
         adaptationChanges: [],
         userCommunication: {
-          message: "Connection status unknown. Please check your network.",
+          message: 'Connection status unknown. Please check your network.',
           type: 'info',
-          duration: 5000
-        }
+          duration: 5000,
+        },
       };
     }
   }
 
   // Private implementation methods
 
-  private determineRequiredAdaptations(request: StoryRequest): NetworkAdaptation[] {
+  private determineRequiredAdaptations(
+    request: StoryRequest,
+  ): NetworkAdaptation[] {
     const required: NetworkAdaptation[] = [];
-    
+
     // Get relevant strategy
-    const strategy = this.adaptationStrategies.get('story_generation') || 
-                    this.adaptationStrategies.get('default')!;
+    const strategy =
+      this.adaptationStrategies.get('story_generation') ||
+      this.adaptationStrategies.get('default')!;
 
     // Check each adaptation trigger
     for (const adaptation of strategy.adaptations) {
@@ -461,7 +505,7 @@ export class NetworkAdapterService {
 
   private shouldTriggerAdaptation(trigger: AdaptationTrigger): boolean {
     const conditions = this.currentConditions;
-    
+
     switch (trigger.condition) {
       case 'bandwidth_low':
         return conditions.effectiveBandwidth < trigger.threshold;
@@ -482,23 +526,23 @@ export class NetworkAdapterService {
 
   private createFallbackPlan(request: StoryRequest): string[] {
     const plan: string[] = [];
-    
+
     // Add progressively more aggressive fallbacks
     if (this.currentConditions.quality !== 'offline') {
       plan.push('reduce_content_quality');
       plan.push('use_cached_content');
     }
-    
+
     plan.push('offline_mode');
     plan.push('minimal_functionality');
     plan.push('error_state');
-    
+
     return plan;
   }
 
   private calculateExpectedLatencyReduction(adaptations: string[]): number {
     let reduction = 0;
-    
+
     for (const adaptation of adaptations) {
       switch (adaptation) {
         case 'compress_data':
@@ -518,13 +562,13 @@ export class NetworkAdapterService {
           break;
       }
     }
-    
+
     return reduction;
   }
 
   private calculateReliabilityImprovement(adaptations: string[]): number {
     let improvement = 0;
-    
+
     for (const adaptation of adaptations) {
       switch (adaptation) {
         case 'cache_aggressive':
@@ -541,56 +585,59 @@ export class NetworkAdapterService {
           break;
       }
     }
-    
+
     return Math.min(0.9, improvement); // Cap at 90% improvement
   }
 
   private identifyNeededAdaptations(
-    requirements: NetworkRequirement, 
-    conditions: NetworkConditions
+    requirements: NetworkRequirement,
+    conditions: NetworkConditions,
   ): string[] {
     const adaptations: string[] = [];
-    
+
     if (conditions.effectiveBandwidth < requirements.minBandwidth) {
       adaptations.push('compress_data', 'reduce_quality');
     }
-    
+
     if (conditions.latency > requirements.maxLatency) {
       adaptations.push('cache_aggressive', 'minimal_requests');
     }
-    
+
     if (conditions.packetLoss > requirements.maxPacketLoss) {
       adaptations.push('batch_requests');
     }
-    
+
     if (conditions.stability < requirements.minStability) {
       adaptations.push('offline_mode');
     }
-    
+
     return adaptations;
   }
 
-  private estimateOperationLatency(operationType: string, conditions: NetworkConditions): number {
+  private estimateOperationLatency(
+    operationType: string,
+    conditions: NetworkConditions,
+  ): number {
     let baseLatency = 2000; // Base 2 seconds for story generation
-    
+
     // Adjust based on network conditions
     baseLatency += conditions.latency;
-    
+
     if (conditions.quality === 'poor') {
       baseLatency *= 1.5;
     } else if (conditions.quality === 'excellent') {
       baseLatency *= 0.8;
     }
-    
+
     // Add variability based on stability
-    baseLatency *= (2 - conditions.stability); // Less stable = more latency
-    
+    baseLatency *= 2 - conditions.stability; // Less stable = more latency
+
     return Math.round(baseLatency);
   }
 
   private calculateReliabilityScore(conditions: NetworkConditions): number {
     let score = 0.5; // Base score
-    
+
     // Network quality impact
     switch (conditions.quality) {
       case 'excellent':
@@ -606,29 +653,29 @@ export class NetworkAdapterService {
         score = 0.1;
         break;
     }
-    
+
     // Stability impact
     score += (conditions.stability - 0.5) * 0.4;
-    
+
     // Packet loss impact
     score -= conditions.packetLoss * 0.3;
-    
+
     return Math.max(0, Math.min(1, score));
   }
 
   private async updateNetworkConditions(): Promise<void> {
     // In a real implementation, this would use actual network monitoring APIs
     // For now, we'll simulate realistic network condition changes
-    
+
     const previousQuality = this.currentConditions.quality;
-    
+
     // Simulate network quality changes
     const qualityOptions = ['excellent', 'good', 'poor'] as const;
     const weights = [0.25, 0.65, 0.1]; // 25% excellent, 65% good, 10% poor
-    
+
     let random = Math.random();
     let cumulative = 0;
-    
+
     for (let i = 0; i < qualityOptions.length; i++) {
       cumulative += weights[i];
       if (random < cumulative) {
@@ -636,7 +683,7 @@ export class NetworkAdapterService {
         break;
       }
     }
-    
+
     // Update metrics based on quality
     switch (this.currentConditions.quality) {
       case 'excellent':
@@ -658,25 +705,27 @@ export class NetworkAdapterService {
         this.currentConditions.stability = 0.4 + Math.random() * 0.4;
         break;
     }
-    
+
     // Calculate effective bandwidth considering packet loss and stability
-    this.currentConditions.effectiveBandwidth = this.currentConditions.bandwidth * 
-      this.currentConditions.stability * (1 - this.currentConditions.packetLoss);
-    
+    this.currentConditions.effectiveBandwidth =
+      this.currentConditions.bandwidth *
+      this.currentConditions.stability *
+      (1 - this.currentConditions.packetLoss);
+
     // Log significant quality changes
     if (previousQuality !== this.currentConditions.quality) {
       structuredLogger.info('Network quality changed', {
         previousQuality,
         newQuality: this.currentConditions.quality,
         bandwidth: this.currentConditions.bandwidth,
-        latency: this.currentConditions.latency
+        latency: this.currentConditions.latency,
       });
     }
   }
 
   private recordConnectionEvent(event: ConnectionHistory): void {
     this.connectionHistory.push(event);
-    
+
     // Keep only recent history (last 100 events)
     if (this.connectionHistory.length > 100) {
       this.connectionHistory = this.connectionHistory.slice(-100);
@@ -697,7 +746,7 @@ export class NetworkAdapterService {
       latency: 80,
       packetLoss: 0.005,
       stability: 0.9,
-      effectiveBandwidth: 22
+      effectiveBandwidth: 22,
     };
   }
 
@@ -709,7 +758,7 @@ export class NetworkAdapterService {
         minBandwidth: 5, // 5 Mbps
         maxLatency: 3000, // 3 seconds
         maxPacketLoss: 0.02, // 2%
-        minStability: 0.7 // 70%
+        minStability: 0.7, // 70%
       },
       adaptations: [
         {
@@ -718,12 +767,12 @@ export class NetworkAdapterService {
             condition: 'bandwidth_low',
             threshold: 10, // < 10 Mbps
             windowSize: 30000,
-            consecutiveOccurrences: 2
+            consecutiveOccurrences: 2,
           },
           implementation: this.compressDataAdaptation.bind(this),
           reversible: true,
           qualityImpact: 0.1,
-          performanceGain: 0.3
+          performanceGain: 0.3,
         },
         {
           adaptation: 'reduce_quality',
@@ -731,12 +780,12 @@ export class NetworkAdapterService {
             condition: 'bandwidth_low',
             threshold: 5, // < 5 Mbps
             windowSize: 30000,
-            consecutiveOccurrences: 3
+            consecutiveOccurrences: 3,
           },
           implementation: this.reduceQualityAdaptation.bind(this),
           reversible: true,
           qualityImpact: 0.3,
-          performanceGain: 0.5
+          performanceGain: 0.5,
         },
         {
           adaptation: 'cache_aggressive',
@@ -744,12 +793,12 @@ export class NetworkAdapterService {
             condition: 'latency_high',
             threshold: 2000, // > 2 seconds
             windowSize: 60000,
-            consecutiveOccurrences: 2
+            consecutiveOccurrences: 2,
           },
           implementation: this.aggressiveCacheAdaptation.bind(this),
           reversible: true,
           qualityImpact: 0.05,
-          performanceGain: 0.6
+          performanceGain: 0.6,
         },
         {
           adaptation: 'offline_mode',
@@ -757,28 +806,28 @@ export class NetworkAdapterService {
             condition: 'connection_lost',
             threshold: 0,
             windowSize: 1000,
-            consecutiveOccurrences: 1
+            consecutiveOccurrences: 1,
           },
           implementation: this.offlineModeAdaptation.bind(this),
           reversible: true,
           qualityImpact: 0.6,
-          performanceGain: 0.9
-        }
+          performanceGain: 0.9,
+        },
       ],
       fallbackTriggers: [
         {
           condition: 'quality_degraded',
           threshold: 0.3,
           windowSize: 60000,
-          consecutiveOccurrences: 3
-        }
+          consecutiveOccurrences: 3,
+        },
       ],
       userExperienceImpact: {
         responseTime: -800, // 800ms improvement expected
         contentQuality: 0.8, // 80% quality preservation
         reliability: 0.9, // 90% reliability
-        transparency: 0.7 // 70% invisible to user
-      }
+        transparency: 0.7, // 70% invisible to user
+      },
     });
 
     // Default strategy for other operations
@@ -788,7 +837,7 @@ export class NetworkAdapterService {
         minBandwidth: 1,
         maxLatency: 5000,
         maxPacketLoss: 0.05,
-        minStability: 0.5
+        minStability: 0.5,
       },
       adaptations: [
         {
@@ -797,21 +846,21 @@ export class NetworkAdapterService {
             condition: 'bandwidth_low',
             threshold: 2,
             windowSize: 30000,
-            consecutiveOccurrences: 2
+            consecutiveOccurrences: 2,
           },
           implementation: this.compressDataAdaptation.bind(this),
           reversible: true,
           qualityImpact: 0.1,
-          performanceGain: 0.2
-        }
+          performanceGain: 0.2,
+        },
       ],
       fallbackTriggers: [],
       userExperienceImpact: {
         responseTime: -200,
         contentQuality: 0.9,
         reliability: 0.8,
-        transparency: 0.8
-      }
+        transparency: 0.8,
+      },
     });
   }
 
@@ -821,7 +870,7 @@ export class NetworkAdapterService {
       offline: true,
       degradedMode: 'template_based',
       cacheRequirement: 10, // 10 MB
-      functionality: 'limited'
+      functionality: 'limited',
     });
 
     this.offlineCapabilities.set('user_progress', {
@@ -829,7 +878,7 @@ export class NetworkAdapterService {
       offline: true,
       degradedMode: 'local_storage',
       cacheRequirement: 1, // 1 MB
-      functionality: 'full'
+      functionality: 'full',
     });
 
     this.offlineCapabilities.set('content_cache', {
@@ -837,23 +886,23 @@ export class NetworkAdapterService {
       offline: true,
       degradedMode: 'read_only',
       cacheRequirement: 50, // 50 MB
-      functionality: 'full'
+      functionality: 'full',
     });
   }
 
   // Adaptation implementation methods
 
   private async compressDataAdaptation(
-    request: StoryRequest, 
-    conditions: NetworkConditions
+    request: StoryRequest,
+    conditions: NetworkConditions,
   ): Promise<AdaptedRequest> {
-    const modifiedRequest = { 
-      ...request, 
-      options: { 
-        ...request.options, 
+    const modifiedRequest = {
+      ...request,
+      options: {
+        ...request.options,
         compression: true,
-        maxLength: Math.min(request.options?.maxLength || 500, 300)
-      }
+        maxLength: Math.min(request.options?.maxLength || 500, 300),
+      },
     };
 
     return {
@@ -863,24 +912,24 @@ export class NetworkAdapterService {
       expectedBehavior: {
         reducedLatency: 200,
         reliabilityImprovement: 0.1,
-        qualityImpact: 0.1
+        qualityImpact: 0.1,
       },
-      fallbackPlan: ['reduce_quality', 'offline_mode']
+      fallbackPlan: ['reduce_quality', 'offline_mode'],
     };
   }
 
   private async reduceQualityAdaptation(
-    request: StoryRequest, 
-    conditions: NetworkConditions
+    request: StoryRequest,
+    conditions: NetworkConditions,
   ): Promise<AdaptedRequest> {
-    const modifiedRequest = { 
-      ...request, 
-      options: { 
-        ...request.options, 
+    const modifiedRequest = {
+      ...request,
+      options: {
+        ...request.options,
         qualityLevel: 'basic',
         simplifiedLanguage: true,
-        maxLength: Math.min(request.options?.maxLength || 500, 200)
-      }
+        maxLength: Math.min(request.options?.maxLength || 500, 200),
+      },
     };
 
     return {
@@ -890,24 +939,24 @@ export class NetworkAdapterService {
       expectedBehavior: {
         reducedLatency: 500,
         reliabilityImprovement: 0.2,
-        qualityImpact: 0.3
+        qualityImpact: 0.3,
       },
-      fallbackPlan: ['cache_only', 'offline_mode']
+      fallbackPlan: ['cache_only', 'offline_mode'],
     };
   }
 
   private async aggressiveCacheAdaptation(
-    request: StoryRequest, 
-    conditions: NetworkConditions
+    request: StoryRequest,
+    conditions: NetworkConditions,
   ): Promise<AdaptedRequest> {
-    const modifiedRequest = { 
-      ...request, 
-      options: { 
-        ...request.options, 
+    const modifiedRequest = {
+      ...request,
+      options: {
+        ...request.options,
         preferCache: true,
         cacheFirst: true,
-        maxCacheAge: 3600000 // 1 hour
-      }
+        maxCacheAge: 3600000, // 1 hour
+      },
     };
 
     return {
@@ -917,24 +966,24 @@ export class NetworkAdapterService {
       expectedBehavior: {
         reducedLatency: 800,
         reliabilityImprovement: 0.4,
-        qualityImpact: 0.05
+        qualityImpact: 0.05,
       },
-      fallbackPlan: ['offline_mode']
+      fallbackPlan: ['offline_mode'],
     };
   }
 
   private async offlineModeAdaptation(
-    request: StoryRequest, 
-    conditions: NetworkConditions
+    request: StoryRequest,
+    conditions: NetworkConditions,
   ): Promise<AdaptedRequest> {
-    const modifiedRequest = { 
-      ...request, 
-      options: { 
-        ...request.options, 
+    const modifiedRequest = {
+      ...request,
+      options: {
+        ...request.options,
         offlineOnly: true,
         useTemplates: true,
-        simplifiedGeneration: true
-      }
+        simplifiedGeneration: true,
+      },
     };
 
     return {
@@ -944,9 +993,9 @@ export class NetworkAdapterService {
       expectedBehavior: {
         reducedLatency: 1500,
         reliabilityImprovement: 0.8,
-        qualityImpact: 0.6
+        qualityImpact: 0.6,
       },
-      fallbackPlan: ['emergency_templates']
+      fallbackPlan: ['emergency_templates'],
     };
   }
 
@@ -964,8 +1013,11 @@ export class NetworkAdapterService {
     };
     connectionHistory: ConnectionHistory[];
   } {
-    const successRate = this.adaptationMetrics.totalAdaptations > 0 ?
-      this.adaptationMetrics.successfulAdaptations / this.adaptationMetrics.totalAdaptations : 1;
+    const successRate =
+      this.adaptationMetrics.totalAdaptations > 0
+        ? this.adaptationMetrics.successfulAdaptations /
+          this.adaptationMetrics.totalAdaptations
+        : 1;
 
     return {
       currentConditions: { ...this.currentConditions },
@@ -974,9 +1026,9 @@ export class NetworkAdapterService {
         totalAdaptations: this.adaptationMetrics.totalAdaptations,
         successRate,
         averageQualityImpact: this.adaptationMetrics.qualityImpact,
-        averagePerformanceGain: this.adaptationMetrics.performanceGain
+        averagePerformanceGain: this.adaptationMetrics.performanceGain,
       },
-      connectionHistory: [...this.connectionHistory.slice(-20)] // Last 20 events
+      connectionHistory: [...this.connectionHistory.slice(-20)], // Last 20 events
     };
   }
 
@@ -985,13 +1037,15 @@ export class NetworkAdapterService {
    */
   public setNetworkConditions(conditions: Partial<NetworkConditions>): void {
     this.currentConditions = { ...this.currentConditions, ...conditions };
-    
+
     // Recalculate effective bandwidth
-    this.currentConditions.effectiveBandwidth = this.currentConditions.bandwidth * 
-      this.currentConditions.stability * (1 - this.currentConditions.packetLoss);
-    
+    this.currentConditions.effectiveBandwidth =
+      this.currentConditions.bandwidth *
+      this.currentConditions.stability *
+      (1 - this.currentConditions.packetLoss);
+
     structuredLogger.info('Network conditions updated manually', {
-      newConditions: this.currentConditions
+      newConditions: this.currentConditions,
     });
   }
 
@@ -1003,10 +1057,10 @@ export class NetworkAdapterService {
       clearInterval(this.monitoringInterval);
       this.monitoringInterval = null;
     }
-    
+
     structuredLogger.info('Network adapter service shutdown', {
       totalAdaptations: this.adaptationMetrics.totalAdaptations,
-      finalConditions: this.currentConditions
+      finalConditions: this.currentConditions,
     });
   }
 }

@@ -9,8 +9,8 @@
 
 import React from 'react';
 import { render, act, waitFor } from '@testing-library/react-native';
-import { ImageGeneration } from '../../src/components/common/ImageGeneration';
-import { StoryImageDisplay } from '../../src/components/common/StoryImageDisplay';
+import ImageGeneration from '../../src/components/common/ImageGeneration';
+import StoryImageDisplay from '../../src/components/common/StoryImageDisplay';
 
 // Mock dependencies
 jest.mock('../../src/services/supabase');
@@ -44,7 +44,7 @@ describe('Performance Tests: UI State Update Performance', () => {
         {...baseProps}
         isStoryCompleted={false}
         currentRound={3}
-      />
+      />,
     );
 
     // Measure state update time
@@ -57,7 +57,7 @@ describe('Performance Tests: UI State Update Performance', () => {
           {...baseProps}
           isStoryCompleted={false}
           currentRound={4}
-        />
+        />,
       );
     });
 
@@ -66,7 +66,11 @@ describe('Performance Tests: UI State Update Performance', () => {
     // Should be well under 16ms for smooth 60 FPS
     expect(elapsed).toBeLessThan(16);
 
-    console.log(`✓ Round progress update: ${elapsed.toFixed(2)}ms (target: < 16ms for 60 FPS)`);
+    console.log(
+      `✓ Round progress update: ${elapsed.toFixed(
+        2,
+      )}ms (target: < 16ms for 60 FPS)`,
+    );
   });
 
   /**
@@ -90,7 +94,7 @@ describe('Performance Tests: UI State Update Performance', () => {
         {...baseProps}
         isStoryCompleted={false}
         currentRound={4}
-      />
+      />,
     );
 
     const startTime = performance.now();
@@ -101,7 +105,7 @@ describe('Performance Tests: UI State Update Performance', () => {
           {...baseProps}
           isStoryCompleted={true}
           currentRound={5}
-        />
+        />,
       );
     });
 
@@ -151,10 +155,7 @@ describe('Performance Tests: UI State Update Performance', () => {
     };
 
     const { rerender } = render(
-      <StoryImageDisplay
-        {...baseProps}
-        uploadStatus="pending"
-      />
+      <StoryImageDisplay {...baseProps} uploadStatus="pending" />,
     );
 
     const startTime = performance.now();
@@ -165,7 +166,7 @@ describe('Performance Tests: UI State Update Performance', () => {
           {...baseProps}
           supabaseUrl="https://supabase.co/storage/image.png"
           uploadStatus="uploaded"
-        />
+        />,
       );
     });
 
@@ -197,7 +198,7 @@ describe('Performance Tests: UI State Update Performance', () => {
         {...baseProps}
         isStoryCompleted={false}
         currentRound={1}
-      />
+      />,
     );
 
     const updateTimes: number[] = [];
@@ -212,7 +213,7 @@ describe('Performance Tests: UI State Update Performance', () => {
             {...baseProps}
             isStoryCompleted={round === 5}
             currentRound={round}
-          />
+          />,
         );
       });
 
@@ -225,10 +226,15 @@ describe('Performance Tests: UI State Update Performance', () => {
       expect(time).toBeLessThan(16);
     });
 
-    const avgTime = updateTimes.reduce((sum, t) => sum + t, 0) / updateTimes.length;
+    const avgTime =
+      updateTimes.reduce((sum, t) => sum + t, 0) / updateTimes.length;
     const maxTime = Math.max(...updateTimes);
 
-    console.log(`✓ Rapid updates (4 consecutive): avg ${avgTime.toFixed(2)}ms, max ${maxTime.toFixed(2)}ms`);
+    console.log(
+      `✓ Rapid updates (4 consecutive): avg ${avgTime.toFixed(
+        2,
+      )}ms, max ${maxTime.toFixed(2)}ms`,
+    );
   });
 
   /**
@@ -272,7 +278,9 @@ describe('Performance Tests: UI State Update Performance', () => {
     // Note: This depends on component implementation using React.memo
     // If not memoized, this test will highlight potential optimization
 
-    console.log(`✓ Re-render check: ${renderCount} total renders (initial: ${initialRenderCount})`);
+    console.log(
+      `✓ Re-render check: ${renderCount} total renders (initial: ${initialRenderCount})`,
+    );
   });
 
   /**
@@ -304,6 +312,10 @@ describe('Performance Tests: UI State Update Performance', () => {
     // Even with large content, should render quickly
     expect(elapsed).toBeLessThan(100); // < 100ms
 
-    console.log(`✓ Large content render (${largeStory.length} chars): ${elapsed.toFixed(2)}ms`);
+    console.log(
+      `✓ Large content render (${largeStory.length} chars): ${elapsed.toFixed(
+        2,
+      )}ms`,
+    );
   });
 });

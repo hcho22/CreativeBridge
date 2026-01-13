@@ -1,12 +1,15 @@
 /**
  * User Preferences Service Tests
- * 
+ *
  * Task 3.3-TEST: Cross-Session Personalization Testing
  */
 
-import { userPreferencesService, PersonalizationData } from '../../services/userPreferences';
+import {
+  userPreferencesService,
+  PersonalizationData,
+} from '../../services/userPreferences';
 import { secureStorage } from '../../utils/secureStorage';
-import { StoryRequest, StoryResponse } from '../../types/story';
+// import { StoryRequest, StoryResponse } from '../../types/story';
 import { GradeLevel } from '../../types/database';
 
 // Mock secure storage
@@ -26,7 +29,7 @@ describe('User Preferences Service', () => {
   beforeEach(() => {
     // Reset all mocks
     jest.clearAllMocks();
-    
+
     // Reset service state
     (userPreferencesService as any).personalizationData = null;
     (userPreferencesService as any).isInitialized = false;
@@ -39,7 +42,9 @@ describe('User Preferences Service', () => {
 
       await userPreferencesService.initialize('Grade3');
 
-      expect(mockSecureStorage.get).toHaveBeenCalledWith('user_personalization_data');
+      expect(mockSecureStorage.get).toHaveBeenCalledWith(
+        'user_personalization_data',
+      );
       expect(mockSecureStorage.set).toHaveBeenCalledWith(
         'user_personalization_data',
         expect.objectContaining({
@@ -47,7 +52,7 @@ describe('User Preferences Service', () => {
           version: '1.0',
           storyPreferences: expect.any(Object),
           learningMetrics: expect.any(Object),
-        })
+        }),
       );
     });
 
@@ -135,12 +140,12 @@ describe('User Preferences Service', () => {
         'user_personalization_data',
         expect.objectContaining({
           gradeLevel: 'Grade4',
-        })
+        }),
       );
     });
 
     test('should initialize minimal mode when privacy consent not given', async () => {
-      mockSecureStorage.get.mockImplementation((key) => {
+      mockSecureStorage.get.mockImplementation(key => {
         if (key === 'privacy_consent') return Promise.resolve(false);
         return Promise.resolve(null);
       });
@@ -162,7 +167,10 @@ describe('User Preferences Service', () => {
       expect(hasConsent).toBe(true);
 
       await userPreferencesService.setPrivacyConsent(false);
-      expect(mockSecureStorage.set).toHaveBeenCalledWith('privacy_consent', false);
+      expect(mockSecureStorage.set).toHaveBeenCalledWith(
+        'privacy_consent',
+        false,
+      );
     });
 
     test('should clear data when consent is revoked', async () => {
@@ -171,7 +179,9 @@ describe('User Preferences Service', () => {
 
       await userPreferencesService.setPrivacyConsent(false);
 
-      expect(mockSecureStorage.remove).toHaveBeenCalledWith('user_personalization_data');
+      expect(mockSecureStorage.remove).toHaveBeenCalledWith(
+        'user_personalization_data',
+      );
     });
 
     test('should anonymize interaction context', async () => {
@@ -188,11 +198,14 @@ describe('User Preferences Service', () => {
 
       const data = userPreferencesService.getPreferencesData();
       const interaction = data?.interactions[0];
-      
+
       expect(interaction?.context).not.toHaveProperty('userInput');
       expect(interaction?.context).not.toHaveProperty('sensitiveData');
       expect(interaction?.context).toHaveProperty('hasUserInput', true);
-      expect(interaction?.context).toHaveProperty('userInputLength', 'Secret personal information'.length);
+      expect(interaction?.context).toHaveProperty(
+        'userInputLength',
+        'Secret personal information'.length,
+      );
     });
 
     test('should export user data in compliance format', async () => {
@@ -214,7 +227,7 @@ describe('User Preferences Service', () => {
 
   describe('User Interaction Recording', () => {
     beforeEach(async () => {
-      mockSecureStorage.get.mockImplementation((key) => {
+      mockSecureStorage.get.mockImplementation(key => {
         if (key === 'privacy_consent') return Promise.resolve(true);
         return Promise.resolve(null);
       });
@@ -279,12 +292,17 @@ describe('User Preferences Service', () => {
       };
 
       const response: StoryResponse = {
-        story: 'Once upon a time, there was an exciting adventure with magic...',
+        story:
+          'Once upon a time, there was an exciting adventure with magic...',
         success: true,
         gradeLevel: 'Grade3',
       };
 
-      await userPreferencesService.updatePreferencesFromStoryFeedback(request, response, 5);
+      await userPreferencesService.updatePreferencesFromStoryFeedback(
+        request,
+        response,
+        5,
+      );
 
       const data = userPreferencesService.getPreferencesData();
       expect(data?.storyPreferences.themes.adventure).toBeGreaterThan(0.5);
@@ -303,7 +321,11 @@ describe('User Preferences Service', () => {
         gradeLevel: 'Grade3',
       };
 
-      await userPreferencesService.updatePreferencesFromStoryFeedback(request, response, 1);
+      await userPreferencesService.updatePreferencesFromStoryFeedback(
+        request,
+        response,
+        1,
+      );
 
       const data = userPreferencesService.getPreferencesData();
       // Preferences should move toward lower values due to low rating
@@ -325,9 +347,15 @@ describe('User Preferences Service', () => {
         gradeLevel: 'Grade3',
       };
 
-      await userPreferencesService.updatePreferencesFromStoryFeedback(request, response, 5);
+      await userPreferencesService.updatePreferencesFromStoryFeedback(
+        request,
+        response,
+        5,
+      );
 
-      const initialScore = userPreferencesService.getPreferencesData()?.storyPreferences.themes.adventure;
+      const initialScore =
+        userPreferencesService.getPreferencesData()?.storyPreferences.themes
+          .adventure;
 
       // Trigger multiple saves to apply decay
       for (let i = 0; i < 5; i++) {
@@ -336,7 +364,9 @@ describe('User Preferences Service', () => {
         });
       }
 
-      const decayedScore = userPreferencesService.getPreferencesData()?.storyPreferences.themes.adventure;
+      const decayedScore =
+        userPreferencesService.getPreferencesData()?.storyPreferences.themes
+          .adventure;
 
       expect(decayedScore).toBeLessThan(initialScore!);
     });
@@ -348,17 +378,22 @@ describe('User Preferences Service', () => {
         gradeLevel: 'Grade3',
       };
 
-      const recommendations = userPreferencesService.getPersonalizedRecommendations(request);
+      const recommendations =
+        userPreferencesService.getPersonalizedRecommendations(request);
 
       expect(recommendations.confidenceScore).toBeLessThan(0.5);
-      expect(recommendations.recommendedThemes).toEqual(['adventure', 'friendship', 'discovery']);
+      expect(recommendations.recommendedThemes).toEqual([
+        'adventure',
+        'friendship',
+        'discovery',
+      ]);
       expect(recommendations.recommendedComplexity).toBe('medium');
     });
 
     test('should return personalized recommendations for experienced users', async () => {
       mockSecureStorage.get.mockResolvedValue(null);
       mockSecureStorage.set.mockResolvedValue(undefined);
-      
+
       await userPreferencesService.initialize('Grade3');
 
       // Build up some preferences
@@ -375,13 +410,18 @@ describe('User Preferences Service', () => {
 
       // Rate multiple space stories highly
       for (let i = 0; i < 5; i++) {
-        await userPreferencesService.updatePreferencesFromStoryFeedback(request, response, 5);
+        await userPreferencesService.updatePreferencesFromStoryFeedback(
+          request,
+          response,
+          5,
+        );
         await userPreferencesService.recordInteraction('story_completion', {
           gradeLevel: 'Grade3',
         });
       }
 
-      const recommendations = userPreferencesService.getPersonalizedRecommendations(request);
+      const recommendations =
+        userPreferencesService.getPersonalizedRecommendations(request);
 
       expect(recommendations.confidenceScore).toBeGreaterThan(0.1);
       expect(recommendations.recommendedThemes).toContain('sci-fi');
@@ -410,7 +450,11 @@ describe('User Preferences Service', () => {
       // Simulate improving ratings over time
       const ratings = [2, 2, 3, 3, 4, 4, 5, 5];
       for (const rating of ratings) {
-        await userPreferencesService.updatePreferencesFromStoryFeedback(request, response, rating);
+        await userPreferencesService.updatePreferencesFromStoryFeedback(
+          request,
+          response,
+          rating,
+        );
       }
 
       const data = userPreferencesService.getPreferencesData();
@@ -431,7 +475,11 @@ describe('User Preferences Service', () => {
 
       // Simulate consistent ratings
       for (let i = 0; i < 5; i++) {
-        await userPreferencesService.updatePreferencesFromStoryFeedback(request, response, 4);
+        await userPreferencesService.updatePreferencesFromStoryFeedback(
+          request,
+          response,
+          4,
+        );
       }
 
       const data = userPreferencesService.getPreferencesData();
@@ -484,7 +532,9 @@ describe('User Preferences Service', () => {
 
       await userPreferencesService.resetPersonalizationData();
 
-      expect(mockSecureStorage.remove).toHaveBeenCalledWith('user_personalization_data');
+      expect(mockSecureStorage.remove).toHaveBeenCalledWith(
+        'user_personalization_data',
+      );
       expect(userPreferencesService.getPreferencesData()).toBeNull();
     });
 
@@ -531,7 +581,7 @@ describe('User Preferences Service', () => {
         'user_personalization_data',
         expect.objectContaining({
           createdAt: expect.any(Number),
-        })
+        }),
       );
     });
   });
@@ -564,12 +614,16 @@ describe('User Preferences Service', () => {
           gradeLevel: 'Grade3',
         };
 
-        await userPreferencesService.updatePreferencesFromStoryFeedback(request, response, 5);
+        await userPreferencesService.updatePreferencesFromStoryFeedback(
+          request,
+          response,
+          5,
+        );
       }
 
       const data = userPreferencesService.getPreferencesData();
       const themes = Object.keys(data?.storyPreferences.themes || {});
-      
+
       expect(themes).toContain('adventure');
       expect(themes).toContain('friendship');
       expect(themes).toContain('fantasy');
@@ -578,7 +632,7 @@ describe('User Preferences Service', () => {
     });
 
     test('should extract complexity based on grade level', async () => {
-      const gradeLevels: Array<{ grade: any, expectedComplexity: string }> = [
+      const gradeLevels: Array<{ grade: any; expectedComplexity: string }> = [
         { grade: 'Kindergarten', expectedComplexity: 'simple' },
         { grade: 'Grade1', expectedComplexity: 'simple' },
         { grade: 'Grade3', expectedComplexity: 'medium' },
@@ -599,10 +653,16 @@ describe('User Preferences Service', () => {
           gradeLevel: grade,
         };
 
-        await userPreferencesService.updatePreferencesFromStoryFeedback(request, response, 5);
+        await userPreferencesService.updatePreferencesFromStoryFeedback(
+          request,
+          response,
+          5,
+        );
 
         const data = userPreferencesService.getPreferencesData();
-        expect(data?.storyPreferences.complexity[expectedComplexity]).toBeDefined();
+        expect(
+          data?.storyPreferences.complexity[expectedComplexity],
+        ).toBeDefined();
       }
     });
   });

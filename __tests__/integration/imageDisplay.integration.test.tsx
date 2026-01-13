@@ -11,7 +11,12 @@
  */
 
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+} from '@testing-library/react-native';
 import StoryImageDisplay from '../../src/components/common/StoryImageDisplay';
 import { imageStorageService } from '../../src/services/imageStorageService';
 
@@ -35,7 +40,8 @@ describe('Integration Test: Image Display with Fallback', () => {
   const TEST_USER_ID = 'test-user-display';
   const TEST_SESSION_ID = 'test-session-display';
   const MOCK_REPLICATE_URL = 'https://replicate.delivery/test-image.png';
-  const MOCK_SUPABASE_URL = 'https://supabase.co/storage/story-images/image.png';
+  const MOCK_SUPABASE_URL =
+    'https://supabase.co/storage/story-images/image.png';
   const INVALID_URL = 'https://invalid-domain.com/broken-image.png';
 
   beforeEach(() => {
@@ -56,7 +62,7 @@ describe('Integration Test: Image Display with Fallback', () => {
         uploadStatus="uploaded"
         sessionId={TEST_SESSION_ID}
         userId={TEST_USER_ID}
-      />
+      />,
     );
 
     const image = getByTestId('story-image');
@@ -84,7 +90,7 @@ describe('Integration Test: Image Display with Fallback', () => {
         uploadStatus="uploaded"
         sessionId={TEST_SESSION_ID}
         userId={TEST_USER_ID}
-      />
+      />,
     );
 
     const image = getByTestId('story-image');
@@ -105,7 +111,7 @@ describe('Integration Test: Image Display with Fallback', () => {
         uploadStatus="uploaded"
         sessionId={TEST_SESSION_ID}
         userId={TEST_USER_ID}
-      />
+      />,
     );
 
     // Should now use Replicate URL
@@ -130,7 +136,7 @@ describe('Integration Test: Image Display with Fallback', () => {
         uploadStatus="pending"
         sessionId={TEST_SESSION_ID}
         userId={TEST_USER_ID}
-      />
+      />,
     );
 
     // Should show pending badge
@@ -164,7 +170,7 @@ describe('Integration Test: Image Display with Fallback', () => {
         sessionId={TEST_SESSION_ID}
         userId={TEST_USER_ID}
         onRetryUpload={mockRetry}
-      />
+      />,
     );
 
     // Should show failed badge
@@ -196,10 +202,7 @@ describe('Integration Test: Image Display with Fallback', () => {
     console.log('🧪 Test 5: Placeholder for missing images');
 
     render(
-      <StoryImageDisplay
-        sessionId={TEST_SESSION_ID}
-        userId={TEST_USER_ID}
-      />
+      <StoryImageDisplay sessionId={TEST_SESSION_ID} userId={TEST_USER_ID} />,
     );
 
     // Should show placeholder message
@@ -229,7 +232,7 @@ describe('Integration Test: Image Display with Fallback', () => {
       // Simulate retry logic
       const result = await imageStorageService.retryFailedUpload(
         TEST_SESSION_ID,
-        TEST_USER_ID
+        TEST_USER_ID,
       );
       return result;
     });
@@ -241,7 +244,7 @@ describe('Integration Test: Image Display with Fallback', () => {
         sessionId={TEST_SESSION_ID}
         userId={TEST_USER_ID}
         onRetryUpload={onRetry}
-      />
+      />,
     );
 
     // Click retry
@@ -256,7 +259,7 @@ describe('Integration Test: Image Display with Fallback', () => {
     await waitFor(() => {
       expect(imageStorageService.retryFailedUpload).toHaveBeenCalledWith(
         TEST_SESSION_ID,
-        TEST_USER_ID
+        TEST_USER_ID,
       );
     });
 
@@ -269,7 +272,7 @@ describe('Integration Test: Image Display with Fallback', () => {
         sessionId={TEST_SESSION_ID}
         userId={TEST_USER_ID}
         onRetryUpload={onRetry}
-      />
+      />,
     );
 
     // Should now show success badge
@@ -293,7 +296,7 @@ describe('Integration Test: Image Display with Fallback', () => {
         uploadStatus="pending"
         sessionId={TEST_SESSION_ID}
         userId={TEST_USER_ID}
-      />
+      />,
     );
 
     // Initial state: pending
@@ -311,7 +314,7 @@ describe('Integration Test: Image Display with Fallback', () => {
         uploadStatus="uploaded"
         sessionId={TEST_SESSION_ID}
         userId={TEST_USER_ID}
-      />
+      />,
     );
 
     // Should show success
@@ -328,7 +331,7 @@ describe('Integration Test: Image Display with Fallback', () => {
         uploadStatus="failed"
         sessionId={TEST_SESSION_ID}
         userId={TEST_USER_ID}
-      />
+      />,
     );
 
     // Should show failed state
@@ -353,7 +356,7 @@ describe('Integration Test: Image Display with Fallback', () => {
         uploadStatus="pending"
         sessionId={TEST_SESSION_ID}
         userId={TEST_USER_ID}
-      />
+      />,
     );
 
     // Rapidly change props
@@ -362,10 +365,12 @@ describe('Integration Test: Image Display with Fallback', () => {
         <StoryImageDisplay
           replicateUrl={MOCK_REPLICATE_URL}
           supabaseUrl={i % 2 === 0 ? MOCK_SUPABASE_URL : undefined}
-          uploadStatus={i % 3 === 0 ? 'pending' : i % 3 === 1 ? 'uploaded' : 'failed'}
+          uploadStatus={
+            i % 3 === 0 ? 'pending' : i % 3 === 1 ? 'uploaded' : 'failed'
+          }
           sessionId={TEST_SESSION_ID}
           userId={TEST_USER_ID}
-        />
+        />,
       );
     }
 
@@ -393,7 +398,7 @@ describe('Integration Test: Image Display with Fallback', () => {
         uploadStatus="uploaded"
         sessionId={TEST_SESSION_ID}
         userId={TEST_USER_ID}
-      />
+      />,
     );
 
     const image = getByTestId('story-image');
@@ -415,7 +420,7 @@ describe('Integration Test: Image Display with Fallback', () => {
         uploadStatus="uploaded"
         sessionId={TEST_SESSION_ID}
         userId={TEST_USER_ID}
-      />
+      />,
     );
 
     // Verify fallback was attempted
@@ -438,7 +443,7 @@ describe('Integration Test: Image Display with Fallback', () => {
         replicateUrl={MOCK_REPLICATE_URL}
         sessionId={TEST_SESSION_ID}
         userId={TEST_USER_ID}
-      />
+      />,
     );
 
     let badge = screen.queryByText(/backing up|permanently|failed/i);
@@ -452,7 +457,7 @@ describe('Integration Test: Image Display with Fallback', () => {
         uploadStatus="pending"
         sessionId={TEST_SESSION_ID}
         userId={TEST_USER_ID}
-      />
+      />,
     );
 
     await waitFor(() => {
@@ -469,7 +474,7 @@ describe('Integration Test: Image Display with Fallback', () => {
         uploadStatus="uploaded"
         sessionId={TEST_SESSION_ID}
         userId={TEST_USER_ID}
-      />
+      />,
     );
 
     await waitFor(() => {
@@ -485,7 +490,7 @@ describe('Integration Test: Image Display with Fallback', () => {
         uploadStatus="failed"
         sessionId={TEST_SESSION_ID}
         userId={TEST_USER_ID}
-      />
+      />,
     );
 
     await waitFor(() => {

@@ -17,7 +17,10 @@ describe('Performance Tests: Database Query Performance', () => {
 
   beforeEach(async () => {
     // Create a fresh test session for each test
-    const session = await storySessionManager.createSession(TEST_USER_ID, 'K-2');
+    const session = await storySessionManager.createSession(
+      TEST_USER_ID,
+      'K-2',
+    );
     testSessionId = session!.id;
   });
 
@@ -43,8 +46,7 @@ describe('Performance Tests: Database Query Performance', () => {
 
     // Measure baseline: just the database update
     const baselineStart = Date.now();
-    await supabase
-      .from('game_sessions')
+    await (supabase.from('game_sessions') as any)
       .update({ words_written: 10 })
       .eq('id', testSessionId);
     const baselineElapsed = Date.now() - baselineStart;
@@ -55,7 +57,7 @@ describe('Performance Tests: Database Query Performance', () => {
       testSessionId,
       'ai',
       'AI response for performance test.',
-      session!
+      session!,
     );
     const trackingElapsed = Date.now() - trackingStart;
 
@@ -64,7 +66,9 @@ describe('Performance Tests: Database Query Performance', () => {
     // Overhead should be minimal (< 50ms additional)
     expect(overhead).toBeLessThan(50);
 
-    console.log(`✓ Completion tracking overhead: ${overhead}ms (baseline: ${baselineElapsed}ms, total: ${trackingElapsed}ms)`);
+    console.log(
+      `✓ Completion tracking overhead: ${overhead}ms (baseline: ${baselineElapsed}ms, total: ${trackingElapsed}ms)`,
+    );
   });
 
   /**
@@ -117,12 +121,14 @@ describe('Performance Tests: Database Query Performance', () => {
     // Create 5 completed sessions
     const sessionIds: string[] = [];
     for (let i = 0; i < 5; i++) {
-      const session = await storySessionManager.createSession(TEST_USER_ID, 'K-2');
+      const session = await storySessionManager.createSession(
+        TEST_USER_ID,
+        'K-2',
+      );
       sessionIds.push(session!.id);
 
       // Mark as completed
-      await supabase
-        .from('game_sessions')
+      await (supabase.from('game_sessions') as any)
         .update({
           current_round: 5,
           completed_at: new Date().toISOString(),
@@ -147,7 +153,11 @@ describe('Performance Tests: Database Query Performance', () => {
     // Index query should be fast even with multiple rows
     expect(elapsed).toBeLessThan(150); // < 150ms
 
-    console.log(`✓ Indexed query for ${completedSessions!.length} completed sessions: ${elapsed}ms`);
+    console.log(
+      `✓ Indexed query for ${
+        completedSessions!.length
+      } completed sessions: ${elapsed}ms`,
+    );
 
     // Cleanup
     await supabase.from('game_sessions').delete().in('id', sessionIds);
@@ -161,14 +171,17 @@ describe('Performance Tests: Database Query Performance', () => {
     // Create sessions with different upload statuses
     const sessionIds: string[] = [];
     for (let i = 0; i < 3; i++) {
-      const session = await storySessionManager.createSession(TEST_USER_ID, 'K-2');
+      const session = await storySessionManager.createSession(
+        TEST_USER_ID,
+        'K-2',
+      );
       sessionIds.push(session!.id);
 
-      await supabase
-        .from('game_sessions')
+      await (supabase.from('game_sessions') as any)
         .update({
           generated_image_url: 'https://example.com/image.png',
-          image_upload_status: i === 0 ? 'pending' : i === 1 ? 'uploaded' : 'failed',
+          image_upload_status:
+            i === 0 ? 'pending' : i === 1 ? 'uploaded' : 'failed',
         })
         .eq('id', session!.id);
     }
@@ -207,13 +220,13 @@ describe('Performance Tests: Database Query Performance', () => {
       await storySessionManager.addContribution(
         testSessionId,
         'user',
-        `User contribution for round ${round}`
+        `User contribution for round ${round}`,
       );
 
       await storySessionManager.addContribution(
         testSessionId,
         'ai',
-        `AI response for round ${round}`
+        `AI response for round ${round}`,
       );
     }
 
@@ -228,7 +241,11 @@ describe('Performance Tests: Database Query Performance', () => {
     // Even at 100ms per contribution, should be < 1.5s total
     expect(elapsed).toBeLessThan(1500); // < 1.5 seconds
 
-    console.log(`✓ 5 complete rounds (10 contributions): ${elapsed}ms (avg ${(elapsed / 10).toFixed(1)}ms per contribution)`);
+    console.log(
+      `✓ 5 complete rounds (10 contributions): ${elapsed}ms (avg ${(
+        elapsed / 10
+      ).toFixed(1)}ms per contribution)`,
+    );
   }, 5000); // 5 second timeout
 
   /**
@@ -239,7 +256,10 @@ describe('Performance Tests: Database Query Performance', () => {
     // Create 5 test sessions
     const sessionIds: string[] = [];
     for (let i = 0; i < 5; i++) {
-      const session = await storySessionManager.createSession(TEST_USER_ID, 'K-2');
+      const session = await storySessionManager.createSession(
+        TEST_USER_ID,
+        'K-2',
+      );
       sessionIds.push(session!.id);
     }
 
@@ -248,14 +268,13 @@ describe('Performance Tests: Database Query Performance', () => {
 
     await Promise.all(
       sessionIds.map(sessionId =>
-        supabase
-          .from('game_sessions')
+        (supabase.from('game_sessions') as any)
           .update({
             current_round: 3,
             words_written: 50,
           })
-          .eq('id', sessionId)
-      )
+          .eq('id', sessionId),
+      ),
     );
 
     const elapsed = Date.now() - startTime;
@@ -264,7 +283,11 @@ describe('Performance Tests: Database Query Performance', () => {
     // With proper connection pooling, should be < 300ms
     expect(elapsed).toBeLessThan(300);
 
-    console.log(`✓ 5 concurrent updates: ${elapsed}ms (avg ${(elapsed / 5).toFixed(1)}ms per update)`);
+    console.log(
+      `✓ 5 concurrent updates: ${elapsed}ms (avg ${(elapsed / 5).toFixed(
+        1,
+      )}ms per update)`,
+    );
 
     // Cleanup
     await supabase.from('game_sessions').delete().in('id', sessionIds);

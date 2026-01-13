@@ -7,9 +7,7 @@ import { AuthProvider } from '../../context/AuthContext';
 const AllTheProviders = ({ children }: { children: React.ReactNode }) => {
   return (
     <NavigationContainer>
-      <AuthProvider>
-        {children}
-      </AuthProvider>
+      <AuthProvider>{children}</AuthProvider>
     </NavigationContainer>
   );
 };
@@ -111,7 +109,7 @@ export const createMockDeviceInfo = (overrides = {}) => ({
 });
 
 // Network/API mocking helpers
-export const createMockResponse = <T>(data: T, error: any = null) => ({
+export const createMockResponse = <T,>(data: T, error: any = null) => ({
   data,
   error,
   status: error ? 400 : 200,
@@ -126,10 +124,10 @@ export const createSupabaseError = (message: string, code = 'test_error') => ({
 });
 
 // Async test helpers
-export const waitForLoadingToFinish = () => 
+export const waitForLoadingToFinish = () =>
   new Promise(resolve => setTimeout(resolve, 0));
 
-export const flushPromises = () => 
+export const flushPromises = () =>
   new Promise(resolve => setImmediate(resolve));
 
 // Security testing constants
