@@ -8,6 +8,7 @@ import { storyElementExtractionService } from './storyElementExtractionService';
 import { embeddingGenerationService } from './embeddingGenerationService';
 import { diversityScoreStorageService } from './diversityScoreStorageService';
 import { recentElementsService } from './recentElementsService';
+import { diversityPerformanceMonitoringService } from './diversityPerformanceMonitoringService';
 
 /**
  * Story element ready for database insertion
@@ -86,7 +87,14 @@ class PostGenerationStorageService {
       // Step 1: Extract story elements using LLM
       console.log('🔍 Extracting story elements...');
       const extracted =
-        await storyElementExtractionService.extractStoryElements(storyText);
+        await diversityPerformanceMonitoringService.measureAsync({
+          operation: 'element_extraction',
+          sessionId,
+          storyId,
+          metadata: { storyLength: storyText.length },
+          fn: async () =>
+            await storyElementExtractionService.extractStoryElements(storyText),
+        });
 
       console.log('✅ Element extraction complete', {
         characters: extracted.characters.length,
@@ -156,9 +164,16 @@ class PostGenerationStorageService {
 
           // Generate embeddings in batch (more efficient than sequential)
           const embeddings =
-            await embeddingGenerationService.generateEmbeddingsBatch(
-              elementTexts,
-            );
+            await diversityPerformanceMonitoringService.measureAsync({
+              operation: 'embedding_generation',
+              sessionId,
+              storyId,
+              metadata: { elementCount: elementTexts.length },
+              fn: async () =>
+                await embeddingGenerationService.generateEmbeddingsBatch(
+                  elementTexts,
+                ),
+            });
 
           // Assign embeddings to records
           for (let i = 0; i < elementRecords.length; i++) {
@@ -226,10 +241,21 @@ class PostGenerationStorageService {
 
           diversityScoreStored = scoreResult.success;
 
-          if (scoreResult.success) {
+          if (scoreResult.success && scoreResult.score) {
             console.log(
-              `✅ Diversity score stored: ${scoreResult.score?.toFixed(3)}`,
+              `✅ Diversity score stored: ${scoreResult.score.toFixed(3)}`,
             );
+
+            // Log diversity metrics for monitoring (US-014)
+            diversityPerformanceMonitoringService.logDiversityMetrics({
+              sessionId,
+              storyId,
+              diversityScore: scoreResult.score,
+              novelElementCount: scoreResult.novelElementCount || 0,
+              totalElementCount: scoreResult.totalElementCount || 0,
+              avoidedElementsCount: 0, // Will be calculated from guidance in future
+              timestamp: new Date(),
+            });
           } else {
             const errorMsg = `Diversity score storage failed: ${scoreResult.errors.join(
               ', ',

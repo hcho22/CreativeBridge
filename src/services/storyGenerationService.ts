@@ -20,6 +20,7 @@ import { getOrCreateSessionWithAuth } from './diversitySessionService';
 import { recentElementsService } from './recentElementsService';
 import { diversityGuidanceService } from './diversityGuidanceService';
 import { postGenerationStorageService } from './postGenerationStorageService';
+import { diversityPerformanceMonitoringService } from './diversityPerformanceMonitoringService';
 
 class StoryGenerationService {
   private config: StoryServiceConfig;
@@ -794,70 +795,79 @@ class StoryGenerationService {
    * Non-blocking: Returns empty string on error to allow story generation to continue
    */
   private async getDiversityGuidance(request: StoryRequest): Promise<string> {
-    try {
-      console.log('🎨 Retrieving diversity guidance', {
-        sessionId: request.sessionId,
-        userId: request.userId,
-        gradeLevel: request.gradeLevel,
-      });
+    return diversityPerformanceMonitoringService.measureAsync({
+      operation: 'diversity_guidance',
+      sessionId: request.sessionId,
+      storyId: request.storyId,
+      fn: async () => {
+        try {
+          console.log('🎨 Retrieving diversity guidance', {
+            sessionId: request.sessionId,
+            userId: request.userId,
+            gradeLevel: request.gradeLevel,
+          });
 
-      // Step 1: Get or create session
-      let sessionId = request.sessionId;
-      if (!sessionId && request.userId) {
-        // Create session from userId if no sessionId provided
-        const sessionResult = await getOrCreateSessionWithAuth();
-        sessionId = sessionResult.id;
-        console.log('✅ Created/retrieved session:', sessionId);
-      }
+          // Step 1: Get or create session
+          let sessionId = request.sessionId;
+          if (!sessionId && request.userId) {
+            // Create session from userId if no sessionId provided
+            const sessionResult = await getOrCreateSessionWithAuth();
+            sessionId = sessionResult.id;
+            console.log('✅ Created/retrieved session:', sessionId);
+          }
 
-      if (!sessionId) {
-        console.log(
-          '⚠️ No session context available, skipping diversity guidance',
-        );
-        return '';
-      }
+          if (!sessionId) {
+            console.log(
+              '⚠️ No session context available, skipping diversity guidance',
+            );
+            return '';
+          }
 
-      // Step 2: Retrieve recent elements for this session
-      const recentElements = await recentElementsService.getRecentElements({
-        sessionId,
-        limit: 10, // Last 10 stories
-      });
+          // Step 2: Retrieve recent elements for this session
+          const recentElements = await recentElementsService.getRecentElements({
+            sessionId,
+            limit: 10, // Last 10 stories
+          });
 
-      console.log('📚 Retrieved recent elements:', {
-        totalElements:
-          recentElementsService.getTotalElementCount(recentElements),
-        characterCount: recentElements.characters.length,
-        settingCount: recentElements.settings.length,
-        objectCount: recentElements.objects.length,
-        plotPatternCount: recentElements.plot_patterns.length,
-      });
+          console.log('📚 Retrieved recent elements:', {
+            totalElements:
+              recentElementsService.getTotalElementCount(recentElements),
+            characterCount: recentElements.characters.length,
+            settingCount: recentElements.settings.length,
+            objectCount: recentElements.objects.length,
+            plotPatternCount: recentElements.plot_patterns.length,
+          });
 
-      // Step 3: Generate diversity guidance from recent elements
-      const guidance = diversityGuidanceService.generateDiversityGuidance({
-        recentElements,
-        maxElementsToList: 5,
-        includeAlternatives: true,
-        emphasisLevel: 'moderate',
-      });
+          // Step 3: Generate diversity guidance from recent elements
+          const guidance = diversityGuidanceService.generateDiversityGuidance({
+            recentElements,
+            maxElementsToList: 5,
+            includeAlternatives: true,
+            emphasisLevel: 'moderate',
+          });
 
-      if (!guidance.hasGuidance) {
-        console.log('✨ No diversity guidance needed (no repeated elements)');
-        return '';
-      }
+          if (!guidance.hasGuidance) {
+            console.log(
+              '✨ No diversity guidance needed (no repeated elements)',
+            );
+            return '';
+          }
 
-      console.log('🎯 Generated diversity guidance:', {
-        avoidedElementsCount: guidance.avoidedElementsCount,
-        suggestedAlternativesCount: guidance.suggestedAlternativesCount,
-        guidanceLength: guidance.guidanceText.length,
-        guidancePreview: guidance.guidanceText.substring(0, 150) + '...',
-      });
+          console.log('🎯 Generated diversity guidance:', {
+            avoidedElementsCount: guidance.avoidedElementsCount,
+            suggestedAlternativesCount: guidance.suggestedAlternativesCount,
+            guidanceLength: guidance.guidanceText.length,
+            guidancePreview: guidance.guidanceText.substring(0, 150) + '...',
+          });
 
-      return guidance.guidanceText;
-    } catch (error) {
-      console.error('❌ Error retrieving diversity guidance:', error);
-      // Non-blocking: return empty string to allow story generation to continue
-      return '';
-    }
+          return guidance.guidanceText;
+        } catch (error) {
+          console.error('❌ Error retrieving diversity guidance:', error);
+          // Non-blocking: return empty string to allow story generation to continue
+          return '';
+        }
+      },
+    });
   }
 
   /**

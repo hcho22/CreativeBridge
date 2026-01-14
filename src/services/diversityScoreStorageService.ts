@@ -30,6 +30,8 @@ interface DiversityScoreRecord {
 export interface ScoreStorageResult {
   success: boolean;
   score?: number;
+  novelElementCount?: number;
+  totalElementCount?: number;
   errors: string[];
   duration?: number;
 }
@@ -161,6 +163,8 @@ class DiversityScoreStorageService {
         return {
           success: true,
           score: diversityScore.score,
+          novelElementCount: diversityScore.novelElementCount,
+          totalElementCount: diversityScore.totalElementCount,
           errors: [],
           duration: Date.now() - startTime,
         };

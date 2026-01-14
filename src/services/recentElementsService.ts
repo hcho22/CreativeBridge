@@ -8,6 +8,7 @@
  */
 
 import { supabase } from './supabase';
+import { diversityPerformanceMonitoringService } from './diversityPerformanceMonitoringService';
 
 /**
  * Story element with embedding for semantic comparison
@@ -110,11 +111,26 @@ class RecentElementsService {
         cacheSize: this.recentElementsCache.size,
         totalElements: this.getTotalElementCount(cached),
       });
+
+      // Log cache hit for monitoring
+      diversityPerformanceMonitoringService.logCacheMetrics({
+        sessionId,
+        operation: 'getRecentElements',
+        cacheHit: true,
+      });
+
       return cached;
     }
 
     console.log('❌ Recent elements cache miss, querying database:', {
       sessionId: sessionId.substring(0, 12),
+    });
+
+    // Log cache miss for monitoring
+    diversityPerformanceMonitoringService.logCacheMetrics({
+      sessionId,
+      operation: 'getRecentElements',
+      cacheHit: false,
     });
 
     try {
