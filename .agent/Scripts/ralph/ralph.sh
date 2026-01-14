@@ -65,9 +65,9 @@ for i in $(seq 1 $MAX_ITERATIONS); do
   # Change to project root for Claude execution
   cd "$PROJECT_ROOT"
 
-  # Run Claude with the ralph prompt
-  echo "🤖 Invoking Claude CLI..."
-  OUTPUT=$(cat "$SCRIPT_DIR/prompt.md" | claude 2>&1 | tee /dev/stderr) || true
+  # Run Claude with the ralph prompt (bypass permissions for autonomous operation)
+  echo "🤖 Invoking Claude CLI with auto-approval..."
+  OUTPUT=$(cat "$SCRIPT_DIR/prompt.md" | claude --permission-mode bypassPermissions 2>&1 | tee /dev/stderr) || true
 
   # Run CreativeBridge quality gates if script exists
   if [ -f "$QUALITY_GATES_SCRIPT" ]; then

@@ -243,7 +243,7 @@ Add ability to mark tasks with different statuses.
 
 **Before writing a new prd.json, check if there is an existing one from a different feature:**
 
-1. Read the current `prd.json` if it exists
+1. Read the current `./Ralph/prd.json` if it exists
 2. Check if `branchName` differs from the new feature's branch name
 3. If different AND `progress.txt` has content beyond the header:
    - Create archive folder: `archive/YYYY-MM-DD-feature-name/`

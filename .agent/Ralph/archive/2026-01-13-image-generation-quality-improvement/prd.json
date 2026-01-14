@@ -16,8 +16,8 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Completed: Created comprehensive database schema with all required tables, indexes, RLS policies, and helper functions. Migration file: sql/create_story_diversity_tables.sql. Documentation updated in database_schema.md."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-002",
@@ -32,8 +32,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Completed: Created storyElementExtractionService with LLM-based extraction using GPT-4 Turbo. Implements structured output prompting, element normalization (lowercase, singular), exponential backoff retry logic (3 attempts), and fallback regex extraction. Comprehensive test suite with 20 passing tests. Files: src/services/storyElementExtractionService.ts, src/__tests__/services/storyElementExtractionService.test.ts"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
@@ -48,8 +48,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Completed: Created embeddingGenerationService with OpenAI text-embedding-3-small integration (1536-dimensional embeddings). Implements LRU in-memory caching (1000 entry limit), exponential backoff retry logic (3 attempts with 1s/2s/4s delays), text normalization (lowercase/trim), batch generation support, and comprehensive error handling (no retry on auth/data validation errors). Test suite: 21 passing tests covering all features and edge cases. Files: src/services/embeddingGenerationService.ts (439 lines), src/__tests__/services/embeddingGenerationService.test.ts (575 lines)."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
@@ -64,8 +64,8 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "Completed: Created cosineSimilarityService with calculateCosineSimilarity function implementing the cosine similarity formula. Includes helper functions: findMostSimilarVector, batchCalculateSimilarity, areSimilar. Comprehensive test suite with 40 passing tests covering identical/orthogonal/opposite vectors, edge cases (zero vectors, dimension mismatches, floating-point precision), mathematical properties (commutativity, scale-invariance), and batch operations. Files: src/services/cosineSimilarityService.ts (226 lines), src/__tests__/services/cosineSimilarityService.test.ts (391 lines)."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-005",

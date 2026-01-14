@@ -113,3 +113,122 @@ Iteration: #2
 - Element text format is ready for semantic similarity comparison (US-004, US-007)
 
 ---
+## 2026-01-13 - US-003
+Iteration: #3
+
+**What was implemented:**
+- Created embedding generation service using OpenAI text-embedding-3-small model
+- Implemented generateEmbedding function returning 1536-dimensional vectors
+- Built generateEmbeddingsBatch for efficient multi-text processing
+- Added LRU in-memory cache with 1000-entry limit to avoid redundant API calls
+- Implemented exponential backoff retry logic (1s, 2s, 4s delays)
+- Added text normalization (lowercase, trim) for better cache hits
+- Created comprehensive test suite with 21 passing tests
+
+**Files changed:**
+- `src/services/embeddingGenerationService.ts` - Main embedding service (439 lines)
+- `src/__tests__/services/embeddingGenerationService.test.ts` - Test suite (575 lines)
+- `.agent/Ralph/prd.json` - Updated US-003 to passes: true
+
+**Tests added:**
+- 21 comprehensive unit tests covering:
+  - Basic embedding generation with text-embedding-3-small
+  - Text normalization (lowercase, trim) for cache consistency
+  - LRU cache management (hits, misses, eviction at 1000 limit)
+  - Retry logic with exponential backoff (rate limits, server errors, timeouts)
+  - No retry on auth errors (401) or data validation errors (empty embeddings)
+  - Batch embedding generation with partial cache hits
+  - Cache statistics and manual clearing
+  - Performance validation (< 1s for mocked calls)
+  - Correct embedding dimensions (1536 for text-embedding-3-small)
+- All tests passing (10.7s runtime)
+
+**Quality gates:**
+- TypeScript compilation: ✅ No new errors introduced
+- ESLint: ✅ No new warnings from my changes
+- Jest tests: ✅ 21/21 tests passing
+- Pre-commit hooks: ✅ Auto-formatted with Prettier
+
+**Learnings for future iterations:**
+- **OpenAI Embedding API**: Uses text-embedding-3-small for cost-effective 1536-dim embeddings. Single endpoint supports both individual and batch requests (up to 2048 inputs).
+- **Cache strategy**: LRU eviction with Map preserves insertion order in JavaScript. When full, delete first key (oldest entry). Normalization (lowercase/trim) critical for cache hit rate.
+- **Retry vs no-retry errors**: Auth errors (401) and data validation errors (empty embeddings) should NOT retry - fail fast. Rate limits (429), server errors (500/503), and timeouts SHOULD retry.
+- **Error marker pattern**: Use custom property on Error object (`error.isDataValidationError = true`) to distinguish non-retryable errors from transient failures.
+- **Text normalization**: "Dragon", "dragon", and "  DRAGON  " should all use same cached embedding. Apply lowercase + trim before cache lookup and API call.
+- **Batch optimization**: Check cache first for each text, only send uncached texts to API. Fill results array at correct indices to preserve input order.
+- **Cache size limit**: 1000 embeddings ≈ 6MB memory (1536 floats × 8 bytes × 1000). Reasonable for mobile app without memory pressure.
+- **Test patterns**: Mock global.fetch for React Native, use beforeEach to clear cache between tests, increase timeout for retry tests (exponential backoff takes time).
+
+**Technical decisions:**
+- Used text-embedding-3-small instead of ada-002: Lower cost, better performance, same 1536 dimensions
+- LRU cache with Map instead of external library: Simple, no dependencies, leverages JS Map insertion order
+- Batch API for multiple texts: More efficient than sequential calls, but added complexity for partial cache hits
+- Non-retryable data validation errors: Empty embeddings indicate API bug or model issue, not transient failure
+- Cache limit at 1000: Balance between hit rate and memory usage for mobile devices
+
+**Integration notes for next stories:**
+- This service will be used by US-006 (recent elements retrieval) to generate embeddings for stored elements
+- Embeddings will feed into US-004 (cosine similarity) for semantic comparison
+- Batch generation enables efficient processing when analyzing multiple story elements at once
+- Cache ensures we don't re-embed common words like "dragon", "forest", "magic key"
+
+---
+## 2026-01-13 - US-004
+Iteration: #4
+
+**What was implemented:**
+- Created cosine similarity calculation service for semantic vector comparison
+- Implemented calculateCosineSimilarity function with proper mathematical formula: cos(θ) = (A · B) / (||A|| × ||B||)
+- Added helper functions for practical use cases: findMostSimilarVector, batchCalculateSimilarity, areSimilar
+- Built comprehensive edge case handling for production robustness
+- Created extensive test suite with 40 passing tests covering all scenarios
+
+**Files changed:**
+- `src/services/cosineSimilarityService.ts` - Main similarity calculation service (226 lines)
+- `src/__tests__/services/cosineSimilarityService.test.ts` - Test suite (391 lines)
+- `.agent/Ralph/prd.json` - Updated US-004 to passes: true
+
+**Tests added:**
+- 40 comprehensive unit tests covering:
+  - Identical vectors (return 1.0) - validates perfect match detection
+  - Orthogonal vectors (return 0.0) - validates perpendicular vector detection
+  - Opposite vectors (return -1.0) - validates inverse direction detection
+  - Similar but not identical vectors - validates partial similarity scores
+  - Realistic embedding scenarios (1536-dimensional vectors, semantic similarity)
+  - Edge cases: empty vectors, dimension mismatches, zero vectors, floating-point precision
+  - Mathematical properties: commutativity, scale-invariance
+  - Helper functions: findMostSimilarVector, batchCalculateSimilarity, areSimilar
+  - Performance: batch processing 1000 vectors in < 1 second
+- All tests passing (0.698s runtime)
+
+**Quality gates:**
+- TypeScript compilation: ✅ No new errors introduced
+- ESLint: ✅ No new warnings from my changes
+- Jest tests: ✅ 40/40 tests passing
+- Formula validation: ✅ Cosine similarity formula correctly implemented with known vector pairs
+
+**Learnings for future iterations:**
+- **Cosine similarity formula breakdown**: Breaking calculation into clear steps (dot product, magnitude A, magnitude B, division) improves readability and debugging. Each step can be validated independently.
+- **Edge case defense is critical**: Zero vectors (magnitude = 0) and dimension mismatches are common in production - explicit handling prevents downstream crashes. Return 0.0 for zero vectors (mathematically undefined but sensible default).
+- **Floating-point precision**: Cosine similarity should always be in [-1, 1] range, but floating-point arithmetic can produce 1.0000000000000002. Always clamp results to prevent assertion failures.
+- **Helper functions enable practical use**: While calculateCosineSimilarity is the core, real use cases need findMostSimilarVector (find best match from candidates), batchCalculateSimilarity (process multiple comparisons), areSimilar (threshold-based matching with default 0.75).
+- **Test with known vector pairs**: Mathematical guarantees (identical=1.0, orthogonal=0.0, opposite=-1.0) validate algorithm correctness better than random tests.
+- **Performance scales linearly**: Batch processing 1000 1536-dimensional vectors completes in < 1 second, confirming algorithm is efficient enough for real-time diversity checking.
+- **Magnitude invariance**: Cosine similarity measures direction, not magnitude - vectors [1,1,1] and [2,2,2] have similarity 1.0. This is ideal for embeddings where magnitude doesn't carry semantic meaning.
+
+**Technical decisions:**
+- Separate loops for dot product and magnitudes: More readable than combined loop, minimal performance impact
+- Explicit error throwing for invalid inputs: Empty vectors and dimension mismatches should fail fast rather than return incorrect results
+- Warning for zero vectors instead of error: Zero vectors are edge case but not necessarily an error - log warning and return 0.0
+- Clamping to [-1, 1]: Handle floating-point precision errors gracefully rather than returning values like 1.0000000000000002
+- Helper function for threshold checking: areSimilar(v1, v2, 0.75) is more readable than calculateCosineSimilarity(v1, v2) >= 0.75
+- Batch function returns 0.0 for invalid vectors: Allows partial processing of mixed valid/invalid batches without failing entire operation
+
+**Integration notes for next stories:**
+- This service will be used by US-007 (similarity detection) to compare new story elements against recent history
+- findMostSimilarVector enables efficient "find closest match" queries for diversity checking
+- batchCalculateSimilarity optimizes processing when comparing one new element against many recent elements
+- Default threshold of 0.75 in areSimilar matches PRD requirement for similarity detection
+- All functions handle 1536-dimensional vectors (OpenAI text-embedding-3-small) efficiently
+
+---
