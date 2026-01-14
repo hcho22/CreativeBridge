@@ -1,10 +1,13 @@
 // Post-Generation Storage Service for CreativeBridge
 // Handles asynchronous extraction and storage of story elements after story generation completes
 // Part of US-010: Implement post-generation element extraction and storage
+// Part of US-012: Store diversity scores with story metadata
 
 import { supabase } from './supabase';
 import { storyElementExtractionService } from './storyElementExtractionService';
 import { embeddingGenerationService } from './embeddingGenerationService';
+import { diversityScoreStorageService } from './diversityScoreStorageService';
+import type { ExtractedElements } from './storyElementExtractionService';
 
 /**
  * Story element ready for database insertion
@@ -24,6 +27,7 @@ interface StoryElementRecord {
 export interface StorageResult {
   success: boolean;
   elementsStored: number;
+  diversityScoreStored: boolean;
   errors: string[];
   duration?: number;
 }
@@ -203,15 +207,57 @@ class PostGenerationStorageService {
         console.log('ℹ️ No elements extracted from story - nothing to store');
       }
 
+      // Step 5: Calculate and store diversity score (US-012)
+      // This runs asynchronously after element storage
+      let diversityScoreStored = false;
+      if (elementsStored > 0) {
+        console.log('📊 Storing diversity score...');
+        try {
+          const scoreResult =
+            await diversityScoreStorageService.storeDiversityScore({
+              storyId,
+              sessionId,
+              extractedElements: extracted,
+            });
+
+          diversityScoreStored = scoreResult.success;
+
+          if (scoreResult.success) {
+            console.log(
+              `✅ Diversity score stored: ${scoreResult.score?.toFixed(3)}`,
+            );
+          } else {
+            const errorMsg = `Diversity score storage failed: ${scoreResult.errors.join(
+              ', ',
+            )}`;
+            console.warn(`⚠️ ${errorMsg}`);
+            errors.push(errorMsg);
+          }
+        } catch (scoreError) {
+          // Log error but don't fail the entire operation
+          const errorMsg = `Diversity score storage error: ${
+            scoreError instanceof Error
+              ? scoreError.message
+              : String(scoreError)
+          }`;
+          console.warn(`⚠️ ${errorMsg}`);
+          errors.push(errorMsg);
+        }
+      } else {
+        console.log('ℹ️ Skipping diversity score (no elements stored)');
+      }
+
       const duration = Date.now() - startTime;
       console.log(`✨ Post-generation storage complete in ${duration}ms`, {
         elementsStored,
+        diversityScoreStored,
         errorCount: errors.length,
       });
 
       return {
         success: elementsStored > 0 || errors.length === 0,
         elementsStored,
+        diversityScoreStored,
         errors,
         duration,
       };
@@ -227,6 +273,7 @@ class PostGenerationStorageService {
       return {
         success: false,
         elementsStored,
+        diversityScoreStored: false,
         errors,
         duration,
       };

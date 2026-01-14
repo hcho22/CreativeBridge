@@ -1,14 +1,17 @@
 // Tests for Post-Generation Storage Service
 // Comprehensive test suite for US-010: Post-generation element extraction and storage
+// Part of US-012: Store diversity scores with story metadata
 
 import { postGenerationStorageService } from '../../services/postGenerationStorageService';
 import { storyElementExtractionService } from '../../services/storyElementExtractionService';
 import { embeddingGenerationService } from '../../services/embeddingGenerationService';
+import { diversityScoreStorageService } from '../../services/diversityScoreStorageService';
 import { supabase } from '../../services/supabase';
 
 // Mock dependencies
 jest.mock('../../services/storyElementExtractionService');
 jest.mock('../../services/embeddingGenerationService');
+jest.mock('../../services/diversityScoreStorageService');
 jest.mock('../../services/supabase', () => ({
   supabase: {
     from: jest.fn(),
@@ -73,6 +76,16 @@ describe('PostGenerationStorageService', () => {
     (supabase.from as jest.Mock).mockReturnValue({
       insert: mockInsert,
       select: jest.fn(),
+    });
+
+    // Mock diversity score storage service (US-012)
+    (
+      diversityScoreStorageService.storeDiversityScore as jest.Mock
+    ).mockResolvedValue({
+      success: true,
+      score: 0.85,
+      errors: [],
+      duration: 50,
     });
   });
 
