@@ -16,6 +16,9 @@ export interface StoryRequest {
   storySoFar?: string;
   userInput?: string;
   challenge?: string;
+  sessionId?: string; // Optional session ID for diversity tracking
+  userId?: string; // Optional user ID for diversity tracking (fallback when no sessionId)
+  storyId?: string; // Optional story ID for post-generation element storage
 }
 
 export interface AgentConfig {

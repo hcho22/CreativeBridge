@@ -526,3 +526,72 @@ Iteration: #8
 
 ---
 
+
+## 2026-01-13 - US-009
+Iteration: #9
+
+**What was implemented:**
+- Integrated diversity guidance into story generation flow with non-blocking architecture
+- Modified StoryRequest interface to include optional sessionId, userId, and storyId fields for diversity tracking
+- Updated storyGenerationService.generateWithOpenAI to make buildPrompts async
+- Created getDiversityGuidance helper method with graceful error handling
+- Modified buildSystemPrompt to accept and append diversity guidance to existing prompt
+- Implemented complete integration: session retrieval → recent elements fetch → guidance generation → prompt injection
+- Comprehensive test suite with 13 passing tests covering all user stories and edge cases
+
+**Files changed:**
+- `src/types/story.ts` - Added sessionId, userId, storyId optional fields to StoryRequest interface
+- `src/services/storyGenerationService.ts` - Integrated diversity tracking (73 lines added: imports, getDiversityGuidance method, async buildPrompts, enhanced buildSystemPrompt)
+- `src/__tests__/services/storyGenerationDiversityIntegration.test.ts` - Complete test suite (454 lines) with 13 passing tests
+
+**Tests added:**
+- 13 comprehensive integration tests covering:
+  - Diversity guidance retrieval when sessionId provided
+  - Session creation from userId when no sessionId
+  - Skipping guidance when no recent elements exist
+  - Continuing story generation on diversity guidance failure
+  - Story generation without session context (backward compatibility)
+  - Diversity guidance for story continuations
+  - Guidance for all grade levels (K-2, 3-5, 6-8, 9-12)
+  - Error handling and logging
+  - Integration with fallback story generation
+- All tests passing (13/13) in 0.885s runtime
+
+**Quality gates:**
+- TypeScript compilation: ✅ No new errors introduced (pre-existing errors only)
+- ESLint: ✅ No lint errors in new code
+- Jest tests: ✅ 13/13 integration tests passing
+- Coverage: Integration tests verify all critical paths
+
+**Learnings for future iterations:**
+- **Non-blocking integration pattern**: Diversity guidance failures should NEVER block story generation. Wrap guidance retrieval in try-catch, return empty string on error, log warnings but continue. This ensures diversity is an enhancement, not a single point of failure.
+- **Service export patterns in CreativeBridge**: Some services export singleton instances (recentElementsService, diversityGuidanceService), others export individual functions (diversitySessionService). Always check actual exports before importing.
+- **Options object pattern**: CreativeBridge services use options objects instead of individual parameters (e.g., `getRecentElements({ sessionId, limit })` not `getRecentElements(sessionId, limit)`). This provides better extensibility and named parameters.
+- **Session ID semantics**: DiversitySession interface uses `id` for the session identifier, not `sessionId`. The function `getOrCreateSessionWithAuth()` takes no userId parameter - it automatically gets the current authenticated user from Supabase auth context.
+- **Async prompt building**: Making `buildPrompts` async enables diversity guidance retrieval without breaking existing synchronous callers. The async nature propagates through `generateWithOpenAI` which was already async.
+- **Grade-level vocabulary preservation**: When appending diversity guidance to system prompt, ensure existing grade-level vocabulary requirements come BEFORE the guidance. This prioritizes educational appropriateness over diversity suggestions.
+- **Test mocking strategy**: When testing services with singleton exports, import as `{ serviceName }` and mock with `jest.mock('path/to/service')`. For function exports, import as `* as serviceName` to access mocked functions via namespace.
+- **ElementWithFrequency interface**: Uses `embeddingVector` field (not `embedding`), and `lastUsed` is a Date object (not ISO string). Always align test data with actual interface definitions.
+
+**Technical decisions:**
+- Session retrieval strategy: Check for sessionId first, fall back to creating from userId if available, skip guidance entirely if neither provided
+- Error handling: Non-retryable failures in guidance retrieval are logged but don't propagate - story generation continues with empty guidance string
+- Prompt injection location: Append diversity guidance AFTER grade-level vocabulary requirements to preserve educational priority
+- Test coverage focus: Integration tests verify end-to-end flow (session → elements → guidance → prompt) rather than testing individual service methods again
+- Backward compatibility: Adding optional fields to StoryRequest preserves existing callers - no changes required to storyAgent or other consumers
+
+**Integration notes for next stories:**
+- US-010 (post-generation storage) will use sessionId and storyId from StoryRequest to store extracted elements after generation
+- US-011 (diversity score calculation) will analyze similarity between new and recent elements to compute novelty metrics
+- US-013 (caching) should cache getRecentElements results keyed by sessionId to avoid redundant database queries
+- Future enhancement: Consider passing emphasis level based on diversity score (e.g., strong emphasis when score < 0.4)
+
+**Diversity guidance integration architecture insights:**
+- **Layered integration**: getDiversityGuidance encapsulates three-step process (session → elements → guidance), keeping buildPrompts clean
+- **Fail-safe design**: Empty guidance string is valid input to buildSystemPrompt - no special handling needed when guidance unavailable
+- **Observable behavior**: Console logging at each step (session creation, element retrieval, guidance generation) enables debugging without intrusive instrumentation
+- **Grade-agnostic**: Same guidance generation logic works for all grade levels - differences handled by grade-specific vocabulary requirements in base system prompt
+- **Story type agnostic**: Guidance applies equally to story starters and continuations - handled transparently by existing agent selection logic
+
+---
+

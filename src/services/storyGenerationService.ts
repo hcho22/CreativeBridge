@@ -15,6 +15,11 @@ import {
 // Removed unused import: OpenAIMessage
 import { GradeLevel } from '../types/database';
 
+// Diversity tracking services
+import { getOrCreateSessionWithAuth } from './diversitySessionService';
+import { recentElementsService } from './recentElementsService';
+import { diversityGuidanceService } from './diversityGuidanceService';
+
 class StoryGenerationService {
   private config: StoryServiceConfig;
   private agents: StoryAgents;
@@ -726,7 +731,7 @@ class StoryGenerationService {
       throw new Error('OpenAI client not configured');
     }
 
-    const { systemPrompt, userPrompt } = this.buildPrompts(request);
+    const { systemPrompt, userPrompt } = await this.buildPrompts(request);
 
     console.log('📝 Generating with OpenAI:', {
       systemPromptLength: systemPrompt.length,
@@ -779,15 +784,104 @@ class StoryGenerationService {
     return filteredContent.filteredContent || content;
   }
 
-  private buildPrompts(request: StoryRequest): {
+  /**
+   * Retrieves diversity guidance for a story generation request
+   * Non-blocking: Returns empty string on error to allow story generation to continue
+   */
+  private async getDiversityGuidance(request: StoryRequest): Promise<string> {
+    try {
+      console.log('🎨 Retrieving diversity guidance', {
+        sessionId: request.sessionId,
+        userId: request.userId,
+        gradeLevel: request.gradeLevel,
+      });
+
+      // Step 1: Get or create session
+      let sessionId = request.sessionId;
+      if (!sessionId && request.userId) {
+        // Create session from userId if no sessionId provided
+        const sessionResult = await getOrCreateSessionWithAuth();
+        sessionId = sessionResult.id;
+        console.log('✅ Created/retrieved session:', sessionId);
+      }
+
+      if (!sessionId) {
+        console.log(
+          '⚠️ No session context available, skipping diversity guidance',
+        );
+        return '';
+      }
+
+      // Step 2: Retrieve recent elements for this session
+      const recentElements = await recentElementsService.getRecentElements({
+        sessionId,
+        limit: 10, // Last 10 stories
+      });
+
+      console.log('📚 Retrieved recent elements:', {
+        totalElements:
+          recentElementsService.getTotalElementCount(recentElements),
+        characterCount: recentElements.characters.length,
+        settingCount: recentElements.settings.length,
+        objectCount: recentElements.objects.length,
+        plotPatternCount: recentElements.plot_patterns.length,
+      });
+
+      // Step 3: Generate diversity guidance from recent elements
+      const guidance = diversityGuidanceService.generateDiversityGuidance({
+        recentElements,
+        maxElementsToList: 5,
+        includeAlternatives: true,
+        emphasisLevel: 'moderate',
+      });
+
+      if (!guidance.hasGuidance) {
+        console.log('✨ No diversity guidance needed (no repeated elements)');
+        return '';
+      }
+
+      console.log('🎯 Generated diversity guidance:', {
+        avoidedElementsCount: guidance.avoidedElementsCount,
+        suggestedAlternativesCount: guidance.suggestedAlternativesCount,
+        guidanceLength: guidance.guidanceText.length,
+        guidancePreview: guidance.guidanceText.substring(0, 150) + '...',
+      });
+
+      return guidance.guidanceText;
+    } catch (error) {
+      console.error('❌ Error retrieving diversity guidance:', error);
+      // Non-blocking: return empty string to allow story generation to continue
+      return '';
+    }
+  }
+
+  private async buildPrompts(request: StoryRequest): Promise<{
     systemPrompt: string;
     userPrompt: string;
-  } {
+  }> {
     const agent = request.storySoFar
       ? this.agents.story_partner
       : this.agents.creative_writer;
 
-    const systemPrompt = this.buildSystemPrompt(agent, request.gradeLevel);
+    // Retrieve diversity guidance if session context is available
+    let diversityGuidance = '';
+    if (request.sessionId || request.userId) {
+      try {
+        diversityGuidance = await this.getDiversityGuidance(request);
+      } catch (error) {
+        // Non-blocking: log error but continue story generation
+        console.warn(
+          '⚠️ Failed to retrieve diversity guidance, continuing without it:',
+          error,
+        );
+      }
+    }
+
+    const systemPrompt = this.buildSystemPrompt(
+      agent,
+      request.gradeLevel,
+      diversityGuidance,
+    );
     const userPrompt = this.buildUserPrompt(request);
 
     return { systemPrompt, userPrompt };
@@ -796,6 +890,7 @@ class StoryGenerationService {
   private buildSystemPrompt(
     agent: AgentConfig,
     gradeLevel: GradeLevel,
+    diversityGuidance: string = '',
   ): string {
     // Grade-specific vocabulary guidance
     const vocabularyGuidance = {
@@ -809,7 +904,7 @@ class StoryGenerationService {
         'Use sophisticated vocabulary appropriate for high school students.',
     };
 
-    return `You are a creative children's story writer who creates unique, engaging stories with diverse characters and settings. Avoid repetitive themes and always create something fresh and original.
+    let systemPrompt = `You are a creative children's story writer who creates unique, engaging stories with diverse characters and settings. Avoid repetitive themes and always create something fresh and original.
 
 You specialize in writing for ${gradeLevel} students. Your stories should be age-appropriate, engaging, and educational.
 
@@ -822,6 +917,13 @@ Key guidelines:
 - If continuing a story, maintain the same characters, setting, and tone
 - Build on what the student has written without changing their creative direction
 - Use familiar, everyday words that ${gradeLevel} students know`;
+
+    // Append diversity guidance if available
+    if (diversityGuidance) {
+      systemPrompt += `\n\n${diversityGuidance}`;
+    }
+
+    return systemPrompt;
   }
 
   private getGradeGuidelines(gradeLevel: GradeLevel): string {
