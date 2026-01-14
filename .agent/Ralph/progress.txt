@@ -448,3 +448,81 @@ Iteration: #7
 
 ---
 
+
+## 2026-01-13 - US-008
+Iteration: #8
+
+**What was implemented:**
+- Created diversity guidance generation service for natural language prompt injection
+- Implemented generateDiversityGuidance function that analyzes recent elements and creates guidance text
+- Built intelligent alternative suggestion system based on pattern detection
+- Added frequency-based filtering (only elements with 2+ occurrences are included)
+- Implemented three emphasis levels: subtle, moderate, strong
+- Created generateCompactGuidance for token-limited contexts
+- Comprehensive test suite with 26 passing tests
+
+**Files changed:**
+- `src/services/diversityGuidanceService.ts` - Main diversity guidance service (566 lines)
+- `src/__tests__/services/diversityGuidanceService.test.ts` - Test suite (715 lines)
+- `.agent/Ralph/prd.json` - Updated US-008 to passes: true
+
+**Tests added:**
+- 26 comprehensive unit tests covering:
+  - Empty recent elements handling (returns empty guidance)
+  - Guidance generation for all element types (characters, settings, objects, plot_patterns)
+  - Element combination from multiple categories
+  - Sorting by frequency descending
+  - maxElementsToList parameter (limits avoid list size)
+  - Frequency threshold filtering (only >= 2 occurrences included)
+  - Alternative suggestions when includeAlternatives is true/false
+  - Character alternatives for overused animals/humans/magical creatures
+  - Setting alternatives for overused forests/castles/schools/ocean/urban
+  - Object alternatives for overused magic items/keys/books/jewelry
+  - Plot pattern alternatives for overused discovery/chase/mystery/transformation
+  - Three emphasis levels (subtle, moderate, strong) with correct formatting
+  - Goal statement inclusion in all guidance
+  - Proper guidance structure (3 parts: avoid list, alternatives, goal)
+  - Compact guidance generation (3 elements max, no alternatives, subtle)
+  - Edge cases: frequency exactly 2, very long text, special characters, mixed frequencies
+- All tests passing (0.921s runtime)
+
+**Quality gates:**
+- TypeScript compilation: ✅ No new errors introduced (pre-existing codebase errors only)
+- ESLint: ✅ No lint errors in diversityGuidanceService
+- Jest tests: ✅ 26/26 tests passing
+
+**Learnings for future iterations:**
+- **Guidance structure pattern**: Three-part structure (avoid list → alternatives → goal) provides clear, actionable guidance for LLMs. Newline separation ensures each part is distinct in the prompt.
+- **Frequency thresholds matter**: Using threshold of 2+ (FREQUENCY_THRESHOLD_MEDIUM) ensures we only flag actually repeated elements, not one-time occurrences. Threshold of 3+ (FREQUENCY_THRESHOLD_HIGH) identifies truly overused patterns for alternative suggestions.
+- **Pattern-based alternative suggestions**: Regex pattern matching (e.g., `/dragon|cat|dog|wolf/i`) enables intelligent suggestions. If forests are overused, suggest "urban/desert/ocean" alternatives. This is more helpful than generic "try something different."
+- **Emphasis levels enable context adaptation**: Subtle emphasis for gentle nudging, moderate for standard use, strong for critical diversity enforcement (e.g., when diversity score < 0.4). Each level has distinct phrasing and visual markers (⚠️, 🎯).
+- **Compact guidance for token limits**: generateCompactGuidance (3 elements max, no alternatives) reduces token usage by ~60% while preserving core avoidance information. Useful when story generation prompt is already token-heavy.
+- **Alternative suggestion categories**: Character alternatives consider animals vs humans vs magical. Setting alternatives consider nature vs urban vs fantasy. Object alternatives consider magical vs mundane. Plot alternatives consider discovery vs conflict vs transformation. This categorical thinking produces better suggestions.
+- **Sorting is critical for UX**: Sorting avoid list by frequency descending ensures most problematic elements appear first. If token limit forces truncation, we preserve the most important guidance.
+- **Empty state handling**: Returning `hasGuidance: false` with empty text allows callers to skip injection entirely when no guidance needed. Cleaner than injecting "no guidance available" text.
+- **Metadata enables analytics**: Returning `avoidedElementsCount` and `suggestedAlternativesCount` allows US-014 (performance monitoring) to track guidance effectiveness.
+
+**Technical decisions:**
+- Frequency threshold of 2+ for avoid list: Elements used once aren't repetitive, elements used 2+ times indicate a pattern
+- Frequency threshold of 3+ for alternative suggestions: Only suggest alternatives when there's clear overuse (3+ occurrences)
+- Pattern-based alternative logic instead of embedding-based: Faster (no vector operations), more interpretable, sufficient for common patterns. Embedding-based could be added later for edge cases.
+- Three emphasis levels: Provides flexibility for different use cases (background diversity nudging vs critical intervention)
+- Compact guidance helper: Anticipates token limits in story generation, provides pre-optimized version
+- Singleton export pattern: Matches existing service patterns (recentElementsService, similarityDetectionService)
+- Type-based alternative suggestions: Each element type (character, setting, object, plot_pattern) has distinct alternative logic
+
+**Integration notes for next stories:**
+- US-009 (story generation integration) will inject this guidance into the system prompt using buildSystemPrompt in storyGenerationService.ts around line 812
+- Guidance should be appended to existing system prompt to preserve grade-level vocabulary guidelines
+- Use moderate emphasis level by default, strong emphasis when diversity score is low (< 0.4)
+- Consider compact guidance if total prompt length approaches token limits (8k for GPT-4 Turbo)
+- Guidance text is designed to be LLM-readable - no special formatting needed beyond appending to system prompt
+
+**Diversity guidance insights:**
+- **Natural language works better than structured constraints**: LLMs respond better to "avoid dragons (3 times)" than JSON constraints like `{"avoid": ["dragon"]}`. Natural language guidance integrates seamlessly into existing prompts.
+- **Specificity improves compliance**: Listing exact element text ("enchanted forest", "magic wand") is more effective than generic "avoid fantasy elements". LLMs need concrete examples.
+- **Positive alternatives reduce resistance**: "Try urban settings" is more effective than "Don't use forests". Providing alternatives gives the LLM constructive direction rather than just restrictions.
+- **Goal statement provides context**: Ending with "Goal: Create a story with fresh, unexpected elements" reminds the LLM WHY diversity matters, not just WHAT to avoid. Improves compliance and creative quality.
+
+---
+
