@@ -1,62 +1,115 @@
-# Ralph Progress Log - CreativeBridge
-Started: 2026-01-12
-Ralph Version: Adapted for Claude Code CLI
+# Ralph Progress Log
+Started: Tue Jan 13 15:27:13 PST 2026
+---
 
 ## Codebase Patterns
-
-### Project Structure
-- `src/services/` - Business logic layer (30+ specialized services)
-- `src/components/` - Reusable UI components (analytics, common, story)
-- `src/screens/` - Screen components for React Navigation
-- `src/types/` - TypeScript definitions and interfaces
-- `src/context/` - React Context providers (Auth, etc.)
-- `src/navigation/` - App navigation configuration
-- `sql/` - Database migrations for Supabase
-
-### Database Patterns (Supabase + PostgreSQL)
-- **RLS Policies:** Always include explicit `user_id` check in WHERE clause for user-scoped data
-- **Migrations:** Create in `sql/` directory, test locally before production
-- **TypeScript Types:** Update `src/types/database.ts` after schema changes
-- **Rollback:** Include rollback procedure in every migration file
-
-### React Native Patterns
-- **Offline-First:** Use AsyncStorage for local caching, sync with Supabase when online
-- **Platform-Specific:** Use `Platform.select()` for iOS/Android differences
-- **Navigation:** React Navigation v7 (tabs + stack)
-- **State Management:** React Context API (not Redux)
-
-### Testing Patterns (Jest)
-- **Coverage Requirement:** 70%+ maintained across all services
-- **Test Location:** `src/__tests__/` with subdirectories (security, database, services, components)
-- **Mocks:** Shared mocks in `src/__tests__/mocks/`
-- **Test Naming:** `[feature].test.ts` convention
-
-### AI Services Integration
-- **OpenAI (GPT-4):** Story generation - see `src/services/storyGenerationService.ts`
-- **Replicate (Stable Diffusion):** Image generation - see `src/services/imageGenerationService.ts`
-- **Claude Skills:** Advanced AI capabilities - see `src/services/claudeSkillsManager.ts`
-
-### XP & Gamification
-- **XP Events:** Track via `src/services/xpEventTracker.ts`
-- **Atomic Operations:** XP awards must happen atomically with triggering action
-- **Offline Queue:** Queue XP events if network unavailable
-
-### Common Gotchas
-- **Supabase Auth:** Email verification required; handle OAuth (Google, Apple)
-- **AsyncStorage:** Always await operations; handle storage quota errors
-- **Image Upload:** Use `src/services/imageStorageService.ts` for Supabase storage
-- **Story Completion:** Mark as complete only after all XP/image operations succeed
-- **Grade Levels:** Support K-2, 3-5, 6-8, 9-12 with age-appropriate content
-
-### Development Workflow
-1. Read `.agent/SOP/development_procedures.md` for detailed SOPs
-2. Follow git branching strategy: feature branches from main
-3. Run quality gates before commit: `npm test && npm run lint && npx tsc --noEmit`
-4. Update `.agent/` docs when adding significant features or patterns
+- CreativeBridge uses PostgreSQL/Supabase for database with comprehensive RLS policies
+- All migrations follow pattern: CREATE TABLE IF NOT EXISTS, comprehensive indexes, RLS policies, helper functions
+- Migration files include inline documentation with COMMENT ON TABLE/COLUMN statements
+- Always use SECURITY DEFINER for helper functions that need elevated privileges
+- Database functions use explicit parameter naming (p_parameter_name) for clarity
+- JSONB is preferred for flexible metadata storage with GIN indexes for queries
+- All user-owned data must have RLS policies checking auth.uid() = user_id
+- Indexes follow naming convention: idx_tablename_column1_column2
+- Constraints use descriptive names and CHECK constraints for data validation
+- Rollback procedures are documented in comments at end of migration files
 
 ---
 
-# Iteration Log
+## 2026-01-13 - US-001
+Iteration: #1
 
-(Ralph iterations will be appended below)
+**What was implemented:**
+- Created comprehensive database schema for story diversity tracking system
+- Implemented three core tables: story_elements, user_sessions, story_diversity_scores
+- Added story_elements table with element_type enum (character, setting, object, plot_pattern)
+- Stored embeddings as JSONB arrays for semantic similarity matching
+- Created user_sessions table with 24-hour expiration windows
+- Implemented story_diversity_scores with 0.0-1.0 score range and novel element tracking
 
+**Files changed:**
+- `sql/create_story_diversity_tables.sql` - Complete migration with tables, indexes, RLS, functions
+- `.agent/System/database_schema.md` - Updated documentation with new tables (sections 4-6)
+
+**Tests added:**
+- Migration includes validation assertions to verify table creation
+- No TypeScript/Jest tests needed for pure SQL schema migration
+
+**Quality gates:**
+- TypeScript compilation: Pre-existing errors in codebase, no new errors introduced
+- ESLint: Passed with only pre-existing warnings
+- Jest tests: Pre-existing failures, no new failures introduced
+- Migration syntax: Validated with PostgreSQL patterns from existing migrations
+
+**Learnings for future iterations:**
+- **Database migration pattern**: CreativeBridge uses IF NOT EXISTS for idempotent migrations, comprehensive COMMENT ON statements for documentation, and rollback procedures in comments
+- **RLS policy structure**: All user data must filter by auth.uid() = user_id, or use EXISTS subqueries to join through game_sessions for indirect ownership
+- **Index strategy**: Compound indexes for common query patterns (session_id, created_at DESC), partial indexes for filtered queries (WHERE diversity_score < 0.4)
+- **JSONB for embeddings**: Using JSONB arrays instead of PostgreSQL vector extension for now - allows flexibility while avoiding additional extension dependencies
+- **Session management**: 24-hour windows using expires_at timestamp, cleanup function should be run via cron/scheduler
+- **Semantic similarity approach**: Embeddings stored as JSONB, cosine similarity will be calculated in application layer (future stories)
+- **Validation pattern**: CHECK constraints ensure data integrity (element_type IN (...), diversity_score range 0-1)
+- **Function security**: Helper functions use SECURITY DEFINER to allow operations beyond RLS restrictions
+- **Documentation workflow**: Always update .agent/System/database_schema.md after schema changes, including tables, indexes, RLS policies, and functions
+
+**Technical decisions:**
+- Used JSONB for embedding_vector instead of pgvector extension to avoid dependency complexity
+- Session expiration at database level (expires_at) rather than application-only tracking
+- One diversity score per story (UNIQUE constraint) to prevent duplicate scoring
+- Cascading deletes on game_sessions to automatically clean up related diversity data
+- GIN indexes on JSONB fields for potential metadata queries
+
+---
+## 2026-01-13 - US-002
+Iteration: #2
+
+**What was implemented:**
+- Created story element extraction service with LLM-based structured output analysis
+- Implemented GPT-4 Turbo integration for extracting characters, settings, objects, and plot patterns
+- Added comprehensive normalization: lowercase text, singular nouns, base-form verbs
+- Built fallback extraction using regex patterns when LLM fails
+- Created comprehensive test suite with 20 passing tests covering all edge cases
+
+**Files changed:**
+- `src/services/storyElementExtractionService.ts` - Main extraction service (645 lines)
+- `src/__tests__/services/storyElementExtractionService.test.ts` - Test suite (306 lines)
+- `.agent/Ralph/prd.json` - Updated US-002 to passes: true
+
+**Tests added:**
+- 20 comprehensive unit tests covering:
+  - LLM-based extraction with structured output
+  - Element normalization (lowercase, singular, verb base forms)
+  - Retry logic with exponential backoff (1s, 2s, 4s delays)
+  - Fallback extraction using keyword matching
+  - Edge cases: empty text, special characters, non-English, markdown code blocks
+  - Performance validation (< 5s execution)
+- All tests passing (24.92s runtime)
+
+**Quality gates:**
+- TypeScript compilation: ✅ No new errors introduced
+- ESLint: ✅ No new warnings from my changes
+- Jest tests: ✅ 20/20 tests passing
+- Pre-commit hooks: ✅ Auto-formatted with Prettier
+
+**Learnings for future iterations:**
+- **LLM structured output**: Use low temperature (0.3) with explicit JSON schema in system prompt for consistent structured extraction. Always strip markdown code blocks from responses.
+- **Normalization is critical**: Singular form and lowercase ensure semantic matching works (e.g., "Keys" and "key" match). Simple heuristics work well: remove -s/-es/-ies for plurals, -ing/-ed for verbs.
+- **Fallback is essential**: Never let service completely fail - regex-based keyword extraction provides degraded but functional behavior when LLM unavailable.
+- **Retry strategy**: Exponential backoff with 3 retries handles transient API failures. Don't retry on auth errors (fail fast). Use 1s base delay to avoid hammering API.
+- **Story truncation**: Limit input to 4000 chars (~1000 tokens) to avoid token limit errors and reduce API costs.
+- **Test mocking patterns**: Mock `openaiClient.isConfigured()` and `generateStoryCompletion()` separately - allows testing both success and failure paths cleanly.
+- **Element types match database**: Ensure extracted element types (character, setting, object, plot_pattern) match the database enum for story_elements.element_type.
+
+**Technical decisions:**
+- Used GPT-4 Turbo instead of GPT-3.5: Better at following structured output instructions, worth the slightly higher cost
+- JSON parsing with markdown stripping: LLM sometimes adds ```json code blocks despite instructions - handle gracefully
+- Fallback uses keyword matching: Simple but effective for common story elements (animals, settings, magical objects)
+- Service never throws on extraction failure: Falls back to empty arrays rather than crashing story generation flow
+- Normalization happens after LLM extraction: Allows LLM to use natural language, then we normalize for consistency
+
+**Integration notes for next stories:**
+- This service will be called after story generation completes (US-010)
+- Extracted elements will feed into embedding generation (US-003)
+- Element text format is ready for semantic similarity comparison (US-004, US-007)
+
+---
