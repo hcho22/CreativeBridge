@@ -307,3 +307,70 @@ Iteration: #5
 
 ---
 
+## 2026-01-13 - US-006
+Iteration: #6
+
+**What was implemented:**
+- Created recent elements retrieval service for story diversity tracking
+- Implemented getRecentElements function that queries story_elements table
+- Built element grouping by type (character, setting, object, plot_pattern)
+- Added frequency counting for repeated elements across multiple stories
+- Implemented story-based limiting (retrieves elements from last N stories, not last N elements)
+- Created helper functions: getTotalElementCount, getMostFrequentElements
+- Comprehensive test suite with 17 passing tests
+
+**Files changed:**
+- `src/services/recentElementsService.ts` - Main recent elements retrieval service (352 lines)
+- `src/__tests__/services/recentElementsService.test.ts` - Test suite (556 lines)
+- `.agent/Ralph/prd.json` - Updated US-006 to passes: true
+
+**Tests added:**
+- 17 comprehensive unit tests covering:
+  - Element retrieval and grouping by type (character, setting, object, plot_pattern)
+  - Frequency counting with text normalization (lowercase, trim)
+  - Story-based limiting (last N stories, not arbitrary element count)
+  - Empty result handling and database error handling
+  - Null embedding vector support
+  - Sorting by frequency (descending) then lastUsed (descending)
+  - Most recent embedding selection for duplicate elements
+  - JSONB embedding format parsing (array and stringified)
+  - Helper functions: getTotalElementCount, getMostFrequentElements
+- All tests passing (1.287s runtime)
+
+**Quality gates:**
+- TypeScript compilation: ✅ No new errors introduced
+- ESLint: ✅ No new warnings from my changes (pre-existing warnings only)
+- Jest tests: ✅ 17/17 tests passing
+- Pre-commit hooks: ✅ Auto-formatted with Prettier
+
+**Learnings for future iterations:**
+- **Story-based windowing vs element-based windowing**: Limiting to "last N stories" provides better diversity context than "last N elements". If we used element limit, we might get 50 characters from 1 story (poor diversity signal) vs 10 characters from 10 stories (good diversity signal).
+- **Database query optimization**: Single query retrieves all session elements, then filter client-side for top N stories. Alternative approach (SQL subquery for story IDs) would require multiple round-trips or complex JOINs. Current approach optimal for React Native (single network call, lightweight JS filtering).
+- **Frequency counting normalization**: Normalizing element text during frequency counting (lowercase, trim) ensures "Dragon", "dragon", and "  DRAGON  " are counted as single element. This matches extraction service normalization (US-002) for consistency.
+- **Embedding staleness handling**: When element appears multiple times, we store the MOST RECENT embedding (not the oldest). This ensures semantic similarity checks use up-to-date embeddings if model or extraction logic evolves.
+- **Index usage**: Query uses idx_story_elements_session_id_created_at for efficient filtering by session and ordering by recency. Critical for mobile performance (< 100ms query time for typical 24-hour session).
+- **JSONB embedding format**: Embeddings stored as JSONB can be array format `[0.1, 0.2]` or stringified format `"[0.1, 0.2]"`. Service handles both gracefully with parseEmbedding helper.
+- **Helper functions enable analytics**: getTotalElementCount and getMostFrequentElements provide building blocks for diversity score calculation (US-011) and guidance generation (US-008).
+- **Sorting strategy**: Sort by frequency first (most repeated elements bubble to top), then by lastUsed (break ties with recency). This prioritizes both repetition frequency AND recent usage for diversity detection.
+
+**Technical decisions:**
+- Single database query + client-side filtering: Simpler than SQL subquery, optimal for React Native (minimize network round-trips)
+- Story-based window instead of element-based: Better diversity signal (avoids skew from element-heavy stories)
+- Most recent embedding for duplicates: Ensures semantic similarity uses latest extraction (handles evolving models/prompts)
+- Normalization during frequency counting: Ensures case-insensitive and whitespace-insensitive deduplication
+- Helper functions for analytics: Provides reusable building blocks for upcoming stories (US-007, US-008, US-011)
+- Sorting by frequency then recency: Balances repetition detection with temporal relevance
+
+**Integration notes for next stories:**
+- US-007 (similarity detection) will use this service to get recent elements, then compare new elements against them using cosine similarity (US-004)
+- US-008 (diversity guidance) will use getMostFrequentElements to identify overused elements and generate avoidance guidance
+- US-011 (diversity score calculation) will use getTotalElementCount and frequency data to compute novelty scores
+- US-013 (caching) will cache getRecentElements results by session_id to avoid redundant queries
+
+**Database query pattern insights:**
+- **Index-first design**: Always design queries to leverage existing indexes. This query uses idx_story_elements_session_id_created_at (created in US-001) for optimal filtering + sorting.
+- **Supabase RLS compatibility**: Query works transparently with RLS policies (story_elements_select_own_data policy in database_schema.md) - users can only retrieve elements from their own stories.
+- **Mobile-first query optimization**: For React Native, minimize network round-trips even if it means more client-side processing. Single query + JS filtering beats multiple queries or complex JOINs.
+
+---
+
