@@ -666,3 +666,85 @@ Iteration: #10
 
 ---
 
+
+## 2026-01-13 - US-011
+Iteration: #11
+
+**What was implemented:**
+- Created diversity score calculation service for quantitative story diversity measurement
+- Implemented calculateDiversityScore function with two-factor formula: (novelty_ratio × avg_semantic_distance)
+- Built calculateElementBreakdown for per-type diversity metrics (characters, settings, objects, plot_patterns)
+- Added convertToScoringFormat helper to bridge extraction service → scoring service
+- Created classifyDiversityScore for human-readable labels (very_low, low, moderate, high, very_high)
+- Implemented isLowDiversity checker with configurable threshold (default: 0.4)
+- Comprehensive edge case handling: empty elements, missing embeddings, first story, multiple similar matches
+
+**Files changed:**
+- `src/services/diversityScoreService.ts` - Main diversity score calculation service (368 lines)
+- `src/__tests__/services/diversityScoreService.test.ts` - Complete test suite (797 lines)
+- `.agent/Ralph/prd.json` - Updated US-011 to passes: true
+
+**Tests added:**
+- 25 comprehensive unit tests covering:
+  - Score calculation with formula verification (novelty_ratio × avg_semantic_distance)
+  - Novel element detection (similarity < 0.75 threshold)
+  - Semantic distance factor calculation (average of 1 - max_similarity_score)
+  - Edge cases: no new elements, no recent elements (first story), missing embeddings
+  - All novel elements (score = 1.0), all repetitive elements (score = 0.0), mixed scenarios
+  - Custom similarity threshold support (default: 0.75)
+  - Element breakdown by type with per-category metrics
+  - Multiple similar matches (uses max similarity for distance calculation)
+  - convertToScoringFormat with normalization (lowercase, trim)
+  - classifyDiversityScore across 5 categories
+  - isLowDiversity with default and custom thresholds
+  - Performance test: 100 elements processed efficiently (< 1s)
+- All tests passing (25/25) in 1.007s runtime
+
+**Quality gates:**
+- TypeScript compilation: ✅ No new errors introduced (pre-existing errors only)
+- ESLint: ✅ No lint warnings in new code (597 pre-existing warnings, 0 from US-011)
+- Jest tests: ✅ 25/25 tests passing
+
+**Learnings for future iterations:**
+- **Two-factor diversity formula**: Combining novelty ratio (how many novel elements) with semantic distance (how different they are) provides nuanced scoring. A story with 100% novel elements but semantically similar to past stories scores lower than one with fewer but truly distinct elements.
+- **Graceful degradation strategy**: Skip elements without embeddings rather than failing entire calculation - allows partial scoring when embedding generation has issues. This matches React Native offline-first pattern.
+- **Edge case handling priority**: Handle "no recent elements" (first story) separately from main loop to avoid unnecessary similarity detection calls. Return score=1.0 immediately for optimal performance.
+- **Max similarity for distance**: When element has multiple similar matches, use MAX similarity score (not average) for semantic distance calculation. This ensures we measure distance to the CLOSEST match, not an average that could hide very similar elements.
+- **Element breakdown enables analytics**: Per-type metrics (characters: 2 novel / 3 total, settings: 1 novel / 2 total) provide actionable insights for US-014 (performance monitoring) and future diversity UI dashboard (US-016).
+- **Helper methods bridge services**: convertToScoringFormat translates ExtractedElements → ElementForScoring format, enabling clean integration with postGenerationStorageService (US-010) and future diversity score storage (US-012).
+- **Classification labels for monitoring**: Five categories (very_low < 0.2, low < 0.4, moderate < 0.6, high < 0.8, very_high ≥ 0.8) enable easy logging and alerting ("Low diversity detected: score=0.35, category=low").
+- **Threshold configurability**: Default 0.75 similarity threshold matches PRD and previous stories, but custom threshold support enables experimentation (stricter: 0.85, looser: 0.65) without code changes.
+- **Test determinism with seed-based embeddings**: Using createEmbedding(seed) instead of Math.random() ensures reproducible test results and clear expected values.
+
+**Technical decisions:**
+- Two-factor formula instead of novelty-only: Captures both "how many" and "how different" aspects of diversity
+- Skip invalid embeddings vs fail: Enables partial scoring, matches CreativeBridge offline-first philosophy
+- Max similarity vs average: Measures distance to closest match, more sensitive to repetition
+- Element breakdown by type: Provides granular metrics for analytics and debugging
+- Helper methods for conversion: Clean separation between extraction format and scoring format
+- Clamping to [0, 1] range: Handles floating-point precision errors gracefully
+- Singleton export pattern: Matches existing service patterns (recentElementsService, similarityDetectionService)
+- Classification thresholds aligned with monitoring: 0.4 threshold for "low diversity" warning matches US-012 requirement
+
+**Integration notes for next stories:**
+- US-012 (diversity score storage) will use calculateDiversityScore after post-generation element extraction completes
+- Score calculation should happen asynchronously (fire-and-forget pattern like US-010) to avoid blocking story delivery
+- isLowDiversity(score, 0.4) will trigger warning logs as specified in US-012 acceptance criteria
+- Element breakdown metrics will be used for US-014 performance monitoring (novel_element_count, total_element_count)
+- classifyDiversityScore will provide human-readable categories for admin dashboard (US-016)
+
+**Diversity score formula insights:**
+- **Novelty ratio component**: Measures breadth of diversity - what percentage of elements are new? Range: [0.0, 1.0]
+- **Semantic distance component**: Measures depth of diversity - how different are the elements? Range: [0.0, 1.0]
+- **Combined score interpretation**:
+  - score = 1.0: All elements novel AND semantically distant (perfect diversity)
+  - score = 0.5: Either 50% novel with high distance, OR 100% novel with low distance (moderate diversity)
+  - score = 0.0: All elements repetitive OR identical embeddings (no diversity)
+- **Why multiplication matters**: Multiplicative formula ensures BOTH factors must be high for high score. Additive formula (novelty + distance) / 2 would reward high novelty even with zero semantic distance.
+- **Example calculations**:
+  - 3 novel / 3 total, avg distance = 1.0 → score = 1.0 × 1.0 = 1.0 ✅
+  - 2 novel / 4 total, avg distance = 0.575 → score = 0.5 × 0.575 = 0.2875 (moderate)
+  - 0 novel / 2 total, avg distance = 0.05 → score = 0.0 × 0.05 = 0.0 (repetitive)
+
+---
+
