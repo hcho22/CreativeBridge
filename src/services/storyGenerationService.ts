@@ -19,6 +19,7 @@ import { GradeLevel } from '../types/database';
 import { getOrCreateSessionWithAuth } from './diversitySessionService';
 import { recentElementsService } from './recentElementsService';
 import { diversityGuidanceService } from './diversityGuidanceService';
+import { postGenerationStorageService } from './postGenerationStorageService';
 
 class StoryGenerationService {
   private config: StoryServiceConfig;
@@ -201,6 +202,10 @@ class StoryGenerationService {
             storyLength: story.length,
             hasContent: !!story,
           });
+
+          // Trigger post-generation element extraction and storage (async, non-blocking)
+          this.triggerPostGenerationStorage(story, request);
+
           return {
             story,
             success: true,
@@ -853,6 +858,49 @@ class StoryGenerationService {
       // Non-blocking: return empty string to allow story generation to continue
       return '';
     }
+  }
+
+  /**
+   * Trigger post-generation element extraction and storage (async, non-blocking)
+   *
+   * This method fires off the extraction and storage process after successful
+   * story generation. It runs asynchronously and does not block story delivery.
+   * Failures are logged but do not affect the user experience.
+   *
+   * @param storyText - The generated story text
+   * @param request - The original story request with session/story IDs
+   */
+  private triggerPostGenerationStorage(
+    storyText: string,
+    request: StoryRequest,
+  ): void {
+    // Require both sessionId and storyId for storage
+    if (!request.sessionId || !request.storyId) {
+      console.log(
+        '⚠️ Skipping post-generation storage: missing sessionId or storyId',
+        {
+          hasSessionId: !!request.sessionId,
+          hasStoryId: !!request.storyId,
+        },
+      );
+      return;
+    }
+
+    console.log(
+      '🚀 Triggering post-generation element extraction and storage',
+      {
+        sessionId: request.sessionId,
+        storyId: request.storyId,
+        storyLength: storyText.length,
+      },
+    );
+
+    // Fire and forget - async processing that doesn't block story delivery
+    postGenerationStorageService.extractAndStoreElementsAsync({
+      storyText,
+      storyId: request.storyId,
+      sessionId: request.sessionId,
+    });
   }
 
   private async buildPrompts(request: StoryRequest): Promise<{

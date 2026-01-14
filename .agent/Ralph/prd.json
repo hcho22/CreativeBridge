@@ -159,8 +159,8 @@
         "Typecheck passes"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: Created postGenerationStorageService with extractAndStoreElements and extractAndStoreElementsAsync functions. Integrated into storyGenerationService with triggerPostGenerationStorage method that fires after successful story generation. Implements non-blocking fire-and-forget pattern, graceful error handling at each step (extraction, embedding, storage), batch embedding generation for efficiency, and optional skipEmbeddings flag. Elements stored with all metadata (story_id, session_id, element_type, element_text, embedding_vector). Comprehensive test suite with 19 passing tests covering all scenarios and error cases. Files: src/services/postGenerationStorageService.ts (309 lines), src/services/storyGenerationService.ts (integration), src/__tests__/services/postGenerationStorageService.test.ts (571 lines)."
     },
     {
       "id": "US-011",

@@ -595,3 +595,74 @@ Iteration: #9
 
 ---
 
+
+## 2026-01-13 - US-010
+Iteration: #10
+
+**What was implemented:**
+- Created postGenerationStorageService for asynchronous element extraction and storage after story generation
+- Implemented extractAndStoreElements function with full extraction → embedding → storage pipeline
+- Built extractAndStoreElementsAsync fire-and-forget wrapper for non-blocking post-generation processing
+- Integrated triggerPostGenerationStorage into storyGenerationService after successful OpenAI story generation
+- Added getSessionElementStats helper for debugging and monitoring stored elements
+- Comprehensive test suite with 19 passing tests covering all scenarios
+
+**Files changed:**
+- `src/services/postGenerationStorageService.ts` - New post-generation storage service (309 lines)
+- `src/services/storyGenerationService.ts` - Added import and triggerPostGenerationStorage method (40 lines added)
+- `src/__tests__/services/postGenerationStorageService.test.ts` - Complete test suite (571 lines)
+- `.agent/Ralph/prd.json` - Updated US-010 to passes: true
+
+**Tests added:**
+- 19 comprehensive unit tests covering:
+  - Element extraction from story text using LLM service
+  - Batch embedding generation for all extracted elements
+  - Database insertion with correct structure (story_id, session_id, element_type, element_text, embedding_vector)
+  - skipEmbeddings flag for testing/low-priority scenarios
+  - Graceful degradation when embedding generation fails (stores with null embeddings)
+  - Error handling for extraction failures, database failures, and unexpected errors
+  - Empty story handling (no elements extracted)
+  - Fire-and-forget async wrapper (extractAndStoreElementsAsync)
+  - Session statistics retrieval (getSessionElementStats)
+  - Integration scenarios with complete successful flow and partial failures
+- All tests passing (19/19) in 0.847s runtime
+
+**Quality gates:**
+- TypeScript compilation: ✅ No new errors introduced (pre-existing errors only)
+- ESLint: ✅ No lint errors in new code
+- Jest tests: ✅ 19/19 tests passing
+
+**Learnings for future iterations:**
+- **Asynchronous post-processing pattern**: Implementing both awaitable (`extractAndStoreElements`) and fire-and-forget (`extractAndStoreElementsAsync`) methods provides flexibility - awaitable for testing/verification, fire-and-forget for production non-blocking behavior.
+- **Graceful degradation at each step**: Service handles failures at extraction, embedding, or storage independently. If embeddings fail, elements are still stored with null embedding_vector. If storage fails, errors are logged but don't propagate. This ensures partial success rather than complete failure.
+- **Batch embedding optimization**: Using `generateEmbeddingsBatch` for all elements at once is more efficient than sequential calls. For a story with 7 elements (2 characters, 2 settings, 1 object, 2 plot patterns), batch call makes 1 API request instead of 7.
+- **Type assertions for new database tables**: Supabase TypeScript types don't include manually created tables (story_elements, user_sessions). Use `as any` type assertions for inserts until types are regenerated from schema. This is expected pattern in CreativeBridge for new migrations.
+- **Integration point in story generation**: Post-generation storage is triggered immediately after successful `generateWithOpenAI` call, before returning StoryResponse to user. This ensures elements are captured even if user navigates away after receiving story.
+- **Fire-and-forget safety**: `extractAndStoreElementsAsync` uses `.catch()` internally to handle promise rejections without throwing. This prevents unhandled promise rejection warnings in production.
+- **Element record structure**: StoryElementRecord interface matches database schema exactly (story_id, session_id, element_type, element_text, embedding_vector). Element types from extraction service (character, setting, object, plot_pattern) align with database enum constraint.
+- **Logging strategy**: Console logs at each step (extraction start → extraction complete → embedding generation → database storage → completion) enable debugging without intrusive instrumentation. Emoji prefixes (📦, 🔍, 🧮, 💾, ✅, ❌) make logs easy to scan.
+
+**Technical decisions:**
+- Fire-and-forget integration instead of awaiting: Story delivery should never wait for element storage - UX priority over data completeness
+- Batch embedding generation: More efficient and reduces API costs compared to sequential generation
+- Optional skipEmbeddings flag: Allows testing without hitting OpenAI API, useful for local development
+- Type assertions for Supabase inserts: Necessary until database types are regenerated (not critical for this iteration)
+- StoryRequest requires both sessionId and storyId: Prevents partial data insertion - either we have full context or we skip storage
+- Return StorageResult with success/elementsStored/errors/duration: Enables monitoring and debugging (will be used in US-014 performance monitoring)
+- getSessionElementStats for debugging: Provides quick visibility into stored elements for a session (total count, by type, with/without embeddings)
+
+**Integration notes for next stories:**
+- US-011 (diversity score calculation) will use stored elements to calculate novelty scores by comparing new vs recent elements
+- US-013 (caching) should consider caching recent elements to avoid redundant queries when calculating similarity
+- US-014 (performance monitoring) will use StorageResult metadata (duration, elementsStored, errors) for observability
+- Future enhancement: Consider background job to backfill embeddings for elements stored with null embedding_vector (when API was unavailable)
+
+**Post-generation storage architecture insights:**
+- **Non-blocking async pattern**: triggerPostGenerationStorage is synchronous (returns void), but internally calls async extractAndStoreElementsAsync. This ensures story generation flow doesn't await storage completion.
+- **Three-step pipeline**: Extract elements (LLM) → Generate embeddings (OpenAI) → Store in database (Supabase). Each step can fail independently without cascading failure.
+- **Element normalization consistency**: Extraction service normalizes to lowercase/singular, embedding service normalizes before generation, recent elements service normalizes during frequency counting. This triple-normalization ensures consistent matching across the diversity tracking system.
+- **Database schema alignment**: Element types match database enum exactly (character, setting, object, plot_pattern). JSONB embedding_vector field accepts null values, enabling graceful degradation when embeddings unavailable.
+- **Session-story relationship**: Each stored element links to both session (user's 24-hour window) and story (specific game_session). This dual linking enables both diversity tracking (session-scoped) and story analytics (story-scoped).
+
+---
+
