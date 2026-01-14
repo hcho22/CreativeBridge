@@ -7,7 +7,7 @@ import { supabase } from './supabase';
 import { storyElementExtractionService } from './storyElementExtractionService';
 import { embeddingGenerationService } from './embeddingGenerationService';
 import { diversityScoreStorageService } from './diversityScoreStorageService';
-import type { ExtractedElements } from './storyElementExtractionService';
+import { recentElementsService } from './recentElementsService';
 
 /**
  * Story element ready for database insertion
@@ -196,6 +196,10 @@ class PostGenerationStorageService {
 
           elementsStored = count || elementRecords.length;
           console.log(`✅ Successfully stored ${elementsStored} elements`);
+
+          // Invalidate cache for this session (US-013)
+          // New elements were just added, so cached recent elements are now stale
+          recentElementsService.invalidateCache(sessionId);
         } catch (dbError) {
           const errorMsg = `Database storage failed: ${
             dbError instanceof Error ? dbError.message : String(dbError)

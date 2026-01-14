@@ -51,14 +51,32 @@ export interface GetRecentElementsOptions {
 }
 
 /**
+ * Cached recent elements with timestamp
+ */
+interface CachedRecentElements {
+  data: RecentElements;
+  timestamp: Date;
+}
+
+/**
  * Recent Elements Retrieval Service
  *
  * Queries the story_elements table to retrieve elements from recent stories
  * within a user's session. Elements are grouped by type and include frequency
  * counts to identify commonly repeated elements.
+ *
+ * Features LRU caching with 24-hour TTL to avoid redundant database queries.
  */
 class RecentElementsService {
   private static readonly DEFAULT_STORY_LIMIT = 10;
+  private static readonly CACHE_SIZE_LIMIT = 1000; // Max sessions to cache
+  private static readonly CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours (matches session duration)
+
+  /**
+   * In-memory cache: sessionId -> recent elements with timestamp
+   * TTL matches session expiration (24 hours)
+   */
+  private recentElementsCache: Map<string, CachedRecentElements> = new Map();
 
   /**
    * Get recent story elements for a session
@@ -84,6 +102,21 @@ class RecentElementsService {
     const { sessionId, limit = RecentElementsService.DEFAULT_STORY_LIMIT } =
       options;
 
+    // Check cache first
+    const cached = this.getCachedElements(sessionId);
+    if (cached) {
+      console.log('✅ Recent elements cache hit:', {
+        sessionId: sessionId.substring(0, 12),
+        cacheSize: this.recentElementsCache.size,
+        totalElements: this.getTotalElementCount(cached),
+      });
+      return cached;
+    }
+
+    console.log('❌ Recent elements cache miss, querying database:', {
+      sessionId: sessionId.substring(0, 12),
+    });
+
     try {
       // Query story_elements table for recent elements in this session
       // Ordered by created_at DESC to get most recent first
@@ -101,9 +134,11 @@ class RecentElementsService {
         throw new Error(`Failed to retrieve recent elements: ${error.message}`);
       }
 
-      // If no elements found, return empty structure
+      // If no elements found, cache and return empty structure
       if (!elements || elements.length === 0) {
-        return this.createEmptyRecentElements();
+        const emptyResult = this.createEmptyRecentElements();
+        this.cacheElements(sessionId, emptyResult);
+        return emptyResult;
       }
 
       // Convert database rows to StoredElement interface
@@ -132,7 +167,12 @@ class RecentElementsService {
       );
 
       // Group elements by type and calculate frequencies
-      return this.groupElementsByType(recentStoriesElements);
+      const recentElements = this.groupElementsByType(recentStoriesElements);
+
+      // Cache the result
+      this.cacheElements(sessionId, recentElements);
+
+      return recentElements;
     } catch (error) {
       console.error('Error in getRecentElements:', error);
       throw error;
@@ -385,6 +425,130 @@ class RecentElementsService {
     return allElements
       .sort((a, b) => b.element.frequency - a.element.frequency)
       .slice(0, topN);
+  }
+
+  /**
+   * Get cached recent elements if available and not expired
+   *
+   * Checks cache for session and validates TTL (24 hours)
+   *
+   * @param sessionId - Session to retrieve from cache
+   * @returns Cached recent elements if fresh, null otherwise
+   */
+  private getCachedElements(sessionId: string): RecentElements | null {
+    const cached = this.recentElementsCache.get(sessionId);
+
+    if (!cached) {
+      return null;
+    }
+
+    // Check if cache entry has expired (TTL: 24 hours)
+    const now = new Date();
+    const ageMs = now.getTime() - cached.timestamp.getTime();
+
+    if (ageMs > RecentElementsService.CACHE_TTL_MS) {
+      // Cache entry expired, remove it
+      this.recentElementsCache.delete(sessionId);
+      console.log('🗑️  Recent elements cache expired:', {
+        sessionId: sessionId.substring(0, 12),
+        ageHours: (ageMs / (1000 * 60 * 60)).toFixed(2),
+      });
+      return null;
+    }
+
+    return cached.data;
+  }
+
+  /**
+   * Cache recent elements with LRU eviction
+   *
+   * Uses TTL (24 hours) matching session duration.
+   * If cache is full, removes oldest entry.
+   *
+   * @param sessionId - Session ID to cache for
+   * @param elements - Recent elements to cache
+   */
+  private cacheElements(sessionId: string, elements: RecentElements): void {
+    // If cache is at limit, remove oldest entry (first key in Map)
+    if (
+      this.recentElementsCache.size >= RecentElementsService.CACHE_SIZE_LIMIT
+    ) {
+      const firstKey = this.recentElementsCache.keys().next().value;
+      if (firstKey) {
+        this.recentElementsCache.delete(firstKey);
+        console.log(
+          '🗑️  Recent elements cache eviction (size limit reached):',
+          {
+            evictedSessionId: firstKey.substring(0, 12),
+            newSize: this.recentElementsCache.size,
+          },
+        );
+      }
+    }
+
+    this.recentElementsCache.set(sessionId, {
+      data: elements,
+      timestamp: new Date(),
+    });
+
+    console.log('💾 Recent elements cached:', {
+      sessionId: sessionId.substring(0, 12),
+      cacheSize: this.recentElementsCache.size,
+      totalElements: this.getTotalElementCount(elements),
+    });
+  }
+
+  /**
+   * Invalidate cached recent elements for a session
+   *
+   * Called after new story elements are stored to ensure
+   * fresh data on next retrieval.
+   *
+   * @param sessionId - Session to invalidate cache for
+   */
+  public invalidateCache(sessionId: string): void {
+    const existed = this.recentElementsCache.delete(sessionId);
+
+    if (existed) {
+      console.log('🗑️  Recent elements cache invalidated:', {
+        sessionId: sessionId.substring(0, 12),
+        cacheSize: this.recentElementsCache.size,
+      });
+    }
+  }
+
+  /**
+   * Clear entire cache
+   *
+   * Useful for testing or memory management.
+   * Cache is automatically managed with LRU eviction and TTL, so manual clearing is rarely needed.
+   */
+  public clearCache(): void {
+    const previousSize = this.recentElementsCache.size;
+    this.recentElementsCache.clear();
+    console.log('🗑️  Recent elements cache cleared:', {
+      previousSize,
+      newSize: 0,
+    });
+  }
+
+  /**
+   * Get cache statistics
+   *
+   * Useful for monitoring cache effectiveness and memory usage.
+   *
+   * @returns Cache size, limit, and hit/miss counts
+   */
+  public getCacheStats(): {
+    size: number;
+    limit: number;
+    ttlHours: number;
+  } {
+    return {
+      size: this.recentElementsCache.size,
+      limit: RecentElementsService.CACHE_SIZE_LIMIT,
+      ttlHours: RecentElementsService.CACHE_TTL_MS / (1000 * 60 * 60),
+    };
   }
 }
 

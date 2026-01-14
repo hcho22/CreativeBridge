@@ -6,12 +6,18 @@ import { postGenerationStorageService } from '../../services/postGenerationStora
 import { storyElementExtractionService } from '../../services/storyElementExtractionService';
 import { embeddingGenerationService } from '../../services/embeddingGenerationService';
 import { diversityScoreStorageService } from '../../services/diversityScoreStorageService';
+import { recentElementsService } from '../../services/recentElementsService';
 import { supabase } from '../../services/supabase';
 
 // Mock dependencies
 jest.mock('../../services/storyElementExtractionService');
 jest.mock('../../services/embeddingGenerationService');
 jest.mock('../../services/diversityScoreStorageService');
+jest.mock('../../services/recentElementsService', () => ({
+  recentElementsService: {
+    invalidateCache: jest.fn(),
+  },
+}));
 jest.mock('../../services/supabase', () => ({
   supabase: {
     from: jest.fn(),
@@ -597,6 +603,74 @@ describe('PostGenerationStorageService', () => {
       expect(result.elementsStored).toBe(6);
       expect(result.errors.length).toBe(1);
       expect(result.errors[0]).toContain('Embedding generation failed');
+    });
+  });
+
+  describe('Cache Invalidation (US-013)', () => {
+    it('should invalidate recent elements cache after storing elements', async () => {
+      const mockInsert = jest.fn().mockResolvedValue({
+        data: null,
+        error: null,
+        count: 6,
+      });
+
+      (supabase.from as jest.Mock).mockReturnValue({
+        insert: mockInsert,
+      });
+
+      await postGenerationStorageService.extractAndStoreElements({
+        storyText: mockStoryText,
+        storyId: mockStoryId,
+        sessionId: mockSessionId,
+      });
+
+      // Verify cache invalidation was called with correct session ID
+      expect(recentElementsService.invalidateCache).toHaveBeenCalledWith(
+        mockSessionId,
+      );
+      expect(recentElementsService.invalidateCache).toHaveBeenCalledTimes(1);
+    });
+
+    it('should NOT invalidate cache if no elements were stored', async () => {
+      // Mock extraction returning no elements
+      (
+        storyElementExtractionService.extractStoryElements as jest.Mock
+      ).mockResolvedValue({
+        characters: [],
+        settings: [],
+        objects: [],
+        plot_patterns: [],
+      });
+
+      await postGenerationStorageService.extractAndStoreElements({
+        storyText: mockStoryText,
+        storyId: mockStoryId,
+        sessionId: mockSessionId,
+      });
+
+      // Cache invalidation should NOT be called (no elements to store)
+      expect(recentElementsService.invalidateCache).not.toHaveBeenCalled();
+    });
+
+    it('should NOT invalidate cache if database storage fails', async () => {
+      const mockInsert = jest.fn().mockResolvedValue({
+        data: null,
+        error: { message: 'Insert failed' },
+        count: 0,
+      });
+
+      (supabase.from as jest.Mock).mockReturnValue({
+        insert: mockInsert,
+      });
+
+      await postGenerationStorageService.extractAndStoreElements({
+        storyText: mockStoryText,
+        storyId: mockStoryId,
+        sessionId: mockSessionId,
+      });
+
+      // Cache invalidation should NOT be called (storage failed)
+      expect(recentElementsService.invalidateCache).not.toHaveBeenCalled();
     });
   });
 });
