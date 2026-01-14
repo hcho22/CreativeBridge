@@ -890,3 +890,77 @@ Iteration: #13
 
 ---
 
+
+## 2026-01-14 - US-014
+Iteration: #14
+
+**What was implemented:**
+- Created diversity performance monitoring service for comprehensive observability
+- Implemented timing logs for all major diversity operations (extraction, embedding, similarity, guidance)
+- Added diversity metrics logging per story with automatic low diversity warnings
+- Built cache hit/miss rate tracking with aggregated statistics
+- Integrated performance monitoring throughout diversity tracking system
+- Created comprehensive test suite with 31 passing tests
+
+**Files changed:**
+- `src/services/diversityPerformanceMonitoringService.ts` - New performance monitoring service (441 lines)
+- `src/__tests__/services/diversityPerformanceMonitoringService.test.ts` - Complete test suite (587 lines, 31 tests)
+- `src/services/storyGenerationService.ts` - Added diversity_guidance timing with measureAsync wrapper
+- `src/services/postGenerationStorageService.ts` - Added element_extraction and embedding_generation timing, diversity metrics logging
+- `src/services/recentElementsService.ts` - Added cache hit/miss monitoring with performance service integration
+- `src/services/diversityScoreStorageService.ts` - Extended ScoreStorageResult interface with novelElementCount/totalElementCount fields
+- `.agent/Ralph/prd.json` - Updated US-014 to passes: true
+
+**Tests added:**
+- 31 comprehensive unit tests covering:
+  - Timing logs with operation-specific thresholds (200ms guidance, 5s extraction, 3s embedding, 100ms similarity)
+  - Diversity metrics logging with low score warnings (< 0.4 threshold)
+  - Cache hit/miss tracking with hit rate calculations
+  - measureAsync/measure wrappers for automatic timing
+  - Performance statistics aggregation (getPerformanceStats, getCacheStats, getAverageDiversityScore)
+  - Session-level metrics filtering
+  - Storage limit enforcement (1000 entries max per metric type)
+  - Warning threshold enforcement for all operation types
+  - Error timing capture with metadata
+- All 132 diversity tests passing
+
+**Quality gates:**
+- TypeScript compilation: ✅ No new errors introduced (pre-existing codebase errors only)
+- ESLint: ✅ Clean, no new warnings
+- Jest tests: ✅ 31/31 performance monitoring tests passing, 132/132 total diversity tests passing
+
+**Learnings for future iterations:**
+- **Performance monitoring architecture**: Centralized monitoring service provides consistent logging across all diversity operations. Using singleton pattern enables global statistics without tight coupling - services import and use the monitoring service, but work independently if monitoring is unavailable.
+- **Timing wrapper pattern**: measureAsync/measure wrappers provide automatic timing with error handling. Functions are wrapped in timing logic, returning original results while logging duration. This pattern is cleaner than manual start/end timing at each call site.
+- **Operation-specific thresholds**: Different operations have different performance targets (guidance: 200ms, extraction: 5s, embedding: 3s, similarity: 100ms). Automatic threshold detection based on operation name provides warnings without explicit threshold passing at each call site.
+- **Console logging strategy**: Using console.log with emoji prefixes (⏱️, 📊, 💾, ⚠️) makes logs scannable in development. Structured log format with context (session_id, story_id) enables correlation during debugging. In production, these could be redirected to structured logging service.
+- **Metrics aggregation design**: Storing recent metrics (last 1000) in memory enables real-time statistics (averages, maximums, counts) without database overhead. LRU eviction via array.shift() when limit exceeded prevents memory issues. For long-term analytics, metrics should be persisted to database.
+- **Cache performance tracking**: Separate cache metrics from operation timing enables hit rate analysis independent of operation duration. Cache hit/miss logging at the cache check point (not at service call) provides accurate metrics.
+- **Test mocking for console**: Mocking console.log/warn with mockImplementation() allows testing log behavior without polluting test output. Accessing mock.calls[0][0] gets the logged string for assertions. Always mockRestore() after test to prevent cross-test pollution.
+- **Performance monitoring integration points**: Wrap operations at the highest abstraction level possible. Wrapping getDiversityGuidance (entire workflow) is better than wrapping individual steps (session, elements, guidance) - provides end-to-end latency while reducing instrumentation overhead.
+
+**Technical decisions:**
+- Centralized monitoring service instead of distributed logging: Single source of truth for performance metrics, easier to aggregate and analyze
+- In-memory metrics storage with 1000-entry limit: Balance between observability (recent metrics available) and memory usage (bounded storage)
+- measureAsync/measure wrappers instead of decorators: React Native doesn't support TypeScript decorators reliably, function wrappers are more portable
+- Operation name-based threshold detection: Automatic threshold application based on naming conventions (diversity_guidance, element_extraction, etc.) reduces configuration overhead
+- Console logging instead of structured logger: Development-first approach, easily upgraded to structured logging (Winston, Pino) for production
+- Extended ScoreStorageResult with element counts: Enables diversity metrics logging without additional database queries, data already available in service layer
+- Separate timing and metrics logging methods: logTiming for duration, logDiversityMetrics for scores - clear separation of concerns enables different aggregation strategies
+
+**Integration notes for next stories:**
+- US-015 (recent elements API) could expose performance stats via /api/diversity/performance endpoint for debugging
+- US-016 (admin dashboard) will use getPerformanceStats and getCacheStats for charts (average latency over time, cache hit rate trends, slow operation counts)
+- Future enhancement: Persist metrics to database for historical analysis (currently only last 1000 in memory)
+- Future enhancement: Add alerting thresholds (email/Slack notification when average diversity score < 0.3 over 1 hour)
+- Future enhancement: Track embedding cache hit rate (embeddingGenerationService already has cache, could integrate with performance monitoring)
+
+**Performance monitoring insights:**
+- **Observability without overhead**: Monitoring adds minimal latency (<1ms per operation due to performance.now() calls and console.log). For high-throughput systems, consider sampling (log 10% of operations) or async logging (queue logs, flush batched).
+- **Threshold calibration**: Current thresholds (200ms guidance, 5s extraction, 3s embedding, 100ms similarity) based on PRD requirements and observed performance during development. Production thresholds should be calibrated based on actual percentile data (p50, p95, p99) from metrics.
+- **Cache hit rate expectations**: With 24-hour session TTL and 10-story window, expected cache hit rate is ~90% after warm-up (first query per session is miss, subsequent 9 queries are hits). Lower hit rates indicate cache invalidation issues or high session churn.
+- **Diversity score monitoring**: Average diversity score trends indicate system health - declining average suggests guidance effectiveness is degrading (users ignoring guidance) or element extraction quality declining (repeated elements not detected).
+- **Performance regression detection**: Comparing operation timing distributions over time enables regression detection - if p95 embedding generation time increases from 2s to 4s, investigate API performance or network issues.
+
+---
+
