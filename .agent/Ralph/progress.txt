@@ -374,3 +374,77 @@ Iteration: #6
 
 ---
 
+## 2026-01-13 - US-007
+Iteration: #7
+
+**What was implemented:**
+- Created similarity detection service for semantic comparison between new and recent story elements
+- Implemented findSimilarElements function using cosine similarity with configurable threshold (default: 0.75)
+- Built findSimilarElementsByType for efficient type-specific searches
+- Added batch processing support with batchFindSimilarElements for analyzing multiple elements
+- Created isNovelElement helper to check if element is sufficiently different from recent history
+- Implemented getSimilarityStatistics for diversity analytics
+- Results sorted by similarity score descending for prioritizing closest matches
+- Comprehensive test suite with 28 passing tests
+
+**Files changed:**
+- `src/services/similarityDetectionService.ts` - Main similarity detection service (394 lines)
+- `src/__tests__/services/similarityDetectionService.test.ts` - Test suite (634 lines)
+- `.agent/Ralph/prd.json` - Updated US-007 to passes: true
+
+**Tests added:**
+- 28 comprehensive unit tests covering:
+  - findSimilarElements with threshold filtering (0.75 default)
+  - Sorting by similarity score descending
+  - Custom threshold parameter support (0.0 to 1.0 range)
+  - Skipping elements without embeddings (null/empty vectors)
+  - Exact text match exclusion (avoid self-matching)
+  - Frequency and lastUsed metadata inclusion
+  - Type-specific searches (character, setting, object, plot_pattern)
+  - Batch processing for multiple elements
+  - isNovelElement novelty detection
+  - getSimilarityStatistics analytics
+  - Edge cases: dimension mismatches, empty inputs, null data
+  - Error handling with graceful degradation
+- All tests passing (0.862s runtime)
+
+**Quality gates:**
+- TypeScript compilation: ✅ No new errors introduced (pre-existing codebase errors only)
+- ESLint: ✅ Clean, no new warnings from my changes
+- Jest tests: ✅ 28/28 tests passing
+
+**Learnings for future iterations:**
+- **Similarity detection architecture**: Builds on existing services (cosineSimilarityService for math, recentElementsService for data). This layered approach keeps concerns separated and services testable.
+- **Threshold-based filtering pattern**: Default 0.75 threshold balances precision (catching true similarities) vs recall (avoiding false positives). Higher threshold = fewer matches (stricter), lower = more matches (looser).
+- **Exact match exclusion is critical**: Must skip when normalized text matches exactly, otherwise we flag element appearing in different stories as "similar to itself" (unhelpful for diversity).
+- **Type-specific vs cross-type search**: findSimilarElementsByType is more efficient (searches only one category) but findSimilarElements provides flexibility for cross-type similarity (e.g., "enchanted forest" setting similar to "forest dragon" character).
+- **Sorting by similarity descending**: Prioritizes closest matches first - enables "top N similar elements" use cases for diversity guidance generation (US-008).
+- **Batch processing efficiency**: batchFindSimilarElements processes multiple elements with shared recent elements context - avoids redundant data fetching in story analysis workflows.
+- **Helper functions enable analytics**: isNovelElement and getSimilarityStatistics provide building blocks for diversity score calculation (US-011) and monitoring (US-014).
+- **Graceful error handling**: Skip invalid vectors (dimension mismatch, null embeddings) rather than failing entire operation - enables partial results even with data quality issues.
+- **Test determinism**: Use fixed-seed embeddings (createEmbedding(seed)) instead of Math.random() for reproducible tests. Avoid flaky tests with clear expected behaviors.
+
+**Technical decisions:**
+- Skip exact text matches: Prevents self-matching when same element appears across stories
+- Default threshold 0.75: Matches PRD requirement, proven effective in semantic similarity tasks
+- Type-specific search optimization: More efficient than cross-type when element type is known
+- Batch processing support: Enables efficient multi-element analysis for story-level diversity checks
+- Singleton export pattern: Matches existing service patterns (recentElementsService, cosineSimilarityService)
+- Sort descending by similarity: Most relevant matches first for downstream consumption
+- Return empty arrays on error: Fail gracefully rather than throwing, allows continued processing
+
+**Integration notes for next stories:**
+- US-008 (diversity guidance) will use findSimilarElements to identify overused patterns and generate avoidance guidance
+- US-009 (story generation integration) will check new elements against recent history before/after generation
+- US-010 (post-generation storage) will validate extracted elements for similarity before storage
+- US-011 (diversity score calculation) will use getSimilarityStatistics to compute novelty metrics
+- US-013 (caching) might cache similarity results to avoid redundant embedding comparisons
+
+**Similarity detection insights:**
+- **Threshold semantics**: 1.0 = exact match (identical embeddings), 0.75 = high similarity (synonyms, close concepts), 0.5 = moderate similarity (related concepts), <0.3 = weak/no similarity.
+- **Embedding comparison cost**: O(d) where d = embedding dimensions (1536 for text-embedding-3-small). For 10 recent elements × 4 types = 40 comparisons per new element = ~61k float operations. Fast enough for real-time (< 10ms).
+- **False positive tradeoff**: High threshold (0.9) misses semantic similarities (dragon vs wyrm). Low threshold (0.5) flags unrelated elements. 0.75 balances well for story elements.
+- **Cross-type similarity use cases**: "crystal cave" (setting) might be similar to "magic crystal" (object). Current implementation supports this via includeAllTypes flag.
+
+---
+
