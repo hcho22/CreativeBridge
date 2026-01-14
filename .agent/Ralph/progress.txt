@@ -232,3 +232,78 @@ Iteration: #4
 - All functions handle 1536-dimensional vectors (OpenAI text-embedding-3-small) efficiently
 
 ---
+## 2026-01-13 - US-005
+Iteration: #5
+
+**What was implemented:**
+- Created diversity session management service for story element tracking
+- Implemented getOrCreateSession function supporting both authenticated and anonymous users
+- Built session validation with automatic expiration checking (24-hour windows)
+- Added AsyncStorage integration for React Native (HTTP cookies not supported on mobile)
+- Created getOrCreateSessionWithAuth convenience wrapper for automatic user context
+- Implemented session token generation with unique "div_sess_" prefix
+- Added helper functions: getCurrentSessionToken, clearSession
+- Created comprehensive test suite with 20 passing tests
+
+**Files changed:**
+- `src/services/diversitySessionService.ts` - Main diversity session service (242 lines)
+- `src/__tests__/services/diversitySessionService.test.ts` - Test suite (510 lines)
+- `.agent/Ralph/prd.json` - Updated US-005 to passes: true
+
+**Tests added:**
+- 20 comprehensive unit tests covering:
+  - Session creation for authenticated users (with user_id from Supabase auth)
+  - Session creation for anonymous users (user_id = null)
+  - Session token storage in AsyncStorage (React Native local persistence)
+  - Custom metadata attachment to sessions
+  - 24-hour expiration validation
+  - Session reuse when valid (no unnecessary database writes)
+  - Expired session handling (automatic cleanup and recreation)
+  - Error handling for database failures and storage errors
+  - getCurrentSessionToken and clearSession helpers
+  - getOrCreateSessionWithAuth with automatic user context
+  - Unique token generation with correct prefix pattern
+- All tests passing (runtime < 0.1s)
+
+**Quality gates:**
+- TypeScript compilation: ✅ No new errors introduced
+- ESLint: ✅ No new warnings from my changes
+- Jest tests: ✅ 20/20 tests passing
+
+**Learnings for future iterations:**
+- **React Native session pattern**: HTTP cookies don't work in React Native - use AsyncStorage for client-side token persistence. Server-side sessions still use database (user_sessions table).
+- **Dual session architecture**: CreativeBridge now has TWO session systems serving different purposes:
+  1. `sessionManager.ts` + `active_sessions` table - Auth lifecycle (login/logout, 2FA, idle timeout)
+  2. `diversitySessionService.ts` + `user_sessions` table - Creativity tracking (story elements, 24-hour windows)
+  These are intentionally separate - auth sessions track security state, diversity sessions track creative patterns.
+- **Anonymous session support**: Diversity tracking works even for non-logged-in users (user_id = null). This enables experimentation without forcing login.
+- **Session token format**: Use descriptive prefixes ("div_sess_" for diversity sessions vs "sess_" for auth sessions) to distinguish token types in logs and debugging.
+- **Validation pattern**: Always check both database existence AND expiration timestamp. Database query can succeed but session may still be expired.
+- **Storage error handling**: AsyncStorage can fail (storage full, permissions, etc.) - always handle gracefully and log errors without throwing.
+- **Test pattern for session reuse**: Mock AsyncStorage.getItem to return existing token, then verify insert NOT called - confirms session reuse logic works correctly.
+- **Metadata flexibility**: JSONB metadata field allows storing device info, feature flags, A/B test cohorts without schema changes.
+
+**Technical decisions:**
+- Used AsyncStorage instead of HTTP cookies: React Native doesn't support document.cookie or HTTP-only cookies - AsyncStorage is the standard persistence mechanism
+- Separate service from sessionManager: Diversity tracking has different lifecycle (24 hours fixed) vs auth sessions (configurable, idle timeout, 2FA verification)
+- Support anonymous users: Allow diversity tracking without authentication - reduces friction for new users exploring the app
+- Token prefix "div_sess_": Clearly identifies diversity session tokens in logs, distinguishes from auth session tokens ("sess_")
+- 24-hour fixed window: Matches PRD requirement and provides natural creative reset period (daily usage patterns)
+- Database validation on every getOrCreate: Ensures session hasn't been manually invalidated server-side (admin action, security incident)
+- No automatic session cleanup in service: Cleanup handled by scheduled database job (prevents N+1 delete queries on every request)
+
+**Integration notes for next stories:**
+- US-006 (recent elements retrieval) will use session_id from this service to scope queries
+- US-009 (diversity guidance integration) will call getOrCreateSessionWithAuth before story generation
+- US-010 (post-generation storage) will use session_id to link story elements to creative session
+- US-013 (caching) will cache recent elements by session_id returned from this service
+
+**React Native mobile architecture insights:**
+- **No HTTP cookies**: Mobile apps use token-based auth, not cookies. Store tokens in AsyncStorage (encrypted), Keychain (iOS), or Keystore (Android).
+- **Session persistence**: AsyncStorage survives app restarts but not app uninstall. For critical sessions, consider Keychain/Keystore with biometric protection.
+- **Offline-first**: AsyncStorage reads are synchronous-ish (Promise-based but fast). Design for offline: check local storage first, validate against server when online.
+- **Storage limits**: AsyncStorage has ~6MB limit on some Android devices. For large data (embeddings, cached images), consider alternative storage (SQLite, file system).
+- **Expiration checking**: Always check expiration client-side before making API calls. Reduces failed requests and improves UX (immediate session refresh vs waiting for 401).
+
+---
+
