@@ -964,3 +964,101 @@ Iteration: #14
 
 ---
 
+
+
+## 2026-01-15 - US-015
+Iteration: #15
+
+**What was implemented:**
+- Created diversity debug service for retrieving recent elements and diversity scores
+- Implemented getRecentElements function for comprehensive session element debugging
+- Built getDiversityScore function for diversity score retrieval with breakdown
+- Added canAccessSession and getSessionStats helper methods
+- Created SQL RPC functions with SECURITY DEFINER and ownership validation
+- Comprehensive test suite with 25 passing tests
+
+**Files changed:**
+- `src/services/diversityDebugService.ts` - New diversity debug service (373 lines)
+- `sql/create_diversity_debug_functions.sql` - Supabase RPC functions for debugging (243 lines)
+- `src/__tests__/services/diversityDebugService.test.ts` - Complete test suite (560 lines, 25 tests)
+- `.agent/Ralph/prd.json` - Updated US-015 to passes: true
+
+**Tests added:**
+- 25 comprehensive unit tests covering:
+  - Recent elements retrieval with metadata (session info, date range, total elements)
+  - Diversity score retrieval with breakdown (novelty ratio, semantic distance, per-type metrics)
+  - Authorization checks (authenticated users, session ownership, expired sessions)
+  - Error handling (not found, access denied, invalid inputs, database errors)
+  - Data transformation (date parsing, element grouping, statistics calculation)
+  - Session access validation (ownership, expiration, authentication)
+  - Session statistics (total stories, unique elements, averages)
+- All tests passing (25/25) in 1.354s runtime
+
+**Quality gates:**
+- TypeScript compilation: ✅ No new errors introduced (pre-existing codebase errors only)
+- ESLint: ✅ No new warnings (pre-existing warnings unchanged)
+- Jest tests: ✅ 25/25 tests passing
+- Pre-commit hooks: ✅ Auto-formatted with Prettier and ESLint
+
+**Learnings for future iterations:**
+- **React Native API pattern**: CreativeBridge is a React Native mobile app without traditional REST API routes. "API endpoints" are implemented as **service functions** that can be called from screens, not HTTP routes. This is the standard pattern for React Native + Supabase architecture.
+- **Supabase RPC functions**: For server-side operations with elevated privileges, use PostgreSQL functions wrapped by Supabase RPC. These functions can bypass RLS policies with SECURITY DEFINER but must implement explicit auth checks (auth.uid() validation).
+- **Ownership validation pattern**: Always validate ownership in SECURITY DEFINER functions:
+  1. Get current user with `auth.uid()`
+  2. Validate user is authenticated (uid not NULL)
+  3. Fetch resource owner from database
+  4. Check if current user matches resource owner
+  5. Raise EXCEPTION with clear hint if unauthorized
+- **Error messaging in SQL functions**: Use `RAISE EXCEPTION ... USING HINT = '...'` to provide user-friendly error messages with actionable hints. This creates better debugging experience than generic SQL errors.
+- **Date parsing in responses**: Always parse ISO date strings from database to Date objects in TypeScript service layer. RPC functions return JSONB with ISO strings, but TypeScript interfaces expect Date objects.
+- **Test coverage for authorization**: Authorization tests are critical for debugging endpoints - test authenticated/unauthenticated users, session ownership, expired sessions, and edge cases (session not found, database errors).
+- **Helper methods enhance usability**: canAccessSession and getSessionStats provide convenience methods for common use cases (UI authorization checks, quick stats display) without duplicating logic.
+- **COALESCE for graceful defaults**: Use COALESCE in SQL to provide default values for NULL results (empty arrays, zero counts, null dates). This prevents client-side null checks and provides better UX.
+
+**Technical decisions:**
+- Service functions instead of REST endpoints: Matches React Native + Supabase architecture where client directly calls Supabase RPC
+- SECURITY DEFINER for aggregation: Allows functions to query across RLS boundaries for aggregation while still enforcing ownership checks
+- Explicit ownership validation: Despite RLS policies on underlying tables, explicitly check ownership in functions for clearer error messages and audit logging
+- Date transformation in service layer: Parse ISO date strings to Date objects at service boundary (not in tests or components) for clean separation
+- Helper methods for common patterns: canAccessSession and getSessionStats reduce code duplication in UI components
+- Singleton export pattern: Matches existing service patterns (diversityScoreStorageService, recentElementsService)
+- Comprehensive error handling: Catch database errors, format with context, and provide actionable hints
+
+**Integration notes for next stories:**
+- US-016 (admin dashboard) can use getDiversityScore and getRecentElements to display diversity analytics
+- These debug functions enable troubleshooting diversity guidance issues in production
+- canAccessSession can be used in UI to conditionally show debug panels for developers
+- getSessionStats provides quick metrics for session overview screens
+
+**React Native debugging architecture insights:**
+- **Client-side debugging pattern**: React Native apps can't expose HTTP endpoints. Debugging is done via service functions that can be called from developer screens or dev tools (Reactotron, Flipper).
+- **Supabase RPC security**: RPC functions with SECURITY DEFINER can be dangerous if not properly secured. Always implement explicit auth checks, never trust client input, and document security assumptions in comments.
+- **Error propagation**: Supabase RPC errors are returned as {data: null, error: {...}} - always check error object before accessing data. formatSupabaseError helper provides consistent error formatting.
+- **Development vs production**: Debug functions should ideally be gated behind feature flags or admin-only access in production. For US-015, ownership checks provide basic protection, but consider adding admin-only mode for future enhancements.
+- **Performance considerations**: Debug functions that aggregate large datasets (100+ stories) should have limits (p_limit parameter) to prevent performance issues. Consider adding pagination for production use.
+
+**SQL RPC function patterns:**
+- **SECURITY DEFINER template**:
+  ```sql
+  CREATE OR REPLACE FUNCTION function_name(p_param TEXT)
+  RETURNS JSON
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path = public
+  AS $$
+  DECLARE v_user_id UUID;
+  BEGIN
+    v_user_id := auth.uid();
+    IF v_user_id IS NULL THEN
+      RAISE EXCEPTION 'Not authenticated';
+    END IF;
+    -- Validate ownership and return data
+  END;
+  $$;
+  ```
+- **JSON aggregation**: Use `json_build_object()` and `json_agg()` for complex nested responses. COALESCE empty aggregations to `'[]'::json` to prevent nulls.
+- **WITH clauses for readability**: Break complex queries into CTEs (recent_stories, aggregated_elements) for better readability and debugging.
+- **Explicit grants**: Always `GRANT EXECUTE` on RPC functions to `authenticated` role after creation.
+
+---
+
