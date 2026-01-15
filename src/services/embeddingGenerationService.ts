@@ -298,6 +298,20 @@ class EmbeddingGenerationService {
       return [];
     }
 
+    // Validate input: OpenAI API will reject empty strings
+    const emptyIndices = texts
+      .map((t, idx) => (t && t.trim().length > 0 ? -1 : idx))
+      .filter(idx => idx !== -1);
+
+    if (emptyIndices.length > 0) {
+      throw new Error(
+        `Cannot generate embeddings for empty texts at indices: ${emptyIndices.join(
+          ', ',
+        )}. ` +
+          `Found ${emptyIndices.length} empty string(s) out of ${texts.length} total inputs.`,
+      );
+    }
+
     // Normalize all texts
     const normalizedTexts = texts.map(t => t.trim().toLowerCase());
 

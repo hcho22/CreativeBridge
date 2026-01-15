@@ -108,46 +108,70 @@ class PostGenerationStorageService {
 
       // Characters
       for (const char of extracted.characters) {
-        elementRecords.push({
-          story_id: storyId,
-          session_id: sessionId,
-          element_type: 'character',
-          element_text: char.name,
-          embedding_vector: null, // Will be populated below
-        });
+        // Skip if name is empty or whitespace-only (fails DB constraint)
+        const elementText = char.name?.trim();
+        if (elementText && elementText.length > 0) {
+          elementRecords.push({
+            story_id: storyId,
+            session_id: sessionId,
+            element_type: 'character',
+            element_text: elementText,
+            embedding_vector: null, // Will be populated below
+          });
+        } else {
+          console.warn('⚠️ Skipping character with empty name:', char);
+        }
       }
 
       // Settings
       for (const setting of extracted.settings) {
-        elementRecords.push({
-          story_id: storyId,
-          session_id: sessionId,
-          element_type: 'setting',
-          element_text: setting.location,
-          embedding_vector: null,
-        });
+        // Skip if location is empty or whitespace-only (fails DB constraint)
+        const elementText = setting.location?.trim();
+        if (elementText && elementText.length > 0) {
+          elementRecords.push({
+            story_id: storyId,
+            session_id: sessionId,
+            element_type: 'setting',
+            element_text: elementText,
+            embedding_vector: null,
+          });
+        } else {
+          console.warn('⚠️ Skipping setting with empty location:', setting);
+        }
       }
 
       // Objects
       for (const obj of extracted.objects) {
-        elementRecords.push({
-          story_id: storyId,
-          session_id: sessionId,
-          element_type: 'object',
-          element_text: obj.name,
-          embedding_vector: null,
-        });
+        // Skip if name is empty or whitespace-only (fails DB constraint)
+        const elementText = obj.name?.trim();
+        if (elementText && elementText.length > 0) {
+          elementRecords.push({
+            story_id: storyId,
+            session_id: sessionId,
+            element_type: 'object',
+            element_text: elementText,
+            embedding_vector: null,
+          });
+        } else {
+          console.warn('⚠️ Skipping object with empty name:', obj);
+        }
       }
 
       // Plot patterns
       for (const pattern of extracted.plot_patterns) {
-        elementRecords.push({
-          story_id: storyId,
-          session_id: sessionId,
-          element_type: 'plot_pattern',
-          element_text: pattern.action,
-          embedding_vector: null,
-        });
+        // Skip if action is empty or whitespace-only (fails DB constraint)
+        const elementText = pattern.action?.trim();
+        if (elementText && elementText.length > 0) {
+          elementRecords.push({
+            story_id: storyId,
+            session_id: sessionId,
+            element_type: 'plot_pattern',
+            element_text: elementText,
+            embedding_vector: null,
+          });
+        } else {
+          console.warn('⚠️ Skipping plot pattern with empty action:', pattern);
+        }
       }
 
       console.log(`📋 Prepared ${elementRecords.length} element records`);
@@ -158,9 +182,20 @@ class PostGenerationStorageService {
 
         try {
           // Extract all element texts for batch embedding generation
+          // Filter out any empty strings to prevent OpenAI API errors
           const elementTexts = elementRecords.map(
             record => record.element_text,
           );
+
+          // Validate that all texts are non-empty (defensive check)
+          const invalidTexts = elementTexts.filter(
+            text => !text || text.trim().length === 0,
+          );
+          if (invalidTexts.length > 0) {
+            throw new Error(
+              `Found ${invalidTexts.length} empty element texts - this should not happen after filtering`,
+            );
+          }
 
           // Generate embeddings in batch (more efficient than sequential)
           const embeddings =
@@ -206,7 +241,21 @@ class PostGenerationStorageService {
             .insert(elementRecords as any); // Type assertion needed - story_elements not in generated types
 
           if (insertError) {
-            throw new Error(`Database insert failed: ${insertError.message}`);
+            // Supabase errors have different structure - log full error for debugging
+            console.error('❌ Supabase insert error details:', {
+              message: insertError.message,
+              details: insertError.details,
+              hint: insertError.hint,
+              code: insertError.code,
+              fullError: insertError,
+            });
+            throw new Error(
+              `Database insert failed: ${
+                insertError.message ||
+                insertError.details ||
+                JSON.stringify(insertError)
+              }`,
+            );
           }
 
           elementsStored = count || elementRecords.length;
@@ -236,7 +285,7 @@ class PostGenerationStorageService {
             await diversityScoreStorageService.storeDiversityScore({
               storyId,
               sessionId,
-              extractedElements: extracted,
+              extractedElements: elementRecords, // Pass element records WITH embeddings
             });
 
           diversityScoreStored = scoreResult.success;

@@ -11,7 +11,7 @@ import { supabase } from './supabase';
 import { diversityScoreService } from './diversityScoreService';
 import { recentElementsService } from './recentElementsService';
 import type { DiversityScore } from './diversityScoreService';
-import type { ExtractedElements } from './storyElementExtractionService';
+import type { StoryElements } from './storyElementExtractionService';
 
 /**
  * Diversity score record for database insertion
@@ -37,12 +37,23 @@ export interface ScoreStorageResult {
 }
 
 /**
+ * Story element record with embedding (from database)
+ */
+interface StoryElementRecord {
+  story_id: string;
+  session_id: string;
+  element_type: 'character' | 'setting' | 'object' | 'plot_pattern';
+  element_text: string;
+  embedding_vector: number[] | null;
+}
+
+/**
  * Options for storing diversity score
  */
 export interface StoreDiversityScoreOptions {
   storyId: string;
   sessionId: string;
-  extractedElements: ExtractedElements;
+  extractedElements: StoryElements | StoryElementRecord[];
 }
 
 /**
@@ -100,13 +111,35 @@ class DiversityScoreStorageService {
         };
       }
 
-      // Step 2: Calculate diversity score
+      // Step 2: Convert extracted elements to scoring format
+      let newElements;
+      if (Array.isArray(extractedElements)) {
+        // Already in StoryElementRecord[] format with embeddings
+        newElements = extractedElements
+          .filter(
+            record =>
+              record.embedding_vector && record.embedding_vector.length > 0,
+          )
+          .map(record => ({
+            elementText: record.element_text,
+            elementType: record.element_type,
+            elementEmbedding: record.embedding_vector!,
+          }));
+      } else {
+        // StoryElements format - need to use conversion helper (not implemented yet)
+        // For now, this path shouldn't be used since we pass elementRecords from postGenerationStorageService
+        throw new Error(
+          'StoryElements format not yet supported - pass StoryElementRecord[] instead',
+        );
+      }
+
+      // Step 3: Calculate diversity score
       let diversityScore: DiversityScore;
       try {
-        diversityScore = diversityScoreService.calculateDiversityScore(
-          extractedElements,
-          recentElements,
-        );
+        diversityScore = diversityScoreService.calculateDiversityScore({
+          newElements: newElements,
+          recentElements: recentElements,
+        });
 
         console.log(
           `📈 Diversity score calculated: ${diversityScore.score.toFixed(3)} ` +
@@ -134,7 +167,7 @@ class DiversityScoreStorageService {
         );
       }
 
-      // Step 4: Store score in database
+      // Step 4: Store score in database (upsert to handle multiple extractions for same story)
       try {
         const record: DiversityScoreRecord = {
           story_id: storyId,
@@ -146,14 +179,32 @@ class DiversityScoreStorageService {
             avg_semantic_distance: diversityScore.avgSemanticDistance,
             element_breakdown: diversityScore.elementBreakdown,
           },
+          created_at: new Date().toISOString(), // Update timestamp on each calculation
         };
 
+        // Use upsert to handle duplicate story_id (unique constraint)
+        // If score exists, update it with latest calculation
         const { error } = await supabase
           .from('story_diversity_scores')
-          .insert(record as any); // Type assertion needed for new table
+          .upsert(record as any, {
+            onConflict: 'story_id', // Conflict on unique constraint
+            ignoreDuplicates: false, // Always update, don't ignore
+          });
 
         if (error) {
-          throw error;
+          // Supabase errors have different structure - log full error for debugging
+          console.error('❌ Supabase diversity score upsert error details:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+            fullError: error,
+          });
+          throw new Error(
+            `Database upsert failed: ${
+              error.message || error.details || JSON.stringify(error)
+            }`,
+          );
         }
 
         console.log(
