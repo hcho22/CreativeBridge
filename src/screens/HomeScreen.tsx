@@ -899,7 +899,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   useEffect(() => {
     const continueStoryParams = route.params?.continueStory;
 
-    if (continueStoryParams && isAuthenticated && effectiveUserId && !isGameActive) {
+    if (
+      continueStoryParams &&
+      isAuthenticated &&
+      effectiveUserId &&
+      !isGameActive
+    ) {
       console.log('📖 Detected story continuation request:', {
         sessionId: continueStoryParams.sessionId,
         source: continueStoryParams.storySource,
@@ -909,9 +914,16 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       // Start the imported story continuation
       handleContinueImportedStory(continueStoryParams);
     }
-  }, [route.params?.continueStory, isAuthenticated, effectiveUserId, isGameActive]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [
+    route.params?.continueStory,
+    isAuthenticated,
+    effectiveUserId,
+    isGameActive,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleContinueImportedStory = async (continueParams: NonNullable<HomeStackParamList['Home']>['continueStory']) => {
+  const handleContinueImportedStory = async (
+    continueParams: NonNullable<HomeStackParamList['Home']>['continueStory'],
+  ) => {
     if (!continueParams || !effectiveUserId) return;
 
     try {
@@ -927,7 +939,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       startSpinAnimation();
 
       // Load the existing session from the database
-      const existingSession = await storySessionManager.getSession(continueParams.sessionId);
+      const existingSession = await storySessionManager.getSession(
+        continueParams.sessionId,
+      );
 
       if (existingSession) {
         console.log('✅ Loaded existing session:', existingSession.id);
@@ -1012,10 +1026,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         { difficulty: 1 },
       );
 
-      // Generate dynamic story starter using AI
+      // Generate dynamic story starter using AI with diversity tracking
       const starterResponse = await storyAgentService.generateStoryStarter({
         gradeLevel,
         theme: 'adventure',
+        sessionId: newSession.id,
+        userId: effectiveUserId,
+        storyId: newSession.id, // Use session ID as story ID for the starter
       });
 
       if (starterResponse.success && starterResponse.story) {
@@ -1208,13 +1225,16 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       // Simulate progress for AI generation
       simulateProgress(3000);
 
-      // Generate AI continuation
+      // Generate AI continuation with diversity tracking
       const aiResponse = await storyAgentService.continueStory({
         gradeLevel,
         storySoFar: updatedSession.story_content || '',
         userInput: userContribution,
         consistencyCheck: true,
         qualityThreshold: 0.7,
+        sessionId: currentSession?.id || undefined,
+        userId: effectiveUserId,
+        storyId: currentSession?.id || undefined, // Use session ID as story ID
       });
 
       if (aiResponse.success && aiResponse.story) {
@@ -1533,7 +1553,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       console.error('❌ Retry upload error:', error);
       Alert.alert(
         '❌ Error',
-        error.message || 'An unexpected error occurred while retrying the upload.',
+        error.message ||
+          'An unexpected error occurred while retrying the upload.',
       );
     }
   }, [currentSession, effectiveUserId]);
@@ -2139,8 +2160,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             {(() => {
               const shouldShowImage =
                 (generatedImageUrl ||
-                 currentSession?.generated_image_url ||
-                 currentSession?.supabase_image_url) &&
+                  currentSession?.generated_image_url ||
+                  currentSession?.supabase_image_url) &&
                 currentSession;
               console.log('🖼️ [DEBUG] Image display check:', {
                 generatedImageUrl: generatedImageUrl?.substring(0, 50) + '...',
