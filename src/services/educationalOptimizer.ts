@@ -1,12 +1,12 @@
 /**
  * Educational Value Optimizer Service
- * 
+ *
  * Integrates educational appropriateness and learning style optimization
  * Task 5.3: Educational Value Optimization
  */
 
 import { structuredLogger } from '../utils/logger';
-import { StoryRequest, StoryResponse, GradeLevel } from '../types/story';
+// import { StoryRequest, StoryResponse, GradeLevel } from '../types/story';
 import { SkillManager } from '../types/claudeSkills';
 import { CulturalSensitivityValidator } from '../utils/culturalSensitivity';
 
@@ -97,7 +97,7 @@ const EDUCATIONAL_STANDARDS: Record<GradeLevel, EducationalStandards> = {
       'cause_and_effect',
       'sequence_understanding',
       'character_identification',
-      'basic_emotions'
+      'basic_emotions',
     ],
     learningObjectives: [
       'Identify main characters and settings',
@@ -105,7 +105,7 @@ const EDUCATIONAL_STANDARDS: Record<GradeLevel, EducationalStandards> = {
       'Recognize emotions in characters',
       'Practice basic vocabulary',
       'Develop listening skills',
-      'Encourage imagination and creativity'
+      'Encourage imagination and creativity',
     ],
     appropriateThemes: [
       'friendship',
@@ -117,7 +117,7 @@ const EDUCATIONAL_STANDARDS: Record<GradeLevel, EducationalStandards> = {
       'kindness',
       'discovery',
       'play',
-      'safety'
+      'safety',
     ],
     prohibitedConcepts: [
       'complex_emotions',
@@ -127,8 +127,8 @@ const EDUCATIONAL_STANDARDS: Record<GradeLevel, EducationalStandards> = {
       'mature_relationships',
       'complex_moral_dilemmas',
       'political_themes',
-      'religious_controversy'
-    ]
+      'religious_controversy',
+    ],
   },
   '3-5': {
     gradeLevel: '3-5',
@@ -143,7 +143,7 @@ const EDUCATIONAL_STANDARDS: Record<GradeLevel, EducationalStandards> = {
       'plot_understanding',
       'inference_skills',
       'compare_contrast',
-      'problem_solving'
+      'problem_solving',
     ],
     learningObjectives: [
       'Analyze character motivations and development',
@@ -152,7 +152,7 @@ const EDUCATIONAL_STANDARDS: Record<GradeLevel, EducationalStandards> = {
       'Compare and contrast characters or situations',
       'Develop problem-solving skills',
       'Build vocabulary in context',
-      'Practice critical thinking'
+      'Practice critical thinking',
     ],
     appropriateThemes: [
       'adventure',
@@ -164,7 +164,7 @@ const EDUCATIONAL_STANDARDS: Record<GradeLevel, EducationalStandards> = {
       'responsibility',
       'environmental_awareness',
       'cultural_appreciation',
-      'innovation'
+      'innovation',
     ],
     prohibitedConcepts: [
       'mature_themes',
@@ -172,8 +172,8 @@ const EDUCATIONAL_STANDARDS: Record<GradeLevel, EducationalStandards> = {
       'inappropriate_relationships',
       'detailed_violence',
       'political_bias',
-      'religious_proselytizing'
-    ]
+      'religious_proselytizing',
+    ],
   },
   '6-8': {
     gradeLevel: '6-8',
@@ -188,7 +188,7 @@ const EDUCATIONAL_STANDARDS: Record<GradeLevel, EducationalStandards> = {
       'symbolism_understanding',
       'perspective_taking',
       'moral_reasoning',
-      'research_skills'
+      'research_skills',
     ],
     learningObjectives: [
       'Identify and analyze themes',
@@ -197,7 +197,7 @@ const EDUCATIONAL_STANDARDS: Record<GradeLevel, EducationalStandards> = {
       'Consider multiple perspectives',
       'Develop moral reasoning skills',
       'Practice research and citation skills',
-      'Build academic vocabulary'
+      'Build academic vocabulary',
     ],
     appropriateThemes: [
       'identity',
@@ -209,17 +209,17 @@ const EDUCATIONAL_STANDARDS: Record<GradeLevel, EducationalStandards> = {
       'historical_perspective',
       'ethical_decision_making',
       'leadership',
-      'resilience'
+      'resilience',
     ],
     prohibitedConcepts: [
       'inappropriate_content',
       'graphic_violence',
       'mature_relationships_detailed',
       'political_extremism',
-      'religious_intolerance'
-    ]
+      'religious_intolerance',
+    ],
   },
-  'Grade3': {
+  Grade3: {
     gradeLevel: 'Grade3',
     commonCoreAligned: true,
     cognitiveLevel: 'concrete',
@@ -232,7 +232,7 @@ const EDUCATIONAL_STANDARDS: Record<GradeLevel, EducationalStandards> = {
       'plot_understanding',
       'inference_skills',
       'compare_contrast',
-      'problem_solving'
+      'problem_solving',
     ],
     learningObjectives: [
       'Analyze character motivations and development',
@@ -241,7 +241,7 @@ const EDUCATIONAL_STANDARDS: Record<GradeLevel, EducationalStandards> = {
       'Compare and contrast characters or situations',
       'Develop problem-solving skills',
       'Build vocabulary in context',
-      'Practice critical thinking'
+      'Practice critical thinking',
     ],
     appropriateThemes: [
       'adventure',
@@ -253,7 +253,7 @@ const EDUCATIONAL_STANDARDS: Record<GradeLevel, EducationalStandards> = {
       'responsibility',
       'environmental_awareness',
       'cultural_appreciation',
-      'innovation'
+      'innovation',
     ],
     prohibitedConcepts: [
       'mature_themes',
@@ -261,9 +261,9 @@ const EDUCATIONAL_STANDARDS: Record<GradeLevel, EducationalStandards> = {
       'inappropriate_relationships',
       'detailed_violence',
       'political_bias',
-      'religious_proselytizing'
-    ]
-  }
+      'religious_proselytizing',
+    ],
+  },
 };
 
 // Learning style adaptation strategies
@@ -273,42 +273,78 @@ const LEARNING_STYLE_ADAPTATIONS = {
       'Include vivid descriptive language',
       'Use color and visual imagery',
       'Incorporate spatial relationships',
-      'Add visual metaphors and similes'
+      'Add visual metaphors and similes',
     ],
-    indicators: ['colorful', 'bright', 'picture', 'see', 'look', 'imagine', 'visualize']
+    indicators: [
+      'colorful',
+      'bright',
+      'picture',
+      'see',
+      'look',
+      'imagine',
+      'visualize',
+    ],
   },
   auditory: {
     strategies: [
       'Include dialogue and conversation',
       'Use rhythm and rhyme',
       'Add sound descriptions',
-      'Include musical elements'
+      'Include musical elements',
     ],
-    indicators: ['hear', 'listen', 'sound', 'music', 'voice', 'whisper', 'sing', 'echo']
+    indicators: [
+      'hear',
+      'listen',
+      'sound',
+      'music',
+      'voice',
+      'whisper',
+      'sing',
+      'echo',
+    ],
   },
   kinesthetic: {
     strategies: [
       'Include physical activities',
       'Use movement and action',
       'Add hands-on experiences',
-      'Include tactile descriptions'
+      'Include tactile descriptions',
     ],
-    indicators: ['move', 'touch', 'feel', 'build', 'make', 'run', 'jump', 'explore']
+    indicators: [
+      'move',
+      'touch',
+      'feel',
+      'build',
+      'make',
+      'run',
+      'jump',
+      'explore',
+    ],
   },
   reading: {
     strategies: [
       'Include written elements in story',
       'Add vocabulary building',
       'Include lists and facts',
-      'Use clear logical structure'
+      'Use clear logical structure',
     ],
-    indicators: ['read', 'write', 'book', 'letter', 'words', 'study', 'learn', 'understand']
-  }
+    indicators: [
+      'read',
+      'write',
+      'book',
+      'letter',
+      'words',
+      'study',
+      'learn',
+      'understand',
+    ],
+  },
 };
 
 export class EducationalOptimizerService {
   private skillManager: SkillManager;
-  private optimizationCache: Map<string, EducationalOptimizationResult> = new Map();
+  private optimizationCache: Map<string, EducationalOptimizationResult> =
+    new Map();
   private cacheTimeout = 600000; // 10 minutes
 
   constructor(skillManager: SkillManager) {
@@ -321,15 +357,17 @@ export class EducationalOptimizerService {
   async optimizeEducationalValue(
     story: StoryResponse,
     request: StoryRequest,
-    learningStyles?: Partial<LearningStyles>
+    learningStyles?: Partial<LearningStyles>,
   ): Promise<EducationalOptimizationResult> {
     try {
       const cacheKey = this.generateCacheKey(story, request, learningStyles);
-      
+
       // Check cache first
       if (this.optimizationCache.has(cacheKey)) {
         const cached = this.optimizationCache.get(cacheKey)!;
-        structuredLogger.debug('Educational optimization cache hit', { cacheKey });
+        structuredLogger.debug('Educational optimization cache hit', {
+          cacheKey,
+        });
         return cached;
       }
 
@@ -341,27 +379,40 @@ export class EducationalOptimizerService {
 
       // Get educational standards for grade level
       const standards = EDUCATIONAL_STANDARDS[request.gradeLevel];
-      
+
       // Perform comprehensive educational assessment
-      const result = await this.performEducationalAssessment(story, request, standards, learningStyles);
-      
+      const result = await this.performEducationalAssessment(
+        story,
+        request,
+        standards,
+        learningStyles,
+      );
+
       // Cache the result
       this.optimizationCache.set(cacheKey, result);
-      setTimeout(() => this.optimizationCache.delete(cacheKey), this.cacheTimeout);
+      setTimeout(
+        () => this.optimizationCache.delete(cacheKey),
+        this.cacheTimeout,
+      );
 
       structuredLogger.info('Educational optimization complete', {
         educationalValue: result.educationalValue,
         passed: result.passed,
-        adaptationsApplied: result.learningStyleAdaptations.adaptationsApplied.length,
+        adaptationsApplied:
+          result.learningStyleAdaptations.adaptationsApplied.length,
         culturalSensitivity: result.culturalSensitivity.representationDiversity,
       });
 
       return result;
     } catch (error) {
-      structuredLogger.error('Educational optimization failed', { 
-        gradeLevel: request.gradeLevel 
-      }, error as Error);
-      
+      structuredLogger.error(
+        'Educational optimization failed',
+        {
+          gradeLevel: request.gradeLevel,
+        },
+        error as Error,
+      );
+
       return this.generateFallbackOptimization(story, request);
     }
   }
@@ -371,7 +422,7 @@ export class EducationalOptimizerService {
    */
   async assessEducationalStandards(
     story: StoryResponse,
-    gradeLevel: GradeLevel
+    gradeLevel: GradeLevel,
   ): Promise<{
     aligned: boolean;
     commonCoreAlignment: number; // 0-100
@@ -381,55 +432,68 @@ export class EducationalOptimizerService {
   }> {
     try {
       const standards = EDUCATIONAL_STANDARDS[gradeLevel];
-      
-      const assessment = await this.skillManager.executeSkill('EducationalStandardsAssessmentSkill', {
-        content: story.story,
-        gradeLevel,
-        requiredSkills: standards.requiredSkills,
-        learningObjectives: standards.learningObjectives,
-        appropriateThemes: standards.appropriateThemes,
-        prohibitedConcepts: standards.prohibitedConcepts,
-        commonCoreStandards: true,
-      });
+
+      const assessment = await this.skillManager.executeSkill(
+        'EducationalStandardsAssessmentSkill',
+        {
+          content: story.story,
+          gradeLevel,
+          requiredSkills: standards.requiredSkills,
+          learningObjectives: standards.learningObjectives,
+          appropriateThemes: standards.appropriateThemes,
+          prohibitedConcepts: standards.prohibitedConcepts,
+          commonCoreStandards: true,
+        },
+      );
 
       if (!assessment.success) {
         throw new Error('Educational standards assessment skill failed');
       }
 
       const data = assessment.data as any;
-      
+
       return {
-        aligned: (data.commonCoreAlignment || 80) >= 75 && (data.stateStandardsAlignment || 80) >= 75,
+        aligned:
+          (data.commonCoreAlignment || 80) >= 75 &&
+          (data.stateStandardsAlignment || 80) >= 75,
         commonCoreAlignment: data.commonCoreAlignment || 80,
         stateStandardsAlignment: data.stateStandardsAlignment || 80,
         issues: data.issues || [],
         recommendations: data.recommendations || [],
       };
     } catch (error) {
-      structuredLogger.warn('Educational standards assessment failed, using fallback', error as Error);
-      
+      structuredLogger.warn(
+        'Educational standards assessment failed, using fallback',
+        error as Error,
+      );
+
       // Fallback assessment based on content analysis
       const standards = EDUCATIONAL_STANDARDS[gradeLevel];
       const storyLower = story.story.toLowerCase();
-      
+
       // Check for appropriate themes
-      const hasAppropriateThemes = standards.appropriateThemes.some(theme => 
-        storyLower.includes(theme.replace(/_/g, ' '))
+      const hasAppropriateThemes = standards.appropriateThemes.some(theme =>
+        storyLower.includes(theme.replace(/_/g, ' ')),
       );
-      
+
       // Check for prohibited concepts
-      const hasProhibitedConcepts = standards.prohibitedConcepts.some(concept => 
-        storyLower.includes(concept.replace(/_/g, ' '))
+      const hasProhibitedConcepts = standards.prohibitedConcepts.some(concept =>
+        storyLower.includes(concept.replace(/_/g, ' ')),
       );
-      
-      const fallbackScore = hasAppropriateThemes && !hasProhibitedConcepts ? 85 : 70;
-      
+
+      const fallbackScore =
+        hasAppropriateThemes && !hasProhibitedConcepts ? 85 : 70;
+
       return {
         aligned: fallbackScore >= 75,
         commonCoreAlignment: fallbackScore,
         stateStandardsAlignment: fallbackScore,
-        issues: hasProhibitedConcepts ? ['Content may contain inappropriate concepts'] : [],
-        recommendations: hasAppropriateThemes ? [] : ['Consider adding more educational themes'],
+        issues: hasProhibitedConcepts
+          ? ['Content may contain inappropriate concepts']
+          : [],
+        recommendations: hasAppropriateThemes
+          ? []
+          : ['Consider adding more educational themes'],
       };
     }
   }
@@ -440,7 +504,7 @@ export class EducationalOptimizerService {
   async adaptForLearningStyles(
     story: StoryResponse,
     request: StoryRequest,
-    learningStyles: Partial<LearningStyles>
+    learningStyles: Partial<LearningStyles>,
   ): Promise<{
     adaptedContent: string;
     adaptationsApplied: string[];
@@ -448,44 +512,50 @@ export class EducationalOptimizerService {
   }> {
     try {
       const primaryStyles = this.identifyPrimaryLearningStyles(learningStyles);
-      
-      const adaptation = await this.skillManager.executeSkill('LearningStyleAdaptationSkill', {
-        content: story.story,
-        gradeLevel: request.gradeLevel,
-        primaryLearningStyles: primaryStyles,
-        adaptationStrategies: this.getAdaptationStrategies(primaryStyles),
-      });
+
+      const adaptation = await this.skillManager.executeSkill(
+        'LearningStyleAdaptationSkill',
+        {
+          content: story.story,
+          gradeLevel: request.gradeLevel,
+          primaryLearningStyles: primaryStyles,
+          adaptationStrategies: this.getAdaptationStrategies(primaryStyles),
+        },
+      );
 
       if (!adaptation.success) {
         throw new Error('Learning style adaptation skill failed');
       }
 
       const data = adaptation.data as any;
-      
+
       return {
         adaptedContent: data.adaptedContent || story.story,
         adaptationsApplied: data.adaptationsApplied || [],
         estimatedImprovementScore: data.estimatedImprovement || 10,
       };
     } catch (error) {
-      structuredLogger.warn('Learning style adaptation failed, using fallback', error as Error);
-      
+      structuredLogger.warn(
+        'Learning style adaptation failed, using fallback',
+        error as Error,
+      );
+
       // Fallback adaptation based on simple text enhancement
       const primaryStyles = this.identifyPrimaryLearningStyles(learningStyles);
       const adaptationsApplied: string[] = [];
       let adaptedContent = story.story;
-      
+
       // Apply simple adaptations
       if (primaryStyles.includes('visual')) {
         adaptedContent = this.enhanceVisualElements(adaptedContent);
         adaptationsApplied.push('Enhanced visual descriptions');
       }
-      
+
       if (primaryStyles.includes('kinesthetic')) {
         adaptedContent = this.enhanceActionElements(adaptedContent);
         adaptationsApplied.push('Added movement and action');
       }
-      
+
       return {
         adaptedContent,
         adaptationsApplied,
@@ -499,45 +569,52 @@ export class EducationalOptimizerService {
    */
   async assessInclusivity(
     story: StoryResponse,
-    gradeLevel: GradeLevel
+    gradeLevel: GradeLevel,
   ): Promise<InclusivityAssessment> {
     try {
       // Use comprehensive cultural sensitivity validator
-      const culturalReport = CulturalSensitivityValidator.generateComprehensiveReport(
-        story.story,
-        gradeLevel
-      );
+      const culturalReport =
+        CulturalSensitivityValidator.generateComprehensiveReport(
+          story.story,
+          gradeLevel,
+        );
 
       structuredLogger.info('Cultural sensitivity assessment completed', {
         overallScore: culturalReport.overallScore,
         biasIssues: culturalReport.biasDetection.length,
         priorityIssues: culturalReport.priorityIssues.length,
-        gradeLevel: gradeLevel
+        gradeLevel: gradeLevel,
       });
 
       // Try skill-based assessment as enhancement if available
       let skillEnhancement = null;
       try {
-        const assessment = await this.skillManager.executeSkill('InclusivityAssessmentSkill', {
-          content: story.story,
-          gradeLevel,
-          assessmentDimensions: [
-            'character_diversity',
-            'cultural_representation',
-            'language_inclusivity',
-            'accessibility_considerations',
-            'bias_detection',
-            'universal_design_principles'
-          ],
-        });
+        const assessment = await this.skillManager.executeSkill(
+          'InclusivityAssessmentSkill',
+          {
+            content: story.story,
+            gradeLevel,
+            assessmentDimensions: [
+              'character_diversity',
+              'cultural_representation',
+              'language_inclusivity',
+              'accessibility_considerations',
+              'bias_detection',
+              'universal_design_principles',
+            ],
+          },
+        );
 
         if (assessment.success) {
           skillEnhancement = assessment.data;
         }
       } catch (skillError) {
-        structuredLogger.debug('Skill-based enhancement unavailable, using validator only', {
-          error: (skillError as Error).message
-        });
+        structuredLogger.debug(
+          'Skill-based enhancement unavailable, using validator only',
+          {
+            error: (skillError as Error).message,
+          },
+        );
       }
 
       // Combine validator results with skill enhancement if available
@@ -552,7 +629,10 @@ export class EducationalOptimizerService {
         // Map accessibility issues
         ...culturalReport.accessibility.issues.map(issue => ({
           type: 'accessibility' as const,
-          severity: issue.type === 'conceptual' ? 'high' as const : 'medium' as const,
+          severity:
+            issue.type === 'conceptual'
+              ? ('high' as const)
+              : ('medium' as const),
           description: issue.description,
           suggestion: issue.suggestion,
         })),
@@ -566,11 +646,20 @@ export class EducationalOptimizerService {
       ];
 
       const result: InclusivityAssessment = {
-        characterDiversity: (skillEnhancement as any)?.characterDiversity || culturalReport.culturalRepresentation.diversityScore,
-        settingInclusion: (skillEnhancement as any)?.settingInclusion || culturalReport.culturalRepresentation.diversityScore,
+        characterDiversity:
+          (skillEnhancement as any)?.characterDiversity ||
+          culturalReport.culturalRepresentation.diversityScore,
+        settingInclusion:
+          (skillEnhancement as any)?.settingInclusion ||
+          culturalReport.culturalRepresentation.diversityScore,
         languageAccessibility: culturalReport.inclusiveLanguage.score,
         universalDesign: culturalReport.accessibility.cognitiveAccessibility,
-        neurodiversity: (skillEnhancement as any)?.neurodiversity || Math.min(culturalReport.accessibility.cognitiveAccessibility + 10, 100),
+        neurodiversity:
+          (skillEnhancement as any)?.neurodiversity ||
+          Math.min(
+            culturalReport.accessibility.cognitiveAccessibility + 10,
+            100,
+          ),
         overallInclusivity: culturalReport.overallScore,
         issues: combinedIssues,
       };
@@ -578,9 +667,9 @@ export class EducationalOptimizerService {
       return result;
     } catch (error) {
       structuredLogger.warn('Inclusivity assessment failed, using fallback', {
-        error: (error as Error).message
+        error: (error as Error).message,
       });
-      
+
       // Fallback inclusivity assessment
       return this.generateFallbackInclusivityAssessment(story, gradeLevel);
     }
@@ -592,40 +681,75 @@ export class EducationalOptimizerService {
     story: StoryResponse,
     request: StoryRequest,
     standards: EducationalStandards,
-    learningStyles?: Partial<LearningStyles>
+    learningStyles?: Partial<LearningStyles>,
   ): Promise<EducationalOptimizationResult> {
     // Assess educational standards alignment
-    const standardsAssessment = await this.assessEducationalStandards(story, request.gradeLevel);
-    
+    const standardsAssessment = await this.assessEducationalStandards(
+      story,
+      request.gradeLevel,
+    );
+
     // Assess learning style adaptations if provided
     let learningStyleAdaptations = {
       adaptationsApplied: [],
       estimatedEngagementImprovement: 0,
       learningObjectiveAlignment: standardsAssessment.commonCoreAlignment,
     };
-    
+
     if (learningStyles) {
-      const adaptation = await this.adaptForLearningStyles(story, request, learningStyles);
+      const adaptation = await this.adaptForLearningStyles(
+        story,
+        request,
+        learningStyles,
+      );
       learningStyleAdaptations = {
         adaptationsApplied: adaptation.adaptationsApplied,
         estimatedEngagementImprovement: adaptation.estimatedImprovementScore,
         learningObjectiveAlignment: standardsAssessment.commonCoreAlignment,
       };
     }
-    
+
     // Assess cultural sensitivity and inclusivity
-    const inclusivityAssessment = await this.assessInclusivity(story, request.gradeLevel);
-    
+    const inclusivityAssessment = await this.assessInclusivity(
+      story,
+      request.gradeLevel,
+    );
+
     // Calculate cultural sensitivity metrics
     const culturalSensitivity: CulturalSensitivityMetrics = {
       representationDiversity: inclusivityAssessment.characterDiversity,
       languageInclusivity: inclusivityAssessment.languageAccessibility,
       biasDetection: {
-        gender: 100 - (inclusivityAssessment.issues.filter(i => i.description.includes('gender')).length * 20),
-        racial: 100 - (inclusivityAssessment.issues.filter(i => i.description.includes('racial')).length * 20),
-        socioeconomic: 100 - (inclusivityAssessment.issues.filter(i => i.description.includes('socioeconomic')).length * 20),
-        religious: 100 - (inclusivityAssessment.issues.filter(i => i.description.includes('religious')).length * 20),
-        cultural: 100 - (inclusivityAssessment.issues.filter(i => i.description.includes('cultural')).length * 20),
+        gender:
+          100 -
+          inclusivityAssessment.issues.filter(i =>
+            i.description.includes('gender'),
+          ).length *
+            20,
+        racial:
+          100 -
+          inclusivityAssessment.issues.filter(i =>
+            i.description.includes('racial'),
+          ).length *
+            20,
+        socioeconomic:
+          100 -
+          inclusivityAssessment.issues.filter(i =>
+            i.description.includes('socioeconomic'),
+          ).length *
+            20,
+        religious:
+          100 -
+          inclusivityAssessment.issues.filter(i =>
+            i.description.includes('religious'),
+          ).length *
+            20,
+        cultural:
+          100 -
+          inclusivityAssessment.issues.filter(i =>
+            i.description.includes('cultural'),
+          ).length *
+            20,
       },
       accessibilityConsiderations: {
         cognitiveAccessibility: inclusivityAssessment.universalDesign,
@@ -633,30 +757,35 @@ export class EducationalOptimizerService {
         culturalReferences: inclusivityAssessment.settingInclusion,
       },
     };
-    
+
     // Calculate overall educational value
     const educationalValue = Math.round(
-      (standardsAssessment.commonCoreAlignment * 0.3) +
-      (standardsAssessment.stateStandardsAlignment * 0.2) +
-      (inclusivityAssessment.overallInclusivity * 0.25) +
-      (learningStyleAdaptations.learningObjectiveAlignment * 0.25)
+      standardsAssessment.commonCoreAlignment * 0.3 +
+        standardsAssessment.stateStandardsAlignment * 0.2 +
+        inclusivityAssessment.overallInclusivity * 0.25 +
+        learningStyleAdaptations.learningObjectiveAlignment * 0.25,
     );
-    
+
     // Determine if optimization passes
-    const passed = educationalValue >= 75 && 
-                  standardsAssessment.aligned && 
-                  inclusivityAssessment.overallInclusivity >= 70;
-    
+    const passed =
+      educationalValue >= 75 &&
+      standardsAssessment.aligned &&
+      inclusivityAssessment.overallInclusivity >= 70;
+
     // Generate recommendations
     const recommendations: string[] = [
       ...standardsAssessment.recommendations,
-      ...inclusivityAssessment.issues.map((issue: { suggestion: string }) => issue.suggestion),
+      ...inclusivityAssessment.issues.map(
+        (issue: { suggestion: string }) => issue.suggestion,
+      ),
     ];
-    
+
     if (learningStyleAdaptations.estimatedEngagementImprovement > 0) {
-      recommendations.push('Learning style adaptations applied to enhance engagement');
+      recommendations.push(
+        'Learning style adaptations applied to enhance engagement',
+      );
     }
-    
+
     // Generate improvements
     const improvements: string[] = [];
     if (educationalValue < 80) {
@@ -665,7 +794,10 @@ export class EducationalOptimizerService {
     if (inclusivityAssessment.overallInclusivity < 80) {
       improvements.push('Enhance cultural sensitivity and inclusivity');
     }
-    if (learningStyles && learningStyleAdaptations.adaptationsApplied.length === 0) {
+    if (
+      learningStyles &&
+      learningStyleAdaptations.adaptationsApplied.length === 0
+    ) {
       improvements.push('Consider adding learning style adaptations');
     }
 
@@ -684,26 +816,31 @@ export class EducationalOptimizerService {
     };
   }
 
-  private identifyPrimaryLearningStyles(learningStyles: Partial<LearningStyles>): string[] {
+  private identifyPrimaryLearningStyles(
+    learningStyles: Partial<LearningStyles>,
+  ): string[] {
     const styles = Object.entries(learningStyles)
       .filter(([_, value]) => (value || 0) > 0.6)
       .sort((a, b) => (b[1] || 0) - (a[1] || 0))
       .map(([style, _]) => style)
       .slice(0, 3); // Top 3 learning styles
-    
+
     return styles.length > 0 ? styles : ['visual', 'reading']; // Default fallback
   }
 
   private getAdaptationStrategies(primaryStyles: string[]): string[] {
     const strategies: string[] = [];
-    
+
     for (const style of primaryStyles) {
-      const adaptationInfo = LEARNING_STYLE_ADAPTATIONS[style as keyof typeof LEARNING_STYLE_ADAPTATIONS];
+      const adaptationInfo =
+        LEARNING_STYLE_ADAPTATIONS[
+          style as keyof typeof LEARNING_STYLE_ADAPTATIONS
+        ];
       if (adaptationInfo) {
         strategies.push(...adaptationInfo.strategies);
       }
     }
-    
+
     return Array.from(new Set(strategies)); // Remove duplicates
   }
 
@@ -715,12 +852,15 @@ export class EducationalOptimizerService {
       ['found', 'discovered the bright'],
       ['saw', 'gazed at the beautiful'],
     ];
-    
+
     let enhanced = content;
     for (const [original, enhanced_text] of visualEnhancements) {
-      enhanced = enhanced.replace(new RegExp(`\\b${original}\\b`, 'gi'), enhanced_text);
+      enhanced = enhanced.replace(
+        new RegExp(`\\b${original}\\b`, 'gi'),
+        enhanced_text,
+      );
     }
-    
+
     return enhanced;
   }
 
@@ -732,72 +872,101 @@ export class EducationalOptimizerService {
       ['found', 'discovered by exploring'],
       ['learned', 'learned by trying'],
     ];
-    
+
     let enhanced = content;
     for (const [original, enhanced_text] of actionEnhancements) {
-      enhanced = enhanced.replace(new RegExp(`\\b${original}\\b`, 'gi'), enhanced_text);
+      enhanced = enhanced.replace(
+        new RegExp(`\\b${original}\\b`, 'gi'),
+        enhanced_text,
+      );
     }
-    
+
     return enhanced;
   }
 
-  private assessLanguageComplexity(story: StoryResponse, standards: EducationalStandards): number {
+  private assessLanguageComplexity(
+    story: StoryResponse,
+    standards: EducationalStandards,
+  ): number {
     const words = story.story.split(/\s+/);
-    const avgWordLength = words.reduce((sum, word) => sum + word.length, 0) / words.length;
-    const sentences = story.story.split(/[.!?]+/).filter(s => s.trim().length > 0);
+    const avgWordLength =
+      words.reduce((sum, word) => sum + word.length, 0) / words.length;
+    const sentences = story.story
+      .split(/[.!?]+/)
+      .filter(s => s.trim().length > 0);
     const avgSentenceLength = words.length / sentences.length;
-    
+
     // Calculate complexity based on word and sentence length
-    const wordComplexity = Math.min(avgWordLength / 6 * 100, 100); // 6 chars = 100% complexity
-    const sentenceComplexity = Math.min(avgSentenceLength / 15 * 100, 100); // 15 words = 100% complexity
-    
+    const wordComplexity = Math.min((avgWordLength / 6) * 100, 100); // 6 chars = 100% complexity
+    const sentenceComplexity = Math.min((avgSentenceLength / 15) * 100, 100); // 15 words = 100% complexity
+
     const overallComplexity = (wordComplexity + sentenceComplexity) / 2;
-    
+
     // Score appropriateness (lower complexity is better for younger grades)
     const targetComplexity = standards.vocabularyComplexity;
-    const complexityScore = 100 - Math.abs(overallComplexity - targetComplexity);
-    
+    const complexityScore =
+      100 - Math.abs(overallComplexity - targetComplexity);
+
     return Math.max(0, Math.min(100, complexityScore));
   }
 
   private generateFallbackInclusivityAssessment(
     story: StoryResponse,
-    gradeLevel: GradeLevel
+    gradeLevel: GradeLevel,
   ): InclusivityAssessment {
     const storyLower = story.story.toLowerCase();
-    
+
     // Simple inclusivity scoring based on content analysis
     let characterDiversity = 60; // Base score
     let settingInclusion = 60;
     let languageAccessibility = 70;
-    
+
     // Check for diverse character indicators
-    const diversityIndicators = ['different', 'various', 'many', 'diverse', 'unique'];
+    const diversityIndicators = [
+      'different',
+      'various',
+      'many',
+      'diverse',
+      'unique',
+    ];
     if (diversityIndicators.some(indicator => storyLower.includes(indicator))) {
       characterDiversity += 20;
     }
-    
+
     // Check for inclusive language
-    const inclusiveLanguage = ['everyone', 'all', 'together', 'include', 'welcome'];
+    const inclusiveLanguage = [
+      'everyone',
+      'all',
+      'together',
+      'include',
+      'welcome',
+    ];
     if (inclusiveLanguage.some(word => storyLower.includes(word))) {
       languageAccessibility += 15;
       settingInclusion += 15;
     }
-    
+
     return {
       characterDiversity: Math.min(100, characterDiversity),
       settingInclusion: Math.min(100, settingInclusion),
       languageAccessibility: Math.min(100, languageAccessibility),
       universalDesign: 70,
       neurodiversity: 70,
-      overallInclusivity: Math.round((characterDiversity + settingInclusion + languageAccessibility + 70 + 70) / 5),
+      overallInclusivity: Math.round(
+        (characterDiversity +
+          settingInclusion +
+          languageAccessibility +
+          70 +
+          70) /
+          5,
+      ),
       issues: [],
     };
   }
 
   private generateFallbackOptimization(
     _story: StoryResponse,
-    _request: StoryRequest
+    _request: StoryRequest,
   ): EducationalOptimizationResult {
     return {
       educationalValue: 75,
@@ -828,7 +997,9 @@ export class EducationalOptimizerService {
         },
       },
       recommendations: ['Content meets basic educational standards'],
-      improvements: ['Consider enhancing educational value through skill integration'],
+      improvements: [
+        'Consider enhancing educational value through skill integration',
+      ],
       passed: true,
     };
   }
@@ -836,14 +1007,16 @@ export class EducationalOptimizerService {
   private generateCacheKey(
     story: StoryResponse,
     request: StoryRequest,
-    learningStyles?: Partial<LearningStyles>
+    learningStyles?: Partial<LearningStyles>,
   ): string {
     const stylesKey = learningStyles ? JSON.stringify(learningStyles) : 'none';
-    return `edu_opt_${request.gradeLevel}_${story.story.substring(0, 30).replace(/\s+/g, '_')}_${stylesKey.substring(0, 20)}`;
+    return `edu_opt_${request.gradeLevel}_${story.story
+      .substring(0, 30)
+      .replace(/\s+/g, '_')}_${stylesKey.substring(0, 20)}`;
   }
 }
 
 export const educationalOptimizerService = new EducationalOptimizerService(
   // Will be injected by the skill manager when initialized
-  {} as SkillManager
+  {} as SkillManager,
 );

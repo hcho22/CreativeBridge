@@ -1,13 +1,13 @@
 /**
  * Claude Skills Error Recovery Strategies
- * 
+ *
  * Implements automatic error recovery with retry mechanisms,
  * circuit breakers, and fallback strategies.
  */
 
 import { SkillError, SkillErrorCode, SkillType } from '../types/claudeSkills';
 import { structuredLogger } from '../utils/logger';
-import { errorHandler, ErrorLevel } from './errorHandler';
+// import { errorHandler, ErrorLevel } from './errorHandler';
 
 export interface RecoveryStrategy {
   shouldRetry(error: SkillError, attempt: number): boolean;
@@ -39,10 +39,10 @@ export class SkillErrorRecoveryService {
       userId?: string;
       sessionId?: string;
       correlationId?: string;
-    } = {}
+    } = {},
   ): Promise<T> {
     const circuitBreakerKey = `${skillType}_${skillId}`;
-    
+
     // Check circuit breaker
     if (this.isCircuitBreakerOpen(circuitBreakerKey)) {
       throw this.createCircuitBreakerError(skillType, skillId);
@@ -54,10 +54,10 @@ export class SkillErrorRecoveryService {
     for (let attempt = 1; attempt <= strategy.getMaxRetries(); attempt++) {
       try {
         const result = await operation();
-        
+
         // Record success
         this.recordSuccess(circuitBreakerKey);
-        
+
         if (attempt > 1) {
           structuredLogger.info(
             `Skill operation recovered after ${attempt} attempts`,
@@ -66,14 +66,14 @@ export class SkillErrorRecoveryService {
               skillId,
               attempts: attempt,
               ...context,
-            }
+            },
           );
         }
 
         return result;
       } catch (error) {
         lastError = this.normalizeError(error, skillType);
-        
+
         // Record failure
         this.recordFailure(circuitBreakerKey);
 
@@ -103,19 +103,14 @@ export class SkillErrorRecoveryService {
 
     // All retries exhausted
     if (lastError) {
-      await errorHandler.handleSkillError(
-        lastError,
-        skillType,
-        skillId,
-        {
-          userId: context.userId,
-          sessionId: context.sessionId,
-          metadata: {
-            correlationId: context.correlationId,
-            retriesExhausted: true,
-          },
-        }
-      );
+      await errorHandler.handleSkillError(lastError, skillType, skillId, {
+        userId: context.userId,
+        sessionId: context.sessionId,
+        metadata: {
+          correlationId: context.correlationId,
+          retriesExhausted: true,
+        },
+      });
     }
 
     throw lastError || this.createUnknownError(skillType);
@@ -192,12 +187,16 @@ export class SkillErrorRecoveryService {
    * Record success for circuit breaker
    */
   private recordSuccess(key: string): void {
-    const state = this.circuitBreakers.get(key) || this.createCircuitBreakerState();
+    const state =
+      this.circuitBreakers.get(key) || this.createCircuitBreakerState();
     state.successCount++;
     state.failureCount = 0;
 
     // Close circuit breaker after threshold successes
-    if (state.isOpen && state.successCount >= this.CIRCUIT_BREAKER_SUCCESS_THRESHOLD) {
+    if (
+      state.isOpen &&
+      state.successCount >= this.CIRCUIT_BREAKER_SUCCESS_THRESHOLD
+    ) {
       state.isOpen = false;
       state.successCount = 0;
       structuredLogger.info(`Circuit breaker closed for ${key}`);
@@ -210,7 +209,8 @@ export class SkillErrorRecoveryService {
    * Record failure for circuit breaker
    */
   private recordFailure(key: string): void {
-    const state = this.circuitBreakers.get(key) || this.createCircuitBreakerState();
+    const state =
+      this.circuitBreakers.get(key) || this.createCircuitBreakerState();
     state.failureCount++;
     state.lastFailureTime = Date.now();
     state.successCount = 0;
@@ -219,7 +219,7 @@ export class SkillErrorRecoveryService {
     if (state.failureCount >= this.CIRCUIT_BREAKER_THRESHOLD) {
       state.isOpen = true;
       structuredLogger.warn(
-        `Circuit breaker opened for ${key} after ${state.failureCount} failures`
+        `Circuit breaker opened for ${key} after ${state.failureCount} failures`,
       );
     }
 
@@ -241,7 +241,10 @@ export class SkillErrorRecoveryService {
   /**
    * Create circuit breaker error
    */
-  private createCircuitBreakerError(skillType: SkillType, skillId: string): SkillError {
+  private createCircuitBreakerError(
+    skillType: SkillType,
+    skillId: string,
+  ): SkillError {
     return {
       code: SkillErrorCode.SKILL_UNAVAILABLE,
       message: `Circuit breaker is open for ${skillType}. Service temporarily unavailable.`,
@@ -278,7 +281,10 @@ export class SkillErrorRecoveryService {
 
     // Convert generic errors to skill errors
     if (error instanceof Error) {
-      if (error.message.includes('timeout') || error.message.includes('Timeout')) {
+      if (
+        error.message.includes('timeout') ||
+        error.message.includes('Timeout')
+      ) {
         return {
           code: SkillErrorCode.SKILL_TIMEOUT,
           message: error.message,
@@ -287,7 +293,10 @@ export class SkillErrorRecoveryService {
         };
       }
 
-      if (error.message.includes('network') || error.message.includes('Network')) {
+      if (
+        error.message.includes('network') ||
+        error.message.includes('Network')
+      ) {
         return {
           code: SkillErrorCode.NETWORK_ERROR,
           message: error.message,
@@ -328,7 +337,10 @@ export class SkillErrorRecoveryService {
   /**
    * Get circuit breaker state
    */
-  getCircuitBreakerState(skillType: SkillType, skillId: string): CircuitBreakerState | undefined {
+  getCircuitBreakerState(
+    skillType: SkillType,
+    skillId: string,
+  ): CircuitBreakerState | undefined {
     const key = `${skillType}_${skillId}`;
     return this.circuitBreakers.get(key);
   }
@@ -345,4 +357,3 @@ export class SkillErrorRecoveryService {
 
 // Export singleton instance
 export const skillErrorRecovery = new SkillErrorRecoveryService();
-

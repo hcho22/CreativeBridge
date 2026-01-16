@@ -1,6 +1,6 @@
 /**
  * User Preferences Service
- * 
+ *
  * Cross-session personalization system with privacy-compliant behavior tracking
  * Task 3.3: Cross-Session Personalization
  */
@@ -8,12 +8,17 @@
 import { secureStorage } from '../utils/secureStorage';
 import { structuredLogger } from '../utils/logger';
 import { GradeLevel } from '../types/database';
-import { StoryRequest, StoryResponse } from '../types/story';
+// import { StoryRequest, StoryResponse } from '../types/story';
 
 // User behavior tracking interfaces
 export interface UserInteraction {
   id: string;
-  type: 'story_request' | 'story_completion' | 'story_rating' | 'theme_selection' | 'session_duration';
+  type:
+    | 'story_request'
+    | 'story_completion'
+    | 'story_rating'
+    | 'theme_selection'
+    | 'session_duration';
   timestamp: number;
   gradeLevel: GradeLevel;
   context: Record<string, any>;
@@ -104,22 +109,29 @@ class UserPreferencesService {
   /**
    * Initialize the preferences service
    */
-  async initialize(gradeLevel: GradeLevel, anonymousUserId?: string): Promise<void> {
+  async initialize(
+    gradeLevel: GradeLevel,
+    anonymousUserId?: string,
+  ): Promise<void> {
     try {
       // Generate anonymous user ID if not provided
-      const userId = anonymousUserId || await this.generateAnonymousUserId();
-      
+      const userId = anonymousUserId || (await this.generateAnonymousUserId());
+
       // Check privacy consent
       const hasConsent = await this.hasPrivacyConsent();
       if (!hasConsent && this.config.privacyMode) {
-        structuredLogger.info('Privacy consent not given, running in minimal mode');
+        structuredLogger.info(
+          'Privacy consent not given, running in minimal mode',
+        );
         await this.initializeMinimalMode(userId, gradeLevel);
         return;
       }
 
       // Load existing personalization data
-      const existing = await secureStorage.get<PersonalizationData>(STORAGE_KEYS.PERSONALIZATION_DATA);
-      
+      const existing = await secureStorage.get<PersonalizationData>(
+        STORAGE_KEYS.PERSONALIZATION_DATA,
+      );
+
       if (existing && this.isDataValid(existing)) {
         this.personalizationData = existing;
         // Update grade level if changed
@@ -134,7 +146,10 @@ class UserPreferencesService {
         });
       } else {
         // Initialize new personalization data
-        this.personalizationData = this.createInitialPersonalizationData(userId, gradeLevel);
+        this.personalizationData = this.createInitialPersonalizationData(
+          userId,
+          gradeLevel,
+        );
         await this.savePersonalizationData();
         structuredLogger.info('New personalization data initialized', {
           userId: this.hashUserId(userId),
@@ -143,21 +158,34 @@ class UserPreferencesService {
       }
 
       this.isInitialized = true;
-      
+
       // Start background cleanup
       this.scheduleCleanup();
     } catch (error) {
-      structuredLogger.error('Failed to initialize user preferences', {}, error as Error);
+      structuredLogger.error(
+        'Failed to initialize user preferences',
+        {},
+        error as Error,
+      );
       // Fallback to minimal mode
-      await this.initializeMinimalMode(anonymousUserId || 'fallback', gradeLevel);
+      await this.initializeMinimalMode(
+        anonymousUserId || 'fallback',
+        gradeLevel,
+      );
     }
   }
 
   /**
    * Initialize in minimal mode (no personalization)
    */
-  private async initializeMinimalMode(userId: string, gradeLevel: GradeLevel): Promise<void> {
-    this.personalizationData = this.createInitialPersonalizationData(userId, gradeLevel);
+  private async initializeMinimalMode(
+    userId: string,
+    gradeLevel: GradeLevel,
+  ): Promise<void> {
+    this.personalizationData = this.createInitialPersonalizationData(
+      userId,
+      gradeLevel,
+    );
     // In minimal mode, interactions are never stored
     this.isInitialized = true;
   }
@@ -166,7 +194,9 @@ class UserPreferencesService {
    * Check if user has given privacy consent
    */
   async hasPrivacyConsent(): Promise<boolean> {
-    const consent = await secureStorage.get<boolean>(STORAGE_KEYS.PRIVACY_CONSENT);
+    const consent = await secureStorage.get<boolean>(
+      STORAGE_KEYS.PRIVACY_CONSENT,
+    );
     return consent === true;
   }
 
@@ -175,12 +205,12 @@ class UserPreferencesService {
    */
   async setPrivacyConsent(consent: boolean): Promise<void> {
     await secureStorage.set(STORAGE_KEYS.PRIVACY_CONSENT, consent);
-    
+
     if (!consent) {
       // Clear all personalization data if consent is revoked
       await this.resetPersonalizationData();
     }
-    
+
     structuredLogger.info('Privacy consent updated', { consent });
   }
 
@@ -192,7 +222,7 @@ class UserPreferencesService {
     const timestamp = Date.now().toString();
     const random = Math.random().toString(36).substring(2);
     const combined = `${timestamp}-${random}`;
-    
+
     // Hash the combined string for anonymity
     return this.hashUserId(combined);
   }
@@ -217,7 +247,7 @@ class UserPreferencesService {
    */
   async recordInteraction(
     type: UserInteraction['type'],
-    context: Record<string, any>
+    context: Record<string, any>,
   ): Promise<void> {
     if (!this.isInitialized || !this.personalizationData) {
       await this.initialize(context.gradeLevel || 'Grade3');
@@ -245,8 +275,14 @@ class UserPreferencesService {
     this.personalizationData.interactions.push(interaction);
 
     // Keep only recent interactions
-    if (this.personalizationData.interactions.length > this.config.maxInteractionHistory) {
-      this.personalizationData.interactions = this.personalizationData.interactions.slice(-this.config.maxInteractionHistory);
+    if (
+      this.personalizationData.interactions.length >
+      this.config.maxInteractionHistory
+    ) {
+      this.personalizationData.interactions =
+        this.personalizationData.interactions.slice(
+          -this.config.maxInteractionHistory,
+        );
     }
 
     // Update preferences based on interaction
@@ -270,8 +306,12 @@ class UserPreferencesService {
     recommendedComplexity: string;
     confidenceScore: number;
   } {
-    if (!this.isInitialized || !this.personalizationData || 
-        this.personalizationData.learningMetrics.sessionCount < this.config.minSessionsForPersonalization) {
+    if (
+      !this.isInitialized ||
+      !this.personalizationData ||
+      this.personalizationData.learningMetrics.sessionCount <
+        this.config.minSessionsForPersonalization
+    ) {
       return {
         recommendedThemes: ['adventure', 'friendship', 'discovery'],
         recommendedComplexity: 'medium',
@@ -280,7 +320,7 @@ class UserPreferencesService {
     }
 
     const prefs = this.personalizationData.storyPreferences;
-    
+
     // Get top themes
     const themeEntries = Object.entries(prefs.themes);
     const topThemes = themeEntries
@@ -290,15 +330,21 @@ class UserPreferencesService {
 
     // Get preferred complexity
     const complexityEntries = Object.entries(prefs.complexity);
-    const preferredComplexity = complexityEntries.length > 0
-      ? complexityEntries.reduce((max, curr) => curr[1] > max[1] ? curr : max)[0]
-      : 'medium';
+    const preferredComplexity =
+      complexityEntries.length > 0
+        ? complexityEntries.reduce((max, curr) =>
+            curr[1] > max[1] ? curr : max,
+          )[0]
+        : 'medium';
 
     // Calculate confidence based on data quality
     const confidenceScore = this.calculateRecommendationConfidence();
 
     return {
-      recommendedThemes: topThemes.length > 0 ? topThemes : ['adventure', 'friendship', 'discovery'],
+      recommendedThemes:
+        topThemes.length > 0
+          ? topThemes
+          : ['adventure', 'friendship', 'discovery'],
       recommendedComplexity: preferredComplexity,
       confidenceScore,
     };
@@ -310,7 +356,7 @@ class UserPreferencesService {
   async recordQualityFeedback(
     contentScore: number,
     userSatisfaction: number,
-    engagementLevel: number
+    engagementLevel: number,
   ): Promise<void> {
     if (!this.personalizationData) return;
 
@@ -321,12 +367,19 @@ class UserPreferencesService {
       engagementLevel,
     };
 
-    this.personalizationData.qualityPreferences.qualityFeedbackHistory.push(qualityFeedback);
+    this.personalizationData.qualityPreferences.qualityFeedbackHistory.push(
+      qualityFeedback,
+    );
 
     // Keep only recent feedback (last 100 entries)
-    if (this.personalizationData.qualityPreferences.qualityFeedbackHistory.length > 100) {
-      this.personalizationData.qualityPreferences.qualityFeedbackHistory = 
-        this.personalizationData.qualityPreferences.qualityFeedbackHistory.slice(-100);
+    if (
+      this.personalizationData.qualityPreferences.qualityFeedbackHistory
+        .length > 100
+    ) {
+      this.personalizationData.qualityPreferences.qualityFeedbackHistory =
+        this.personalizationData.qualityPreferences.qualityFeedbackHistory.slice(
+          -100,
+        );
     }
 
     // Update preferred quality level based on feedback
@@ -346,8 +399,10 @@ class UserPreferencesService {
     if (!this.personalizationData) return null;
 
     return {
-      preferredQualityLevel: this.personalizationData.qualityPreferences.preferredQualityLevel,
-      adaptiveThresholdsEnabled: this.personalizationData.qualityPreferences.adaptiveThresholdsEnabled,
+      preferredQualityLevel:
+        this.personalizationData.qualityPreferences.preferredQualityLevel,
+      adaptiveThresholdsEnabled:
+        this.personalizationData.qualityPreferences.adaptiveThresholdsEnabled,
       userId: this.personalizationData.userId,
     };
   }
@@ -358,7 +413,8 @@ class UserPreferencesService {
   async setAdaptiveThresholdsEnabled(enabled: boolean): Promise<void> {
     if (!this.personalizationData) return;
 
-    this.personalizationData.qualityPreferences.adaptiveThresholdsEnabled = enabled;
+    this.personalizationData.qualityPreferences.adaptiveThresholdsEnabled =
+      enabled;
     await this.savePersonalizationData();
 
     structuredLogger.info('Adaptive quality thresholds setting updated', {
@@ -373,7 +429,7 @@ class UserPreferencesService {
   async updatePreferencesFromStoryFeedback(
     request: StoryRequest,
     response: StoryResponse,
-    rating: number // 0-5 scale
+    rating: number, // 0-5 scale
   ): Promise<void> {
     if (!this.personalizationData) return;
 
@@ -387,22 +443,25 @@ class UserPreferencesService {
 
     // Update theme preferences
     themes.forEach(theme => {
-      const current = this.personalizationData!.storyPreferences.themes[theme] || 0.5;
-      this.personalizationData!.storyPreferences.themes[theme] = 
+      const current =
+        this.personalizationData!.storyPreferences.themes[theme] || 0.5;
+      this.personalizationData!.storyPreferences.themes[theme] =
         current + learningRate * (normalizedRating - current);
     });
 
     // Update complexity preferences
     if (complexity) {
-      const current = this.personalizationData.storyPreferences.complexity[complexity] || 0.5;
-      this.personalizationData.storyPreferences.complexity[complexity] = 
+      const current =
+        this.personalizationData.storyPreferences.complexity[complexity] || 0.5;
+      this.personalizationData.storyPreferences.complexity[complexity] =
         current + learningRate * (normalizedRating - current);
     }
 
     // Update tone preferences
     if (tone) {
-      const current = this.personalizationData.storyPreferences.tones[tone] || 0.5;
-      this.personalizationData.storyPreferences.tones[tone] = 
+      const current =
+        this.personalizationData.storyPreferences.tones[tone] || 0.5;
+      this.personalizationData.storyPreferences.tones[tone] =
         current + learningRate * (normalizedRating - current);
     }
 
@@ -468,10 +527,14 @@ class UserPreferencesService {
       await secureStorage.remove(STORAGE_KEYS.PERSONALIZATION_DATA);
       this.personalizationData = null;
       this.isInitialized = false;
-      
+
       structuredLogger.info('Personalization data reset');
     } catch (error) {
-      structuredLogger.error('Failed to reset personalization data', {}, error as Error);
+      structuredLogger.error(
+        'Failed to reset personalization data',
+        {},
+        error as Error,
+      );
       throw error;
     }
   }
@@ -500,7 +563,10 @@ class UserPreferencesService {
   /**
    * Helper methods
    */
-  private createInitialPersonalizationData(userId: string, gradeLevel: GradeLevel): PersonalizationData {
+  private createInitialPersonalizationData(
+    userId: string,
+    gradeLevel: GradeLevel,
+  ): PersonalizationData {
     return {
       userId: this.hashUserId(userId),
       gradeLevel,
@@ -543,7 +609,7 @@ class UserPreferencesService {
     try {
       const maxAge = this.config.dataRetentionDays * 24 * 60 * 60 * 1000;
       const validGradeLevels = ['K-2', '3-5', '6-8', '9-12'];
-      
+
       return (
         data.version === '1.0' &&
         data.userId &&
@@ -555,7 +621,8 @@ class UserPreferencesService {
         data.learningMetrics &&
         data.sessionPatterns &&
         data.qualityPreferences &&
-        typeof data.qualityPreferences.adaptiveThresholdsEnabled === 'boolean' &&
+        typeof data.qualityPreferences.adaptiveThresholdsEnabled ===
+          'boolean' &&
         Date.now() - data.updatedAt < maxAge
       );
     } catch (error) {
@@ -567,11 +634,14 @@ class UserPreferencesService {
     if (!this.personalizationData) return;
 
     this.personalizationData.updatedAt = Date.now();
-    
+
     // Apply temporal decay before saving
     this.applyTemporalDecay();
-    
-    await secureStorage.set(STORAGE_KEYS.PERSONALIZATION_DATA, this.personalizationData);
+
+    await secureStorage.set(
+      STORAGE_KEYS.PERSONALIZATION_DATA,
+      this.personalizationData,
+    );
   }
 
   private generateInteractionId(): string {
@@ -580,8 +650,8 @@ class UserPreferencesService {
 
   private anonymizeContext(context: Record<string, any>): Record<string, any> {
     // Remove any potentially identifying information by destructuring them out
-    const { 
-      userInput, 
+    const {
+      userInput,
       userEmail, // eslint-disable-line @typescript-eslint/no-unused-vars
       phoneNumber, // eslint-disable-line @typescript-eslint/no-unused-vars
       fullName, // eslint-disable-line @typescript-eslint/no-unused-vars
@@ -594,19 +664,22 @@ class UserPreferencesService {
       sqlInjection, // eslint-disable-line @typescript-eslint/no-unused-vars
       hugeString, // eslint-disable-line @typescript-eslint/no-unused-vars
       circularRef, // eslint-disable-line @typescript-eslint/no-unused-vars
-      ...safeContext 
+      ...safeContext
     } = context;
-    
+
     return {
       gradeLevel: safeContext.gradeLevel,
       // Keep only non-PII information
       hasUserInput: !!userInput,
-      userInputLength: typeof userInput === 'string' ? Math.min(userInput.length, 1000) : 0, // Cap length
+      userInputLength:
+        typeof userInput === 'string' ? Math.min(userInput.length, 1000) : 0, // Cap length
       timestamp: Date.now(),
     };
   }
 
-  private async updatePreferencesFromInteraction(interaction: UserInteraction): Promise<void> {
+  private async updatePreferencesFromInteraction(
+    interaction: UserInteraction,
+  ): Promise<void> {
     if (!this.personalizationData) return;
 
     // Update session patterns and learning metrics based on interaction type
@@ -629,19 +702,29 @@ class UserPreferencesService {
     if (!this.personalizationData) return;
 
     // Update completion rate
-    const completions = this.personalizationData.interactions.filter(i => i.type === 'story_completion').length;
-    const requests = this.personalizationData.interactions.filter(i => i.type === 'story_request').length;
-    
+    const completions = this.personalizationData.interactions.filter(
+      i => i.type === 'story_completion',
+    ).length;
+    const requests = this.personalizationData.interactions.filter(
+      i => i.type === 'story_request',
+    ).length;
+
     if (requests > 0) {
-      this.personalizationData.sessionPatterns.completionRate = completions / requests;
+      this.personalizationData.sessionPatterns.completionRate =
+        completions / requests;
     }
 
     // Update engagement score based on completion patterns
-    const recentCompletions = this.personalizationData.interactions
-      .filter(i => i.type === 'story_completion' && Date.now() - i.timestamp < 7 * 24 * 60 * 60 * 1000)
-      .length;
-    
-    this.personalizationData.sessionPatterns.engagementScore = Math.min(recentCompletions / 10, 1);
+    const recentCompletions = this.personalizationData.interactions.filter(
+      i =>
+        i.type === 'story_completion' &&
+        Date.now() - i.timestamp < 7 * 24 * 60 * 60 * 1000,
+    ).length;
+
+    this.personalizationData.sessionPatterns.engagementScore = Math.min(
+      recentCompletions / 10,
+      1,
+    );
   }
 
   private updateThemePreferences(interaction: UserInteraction): void {
@@ -649,9 +732,12 @@ class UserPreferencesService {
 
     const theme = interaction.context.theme;
     if (typeof theme === 'string') {
-      const current = this.personalizationData.storyPreferences.themes[theme] || 0.5;
-      this.personalizationData.storyPreferences.themes[theme] = 
-        Math.min(current + this.config.learningRate, 1);
+      const current =
+        this.personalizationData.storyPreferences.themes[theme] || 0.5;
+      this.personalizationData.storyPreferences.themes[theme] = Math.min(
+        current + this.config.learningRate,
+        1,
+      );
     }
   }
 
@@ -659,7 +745,7 @@ class UserPreferencesService {
     if (!this.personalizationData) return;
 
     const metrics = this.personalizationData.learningMetrics;
-    
+
     // Update improvement trend
     const recentRatings = this.personalizationData.interactions
       .filter(i => i.type === 'story_rating')
@@ -667,12 +753,15 @@ class UserPreferencesService {
       .map(i => i.context.rating || 0);
 
     if (recentRatings.length >= 2) {
-      const early = recentRatings.slice(0, Math.floor(recentRatings.length / 2));
+      const early = recentRatings.slice(
+        0,
+        Math.floor(recentRatings.length / 2),
+      );
       const recent = recentRatings.slice(Math.floor(recentRatings.length / 2));
-      
+
       const earlyAvg = early.reduce((sum, r) => sum + r, 0) / early.length;
       const recentAvg = recent.reduce((sum, r) => sum + r, 0) / recent.length;
-      
+
       metrics.improvementTrend = (recentAvg - earlyAvg) / 5; // Normalize to -1 to 1
     }
 
@@ -693,12 +782,13 @@ class UserPreferencesService {
     if (!this.personalizationData) return 0.1;
 
     const sessionCount = this.personalizationData.learningMetrics.sessionCount;
-    const consistencyScore = this.personalizationData.learningMetrics.consistencyScore;
+    const consistencyScore =
+      this.personalizationData.learningMetrics.consistencyScore;
     const interactionCount = this.personalizationData.interactions.length;
 
     // Confidence improves with more sessions and consistency
     let confidence = 0.1;
-    
+
     if (sessionCount >= this.config.minSessionsForPersonalization) {
       confidence += Math.min(sessionCount / 20, 0.4); // Up to 0.4 for sessions
       confidence += consistencyScore * 0.3; // Up to 0.3 for consistency
@@ -710,22 +800,29 @@ class UserPreferencesService {
 
   private extractThemesFromRequest(request: StoryRequest): string[] {
     const themes: string[] = [];
-    
+
     if (request.userInput) {
       // Simple theme extraction based on keywords
       const input = request.userInput.toLowerCase();
-      
-      if (input.includes('adventure') || input.includes('quest')) themes.push('adventure');
-      if (input.includes('friend') || input.includes('buddy')) themes.push('friendship');
-      if (input.includes('magic') || input.includes('wizard')) themes.push('fantasy');
-      if (input.includes('space') || input.includes('robot')) themes.push('sci-fi');
-      if (input.includes('animal') || input.includes('pet')) themes.push('animals');
-      if (input.includes('school') || input.includes('learn')) themes.push('education');
-      if (input.includes('family') || input.includes('parent')) themes.push('family');
-      
+
+      if (input.includes('adventure') || input.includes('quest'))
+        themes.push('adventure');
+      if (input.includes('friend') || input.includes('buddy'))
+        themes.push('friendship');
+      if (input.includes('magic') || input.includes('wizard'))
+        themes.push('fantasy');
+      if (input.includes('space') || input.includes('robot'))
+        themes.push('sci-fi');
+      if (input.includes('animal') || input.includes('pet'))
+        themes.push('animals');
+      if (input.includes('school') || input.includes('learn'))
+        themes.push('education');
+      if (input.includes('family') || input.includes('parent'))
+        themes.push('family');
+
       if (themes.length === 0) themes.push('general');
     }
-    
+
     return themes;
   }
 
@@ -737,30 +834,33 @@ class UserPreferencesService {
       '6-8': 'medium',
       '9-12': 'complex',
     };
-    
+
     return gradeComplexity[request.gradeLevel] || 'medium';
   }
 
   private extractToneFromResponse(response: StoryResponse): string | null {
     const story = response.story.toLowerCase();
-    
+
     if (story.includes('funny') || story.includes('laugh')) return 'humorous';
-    if (story.includes('scary') || story.includes('afraid')) return 'suspenseful';
-    if (story.includes('exciting') || story.includes('thrilling')) return 'exciting';
+    if (story.includes('scary') || story.includes('afraid'))
+      return 'suspenseful';
+    if (story.includes('exciting') || story.includes('thrilling'))
+      return 'exciting';
     if (story.includes('calm') || story.includes('peaceful')) return 'peaceful';
-    
+
     return 'neutral';
   }
 
   private async updatePreferredQualityLevel(): Promise<void> {
     if (!this.personalizationData) return;
 
-    const history = this.personalizationData.qualityPreferences.qualityFeedbackHistory;
+    const history =
+      this.personalizationData.qualityPreferences.qualityFeedbackHistory;
     if (history.length < 5) return; // Need sufficient data
 
     // Calculate correlation between content quality and user satisfaction
     const recentHistory = history.slice(-20); // Use last 20 entries
-    
+
     // Find the optimal quality level based on user satisfaction
     let bestQualityLevel = 0.5;
     let maxSatisfaction = 0;
@@ -776,16 +876,25 @@ class UserPreferencesService {
 
     for (const range of qualityRanges) {
       const entriesInRange = recentHistory.filter(
-        entry => entry.contentScore >= range.min && entry.contentScore < range.max
+        entry =>
+          entry.contentScore >= range.min && entry.contentScore < range.max,
       );
 
       if (entriesInRange.length >= 2) {
-        const avgSatisfaction = entriesInRange.reduce((sum, entry) => sum + entry.userSatisfaction, 0) / entriesInRange.length;
-        const avgEngagement = entriesInRange.reduce((sum, entry) => sum + entry.engagementLevel, 0) / entriesInRange.length;
-        
+        const avgSatisfaction =
+          entriesInRange.reduce(
+            (sum, entry) => sum + entry.userSatisfaction,
+            0,
+          ) / entriesInRange.length;
+        const avgEngagement =
+          entriesInRange.reduce(
+            (sum, entry) => sum + entry.engagementLevel,
+            0,
+          ) / entriesInRange.length;
+
         // Combined score of satisfaction and engagement
         const combinedScore = (avgSatisfaction + avgEngagement) / 2;
-        
+
         if (combinedScore > maxSatisfaction) {
           maxSatisfaction = combinedScore;
           bestQualityLevel = range.center;
@@ -795,18 +904,26 @@ class UserPreferencesService {
 
     // Apply gradual adjustment with learning rate
     const learningRate = 0.1;
-    const currentLevel = this.personalizationData.qualityPreferences.preferredQualityLevel;
-    this.personalizationData.qualityPreferences.preferredQualityLevel = 
+    const currentLevel =
+      this.personalizationData.qualityPreferences.preferredQualityLevel;
+    this.personalizationData.qualityPreferences.preferredQualityLevel =
       currentLevel + learningRate * (bestQualityLevel - currentLevel);
 
     // Clamp to valid range
-    this.personalizationData.qualityPreferences.preferredQualityLevel = 
-      Math.max(0, Math.min(1, this.personalizationData.qualityPreferences.preferredQualityLevel));
+    this.personalizationData.qualityPreferences.preferredQualityLevel =
+      Math.max(
+        0,
+        Math.min(
+          1,
+          this.personalizationData.qualityPreferences.preferredQualityLevel,
+        ),
+      );
 
     structuredLogger.debug('Updated preferred quality level', {
       userId: this.personalizationData.userId.substring(0, 8) + '***',
       previousLevel: currentLevel,
-      newLevel: this.personalizationData.qualityPreferences.preferredQualityLevel,
+      newLevel:
+        this.personalizationData.qualityPreferences.preferredQualityLevel,
       maxSatisfaction,
       historyLength: history.length,
     });

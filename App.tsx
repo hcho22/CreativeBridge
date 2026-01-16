@@ -345,7 +345,12 @@ const MainApp: React.FC = () => {
   }
 
   // Show profile completion screen for OAuth users who need to complete their profile
-  if (needsProfileCompletion && clerkUser?.id) {
+  if (
+    needsProfileCompletion &&
+    clerkUser?.isLoaded &&
+    clerkUser?.isSignedIn &&
+    clerkUser?.user?.id
+  ) {
     return (
       <ProfileCompletionScreen
         onComplete={async () => {

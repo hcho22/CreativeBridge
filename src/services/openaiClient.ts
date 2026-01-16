@@ -146,6 +146,150 @@ export class OpenAIClient {
 
     return content;
   }
+
+  /**
+   * Story Analysis Prompt Template for Image Generation
+   * Analyzes narrative text and extracts key visual elements for Stable Diffusion
+   *
+   * This template is designed to:
+   * - Extract main subject, setting, mood, and visual elements
+   * - Maintain narrative coherence in generated images
+   * - Provide concise, focused prompts (under 200 tokens)
+   * - Ensure single cohesive scenes with clear focal points
+   */
+  private static readonly STORY_ANALYSIS_SYSTEM_PROMPT = `You are an expert at analyzing children's stories and creating detailed image generation prompts.
+
+Your task is to read a story excerpt and create an optimized prompt for Stable Diffusion that will generate a single, cohesive image that captures the story's essence.
+
+REQUIREMENTS:
+1. Extract the MAIN SUBJECT (who/what is the focus?)
+2. Identify the SETTING (where does this take place?)
+3. Capture the MOOD (what emotion or atmosphere?)
+4. Note KEY VISUAL ELEMENTS (important objects, colors, actions)
+5. Suggest ARTISTIC STYLE (illustration style appropriate for children)
+
+COMPOSITION RULES:
+- Create ONE cohesive scene with a CLEAR FOCAL POINT
+- Avoid split images, multiple scenes, or collages
+- Ensure the main subject is prominent and well-framed
+- Keep the composition simple and child-friendly
+
+OUTPUT FORMAT:
+Provide a concise image generation prompt in this format:
+"[Main subject and action], [setting details], [mood/lighting], [artistic style], [additional visual elements]"
+
+Keep the entire prompt under 200 tokens and avoid redundancy.`;
+
+  private static readonly STORY_ANALYSIS_USER_PROMPT_TEMPLATE = `Analyze this story excerpt and create an optimized Stable Diffusion prompt:
+
+Story:
+"""
+{storyText}
+"""
+
+Create a focused image prompt that captures the story's key visual moment.`;
+
+  /**
+   * Analyze story text and generate optimized image prompt using GPT-4 Turbo
+   *
+   * Uses LLM to extract visual elements from narrative and create a focused
+   * Stable Diffusion prompt with better story-to-image relevance.
+   *
+   * Features:
+   * - Exponential backoff retry logic (max 3 retries)
+   * - Handles rate limits, timeouts, and API errors gracefully
+   * - Uses GPT-4 Turbo for cost-effective story analysis
+   *
+   * @param storyText - The story excerpt to analyze
+   * @returns Optimized image generation prompt string
+   * @throws Error if all retries fail or if API returns invalid response
+   */
+  public async analyzeStoryForImageGeneration(
+    storyText: string,
+  ): Promise<string> {
+    const maxRetries = 3;
+    const baseDelay = 1000; // 1 second
+
+    // Prepare the user prompt with story text
+    const userPrompt = OpenAIClient.STORY_ANALYSIS_USER_PROMPT_TEMPLATE.replace(
+      '{storyText}',
+      storyText,
+    );
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        console.log(
+          `🎨 Analyzing story for image generation (attempt ${
+            attempt + 1
+          }/${maxRetries})`,
+        );
+
+        const request: OpenAICompletionRequest = {
+          model: 'gpt-4-turbo-preview', // Use GPT-4 Turbo for cost efficiency
+          messages: [
+            {
+              role: 'system',
+              content: OpenAIClient.STORY_ANALYSIS_SYSTEM_PROMPT,
+            },
+            { role: 'user', content: userPrompt },
+          ],
+          max_tokens: 200, // Concise output as per requirements
+          temperature: 0.7, // Balanced creativity
+        };
+
+        const response = await this.createChatCompletion(request);
+
+        const imagePrompt = response.choices[0]?.message?.content?.trim();
+        if (!imagePrompt) {
+          throw new Error('Empty image prompt from GPT-4 analysis');
+        }
+
+        console.log('✅ Story analysis complete:', {
+          promptLength: imagePrompt.length,
+          tokensUsed: response.usage?.total_tokens,
+        });
+
+        return imagePrompt;
+      } catch (error: any) {
+        const isLastAttempt = attempt === maxRetries - 1;
+        const isRateLimitError =
+          error.message?.includes('rate limit') ||
+          error.message?.includes('429');
+        const isTimeoutError =
+          error.message?.includes('timeout') ||
+          error.message?.includes('ETIMEDOUT');
+        const isServerError = error.message?.includes('server error');
+
+        // Log the error with context
+        console.error(`❌ Story analysis attempt ${attempt + 1} failed:`, {
+          error: error.message,
+          isRateLimitError,
+          isTimeoutError,
+          isServerError,
+        });
+
+        // Don't retry on authentication errors
+        if (error.message?.includes('Invalid OpenAI API key')) {
+          throw error;
+        }
+
+        // If last attempt or non-retryable error, throw
+        if (isLastAttempt) {
+          throw new Error(
+            `Story analysis failed after ${maxRetries} attempts: ${error.message}`,
+          );
+        }
+
+        // Exponential backoff: 1s, 2s, 4s
+        const delay = baseDelay * Math.pow(2, attempt);
+        console.log(`⏳ Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+
+    // Should never reach here, but TypeScript needs this
+    throw new Error('Story analysis failed: max retries exceeded');
+  }
 }
 
 // Export singleton instance

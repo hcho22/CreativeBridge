@@ -3,8 +3,9 @@
 
 import { supabase } from './supabase';
 import { errorLogger } from './errorLogger';
-import { getImageGenerationConfig } from './environment';
+import { getImageGenerationConfig, Environment } from './environment';
 import { imageStorageService } from './imageStorageService';
+import { openaiClient } from './openaiClient';
 import type {
   GradeLevel,
   GenerationStatus,
@@ -1332,10 +1333,14 @@ class ReplicateClient {
         prompt,
         width: 512,
         height: 512,
-        num_inference_steps: 20,
-        guidance_scale: 7.5,
-        scheduler: 'K_EULER',
+        // US-007: Optimized parameters for better quality and prompt adherence
+        num_inference_steps: 50, // Increased from 20 for better quality
+        guidance_scale: 7.5, // Optimal for prompt adherence
+        scheduler: 'DPMSolverMultistep', // Better quality than K_EULER
         num_outputs: 1,
+        // US-007: Comprehensive negative prompt to avoid common quality issues
+        negative_prompt:
+          'blurry, out of focus, distorted, deformed, multiple scenes, split image, collage, low quality, pixelated, grainy, watermark, text, letters, numbers, cropped, cut off',
         ...options,
       },
     };
@@ -1541,11 +1546,28 @@ class ImageGenerationService {
       artStyleDefinition,
     );
     if (storySpecificPrompt && storySpecificPrompt.trim().length > 50) {
-      console.log(
-        '🎯 Using story-specific prompt:',
-        storySpecificPrompt.substring(0, 100) + '...',
-      );
-      return storySpecificPrompt;
+      // Validate that character description is specific (not generic)
+      const hasSpecificCharacter =
+        storySpecificPrompt.match(/showing [A-Z][a-z]+ the/) || // "showing Ben the"
+        storySpecificPrompt.match(/showing [a-z\s]+ (named|called) [A-Z]/); // "showing little bear named Ben"
+
+      console.log('🎯 Prompt Tier Selection (Tier 1):', {
+        tier: 'Tier 1 - Story Specific',
+        promptLength: storySpecificPrompt.trim().length,
+        hasSpecificCharacter: !!hasSpecificCharacter,
+        prompt: storySpecificPrompt.substring(0, 120) + '...',
+        storyPreview: storyContent.substring(0, 150) + '...',
+      });
+
+      if (hasSpecificCharacter) {
+        console.log('✅ Using Tier 1 prompt (validated specific character)');
+        return storySpecificPrompt;
+      } else {
+        console.log(
+          '⚠️ Tier 1 character too generic, trying Tier 2 NER analysis',
+        );
+        // Fall through to Tier 2
+      }
     }
 
     // Use advanced analysis pipeline for enhanced story-to-image accuracy
@@ -8007,7 +8029,6 @@ class ImageGenerationService {
         .from('game_sessions')
         .update(updateData)
         .eq('id', sessionId);
-
     } catch (error) {
       console.error('❌ Background Supabase upload error:', error);
       // Don't throw - this is non-blocking background operation
@@ -8222,11 +8243,18 @@ class ImageGenerationService {
       // Create tracking event
       eventId = await this.createImageGenerationEvent(request);
 
-      // Generate prompt with enhanced content filtering
-      const prompt = this.generatePrompt(
-        request.storyContent,
-        request.gradeLevel,
-      );
+      // US-006: Generate prompt with LLM if feature flag enabled, otherwise use keyword extraction
+      let prompt: string;
+      if (Environment.featureFlags.useLlmPromptGeneration) {
+        // Use LLM with automatic fallback to keyword extraction
+        prompt = await this.generatePromptWithFallback(
+          request.storyContent,
+          request.gradeLevel,
+        );
+      } else {
+        // Use traditional keyword extraction method
+        prompt = this.generatePrompt(request.storyContent, request.gradeLevel);
+      }
 
       // Validate prompt safety before API call
       const promptSafety = this.enhancedContentFilter(
@@ -10189,8 +10217,28 @@ class ImageGenerationService {
 
         // Add specific objects
         if (visualElements.objects.length > 0) {
-          const objectList = visualElements.objects.slice(0, 3).join(' and ');
-          prompt += ` with ${objectList}`;
+          const objectList = visualElements.objects.slice(0, 5).join(', ');
+
+          // Check for underwater elements
+          const underwaterKeywords = [
+            'fish',
+            'turtle',
+            'underwater',
+            'beneath',
+            'coral',
+            'seaweed',
+            'frog',
+            'treasure',
+          ];
+          const hasUnderwater = visualElements.objects.some(obj =>
+            underwaterKeywords.some(kw => obj.toLowerCase().includes(kw)),
+          );
+
+          if (hasUnderwater) {
+            prompt += ` exploring underwater with ${objectList}`;
+          } else {
+            prompt += ` with ${objectList}`;
+          }
         }
 
         // Add setting context
@@ -10264,6 +10312,23 @@ class ImageGenerationService {
       if (!commonWords.includes(description.toLowerCase())) {
         characters.push(`${name} the ${description}`);
       }
+    }
+
+    // Pattern 2a: "adjective + animal + named + Name" format
+    // Handles: "little bear named Ben", "tiny dragon named Sparkle"
+    const namedCreaturePattern =
+      /\b(wise\s+old|little|tiny|baby|small|magical|ancient|friendly|curious|brave|gentle)\s+([a-z]+)\s+(?:named|called)\s+([A-Z][a-z]+)\b/g;
+
+    while ((match = namedCreaturePattern.exec(content)) !== null) {
+      const adjective = match[1]; // "little"
+      const creature = match[2]; // "bear"
+      const name = match[3]; // "Ben"
+
+      // Build complete character: "Ben the little bear"
+      const fullCharacter = `${name} the ${adjective} ${creature}`;
+      characters.push(fullCharacter);
+
+      console.log('✅ Pattern 2a matched:', fullCharacter);
     }
 
     // Pattern 2: Multi-word descriptive creatures - "wise old tortoise", "tiny dragons", etc.
@@ -10603,9 +10668,26 @@ class ImageGenerationService {
     // DYNAMIC CHARACTER EXTRACTION - No hardcoded animal lists!
     const characters = this.extractCharactersDynamically(content);
     if (characters.length > 0) {
-      // Take the first character that looks like a full description
-      const fullCharacter = characters.find(char => char.includes(' the '));
-      elements.character = fullCharacter || characters[0];
+      // Prioritize longest, most complete descriptions
+      const rankedCharacters = characters.sort((a, b) => {
+        // 1. Prioritize "Name the adjective animal" format (has " the ")
+        const aHasThe = a.includes(' the ') ? 10 : 0;
+        const bHasThe = b.includes(' the ') ? 10 : 0;
+
+        // 2. Prefer longer descriptions (more complete)
+        const lengthScore = b.length - a.length;
+
+        return bHasThe - aHasThe || lengthScore;
+      });
+
+      elements.character = rankedCharacters[0];
+
+      console.log('🔍 Tier 1 Character Extraction:', {
+        extractedCharacters: characters,
+        selectedCharacter: elements.character,
+        rankedCharacters: rankedCharacters.slice(0, 3),
+        storyPreview: content.substring(0, 200),
+      });
     }
 
     // DYNAMIC OBJECT EXTRACTION - Extract objects from visual elements
@@ -10615,7 +10697,21 @@ class ImageGenerationService {
     // DYNAMIC SETTING EXTRACTION
     const environments = this.extractEnvironmentsDynamically(content);
     if (environments.length > 0) {
-      elements.setting = environments[0]; // Take the first/most prominent setting
+      const primarySetting = environments[0];
+
+      // Check for water + underwater combination
+      const hasWater = /pond|lake|river|ocean|sea/i.test(primarySetting);
+      const hasUnderwater = environments.some(env =>
+        /underwater|beneath|depths|deep/i.test(env),
+      );
+
+      if (hasWater && hasUnderwater) {
+        elements.setting = `${primarySetting} with underwater exploration`;
+      } else if (environments.length > 1) {
+        elements.setting = environments.slice(0, 2).join(' and ');
+      } else {
+        elements.setting = primarySetting;
+      }
     }
 
     // DYNAMIC COLOR EXTRACTION
@@ -10659,6 +10755,17 @@ class ImageGenerationService {
     // Remove duplicates
     elements.objects = [...new Set(elements.objects)];
     elements.colors = [...new Set(elements.colors)];
+
+    console.log('📝 Story-specific visual elements:', {
+      character: elements.character,
+      characterLength: elements.character?.length || 0,
+      objects: elements.objects,
+      objectCount: elements.objects.length,
+      setting: elements.setting,
+      action: elements.action,
+      colors: elements.colors,
+      mood: elements.mood,
+    });
 
     return elements;
   }
@@ -11041,6 +11148,23 @@ class ImageGenerationService {
         .filter(char => char !== coordination.primaryCharacter)
         .sort((a, b) => b.mentions + b.confidence - (a.mentions + a.confidence))
         .slice(0, 3); // Limit to 3 secondary characters for visual clarity
+
+      console.log('🔍 Tier 2 NER Character Analysis:', {
+        allAnimals: entities.animals.map((a: any) => ({
+          name: a.name,
+          description: a.description,
+          confidence: a.confidence,
+          mentions: a.mentions,
+        })),
+        allCharacters: entities.characters.map((c: any) => ({
+          name: c.name,
+          type: c.type,
+          confidence: c.confidence,
+          mentions: c.mentions,
+        })),
+        primaryCharacter: coordination.primaryCharacter,
+        secondaryCharacters: coordination.secondaryCharacters,
+      });
     }
 
     // Analyze character interactions from relationships
@@ -11673,6 +11797,111 @@ class ImageGenerationService {
     }
 
     return null;
+  }
+
+  /**
+   * US-003: Generate optimized image prompt using GPT-4 story analysis
+   *
+   * This method orchestrates LLM-based prompt generation by calling the OpenAI
+   * story analysis service. It extracts visual elements from narrative text to
+   * create more contextually relevant image prompts.
+   *
+   * @param storyText - The story content to analyze
+   * @returns Optimized image generation prompt
+   * @throws Error if LLM analysis fails (caller should handle fallback)
+   */
+  private async generatePromptWithLLM(storyText: string): Promise<string> {
+    console.log('🤖 Using LLM for prompt generation...');
+    const startTime = Date.now();
+
+    try {
+      // Call GPT-4 story analysis from openaiClient
+      const optimizedPrompt = await openaiClient.analyzeStoryForImageGeneration(
+        storyText,
+      );
+
+      const elapsedMs = Date.now() - startTime;
+      console.log(`✅ LLM prompt generation completed in ${elapsedMs}ms`);
+
+      // US-008: Log success metrics
+      console.log('📊 LLM Generation Metrics:', {
+        method: 'generatePromptWithLLM',
+        success: true,
+        durationMs: elapsedMs,
+        promptLength: optimizedPrompt.length,
+        storyLength: storyText.length,
+      });
+
+      return optimizedPrompt;
+    } catch (error: any) {
+      const elapsedMs = Date.now() - startTime;
+
+      // US-008: Log LLM failure with context
+      console.error('❌ LLM prompt generation failed:', {
+        method: 'generatePromptWithLLM',
+        success: false,
+        durationMs: elapsedMs,
+        error: error.message,
+        errorType: error.message?.includes('rate limit')
+          ? 'rate_limit'
+          : error.message?.includes('timeout')
+          ? 'timeout'
+          : 'api_error',
+        storyLength: storyText.length,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Re-throw error for fallback handling
+      throw error;
+    }
+  }
+
+  /**
+   * US-004: Automatic fallback wrapper for LLM prompt generation
+   *
+   * Tries LLM-based prompt generation first, then automatically falls back
+   * to keyword extraction if LLM fails. Ensures uninterrupted user experience
+   * while logging failures for monitoring.
+   *
+   * @param storyContent - The story text to generate a prompt from
+   * @param gradeLevel - The grade level for age-appropriate content
+   * @returns Image generation prompt (from LLM or fallback)
+   */
+  private async generatePromptWithFallback(
+    storyContent: string,
+    gradeLevel: GradeLevel,
+  ): Promise<string> {
+    try {
+      // Try LLM first
+      const llmPrompt = await this.generatePromptWithLLM(storyContent);
+
+      // US-008: Log successful LLM path
+      console.log('✅ Using LLM-generated prompt (no fallback needed)');
+
+      return llmPrompt;
+    } catch (error: any) {
+      // US-008: Log automatic fallback with context
+      console.warn('⚠️ LLM failed, falling back to keyword extraction:', {
+        method: 'generatePromptWithFallback',
+        fallbackTriggered: true,
+        error: error.message,
+        gradeLevel,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Automatic fallback to existing keyword extraction
+      const fallbackPrompt = this.generatePrompt(storyContent, gradeLevel);
+
+      // US-008: Log fallback path metrics
+      console.log('📊 Fallback Metrics:', {
+        method: 'keyword_extraction',
+        promptLength: fallbackPrompt.length,
+        gradeLevel,
+      });
+
+      // No user-facing error - seamless fallback
+      return fallbackPrompt;
+    }
   }
 }
 

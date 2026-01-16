@@ -21,6 +21,7 @@ export interface RetryResult {
   success: boolean;
   supabaseUrl?: string;
   error?: string;
+  attempts?: number;
 }
 
 // Configuration constants
@@ -49,7 +50,7 @@ export class ImageStorageService {
   async uploadImageToSupabase(
     replicateUrl: string,
     sessionId: string,
-    userId: string
+    userId: string,
   ): Promise<UploadImageResult> {
     let attempts = 0;
     let lastError: string | undefined;
@@ -65,17 +66,29 @@ export class ImageStorageService {
       try {
         // Step 1: Download image from Replicate
         const imageData = await this.downloadImage(replicateUrl);
-        console.log(`  ✓ Downloaded image (${(imageData.data.byteLength / 1024).toFixed(2)} KB)`);
+        console.log(
+          `  ✓ Downloaded image (${(imageData.data.byteLength / 1024).toFixed(
+            2,
+          )} KB)`,
+        );
 
         // Step 2: Validate image size
         const sizeMB = imageData.data.byteLength / (1024 * 1024);
         if (sizeMB > CONFIG.MAX_IMAGE_SIZE_MB) {
-          throw new Error(`Image too large: ${sizeMB.toFixed(2)}MB (max: ${CONFIG.MAX_IMAGE_SIZE_MB}MB)`);
+          throw new Error(
+            `Image too large: ${sizeMB.toFixed(2)}MB (max: ${
+              CONFIG.MAX_IMAGE_SIZE_MB
+            }MB)`,
+          );
         }
 
         // Step 2.5: Validate MIME type
         if (!CONFIG.ALLOWED_MIME_TYPES.includes(imageData.contentType as any)) {
-          throw new Error(`Invalid MIME type: ${imageData.contentType}. Allowed: ${CONFIG.ALLOWED_MIME_TYPES.join(', ')}`);
+          throw new Error(
+            `Invalid MIME type: ${
+              imageData.contentType
+            }. Allowed: ${CONFIG.ALLOWED_MIME_TYPES.join(', ')}`,
+          );
         }
 
         // Step 3: Generate file path
@@ -126,7 +139,6 @@ export class ImageStorageService {
           attempts,
           status: 'uploaded',
         };
-
       } catch (error: any) {
         lastError = error.message || String(error);
         console.error(`  ❌ Attempt ${attempts} failed:`, lastError);
@@ -172,7 +184,7 @@ export class ImageStorageService {
    */
   async retryFailedUpload(
     sessionId: string,
-    userId: string
+    userId: string,
   ): Promise<RetryResult> {
     try {
       console.log('🔄 Manual retry initiated by user for session:', sessionId);
@@ -208,7 +220,7 @@ export class ImageStorageService {
       const result = await this.uploadImageToSupabase(
         replicateUrl,
         sessionId,
-        userId
+        userId,
       );
 
       return {
@@ -216,7 +228,6 @@ export class ImageStorageService {
         supabaseUrl: result.supabaseUrl,
         error: result.error,
       };
-
     } catch (error: any) {
       console.error('❌ Retry failed:', error);
       return {
@@ -233,7 +244,7 @@ export class ImageStorageService {
   async retryUpload(
     replicateUrl: string,
     sessionId: string,
-    userId: string
+    userId: string,
   ): Promise<UploadImageResult> {
     console.log('🔄 Manual retry initiated by user (legacy method)');
     return this.uploadImageToSupabase(replicateUrl, sessionId, userId);
@@ -253,7 +264,7 @@ export class ImageStorageService {
       status: ImageUploadStatus;
       attempts: number;
       error?: string | null;
-    }
+    },
   ): Promise<void> {
     try {
       const updateData: {
@@ -288,14 +299,17 @@ export class ImageStorageService {
         .eq('id', sessionId);
 
       if (result.error) {
-        console.error('❌ Failed to update session upload status:', result.error?.message || result.error);
+        console.error(
+          '❌ Failed to update session upload status:',
+          result.error?.message || result.error,
+        );
       } else {
         console.log('✓ Session upload status updated:', options.status);
       }
-
     } catch (error: any) {
       // Handle various error formats
-      const errorMessage = error?.message || error?.toString?.() || String(error);
+      const errorMessage =
+        error?.message || error?.toString?.() || String(error);
       console.error('❌ Error updating session status:', errorMessage);
       console.error('❌ Error details:', error);
       // Don't throw - upload status update is non-critical
@@ -309,7 +323,9 @@ export class ImageStorageService {
    * In React Native, we work directly with ArrayBuffer and avoid Blob
    * since RN's Blob implementation has limitations.
    */
-  private async downloadImage(url: string): Promise<{ data: ArrayBuffer; contentType: string }> {
+  private async downloadImage(
+    url: string,
+  ): Promise<{ data: ArrayBuffer; contentType: string }> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), CONFIG.TIMEOUT_MS);
 
@@ -317,7 +333,7 @@ export class ImageStorageService {
       const response = await fetch(url, {
         signal: controller.signal as any, // Type compatibility fix for RN
         headers: {
-          'Accept': 'image/png,image/jpeg,image/webp,image/*',
+          Accept: 'image/png,image/jpeg,image/webp,image/*',
         },
       });
 
@@ -341,7 +357,6 @@ export class ImageStorageService {
       }
 
       return { data: arrayBuffer, contentType };
-
     } catch (error: any) {
       if (error.name === 'AbortError') {
         throw new Error(`Download timeout after ${CONFIG.TIMEOUT_MS}ms`);
@@ -413,7 +428,10 @@ export class ImageStorageService {
    * Delete an image from Supabase Storage
    * Used for cleanup or when user deletes a story
    */
-  async deleteImage(userId: string, sessionId: string): Promise<{ success: boolean; error?: string }> {
+  async deleteImage(
+    userId: string,
+    sessionId: string,
+  ): Promise<{ success: boolean; error?: string }> {
     try {
       const filePath = this.generateFilePath(userId, sessionId);
 
@@ -428,7 +446,6 @@ export class ImageStorageService {
 
       console.log('🗑️  Image deleted successfully:', filePath);
       return { success: true };
-
     } catch (error: any) {
       console.error('❌ Error deleting image:', error);
       return { success: false, error: error.message || 'Unknown error' };

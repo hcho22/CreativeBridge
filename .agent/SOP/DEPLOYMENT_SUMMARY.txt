@@ -1,0 +1,160 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                   CREATIVEBRIDGE iOS TESTFLIGHT DEPLOYMENT                   ║
+║                              Quick Reference Card                            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ STEP 1: PRE-FLIGHT CHECKS (5 minutes)                                       │
+└──────────────────────────────────────────────────────────────────────────────┘
+  □ npm test                          # Run all tests
+  □ npm run lint                      # Check code quality  
+  □ npx tsc --noEmit                 # TypeScript validation
+  □ Test on physical iOS device       # Manual verification
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ STEP 2: VERSION UPDATE (2 minutes)                                          │
+└──────────────────────────────────────────────────────────────────────────────┘
+  $ npm version patch                 # For bug fixes (0.0.1 → 0.0.2)
+  $ npm version minor                 # For new features (0.0.1 → 0.1.0)
+  $ npm version major                 # For breaking changes (0.0.1 → 1.0.0)
+  
+  ⚠️  IMPORTANT: Update ios/CreativeBridge/Info.plist
+      CFBundleShortVersionString to match package.json version
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ STEP 3: COMMIT CHANGES (1 minute)                                           │
+└──────────────────────────────────────────────────────────────────────────────┘
+  $ git add package.json package-lock.json ios/CreativeBridge/Info.plist
+  $ git commit -m "chore: bump version to X.X.X"
+  $ git push origin main
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ STEP 4: BUILD FOR PRODUCTION (10-20 minutes)                                │
+└──────────────────────────────────────────────────────────────────────────────┘
+  $ npm run eas:build:production
+  
+  ⏳ Wait for build to complete...
+  ✅ Build ID will be shown on completion
+  
+  Monitor progress:
+  $ eas build:list --platform ios
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ STEP 5: SUBMIT TO TESTFLIGHT (2-5 minutes)                                  │
+└──────────────────────────────────────────────────────────────────────────────┘
+  $ npm run eas:submit:testflight
+  
+  Features:
+  • Automatic retry (3 attempts)
+  • Exponential backoff
+  • Verbose logging
+  
+  Alternative:
+  $ bash scripts/submit-testflight.sh --latest
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ STEP 6: APPLE PROCESSING (5-30 minutes)                                     │
+└──────────────────────────────────────────────────────────────────────────────┘
+  ⏳ Apple processes the build automatically
+  
+  Verify at: https://appstoreconnect.apple.com
+  Navigate: My Apps → CreativeBridge → TestFlight → iOS Builds
+  
+  Status progression:
+  "Processing" → "Ready to Submit" → "Testing"
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ STEP 7: CONFIGURE TESTFLIGHT (5 minutes)                                    │
+└──────────────────────────────────────────────────────────────────────────────┘
+  In App Store Connect → TestFlight:
+  
+  1. Add build to test group
+     • Internal Testing: Up to 100 testers, immediate access
+     • External Testing: Up to 10,000 testers, requires Beta Review
+  
+  2. Set "What to Test" notes
+     • Describe new features
+     • List bug fixes
+     • Provide test instructions
+  
+  3. Add testers via email
+     • Testers receive invitation
+     • Must have TestFlight app installed
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ TOTAL DEPLOYMENT TIME                                                        │
+└──────────────────────────────────────────────────────────────────────────────┘
+  ⏱️  Normal: 25-45 minutes
+  ⏱️  With issues: 45-90 minutes
+  
+  Breakdown:
+  • Pre-flight & version: ~7 min
+  • Build: ~15 min
+  • Submit: ~3 min  
+  • Apple processing: ~15 min
+  • TestFlight setup: ~5 min
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                         EMERGENCY QUICK COMMANDS                             ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+BUILD FAILED?
+  $ rm -rf node_modules ios/Pods ios/build
+  $ npm install && cd ios && pod install && cd ..
+  $ eas build --platform ios --profile production --clear-cache
+
+SUBMISSION FAILED?  
+  $ eas logout && eas login
+  $ bash scripts/submit-testflight.sh --latest
+
+NEED TO ROLLBACK?
+  $ eas build:list --platform ios --status finished
+  $ bash scripts/submit-testflight.sh --id <previous-build-id>
+
+CHECK ENVIRONMENT?
+  $ eas whoami                        # Verify login
+  $ eas project:info                  # Verify project
+  $ eas secret:list                   # Check API keys
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                            REQUIRED SECRETS                                  ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+  OPENAI_API_KEY          → OpenAI API for story generation
+  REPLICATE_API_TOKEN     → Replicate API for image generation  
+  SUPABASE_URL           → Supabase project URL
+  SUPABASE_ANON_KEY      → Supabase anonymous key
+  
+  Verify: $ eas secret:list
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                         KEY CONFIGURATION FILES                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+  package.json                        → App version (line 3)
+  ios/CreativeBridge/Info.plist       → iOS version (lines 22, 47)
+  app.json                            → Bundle ID: org.name.CreativeBridge
+  eas.json                            → Build profiles & auto-increment
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                            SUCCESS CHECKLIST                                 ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+  ✅ Build shows "finished" status (green)
+  ✅ Submission completed without errors
+  ✅ Build appears in App Store Connect TestFlight
+  ✅ Build status shows "Testing"
+  ✅ Testers can install via TestFlight app
+  ✅ App launches without crashes
+  ✅ Core features working (auth, stories, images, voice)
+  ✅ No critical errors in crash reports
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                         SUPPORT & DOCUMENTATION                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+  📚 Full Guide: .agent/SOP/testflight-deployment-procedure.md
+  📋 Quick Ref:  .agent/SOP/testflight-quick-reference.md
+  🌐 EAS Docs:   https://docs.expo.dev/build/introduction/
+  🍎 TestFlight: https://developer.apple.com/testflight/
+  📊 EAS Status: https://status.expo.dev
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║              Document Version 1.0 • Last Updated: January 16, 2026           ║
+╚══════════════════════════════════════════════════════════════════════════════╝

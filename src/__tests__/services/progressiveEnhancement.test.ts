@@ -1,15 +1,26 @@
 /**
  * Progressive Enhancement Service Tests
- * 
+ *
  * Comprehensive tests for Task 6.2: Progressive Enhancement System
  * Tests retry strategies, network adaptation, fallback chains, and user experience preservation
  */
 
-import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+import {
+  jest,
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+} from '@jest/globals';
 import { ProgressiveEnhancementService } from '../../services/progressiveEnhancement';
 import { NetworkAdapterService } from '../../services/networkAdapter';
-import { SkillManager, SkillError, SkillErrorCode } from '../../types/claudeSkills';
-import { StoryRequest, StoryResponse, GradeLevel } from '../../types/story';
+import {
+  SkillManager,
+  SkillError,
+  SkillErrorCode,
+} from '../../types/claudeSkills';
+// import { StoryRequest, StoryResponse, GradeLevel } from '../../types/story';
 
 jest.mock('../../utils/logger');
 
@@ -30,7 +41,9 @@ describe('Progressive Enhancement System', () => {
       isInitialized: jest.fn().mockReturnValue(true),
     };
 
-    progressiveEnhancementService = new ProgressiveEnhancementService(mockSkillManager);
+    progressiveEnhancementService = new ProgressiveEnhancementService(
+      mockSkillManager,
+    );
     networkAdapterService = new NetworkAdapterService();
   });
 
@@ -48,7 +61,7 @@ describe('Progressive Enhancement System', () => {
           throw new SkillError({
             code: SkillErrorCode.SKILL_TIMEOUT,
             message: 'Timeout error',
-            retryable: true
+            retryable: true,
           });
         }
         return Promise.resolve({ content: 'Success after retries' });
@@ -56,13 +69,13 @@ describe('Progressive Enhancement System', () => {
 
       const request: StoryRequest = {
         gradeLevel: 'K-2',
-        userInput: 'continue story'
+        userInput: 'continue story',
       };
 
       const result = await progressiveEnhancementService.executeWithEnhancement(
         mockOperation,
         'test_operation',
-        request
+        request,
       );
 
       expect(result.result).toBeDefined();
@@ -73,7 +86,10 @@ describe('Progressive Enhancement System', () => {
 
     it('should apply jitter to prevent thundering herd', async () => {
       const delays: number[] = [];
-      jest.spyOn(global, 'setTimeout').mockImplementation(((callback: () => void, delay: number) => {
+      jest.spyOn(global, 'setTimeout').mockImplementation(((
+        callback: () => void,
+        delay: number,
+      ) => {
         delays.push(delay);
         callback();
         return 0 as any;
@@ -86,7 +102,7 @@ describe('Progressive Enhancement System', () => {
           throw new SkillError({
             code: SkillErrorCode.NETWORK_ERROR,
             message: 'Network error',
-            retryable: true
+            retryable: true,
           });
         }
         return Promise.resolve({ content: 'Success' });
@@ -94,13 +110,13 @@ describe('Progressive Enhancement System', () => {
 
       const request: StoryRequest = {
         gradeLevel: '3-5',
-        userInput: 'what happens next?'
+        userInput: 'what happens next?',
       };
 
       await progressiveEnhancementService.executeWithEnhancement(
         mockOperation,
         'test_jitter',
-        request
+        request,
       );
 
       // Verify that delays have some variability (jitter applied)
@@ -117,7 +133,7 @@ describe('Progressive Enhancement System', () => {
       networkAdapterService.setNetworkConditions({
         quality: 'poor',
         latency: 800,
-        stability: 0.4
+        stability: 0.4,
       });
 
       let attemptCount = 0;
@@ -127,7 +143,7 @@ describe('Progressive Enhancement System', () => {
           throw new SkillError({
             code: SkillErrorCode.RATE_LIMIT_EXCEEDED,
             message: 'Rate limit exceeded',
-            retryable: true
+            retryable: true,
           });
         }
         return Promise.resolve({ content: 'Success' });
@@ -135,13 +151,13 @@ describe('Progressive Enhancement System', () => {
 
       const request: StoryRequest = {
         gradeLevel: '6-8',
-        userInput: 'create mystery'
+        userInput: 'create mystery',
       };
 
       const result = await progressiveEnhancementService.executeWithEnhancement(
         mockOperation,
         'test_adaptive_retry',
-        request
+        request,
       );
 
       expect(result.retryAttempts).toBe(2);
@@ -153,19 +169,19 @@ describe('Progressive Enhancement System', () => {
         new SkillError({
           code: SkillErrorCode.AUTHENTICATION_ERROR,
           message: 'Authentication failed',
-          retryable: false
-        })
+          retryable: false,
+        }),
       );
 
       const request: StoryRequest = {
         gradeLevel: 'K-2',
-        userInput: 'tell story'
+        userInput: 'tell story',
       };
 
       const result = await progressiveEnhancementService.executeWithEnhancement(
         mockOperation,
         'test_non_retryable',
-        request
+        request,
       );
 
       expect(result.fallbackUsed).toBe(true);
@@ -180,13 +196,13 @@ describe('Progressive Enhancement System', () => {
         new SkillError({
           code: SkillErrorCode.SKILL_UNAVAILABLE,
           message: 'Service unavailable',
-          retryable: true
-        })
+          retryable: true,
+        }),
       );
 
       const request: StoryRequest = {
         gradeLevel: '3-5',
-        userInput: 'adventure story'
+        userInput: 'adventure story',
       };
 
       // Execute multiple failing operations to trigger circuit breaker
@@ -194,17 +210,17 @@ describe('Progressive Enhancement System', () => {
         await progressiveEnhancementService.executeWithEnhancement(
           mockOperation,
           'circuit_breaker_test',
-          request
+          request,
         );
       }
 
       // Circuit breaker should now be open - next call should use fallback immediately
       mockOperation.mockClear();
-      
+
       const result = await progressiveEnhancementService.executeWithEnhancement(
         mockOperation,
         'circuit_breaker_test',
-        request
+        request,
       );
 
       expect(result.fallbackUsed).toBe(true);
@@ -213,20 +229,20 @@ describe('Progressive Enhancement System', () => {
 
     it('should reset circuit breaker after successful operations', async () => {
       // First, trigger circuit breaker to open
-      const failingOperation = jest.fn().mockRejectedValue(
-        new Error('Consistent failure')
-      );
+      const failingOperation = jest
+        .fn()
+        .mockRejectedValue(new Error('Consistent failure'));
 
       const request: StoryRequest = {
         gradeLevel: 'K-2',
-        userInput: 'story time'
+        userInput: 'story time',
       };
 
       for (let i = 0; i < 6; i++) {
         await progressiveEnhancementService.executeWithEnhancement(
           failingOperation,
           'reset_test',
-          request
+          request,
         );
       }
 
@@ -234,12 +250,14 @@ describe('Progressive Enhancement System', () => {
       progressiveEnhancementService.resetCircuitBreakers();
 
       // Now test with successful operation
-      const successfulOperation = jest.fn().mockResolvedValue({ content: 'Success' });
-      
+      const successfulOperation = jest
+        .fn()
+        .mockResolvedValue({ content: 'Success' });
+
       const result = await progressiveEnhancementService.executeWithEnhancement(
         successfulOperation,
         'reset_test',
-        request
+        request,
       );
 
       expect(result.fallbackUsed).toBe(false);
@@ -255,22 +273,26 @@ describe('Progressive Enhancement System', () => {
         bandwidth: 2,
         latency: 500,
         packetLoss: 0.03,
-        stability: 0.6
+        stability: 0.6,
       });
 
       const request: StoryRequest = {
         gradeLevel: '3-5',
         userInput: 'science fiction story',
         options: {
-          maxLength: 500
-        }
+          maxLength: 500,
+        },
       };
 
-      const adaptedRequest = await networkAdapterService.adaptRequestForNetwork(request);
+      const adaptedRequest = await networkAdapterService.adaptRequestForNetwork(
+        request,
+      );
 
       expect(adaptedRequest.adaptations.length).toBeGreaterThan(0);
       expect(adaptedRequest.expectedBehavior.reducedLatency).toBeGreaterThan(0);
-      expect(adaptedRequest.modifiedRequest.options?.maxLength).toBeLessThanOrEqual(300);
+      expect(
+        adaptedRequest.modifiedRequest.options?.maxLength,
+      ).toBeLessThanOrEqual(300);
     });
 
     it('should check network viability before operations', async () => {
@@ -278,10 +300,12 @@ describe('Progressive Enhancement System', () => {
         quality: 'excellent',
         bandwidth: 50,
         latency: 20,
-        stability: 0.98
+        stability: 0.98,
       });
 
-      const viability = await networkAdapterService.checkNetworkViability('story_generation');
+      const viability = await networkAdapterService.checkNetworkViability(
+        'story_generation',
+      );
 
       expect(viability.viable).toBe(true);
       expect(viability.recommendation).toBe('proceed');
@@ -305,10 +329,11 @@ describe('Progressive Enhancement System', () => {
       networkAdapterService.setNetworkConditions({
         quality: 'good',
         bandwidth: 25,
-        stability: 0.9
+        stability: 0.9,
       });
 
-      const recoveryResult = await networkAdapterService.handleConnectionRecovery();
+      const recoveryResult =
+        await networkAdapterService.handleConnectionRecovery();
 
       expect(recoveryResult.restoredCapabilities.length).toBeGreaterThan(0);
       expect(recoveryResult.userCommunication.type).toBe('success');
@@ -322,20 +347,20 @@ describe('Progressive Enhancement System', () => {
         new SkillError({
           code: SkillErrorCode.SKILL_UNAVAILABLE,
           message: 'Primary service unavailable',
-          retryable: false
-        })
+          retryable: false,
+        }),
       );
 
       const request: StoryRequest = {
         gradeLevel: '6-8',
-        userInput: 'mystery novel beginning'
+        userInput: 'mystery novel beginning',
       };
 
       const result = await progressiveEnhancementService.executeWithEnhancement(
         mockOperation,
         'fallback_test',
         request,
-        { fallbackChain: 'story_generation' }
+        { fallbackChain: 'story_generation' },
       );
 
       expect(result.fallbackUsed).toBe(true);
@@ -345,20 +370,22 @@ describe('Progressive Enhancement System', () => {
     });
 
     it('should progress through multiple fallback levels', async () => {
-      const mockOperation = jest.fn().mockRejectedValue(new Error('All services failing'));
+      const mockOperation = jest
+        .fn()
+        .mockRejectedValue(new Error('All services failing'));
 
       // Mock failures at each level by making implementation throw errors
       const originalImplementations = new Map();
 
       const request: StoryRequest = {
         gradeLevel: 'K-2',
-        userInput: 'bedtime story'
+        userInput: 'bedtime story',
       };
 
       const result = await progressiveEnhancementService.executeWithEnhancement(
         mockOperation,
         'multi_level_fallback',
-        request
+        request,
       );
 
       // Should eventually succeed with some fallback level
@@ -369,24 +396,27 @@ describe('Progressive Enhancement System', () => {
     it('should preserve appropriate functionality at each fallback level', async () => {
       const request: StoryRequest = {
         gradeLevel: '3-5',
-        userInput: 'adventure story'
+        userInput: 'adventure story',
       };
 
       // Test each fallback level individually by forcing specific degradation conditions
       const strategies = [
         { name: 'enhanced', expectedQuality: 'enhanced' },
         { name: 'standard', expectedQuality: 'standard' },
-        { name: 'basic', expectedQuality: 'basic' }
+        { name: 'basic', expectedQuality: 'basic' },
       ];
 
       for (const strategy of strategies) {
-        const mockFailingOperation = jest.fn().mockRejectedValue(new Error('Force fallback'));
-        
-        const result = await progressiveEnhancementService.executeWithEnhancement(
-          mockFailingOperation,
-          `fallback_${strategy.name}`,
-          request
-        );
+        const mockFailingOperation = jest
+          .fn()
+          .mockRejectedValue(new Error('Force fallback'));
+
+        const result =
+          await progressiveEnhancementService.executeWithEnhancement(
+            mockFailingOperation,
+            `fallback_${strategy.name}`,
+            request,
+          );
 
         expect(result.fallbackUsed).toBe(true);
         expect(result.result).toBeDefined();
@@ -399,7 +429,7 @@ describe('Progressive Enhancement System', () => {
     it('should maintain user experience during seamless degradation', async () => {
       const request: StoryRequest = {
         gradeLevel: 'K-2',
-        userInput: 'princess story'
+        userInput: 'princess story',
       };
 
       // Test with gentle degradation
@@ -407,15 +437,15 @@ describe('Progressive Enhancement System', () => {
         new SkillError({
           code: SkillErrorCode.SKILL_TIMEOUT,
           message: 'Gentle timeout',
-          retryable: true
-        })
+          retryable: true,
+        }),
       );
 
       const result = await progressiveEnhancementService.executeWithEnhancement(
         mockOperation,
         'user_experience_test',
         request,
-        { preserveUserExperience: true }
+        { preserveUserExperience: true },
       );
 
       expect(result.userExperiencePreserved).toBe(true);
@@ -426,29 +456,33 @@ describe('Progressive Enhancement System', () => {
     it('should adapt communication style for different user types', async () => {
       const childRequest: StoryRequest = {
         gradeLevel: 'K-2',
-        userInput: 'magic story'
+        userInput: 'magic story',
       };
 
       const adultRequest: StoryRequest = {
         gradeLevel: '6-8',
-        userInput: 'complex narrative'
+        userInput: 'complex narrative',
       };
 
-      const mockOperation = jest.fn().mockRejectedValue(new Error('Service unavailable'));
+      const mockOperation = jest
+        .fn()
+        .mockRejectedValue(new Error('Service unavailable'));
 
       // Test child-appropriate handling
-      const childResult = await progressiveEnhancementService.executeWithEnhancement(
-        mockOperation,
-        'child_experience',
-        childRequest
-      );
+      const childResult =
+        await progressiveEnhancementService.executeWithEnhancement(
+          mockOperation,
+          'child_experience',
+          childRequest,
+        );
 
       // Test adult-appropriate handling
-      const adultResult = await progressiveEnhancementService.executeWithEnhancement(
-        mockOperation,
-        'adult_experience',
-        adultRequest
-      );
+      const adultResult =
+        await progressiveEnhancementService.executeWithEnhancement(
+          mockOperation,
+          'adult_experience',
+          adultRequest,
+        );
 
       expect(childResult.result).toBeDefined();
       expect(adultResult.result).toBeDefined();
@@ -460,10 +494,12 @@ describe('Progressive Enhancement System', () => {
       networkAdapterService.setNetworkConditions({
         quality: 'poor',
         bandwidth: 1,
-        stability: 0.3
+        stability: 0.3,
       });
 
-      const viability = await networkAdapterService.checkNetworkViability('story_generation');
+      const viability = await networkAdapterService.checkNetworkViability(
+        'story_generation',
+      );
 
       expect(viability.recommendation).toBe('adapt');
       expect(viability.adaptationsNeeded.length).toBeGreaterThan(0);
@@ -485,7 +521,7 @@ describe('Progressive Enhancement System', () => {
             throw new SkillError({
               code: SkillErrorCode.SKILL_TIMEOUT,
               message: 'Initial timeout',
-              retryable: true
+              retryable: true,
             });
           }
           return Promise.resolve({ content: `Success ${i}` });
@@ -493,15 +529,16 @@ describe('Progressive Enhancement System', () => {
 
         const request: StoryRequest = {
           gradeLevel: '3-5',
-          userInput: `story request ${i}`
+          userInput: `story request ${i}`,
         };
 
         try {
-          const result = await progressiveEnhancementService.executeWithEnhancement(
-            mockOperation,
-            `performance_test_${i}`,
-            request
-          );
+          const result =
+            await progressiveEnhancementService.executeWithEnhancement(
+              mockOperation,
+              `performance_test_${i}`,
+              request,
+            );
 
           if (result.result) {
             successCount++;
@@ -516,7 +553,7 @@ describe('Progressive Enhancement System', () => {
 
       // Should achieve high success rate
       expect(successCount / totalRequests).toBeGreaterThan(0.8);
-      
+
       // Should maintain reasonable response times (less than 5 seconds per request on average)
       expect(avgTimePerRequest).toBeLessThan(5000);
     });
@@ -526,29 +563,32 @@ describe('Progressive Enhancement System', () => {
         { quality: 'excellent' as const, bandwidth: 50, latency: 20 },
         { quality: 'good' as const, bandwidth: 10, latency: 100 },
         { quality: 'poor' as const, bandwidth: 2, latency: 500 },
-        { quality: 'offline' as const, bandwidth: 0, latency: 0 }
+        { quality: 'offline' as const, bandwidth: 0, latency: 0 },
       ];
 
       const request: StoryRequest = {
         gradeLevel: '3-5',
-        userInput: 'network condition test'
+        userInput: 'network condition test',
       };
 
       for (const condition of networkConditions) {
         networkAdapterService.setNetworkConditions(condition);
 
-        const mockOperation = jest.fn().mockRejectedValue(new Error('Force degradation'));
-        
-        const result = await progressiveEnhancementService.executeWithEnhancement(
-          mockOperation,
-          `network_test_${condition.quality}`,
-          request
-        );
+        const mockOperation = jest
+          .fn()
+          .mockRejectedValue(new Error('Force degradation'));
+
+        const result =
+          await progressiveEnhancementService.executeWithEnhancement(
+            mockOperation,
+            `network_test_${condition.quality}`,
+            request,
+          );
 
         // Core functionality should be maintained
         expect(result.result).toBeDefined();
         expect(result.result.content.length).toBeGreaterThan(0);
-        
+
         // Different degradation levels expected for different conditions
         if (condition.quality === 'excellent') {
           expect(result.degradationLevel).toBeLessThan(50);
@@ -561,7 +601,7 @@ describe('Progressive Enhancement System', () => {
     it('should prevent cascading failures through circuit breakers', async () => {
       const request: StoryRequest = {
         gradeLevel: 'K-2',
-        userInput: 'cascade test'
+        userInput: 'cascade test',
       };
 
       let operationCalls = 0;
@@ -575,7 +615,7 @@ describe('Progressive Enhancement System', () => {
         await progressiveEnhancementService.executeWithEnhancement(
           mockOperation,
           'cascade_prevention',
-          request
+          request,
         );
       }
 
@@ -589,7 +629,7 @@ describe('Progressive Enhancement System', () => {
     it('should track progressive enhancement metrics', async () => {
       const request: StoryRequest = {
         gradeLevel: '6-8',
-        userInput: 'metrics test'
+        userInput: 'metrics test',
       };
 
       // Execute some operations to generate metrics
@@ -602,7 +642,7 @@ describe('Progressive Enhancement System', () => {
         await progressiveEnhancementService.executeWithEnhancement(
           mockOperation,
           `metrics_test_${i}`,
-          request
+          request,
         );
       }
 
@@ -618,14 +658,14 @@ describe('Progressive Enhancement System', () => {
     it('should track network adapter metrics', async () => {
       const request: StoryRequest = {
         gradeLevel: 'K-2',
-        userInput: 'network metrics'
+        userInput: 'network metrics',
       };
 
       // Generate some network adaptations
       networkAdapterService.setNetworkConditions({
         quality: 'poor',
         bandwidth: 3,
-        stability: 0.5
+        stability: 0.5,
       });
 
       await networkAdapterService.adaptRequestForNetwork(request);
@@ -634,23 +674,27 @@ describe('Progressive Enhancement System', () => {
 
       expect(metrics.currentConditions).toBeDefined();
       expect(metrics.adaptationHistory).toBeDefined();
-      expect(metrics.adaptationHistory.totalAdaptations).toBeGreaterThanOrEqual(0);
+      expect(metrics.adaptationHistory.totalAdaptations).toBeGreaterThanOrEqual(
+        0,
+      );
     });
 
     it('should maintain performance under load', async () => {
       const concurrentRequests = 5;
       const request: StoryRequest = {
         gradeLevel: '3-5',
-        userInput: 'load test'
+        userInput: 'load test',
       };
 
       const promises = Array.from({ length: concurrentRequests }, (_, i) => {
-        const mockOperation = jest.fn().mockResolvedValue({ content: `Load test ${i}` });
-        
+        const mockOperation = jest
+          .fn()
+          .mockResolvedValue({ content: `Load test ${i}` });
+
         return progressiveEnhancementService.executeWithEnhancement(
           mockOperation,
           `load_test_${i}`,
-          request
+          request,
         );
       });
 
@@ -660,7 +704,7 @@ describe('Progressive Enhancement System', () => {
 
       // All requests should complete successfully
       expect(results.every(r => r.result !== undefined)).toBe(true);
-      
+
       // Should handle concurrent requests efficiently
       expect(totalTime).toBeLessThan(10000); // Less than 10 seconds for 5 concurrent requests
     });

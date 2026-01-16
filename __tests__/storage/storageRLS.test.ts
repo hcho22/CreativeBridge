@@ -11,7 +11,7 @@ describe('Supabase Storage RLS Policies', () => {
   // Test image data (1x1 transparent PNG)
   const testImageBlob = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-    'base64'
+    'base64',
   );
 
   let testUser1Id: string;
@@ -19,7 +19,9 @@ describe('Supabase Storage RLS Policies', () => {
 
   beforeAll(async () => {
     // Get current authenticated user (test user 1)
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     testUser1Id = user?.id || 'test-user-1-uuid';
 
     // For test user 2, we'll use a different UUID
@@ -52,7 +54,7 @@ describe('Supabase Storage RLS Policies', () => {
         .from('story-images')
         .upload(filePath, testImageBlob, {
           contentType: 'image/png',
-          upsert: false
+          upsert: false,
         });
 
       expect(error).toBeNull();
@@ -60,14 +62,14 @@ describe('Supabase Storage RLS Policies', () => {
       expect(data?.path).toBe(filePath);
     });
 
-    it('should prevent user from uploading to another user\'s folder', async () => {
+    it("should prevent user from uploading to another user's folder", async () => {
       const filePath = `${testUser2Id}/session_test/image_${Date.now()}.png`;
 
       const { data, error } = await supabase.storage
         .from('story-images')
         .upload(filePath, testImageBlob, {
           contentType: 'image/png',
-          upsert: false
+          upsert: false,
         });
 
       // Should fail due to RLS policy
@@ -86,7 +88,7 @@ describe('Supabase Storage RLS Policies', () => {
         .from('story-images')
         .upload(filePath, testImageBlob, {
           contentType: 'image/png',
-          upsert: false
+          upsert: false,
         });
 
       expect(error).toBeTruthy();
@@ -107,7 +109,7 @@ describe('Supabase Storage RLS Policies', () => {
         .from('story-images')
         .upload(uploadedFilePath, testImageBlob, {
           contentType: 'image/png',
-          upsert: false
+          upsert: false,
         });
     });
 
@@ -121,7 +123,7 @@ describe('Supabase Storage RLS Policies', () => {
       expect(data).toBeInstanceOf(Blob);
     });
 
-    it('should prevent user from reading other users\' images', async () => {
+    it("should prevent user from reading other users' images", async () => {
       const otherUserFilePath = `${testUser2Id}/session_test/image_123.png`;
 
       const { data, error } = await supabase.storage
@@ -154,7 +156,7 @@ describe('Supabase Storage RLS Policies', () => {
         .from('story-images')
         .upload(uploadedFilePath, testImageBlob, {
           contentType: 'image/png',
-          upsert: false
+          upsert: false,
         });
     });
 
@@ -166,21 +168,21 @@ describe('Supabase Storage RLS Policies', () => {
         .from('story-images')
         .update(uploadedFilePath, updatedImageBlob, {
           contentType: 'image/png',
-          upsert: true
+          upsert: true,
         });
 
       expect(error).toBeNull();
       expect(data).toBeTruthy();
     });
 
-    it('should prevent user from updating other users\' images', async () => {
+    it("should prevent user from updating other users' images", async () => {
       const otherUserFilePath = `${testUser2Id}/session_test/image_123.png`;
 
       const { data, error } = await supabase.storage
         .from('story-images')
         .update(otherUserFilePath, testImageBlob, {
           contentType: 'image/png',
-          upsert: true
+          upsert: true,
         });
 
       // Should fail due to RLS policy
@@ -199,7 +201,7 @@ describe('Supabase Storage RLS Policies', () => {
         .from('story-images')
         .upload(uploadedFilePath, testImageBlob, {
           contentType: 'image/png',
-          upsert: false
+          upsert: false,
         });
     });
 
@@ -210,10 +212,10 @@ describe('Supabase Storage RLS Policies', () => {
 
       expect(error).toBeNull();
       expect(data).toBeTruthy();
-      expect(data.length).toBe(1);
+      expect(data!.length).toBe(1);
     });
 
-    it('should prevent user from deleting other users\' images', async () => {
+    it("should prevent user from deleting other users' images", async () => {
       const otherUserFilePath = `${testUser2Id}/session_test/image_123.png`;
 
       const { data, error } = await supabase.storage
@@ -247,7 +249,7 @@ describe('Supabase Storage RLS Policies', () => {
         .from('story-images')
         .upload(filePath, largeBlob, {
           contentType: 'image/png',
-          upsert: false
+          upsert: false,
         });
 
       // Should fail due to file size limit
@@ -268,7 +270,7 @@ describe('Supabase Storage RLS Policies', () => {
         .from('story-images')
         .upload(validPath, testImageBlob, {
           contentType: 'image/png',
-          upsert: false
+          upsert: false,
         });
 
       expect(validError).toBeNull();
@@ -280,7 +282,7 @@ describe('Supabase Storage RLS Policies', () => {
         .from('story-images')
         .upload(invalidPath, testImageBlob, {
           contentType: 'image/png',
-          upsert: false
+          upsert: false,
         });
 
       // Should fail because path doesn't start with user's ID

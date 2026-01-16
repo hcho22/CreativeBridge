@@ -1,0 +1,262 @@
+{
+  "project": "CreativeBridge",
+  "branchName": "ralph/story-diversity",
+  "description": "Story Agent Diversity Improvement - Implement tracking and enforcement system to reduce story element repetition and increase creative variety",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add database schema for story elements tracking",
+      "description": "As a developer, I need database tables to store story elements, sessions, and diversity scores.",
+      "acceptanceCriteria": [
+        "Create story_elements table with columns: id, story_id, session_id, element_type, element_text, embedding_vector (JSONB or vector type), created_at",
+        "Create user_sessions table with columns: id, session_token, user_id, created_at, expires_at",
+        "Create story_diversity_scores table with columns: id, story_id, diversity_score, novel_element_count, created_at",
+        "Add indexes: story_elements(session_id, created_at), story_elements(story_id), user_sessions(session_token)",
+        "Generate and run migration successfully",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Create story element extraction service",
+      "description": "As a developer, I need a service that uses LLM to extract characters, settings, objects, and plot patterns from story text.",
+      "acceptanceCriteria": [
+        "Create extractStoryElements function that takes story text and returns structured JSON",
+        "Extraction uses LLM with structured output prompt (characters, settings, objects, plot_patterns)",
+        "Elements are normalized: lowercase, singular form where applicable",
+        "Returns format: {characters: [{name, type, role}], settings: [{location, environment}], objects: [{name, magical, purpose}], plot_patterns: [{action, discovery_type}]}",
+        "Function handles LLM API errors gracefully with fallback/retry logic",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Implement embedding generation service",
+      "description": "As a developer, I need a service that generates embeddings for story elements using OpenAI text-embedding-3-small.",
+      "acceptanceCriteria": [
+        "Create generateEmbedding function that takes element text and returns embedding vector",
+        "Uses OpenAI text-embedding-3-small API",
+        "Returns embedding as array of numbers",
+        "Function handles API errors with retry logic",
+        "Embeddings are cached to avoid redundant API calls for identical text",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Create cosine similarity calculation function",
+      "description": "As a developer, I need a function to calculate semantic similarity between embeddings.",
+      "acceptanceCriteria": [
+        "Create calculateCosineSimilarity function that takes two embedding vectors and returns similarity score (0-1)",
+        "Function correctly implements cosine similarity formula: dot(A,B) / (norm(A) * norm(B))",
+        "Returns 1.0 for identical vectors, 0.0 for orthogonal vectors",
+        "Handles edge cases: zero vectors, different length vectors",
+        "Includes unit tests with known vector pairs",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Implement user session management",
+      "description": "As a user, my story diversity tracking should be scoped to my session.",
+      "acceptanceCriteria": [
+        "Create getOrCreateSession function that retrieves or creates session from cookie/auth token",
+        "Session ID is stored in HTTP-only cookie with 24-hour expiration",
+        "Function creates new session record in user_sessions table if needed",
+        "Session expiration is enforced: expired sessions return new session ID",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Create recent elements retrieval service",
+      "description": "As a system, I need to retrieve recent story elements for a user session to detect repetition.",
+      "acceptanceCriteria": [
+        "Create getRecentElements function that takes session_id and limit (default 10) and returns recent elements",
+        "Query retrieves last N stories' elements ordered by created_at DESC",
+        "Returns elements grouped by type: {characters: [], settings: [], objects: [], plot_patterns: []}",
+        "Each element includes: element_text, embedding_vector, frequency count within window",
+        "Query is optimized with proper index usage",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Implement similarity detection for recent elements",
+      "description": "As a system, I need to detect when a new element is semantically similar to recent elements.",
+      "acceptanceCriteria": [
+        "Create findSimilarElements function that takes element text, embedding, and recent elements list",
+        "Function compares element embedding against all recent embeddings using cosine similarity",
+        "Returns list of similar elements with similarity scores > 0.75 threshold",
+        "Results sorted by similarity score descending",
+        "Threshold is configurable via parameter (default 0.75)",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Create diversity guidance generation service",
+      "description": "As a system, I need to generate diversity guidance text to inject into story generation prompts.",
+      "acceptanceCriteria": [
+        "Create generateDiversityGuidance function that takes recent elements and returns guidance text",
+        "Guidance lists recently used elements to avoid with frequency counts",
+        "Suggests alternative categories based on what's overused (e.g., if many forests, suggest urban/ocean/desert)",
+        "Output format matches template: 'Recently used elements to avoid: ...\\nSuggested alternatives: ...\\nGoal: Create a story with fresh, unexpected elements'",
+        "Function handles empty recent elements gracefully",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Integrate diversity guidance into story generation flow",
+      "description": "As a system, I need to inject diversity guidance into the LLM prompt before story generation.",
+      "acceptanceCriteria": [
+        "Modify story generation handler to retrieve user session",
+        "Before calling story LLM, call getRecentElements for session",
+        "Generate diversity guidance from recent elements",
+        "Inject guidance into system prompt (append to existing prompt)",
+        "Story generation proceeds with enhanced prompt",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Implement post-generation element extraction and storage",
+      "description": "As a system, I need to extract and store elements after each story is generated.",
+      "acceptanceCriteria": [
+        "After story generation completes, call extractStoryElements on story text",
+        "For each extracted element, generate embedding asynchronously",
+        "Store each element in story_elements table with session_id, story_id, element_type, element_text, embedding",
+        "Process runs asynchronously (doesn't block story delivery to user)",
+        "Errors in extraction/storage are logged but don't fail story generation",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Create diversity score calculation service",
+      "description": "As a developer, I want to measure story diversity quantitatively.",
+      "acceptanceCriteria": [
+        "Create calculateDiversityScore function that takes new elements and recent elements",
+        "Score formula: (novel_elements / total_elements) * avg_semantic_distance_factor",
+        "Novel elements are those with no similar match (similarity < 0.75) in recent elements",
+        "Semantic distance factor is average of (1 - max_similarity_score) for each element",
+        "Returns score between 0.0 (completely repetitive) and 1.0 (completely novel)",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Store diversity scores with story metadata",
+      "description": "As a developer, I need to persist diversity scores for analytics and monitoring.",
+      "acceptanceCriteria": [
+        "After calculating diversity score, store in story_diversity_scores table",
+        "Record includes: story_id, diversity_score, novel_element_count, created_at",
+        "Low diversity scores (< 0.4) trigger warning log with story_id and score",
+        "Storage happens asynchronously after story delivery",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Implement caching for recent elements queries",
+      "description": "As a system operator, I need to ensure diversity tracking doesn't slow down story generation.",
+      "acceptanceCriteria": [
+        "Add in-memory cache (Map or LRU cache) for recent elements per session",
+        "Cache key is session_id, value is recent elements with timestamp",
+        "Cache TTL matches session duration (24 hours)",
+        "getRecentElements checks cache first before database query",
+        "Cache is invalidated/updated after new elements are stored",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Add performance monitoring and logging",
+      "description": "As a system operator, I need to monitor diversity system performance.",
+      "acceptanceCriteria": [
+        "Log timing for: element extraction, embedding generation, similarity checks, guidance generation",
+        "Log diversity metrics per story: score, novel_element_count, total_element_count, avoided_elements_count",
+        "Log cache hit/miss rates for recent elements queries",
+        "Add latency tracking for diversity guidance step (target < 200ms)",
+        "Logs include session_id and story_id for debugging",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Create API endpoint for recent elements debugging",
+      "description": "As a developer, I need to retrieve recent elements for a session to debug diversity issues.",
+      "acceptanceCriteria": [
+        "Add GET /api/diversity/recent-elements?session_id=xxx endpoint",
+        "Returns recent elements grouped by type with embeddings and frequency",
+        "Includes metadata: session info, total stories in window, date range",
+        "Endpoint is protected (admin-only or authenticated user's own session)",
+        "Returns 404 if session not found",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Add admin diversity analytics dashboard (optional)",
+      "description": "As an admin, I want to see diversity metrics across all users.",
+      "acceptanceCriteria": [
+        "Create /admin/diversity page with charts and metrics",
+        "Display average diversity score over time (line chart, last 7/30 days)",
+        "Show most frequently repeated elements globally (bar chart, top 20)",
+        "Provide session-level diversity breakdown (table: session, avg score, story count)",
+        "Add filters: date range, min/max diversity score",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

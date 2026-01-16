@@ -1,13 +1,13 @@
 /**
  * Predictive Cache Management Tests
- * 
+ *
  * Tests for Task 3.2: Predictive Cache Management System
  */
 
 import { predictiveStoryCacheService } from '../../services/predictiveStoryCache';
 import { storyCacheService } from '../../services/storyCache';
 import { contentPredictionService } from '../../services/contentPrediction';
-import { StoryRequest, StoryResponse, GradeLevel } from '../../types/story';
+// import { StoryRequest, StoryResponse, GradeLevel } from '../../types/story';
 import { createMockSkillManager } from '../mocks/claudeSkillsMock';
 import { getClaudeSkillsManager } from '../../services/claudeSkillsManager';
 
@@ -53,8 +53,10 @@ describe('Predictive Cache Management', () => {
         userInput: 'The stone glowed',
       };
 
-      const key1 = await predictiveStoryCacheService.generateIntelligentCacheKey(request1);
-      const key2 = await predictiveStoryCacheService.generateIntelligentCacheKey(request2);
+      const key1 =
+        await predictiveStoryCacheService.generateIntelligentCacheKey(request1);
+      const key2 =
+        await predictiveStoryCacheService.generateIntelligentCacheKey(request2);
 
       // Same request should generate same key
       expect(key1).toBe(key2);
@@ -65,7 +67,8 @@ describe('Predictive Cache Management', () => {
         storySoFar: 'Sarah discovered a cave',
         userInput: 'She explored deeper',
       };
-      const key3 = await predictiveStoryCacheService.generateIntelligentCacheKey(request3);
+      const key3 =
+        await predictiveStoryCacheService.generateIntelligentCacheKey(request3);
       expect(key3).not.toBe(key1);
     });
 
@@ -76,7 +79,9 @@ describe('Predictive Cache Management', () => {
         userInput: 'They discovered a secret garden',
       };
 
-      const key = await predictiveStoryCacheService.generateIntelligentCacheKey(request);
+      const key = await predictiveStoryCacheService.generateIntelligentCacheKey(
+        request,
+      );
 
       // Key should include grade level
       expect(key).toContain('K-2');
@@ -93,7 +98,9 @@ describe('Predictive Cache Management', () => {
       ];
 
       const keys = await Promise.all(
-        requests.map(req => predictiveStoryCacheService.generateIntelligentCacheKey(req))
+        requests.map(req =>
+          predictiveStoryCacheService.generateIntelligentCacheKey(req),
+        ),
       );
 
       // All keys should be unique
@@ -162,7 +169,9 @@ describe('Predictive Cache Management', () => {
       const finalStats = predictiveStoryCacheService.getStats();
 
       // Memory usage should not increase dramatically
-      expect(finalStats.memoryUsage).toBeLessThanOrEqual(initialStats.memoryUsage * 1.5);
+      expect(finalStats.memoryUsage).toBeLessThanOrEqual(
+        initialStats.memoryUsage * 1.5,
+      );
     });
   });
 
@@ -208,7 +217,8 @@ describe('Predictive Cache Management', () => {
       await predictiveStoryCacheService.set(request, response);
 
       // Manually trigger invalidation
-      const invalidatedCount = await predictiveStoryCacheService.invalidateBasedOnUsagePatterns();
+      const invalidatedCount =
+        await predictiveStoryCacheService.invalidateBasedOnUsagePatterns();
 
       expect(invalidatedCount).toBeGreaterThanOrEqual(0);
     });
@@ -245,7 +255,9 @@ describe('Predictive Cache Management', () => {
       expect(capabilities?.deviceTier).toBeDefined();
       expect(['low', 'medium', 'high']).toContain(capabilities?.deviceTier);
       expect(capabilities?.recommendedCacheSize).toBeGreaterThan(0);
-      expect(capabilities?.maxCacheSize).toBeGreaterThanOrEqual(capabilities?.recommendedCacheSize || 0);
+      expect(capabilities?.maxCacheSize).toBeGreaterThanOrEqual(
+        capabilities?.recommendedCacheSize || 0,
+      );
     });
 
     test('Low-memory devices handle cache gracefully', async () => {
@@ -254,7 +266,9 @@ describe('Predictive Cache Management', () => {
       DeviceInfo.getTotalMemory.mockResolvedValueOnce(1 * 1024 * 1024 * 1024); // 1GB
 
       // Create new instance to re-initialize with low memory
-      const { PredictiveStoryCacheService } = await import('../../services/predictiveStoryCache');
+      const { PredictiveStoryCacheService } = await import(
+        '../../services/predictiveStoryCache'
+      );
       const lowMemoryCache = new PredictiveStoryCacheService();
 
       // Wait for initialization
@@ -323,7 +337,8 @@ describe('Predictive Cache Management', () => {
       };
 
       const response: StoryResponse = {
-        story: 'The magical stone glowed brightly, showing Ruby a path through the forest.',
+        story:
+          'The magical stone glowed brightly, showing Ruby a path through the forest.',
         success: true,
         gradeLevel: 'K-2',
       };
@@ -347,4 +362,3 @@ describe('Predictive Cache Management', () => {
     });
   });
 });
-

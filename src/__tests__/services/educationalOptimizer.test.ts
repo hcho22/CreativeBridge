@@ -1,13 +1,24 @@
 /**
  * Educational Value Optimizer Tests
- * 
+ *
  * Comprehensive tests for the educational optimizer service
  * Task 5.3: Educational Value Optimization
  */
 
-import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
-import { EducationalOptimizerService, EducationalOptimizationResult, InclusivityAssessment } from '../../services/educationalOptimizer';
-import { StoryRequest, StoryResponse, GradeLevel } from '../../types/story';
+import {
+  jest,
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+} from '@jest/globals';
+import {
+  EducationalOptimizerService,
+  EducationalOptimizationResult,
+  InclusivityAssessment,
+} from '../../services/educationalOptimizer';
+// import { StoryRequest, StoryResponse, GradeLevel } from '../../types/story';
 import { SkillManager } from '../../types/claudeSkills';
 import { CulturalSensitivityValidator } from '../../utils/culturalSensitivity';
 
@@ -33,8 +44,10 @@ describe('Educational Value Optimizer Service', () => {
       isInitialized: jest.fn().mockReturnValue(true),
     };
 
-    mockCulturalValidator = CulturalSensitivityValidator as jest.Mocked<typeof CulturalSensitivityValidator>;
-    
+    mockCulturalValidator = CulturalSensitivityValidator as jest.Mocked<
+      typeof CulturalSensitivityValidator
+    >;
+
     // Setup default mock responses for cultural sensitivity validator
     mockCulturalValidator.generateComprehensiveReport.mockReturnValue({
       overallScore: 85,
@@ -85,23 +98,31 @@ describe('Educational Value Optimizer Service', () => {
       });
 
       const story: StoryResponse = {
-        story: 'Once upon a time, there was a little rabbit who loved to explore the colorful garden.',
+        story:
+          'Once upon a time, there was a little rabbit who loved to explore the colorful garden.',
         gradeLevel: 'K-2',
         isPersonalized: false,
         confidence: 0.8,
       };
 
-      const result = await educationalOptimizer.assessEducationalStandards(story, 'K-2');
+      const result = await educationalOptimizer.assessEducationalStandards(
+        story,
+        'K-2',
+      );
 
       expect(result.aligned).toBe(true);
       expect(result.commonCoreAlignment).toBe(85);
       expect(result.stateStandardsAlignment).toBe(80);
       expect(result.issues).toHaveLength(0);
-      expect(result.recommendations).toContain('Content aligns well with K-2 standards');
+      expect(result.recommendations).toContain(
+        'Content aligns well with K-2 standards',
+      );
     });
 
     it('should provide fallback assessment when skill execution fails', async () => {
-      mockSkillManager.executeSkill.mockRejectedValue(new Error('Skill execution failed'));
+      mockSkillManager.executeSkill.mockRejectedValue(
+        new Error('Skill execution failed'),
+      );
 
       const story: StoryResponse = {
         story: 'A story about friendship and kindness in the magical forest.',
@@ -110,7 +131,10 @@ describe('Educational Value Optimizer Service', () => {
         confidence: 0.8,
       };
 
-      const result = await educationalOptimizer.assessEducationalStandards(story, '3-5');
+      const result = await educationalOptimizer.assessEducationalStandards(
+        story,
+        '3-5',
+      );
 
       // Should use fallback assessment
       expect(result.aligned).toBe(true); // Story contains appropriate themes
@@ -119,7 +143,9 @@ describe('Educational Value Optimizer Service', () => {
     });
 
     it('should detect inappropriate content in educational assessment', async () => {
-      mockSkillManager.executeSkill.mockRejectedValue(new Error('Skill not available'));
+      mockSkillManager.executeSkill.mockRejectedValue(
+        new Error('Skill not available'),
+      );
 
       const story: StoryResponse = {
         story: 'A story with mature themes and complex philosophical concepts.',
@@ -128,10 +154,15 @@ describe('Educational Value Optimizer Service', () => {
         confidence: 0.8,
       };
 
-      const result = await educationalOptimizer.assessEducationalStandards(story, 'K-2');
+      const result = await educationalOptimizer.assessEducationalStandards(
+        story,
+        'K-2',
+      );
 
       expect(result.aligned).toBe(false); // Should detect inappropriate content
-      expect(result.issues).toContain('Content may contain inappropriate concepts');
+      expect(result.issues).toContain(
+        'Content may contain inappropriate concepts',
+      );
     });
   });
 
@@ -140,8 +171,12 @@ describe('Educational Value Optimizer Service', () => {
       mockSkillManager.executeSkill.mockResolvedValue({
         success: true,
         data: {
-          adaptedContent: 'The bright, colorful butterfly danced through the sparkling sunlight.',
-          adaptationsApplied: ['Enhanced visual descriptions', 'Added color imagery'],
+          adaptedContent:
+            'The bright, colorful butterfly danced through the sparkling sunlight.',
+          adaptationsApplied: [
+            'Enhanced visual descriptions',
+            'Added color imagery',
+          ],
           estimatedImprovement: 25,
         },
         confidence: 0.85,
@@ -172,15 +207,23 @@ describe('Educational Value Optimizer Service', () => {
         spatial: 0.8,
       };
 
-      const result = await educationalOptimizer.adaptForLearningStyles(story, request, learningStyles);
+      const result = await educationalOptimizer.adaptForLearningStyles(
+        story,
+        request,
+        learningStyles,
+      );
 
       expect(result.adaptedContent).toContain('bright, colorful');
-      expect(result.adaptationsApplied).toContain('Enhanced visual descriptions');
+      expect(result.adaptationsApplied).toContain(
+        'Enhanced visual descriptions',
+      );
       expect(result.estimatedImprovementScore).toBe(25);
     });
 
     it('should provide fallback adaptations when skill fails', async () => {
-      mockSkillManager.executeSkill.mockRejectedValue(new Error('Adaptation skill failed'));
+      mockSkillManager.executeSkill.mockRejectedValue(
+        new Error('Adaptation skill failed'),
+      );
 
       const story: StoryResponse = {
         story: 'The child walked to the store.',
@@ -205,7 +248,11 @@ describe('Educational Value Optimizer Service', () => {
         spatial: 0.6,
       };
 
-      const result = await educationalOptimizer.adaptForLearningStyles(story, request, learningStyles);
+      const result = await educationalOptimizer.adaptForLearningStyles(
+        story,
+        request,
+        learningStyles,
+      );
 
       expect(result.adaptationsApplied.length).toBeGreaterThan(0);
       expect(result.estimatedImprovementScore).toBeGreaterThan(0);
@@ -257,13 +304,15 @@ describe('Educational Value Optimizer Service', () => {
       });
 
       const story: StoryResponse = {
-        story: 'A diverse group of children from different cultures worked together to solve the mystery.',
+        story:
+          'A diverse group of children from different cultures worked together to solve the mystery.',
         gradeLevel: '6-8',
         isPersonalized: false,
         confidence: 0.9,
       };
 
-      const result: InclusivityAssessment = await educationalOptimizer.assessInclusivity(story, '6-8');
+      const result: InclusivityAssessment =
+        await educationalOptimizer.assessInclusivity(story, '6-8');
 
       expect(result.overallInclusivity).toBe(90);
       expect(result.characterDiversity).toBe(85);
@@ -325,7 +374,9 @@ describe('Educational Value Optimizer Service', () => {
             },
           ],
         },
-        recommendations: ['Significant improvements needed for cultural sensitivity'],
+        recommendations: [
+          'Significant improvements needed for cultural sensitivity',
+        ],
         priorityIssues: ['Critical bias issues require immediate attention'],
       });
 
@@ -336,12 +387,15 @@ describe('Educational Value Optimizer Service', () => {
         confidence: 0.7,
       };
 
-      const result: InclusivityAssessment = await educationalOptimizer.assessInclusivity(story, '3-5');
+      const result: InclusivityAssessment =
+        await educationalOptimizer.assessInclusivity(story, '3-5');
 
       expect(result.overallInclusivity).toBe(65);
       expect(result.characterDiversity).toBe(40);
       expect(result.issues).toHaveLength(3); // 2 bias + 1 accessibility
-      expect(result.issues.filter(issue => issue.severity === 'high')).toHaveLength(2);
+      expect(
+        result.issues.filter(issue => issue.severity === 'high'),
+      ).toHaveLength(2);
     });
   });
 
@@ -399,7 +453,8 @@ describe('Educational Value Optimizer Service', () => {
       });
 
       const story: StoryResponse = {
-        story: 'A beautiful story about friendship, diversity, and learning together in a multicultural classroom.',
+        story:
+          'A beautiful story about friendship, diversity, and learning together in a multicultural classroom.',
         gradeLevel: '6-8',
         isPersonalized: false,
         confidence: 0.9,
@@ -421,36 +476,38 @@ describe('Educational Value Optimizer Service', () => {
         spatial: 0.7,
       };
 
-      const result: EducationalOptimizationResult = await educationalOptimizer.optimizeEducationalValue(
-        story,
-        request,
-        learningStyles
-      );
+      const result: EducationalOptimizationResult =
+        await educationalOptimizer.optimizeEducationalValue(
+          story,
+          request,
+          learningStyles,
+        );
 
       expect(result.passed).toBe(true);
       expect(result.educationalValue).toBeGreaterThanOrEqual(85);
       expect(result.standardsAlignment.commonCore).toBe(true);
       expect(result.standardsAlignment.stateStandards).toBe(true);
-      expect(result.learningStyleAdaptations.adaptationsApplied).toHaveLength(2);
+      expect(result.learningStyleAdaptations.adaptationsApplied).toHaveLength(
+        2,
+      );
       expect(result.culturalSensitivity.representationDiversity).toBe(90);
       expect(result.culturalSensitivity.languageInclusivity).toBe(95);
     });
 
     it('should handle optimization with mixed quality results', async () => {
       // Mock standards assessment with moderate scores
-      mockSkillManager.executeSkill
-        .mockResolvedValueOnce({
-          success: true,
-          data: {
-            commonCoreAlignment: 75,
-            stateStandardsAlignment: 72,
-            issues: ['Minor alignment issues'],
-            recommendations: ['Strengthen educational objectives'],
-          },
-          confidence: 0.8,
-          executionTimeMs: 100,
-          skillType: 'EducationalStandardsAssessmentSkill',
-        });
+      mockSkillManager.executeSkill.mockResolvedValueOnce({
+        success: true,
+        data: {
+          commonCoreAlignment: 75,
+          stateStandardsAlignment: 72,
+          issues: ['Minor alignment issues'],
+          recommendations: ['Strengthen educational objectives'],
+        },
+        confidence: 0.8,
+        executionTimeMs: 100,
+        skillType: 'EducationalStandardsAssessmentSkill',
+      });
 
       mockCulturalValidator.generateComprehensiveReport.mockReturnValue({
         overallScore: 70,
@@ -487,7 +544,8 @@ describe('Educational Value Optimizer Service', () => {
       });
 
       const story: StoryResponse = {
-        story: 'A story with decent educational content but room for improvement.',
+        story:
+          'A story with decent educational content but room for improvement.',
         gradeLevel: 'K-2',
         isPersonalized: false,
         confidence: 0.7,
@@ -498,15 +556,17 @@ describe('Educational Value Optimizer Service', () => {
         userInput: 'Educational story',
       };
 
-      const result: EducationalOptimizationResult = await educationalOptimizer.optimizeEducationalValue(
-        story,
-        request
-      );
+      const result: EducationalOptimizationResult =
+        await educationalOptimizer.optimizeEducationalValue(story, request);
 
       expect(result.passed).toBe(true); // Should still pass minimum thresholds
       expect(result.educationalValue).toBeGreaterThanOrEqual(70);
-      expect(result.improvements).toContain('Enhance cultural sensitivity and inclusivity');
-      expect(result.recommendations).toContain('Strengthen educational objectives');
+      expect(result.improvements).toContain(
+        'Enhance cultural sensitivity and inclusivity',
+      );
+      expect(result.recommendations).toContain(
+        'Strengthen educational objectives',
+      );
     });
 
     it('should use caching for repeated optimization requests', async () => {
@@ -523,10 +583,16 @@ describe('Educational Value Optimizer Service', () => {
       };
 
       // First call
-      const result1 = await educationalOptimizer.optimizeEducationalValue(story, request);
-      
+      const result1 = await educationalOptimizer.optimizeEducationalValue(
+        story,
+        request,
+      );
+
       // Second identical call should use cache
-      const result2 = await educationalOptimizer.optimizeEducationalValue(story, request);
+      const result2 = await educationalOptimizer.optimizeEducationalValue(
+        story,
+        request,
+      );
 
       expect(result1).toEqual(result2);
       // Skills should only be called once due to caching
@@ -536,10 +602,14 @@ describe('Educational Value Optimizer Service', () => {
 
   describe('Error Handling and Fallbacks', () => {
     it('should provide fallback optimization when all skills fail', async () => {
-      mockSkillManager.executeSkill.mockRejectedValue(new Error('All skills failed'));
-      mockCulturalValidator.generateComprehensiveReport.mockImplementation(() => {
-        throw new Error('Cultural validator failed');
-      });
+      mockSkillManager.executeSkill.mockRejectedValue(
+        new Error('All skills failed'),
+      );
+      mockCulturalValidator.generateComprehensiveReport.mockImplementation(
+        () => {
+          throw new Error('Cultural validator failed');
+        },
+      );
 
       const story: StoryResponse = {
         story: 'Story with complete system failure.',
@@ -553,14 +623,14 @@ describe('Educational Value Optimizer Service', () => {
         userInput: 'Fallback test',
       };
 
-      const result: EducationalOptimizationResult = await educationalOptimizer.optimizeEducationalValue(
-        story,
-        request
-      );
+      const result: EducationalOptimizationResult =
+        await educationalOptimizer.optimizeEducationalValue(story, request);
 
       expect(result.passed).toBe(true);
       expect(result.educationalValue).toBe(75);
-      expect(result.recommendations).toContain('Content meets basic educational standards');
+      expect(result.recommendations).toContain(
+        'Content meets basic educational standards',
+      );
     });
   });
 });

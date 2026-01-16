@@ -1,13 +1,18 @@
 /**
  * Content Prediction Service
- * 
+ *
  * Integrates ContentPredictionSkill with story generation for intelligent caching
  * Task 3.1: Content Prediction Skill Integration
  */
 
 import { getClaudeSkillsManager } from './claudeSkillsManager';
-import { SkillType, ContentPredictionInput, ContentPredictionResult, ContentPrediction } from '../types/claudeSkills';
-import { StoryRequest, StoryResponse, GradeLevel } from '../types/story';
+import {
+  SkillType,
+  ContentPredictionInput,
+  ContentPredictionResult,
+  ContentPrediction,
+} from '../types/claudeSkills';
+// import { StoryRequest, StoryResponse, GradeLevel } from '../types/story';
 import { structuredLogger } from '../utils/logger';
 import { storyAnalytics } from './storyAnalytics';
 
@@ -28,7 +33,13 @@ export interface StoryContextAnalysis {
     characters: string[];
     settings: string[];
     themes: string[];
-    tone: 'adventure' | 'friendship' | 'discovery' | 'magical' | 'educational' | 'general';
+    tone:
+      | 'adventure'
+      | 'friendship'
+      | 'discovery'
+      | 'magical'
+      | 'educational'
+      | 'general';
   };
   patternMatch?: StoryPattern;
   confidence: number;
@@ -44,7 +55,10 @@ export interface PredictionConfidenceScore {
 
 class ContentPredictionService {
   private storyPatterns: Map<string, StoryPattern> = new Map();
-  private predictionHistory: Map<string, { prediction: ContentPrediction; actual: string; match: boolean }[]> = new Map();
+  private predictionHistory: Map<
+    string,
+    { prediction: ContentPrediction; actual: string; match: boolean }[]
+  > = new Map();
 
   constructor() {
     this.initializeStoryPatterns();
@@ -69,14 +83,14 @@ class ContentPredictionService {
         gradeLevel: 'K-2',
         commonElements: ['friend', 'play', 'together', 'help', 'kind'],
         frequency: 0.25,
-        confidence: 0.80,
+        confidence: 0.8,
       },
       {
         category: 'discovery_adventure',
         theme: 'discovery',
         gradeLevel: '3-5',
         commonElements: ['discover', 'explore', 'mystery', 'solve', 'teamwork'],
-        frequency: 0.30,
+        frequency: 0.3,
         confidence: 0.82,
       },
       {
@@ -84,7 +98,7 @@ class ContentPredictionService {
         theme: 'educational',
         gradeLevel: '3-5',
         commonElements: ['learn', 'discover', 'explore', 'create', 'invent'],
-        frequency: 0.20,
+        frequency: 0.2,
         confidence: 0.78,
       },
       {
@@ -93,7 +107,7 @@ class ContentPredictionService {
         gradeLevel: '6-8',
         commonElements: ['challenge', 'grow', 'learn', 'overcome', 'persevere'],
         frequency: 0.28,
-        confidence: 0.80,
+        confidence: 0.8,
       },
       {
         category: 'mystery_adventure',
@@ -107,9 +121,15 @@ class ContentPredictionService {
         category: 'philosophical_exploration',
         theme: 'philosophical',
         gradeLevel: '9-12',
-        commonElements: ['question', 'explore', 'understand', 'discover', 'meaning'],
+        commonElements: [
+          'question',
+          'explore',
+          'understand',
+          'discover',
+          'meaning',
+        ],
         frequency: 0.25,
-        confidence: 0.70,
+        confidence: 0.7,
       },
     ];
 
@@ -122,7 +142,9 @@ class ContentPredictionService {
   /**
    * Analyze story context to extract elements and match patterns
    */
-  async analyzeStoryContext(request: StoryRequest): Promise<StoryContextAnalysis> {
+  async analyzeStoryContext(
+    request: StoryRequest,
+  ): Promise<StoryContextAnalysis> {
     const storySoFar = request.storySoFar || '';
     const userInput = request.userInput || '';
     const combinedText = `${storySoFar} ${userInput}`.toLowerCase();
@@ -143,7 +165,12 @@ class ContentPredictionService {
     const patternMatch = this.matchPattern(request.gradeLevel, combinedText);
 
     // Calculate confidence based on extracted elements
-    const confidence = this.calculateContextConfidence(characters, settings, themes, patternMatch);
+    const confidence = this.calculateContextConfidence(
+      characters,
+      settings,
+      themes,
+      patternMatch,
+    );
 
     return {
       storySoFar,
@@ -163,7 +190,9 @@ class ContentPredictionService {
   /**
    * Predict next story content using ContentPredictionSkill
    */
-  async predictContent(context: StoryContextAnalysis): Promise<ContentPredictionResult | null> {
+  async predictContent(
+    context: StoryContextAnalysis,
+  ): Promise<ContentPredictionResult | null> {
     try {
       const skillManager = await getClaudeSkillsManager();
       const skillId = await this.getContentPredictionSkillId();
@@ -193,12 +222,12 @@ class ContentPredictionService {
         'ContentPredictionSkill',
         skillId,
         input,
-        { correlationId }
+        { correlationId },
       );
 
       const result = await skillManager.executeSkill<ContentPredictionResult>(
         skillId,
-        input
+        input,
       );
 
       if (result.success && result.data) {
@@ -209,19 +238,22 @@ class ContentPredictionService {
           result.executionTimeMs,
           result.data,
           undefined,
-          { correlationId }
+          { correlationId },
         );
 
         // Enhance predictions with context analysis
         const enhancedPredictions = this.enhancePredictionsWithContext(
           result.data.predictions,
-          context
+          context,
         );
 
         return {
           ...result.data,
           predictions: enhancedPredictions,
-          confidence: this.calculatePredictionConfidence(enhancedPredictions, context),
+          confidence: this.calculatePredictionConfidence(
+            enhancedPredictions,
+            context,
+          ),
         };
       } else {
         structuredLogger.logSkillOperationComplete(
@@ -231,7 +263,7 @@ class ContentPredictionService {
           result.executionTimeMs,
           undefined,
           result.error,
-          { correlationId }
+          { correlationId },
         );
         return null;
       }
@@ -242,7 +274,7 @@ class ContentPredictionService {
           skillType: 'ContentPredictionSkill',
           operation: 'predictContent',
         },
-        error as Error
+        error as Error,
       );
       return null;
     }
@@ -253,7 +285,7 @@ class ContentPredictionService {
    */
   calculatePredictionConfidence(
     predictions: ContentPrediction[],
-    context: StoryContextAnalysis
+    context: StoryContextAnalysis,
   ): PredictionConfidenceScore {
     // Pattern match confidence
     const patternMatch = context.patternMatch
@@ -261,23 +293,27 @@ class ContentPredictionService {
       : 0.5;
 
     // Context relevance (how well predictions match extracted elements)
-    const contextRelevance = this.calculateContextRelevance(predictions, context);
+    const contextRelevance = this.calculateContextRelevance(
+      predictions,
+      context,
+    );
 
     // Grade level appropriateness
     const gradeLevelAppropriateness = this.calculateGradeLevelAppropriateness(
       predictions,
-      context.gradeLevel
+      context.gradeLevel,
     );
 
     // Historical accuracy (if available)
-    const historicalAccuracy = this.calculateHistoricalAccuracy(context.gradeLevel);
+    const historicalAccuracy = this.calculateHistoricalAccuracy(
+      context.gradeLevel,
+    );
 
-    const overall = (
+    const overall =
       patternMatch * 0.3 +
       contextRelevance * 0.3 +
       gradeLevelAppropriateness * 0.2 +
-      (historicalAccuracy || 0.7) * 0.2
-    );
+      (historicalAccuracy || 0.7) * 0.2;
 
     return {
       overall,
@@ -293,22 +329,26 @@ class ContentPredictionService {
    */
   private enhancePredictionsWithContext(
     predictions: ContentPrediction[],
-    context: StoryContextAnalysis
+    context: StoryContextAnalysis,
   ): ContentPrediction[] {
     return predictions.map(prediction => {
       // Adjust confidence based on context match
       let adjustedConfidence = prediction.confidence;
 
       // Boost confidence if prediction matches extracted themes
-      if (context.extractedElements.themes.some(theme =>
-        prediction.metadata.theme.toLowerCase().includes(theme.toLowerCase())
-      )) {
+      if (
+        context.extractedElements.themes.some(theme =>
+          prediction.metadata.theme.toLowerCase().includes(theme.toLowerCase()),
+        )
+      ) {
         adjustedConfidence = Math.min(adjustedConfidence + 0.1, 1.0);
       }
 
       // Boost confidence if prediction matches pattern
-      if (context.patternMatch && 
-          prediction.metadata.theme === context.patternMatch.theme) {
+      if (
+        context.patternMatch &&
+        prediction.metadata.theme === context.patternMatch.theme
+      ) {
         adjustedConfidence = Math.min(adjustedConfidence + 0.15, 1.0);
       }
 
@@ -324,9 +364,32 @@ class ContentPredictionService {
    */
   private extractCharacters(text: string): string[] {
     const commonNames = [
-      'alice', 'bob', 'charlie', 'diana', 'eve', 'frank', 'grace', 'henry',
-      'ivy', 'jack', 'kate', 'leo', 'maya', 'noah', 'olivia', 'peter',
-      'quinn', 'ruby', 'sam', 'tina', 'uma', 'victor', 'wendy', 'xavier', 'yara', 'zoe'
+      'alice',
+      'bob',
+      'charlie',
+      'diana',
+      'eve',
+      'frank',
+      'grace',
+      'henry',
+      'ivy',
+      'jack',
+      'kate',
+      'leo',
+      'maya',
+      'noah',
+      'olivia',
+      'peter',
+      'quinn',
+      'ruby',
+      'sam',
+      'tina',
+      'uma',
+      'victor',
+      'wendy',
+      'xavier',
+      'yara',
+      'zoe',
     ];
 
     return commonNames.filter(name => text.includes(name));
@@ -337,8 +400,20 @@ class ContentPredictionService {
    */
   private extractSettings(text: string): string[] {
     const commonSettings = [
-      'forest', 'school', 'home', 'park', 'library', 'beach', 'mountain',
-      'city', 'village', 'castle', 'garden', 'room', 'kitchen', 'playground'
+      'forest',
+      'school',
+      'home',
+      'park',
+      'library',
+      'beach',
+      'mountain',
+      'city',
+      'village',
+      'castle',
+      'garden',
+      'room',
+      'kitchen',
+      'playground',
     ];
 
     return commonSettings.filter(setting => text.includes(setting));
@@ -369,20 +444,42 @@ class ContentPredictionService {
   /**
    * Determine story tone
    */
-  private determineTone(text: string): StoryContextAnalysis['extractedElements']['tone'] {
-    if (text.includes('magic') || text.includes('magical') || text.includes('enchant')) {
+  private determineTone(
+    text: string,
+  ): StoryContextAnalysis['extractedElements']['tone'] {
+    if (
+      text.includes('magic') ||
+      text.includes('magical') ||
+      text.includes('enchant')
+    ) {
       return 'magical';
     }
-    if (text.includes('friend') || text.includes('together') || text.includes('help')) {
+    if (
+      text.includes('friend') ||
+      text.includes('together') ||
+      text.includes('help')
+    ) {
       return 'friendship';
     }
-    if (text.includes('discover') || text.includes('find') || text.includes('explore')) {
+    if (
+      text.includes('discover') ||
+      text.includes('find') ||
+      text.includes('explore')
+    ) {
       return 'discovery';
     }
-    if (text.includes('learn') || text.includes('teach') || text.includes('understand')) {
+    if (
+      text.includes('learn') ||
+      text.includes('teach') ||
+      text.includes('understand')
+    ) {
       return 'educational';
     }
-    if (text.includes('adventure') || text.includes('journey') || text.includes('quest')) {
+    if (
+      text.includes('adventure') ||
+      text.includes('journey') ||
+      text.includes('quest')
+    ) {
       return 'adventure';
     }
     return 'general';
@@ -391,18 +488,23 @@ class ContentPredictionService {
   /**
    * Match story to known patterns
    */
-  private matchPattern(gradeLevel: GradeLevel, text: string): StoryPattern | undefined {
-    const patternsForGrade = Array.from(this.storyPatterns.values())
-      .filter(p => p.gradeLevel === gradeLevel);
+  private matchPattern(
+    gradeLevel: GradeLevel,
+    text: string,
+  ): StoryPattern | undefined {
+    const patternsForGrade = Array.from(this.storyPatterns.values()).filter(
+      p => p.gradeLevel === gradeLevel,
+    );
 
     let bestMatch: StoryPattern | undefined;
     let bestScore = 0;
 
     patternsForGrade.forEach(pattern => {
       const matchCount = pattern.commonElements.filter(element =>
-        text.includes(element)
+        text.includes(element),
       ).length;
-      const score = (matchCount / pattern.commonElements.length) * pattern.confidence;
+      const score =
+        (matchCount / pattern.commonElements.length) * pattern.confidence;
 
       if (score > bestScore) {
         bestScore = score;
@@ -420,7 +522,7 @@ class ContentPredictionService {
     characters: string[],
     settings: string[],
     themes: string[],
-    patternMatch?: StoryPattern
+    patternMatch?: StoryPattern,
   ): number {
     let confidence = 0.5; // Base confidence
 
@@ -442,7 +544,7 @@ class ContentPredictionService {
    */
   private calculateContextRelevance(
     predictions: ContentPrediction[],
-    context: StoryContextAnalysis
+    context: StoryContextAnalysis,
   ): number {
     if (predictions.length === 0) return 0;
 
@@ -451,30 +553,41 @@ class ContentPredictionService {
       let relevance = 0.5;
 
       // Check theme match
-      if (context.extractedElements.themes.some(theme =>
-        predictionText.includes(theme) || prediction.metadata.theme === theme
-      )) {
+      if (
+        context.extractedElements.themes.some(
+          theme =>
+            predictionText.includes(theme) ||
+            prediction.metadata.theme === theme,
+        )
+      ) {
         relevance += 0.2;
       }
 
       // Check character match
-      if (context.extractedElements.characters.some(char =>
-        predictionText.includes(char.toLowerCase())
-      )) {
+      if (
+        context.extractedElements.characters.some(char =>
+          predictionText.includes(char.toLowerCase()),
+        )
+      ) {
         relevance += 0.15;
       }
 
       // Check setting match
-      if (context.extractedElements.settings.some(setting =>
-        predictionText.includes(setting)
-      )) {
+      if (
+        context.extractedElements.settings.some(setting =>
+          predictionText.includes(setting),
+        )
+      ) {
         relevance += 0.15;
       }
 
       return Math.min(relevance, 1.0);
     });
 
-    return relevanceScores.reduce((sum, score) => sum + score, 0) / relevanceScores.length;
+    return (
+      relevanceScores.reduce((sum, score) => sum + score, 0) /
+      relevanceScores.length
+    );
   }
 
   /**
@@ -482,7 +595,7 @@ class ContentPredictionService {
    */
   private calculateGradeLevelAppropriateness(
     predictions: ContentPrediction[],
-    gradeLevel: GradeLevel
+    gradeLevel: GradeLevel,
   ): number {
     if (predictions.length === 0) return 0;
 
@@ -494,13 +607,18 @@ class ContentPredictionService {
       return 0.5; // Default if no match
     });
 
-    return appropriatenessScores.reduce((sum, score) => sum + score, 0) / appropriatenessScores.length;
+    return (
+      appropriatenessScores.reduce((sum, score) => sum + score, 0) /
+      appropriatenessScores.length
+    );
   }
 
   /**
    * Calculate historical accuracy
    */
-  private calculateHistoricalAccuracy(gradeLevel: GradeLevel): number | undefined {
+  private calculateHistoricalAccuracy(
+    gradeLevel: GradeLevel,
+  ): number | undefined {
     const history = this.predictionHistory.get(gradeLevel);
     if (!history || history.length === 0) {
       return undefined;
@@ -516,19 +634,21 @@ class ContentPredictionService {
   recordPredictionResult(
     gradeLevel: GradeLevel,
     prediction: ContentPrediction,
-    actualContent: string
+    actualContent: string,
   ): void {
     const history = this.predictionHistory.get(gradeLevel) || [];
-    
+
     // Simple match check (could be enhanced with semantic similarity)
-    const match = actualContent.toLowerCase().includes(
-      prediction.content.toLowerCase().substring(0, 50)
-    ) || prediction.content.toLowerCase().includes(
-      actualContent.toLowerCase().substring(0, 50)
-    );
+    const match =
+      actualContent
+        .toLowerCase()
+        .includes(prediction.content.toLowerCase().substring(0, 50)) ||
+      prediction.content
+        .toLowerCase()
+        .includes(actualContent.toLowerCase().substring(0, 50));
 
     history.push({ prediction, actual: actualContent, match });
-    
+
     // Keep last 100 predictions
     if (history.length > 100) {
       history.shift();
@@ -561,7 +681,12 @@ class ContentPredictionService {
   /**
    * Get prediction history
    */
-  getPredictionHistory(gradeLevel?: GradeLevel): Map<string, { prediction: ContentPrediction; actual: string; match: boolean }[]> {
+  getPredictionHistory(
+    gradeLevel?: GradeLevel,
+  ): Map<
+    string,
+    { prediction: ContentPrediction; actual: string; match: boolean }[]
+  > {
     if (gradeLevel) {
       const history = this.predictionHistory.get(gradeLevel);
       const result = new Map();
@@ -576,4 +701,3 @@ class ContentPredictionService {
 
 // Export singleton instance
 export const contentPredictionService = new ContentPredictionService();
-

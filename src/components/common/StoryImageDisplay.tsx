@@ -21,7 +21,7 @@ import {
 //   withTiming,
 // } from 'react-native-reanimated';
 import Share from '../../utils/shareWrapper';
-import RNFS, { rnfsWrapper, retryNativeModuleInitialization } from '../../utils/rnfsWrapper';
+import RNFS, { rnfsWrapper } from '../../utils/rnfsWrapper';
 import FullScreenImageModal, { StoryImage } from './FullScreenImageModal';
 import FolderPickerUtil from '../../utils/folderPicker';
 
@@ -33,7 +33,7 @@ export type ImageDisplayMode = 'responsive' | 'fullWidth';
 interface StoryImageDisplayProps {
   // NEW: Image URL priority system (Task 4.2)
   replicateUrl?: string; // Temporary Replicate.delivery URL
-  supabaseUrl?: string;  // Permanent Supabase Storage URL
+  supabaseUrl?: string; // Permanent Supabase Storage URL
   uploadStatus?: 'pending' | 'uploaded' | 'failed'; // Upload status for badges
   onRetryUpload?: () => void; // Callback for retry button
 
@@ -159,7 +159,13 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
     isDownloadingForDisplay: false,
     // NEW: Initialize fallback tracking
     attemptedSupabaseUrl: false,
-    currentUrlSource: supabaseUrl ? 'supabase' : replicateUrl ? 'replicate' : imageUrl ? 'legacy' : null,
+    currentUrlSource: supabaseUrl
+      ? 'supabase'
+      : replicateUrl
+      ? 'replicate'
+      : imageUrl
+      ? 'legacy'
+      : null,
   });
 
   // Temporarily using regular state instead of Reanimated
@@ -180,7 +186,7 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
       ...prev,
       isConnected: true,
     }));
-    
+
     // const unsubscribe = NetInfo.addEventListener(netState => {
     //   setState(prev => ({
     //     ...prev,
@@ -241,10 +247,15 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
         return { available: true };
       } catch (error: any) {
         console.log('🖼️ [DEBUG] URL check failed:', error);
-        
+
         // Better error type detection for 404 responses
-        if (error.message?.includes('404') || error.message?.includes('Not Found')) {
-          console.log('🖼️ [DEBUG] Detected 404 error - image likely expired or removed');
+        if (
+          error.message?.includes('404') ||
+          error.message?.includes('Not Found')
+        ) {
+          console.log(
+            '🖼️ [DEBUG] Detected 404 error - image likely expired or removed',
+          );
           return { available: false, errorType: 'expired' };
         } else if (error.name === 'AbortError') {
           console.log('🖼️ [DEBUG] URL check timed out');
@@ -264,7 +275,7 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
       const imageWidth = screenWidth;
       const maxHeight = screenHeight * 0.85; // Increased to 85% for maximum visual impact
       let imageHeight = imageWidth; // Start with square aspect ratio
-      
+
       // For edge-to-edge mode, prioritize maximum height while keeping reasonable aspect ratio
       if (imageHeight > maxHeight) {
         imageHeight = maxHeight;
@@ -273,37 +284,41 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
         // If we have room, use more height for better display
         imageHeight = Math.max(imageHeight, maxHeight * 0.8);
       }
-      
+
       return { width: imageWidth, height: imageHeight };
     } else {
       // Responsive display: traditional padded layout
       const maxWidth = screenWidth - 32; // Account for padding
       const maxHeight = screenHeight * 0.4; // Maximum 40% of screen height
-      
+
       let imageWidth = maxWidth;
       let imageHeight = maxWidth;
-      
+
       // Adjust if height exceeds maximum
       if (imageHeight > maxHeight) {
         imageHeight = maxHeight;
         imageWidth = maxHeight;
       }
-      
+
       return { width: imageWidth, height: imageHeight };
     }
   }, [displayMode]);
 
   const imageDimensions = getImageDimensions();
-  
+
   // Helper functions to get appropriate styles based on display mode
   const getContainerStyle = useCallback(() => {
-    return displayMode === 'fullWidth' ? styles.containerFullWidth : styles.container;
+    return displayMode === 'fullWidth'
+      ? styles.containerFullWidth
+      : styles.container;
   }, [displayMode]);
-  
+
   const getImageContainerStyle = useCallback(() => {
-    return displayMode === 'fullWidth' ? styles.imageContainerFullWidth : styles.imageContainer;
+    return displayMode === 'fullWidth'
+      ? styles.imageContainerFullWidth
+      : styles.imageContainer;
   }, [displayMode]);
-  
+
   const getImageStyle = useCallback(() => {
     return displayMode === 'fullWidth' ? styles.imageFullWidth : styles.image;
   }, [displayMode]);
@@ -315,7 +330,9 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
 
       // Skip caching entirely when RNFS is in simulation mode
       if (rnfsWrapper.isSimulationMode) {
-        console.log('🖼️ [DEBUG] RNFS in simulation mode - skipping caching, using original URL');
+        console.log(
+          '🖼️ [DEBUG] RNFS in simulation mode - skipping caching, using original URL',
+        );
         return null; // Return null to force direct URL usage
       }
 
@@ -394,7 +411,7 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
     // Use current state to avoid closure issues
     const currentLocalPath = state.localPath;
     const currentIsDownloading = state.isDownloading;
-    
+
     console.log('🖼️ [DEBUG] downloadImage called with:', {
       hasImageUrl: !!imageUrl,
       hasLocalPath: !!currentLocalPath,
@@ -403,7 +420,9 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
     });
 
     if ((!imageUrl && !currentLocalPath) || currentIsDownloading) {
-      console.log('🖼️ [DEBUG] downloadImage early return - no source or already downloading');
+      console.log(
+        '🖼️ [DEBUG] downloadImage early return - no source or already downloading',
+      );
       return;
     }
 
@@ -428,17 +447,20 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
       // Prepare source file (either from cache or download)
       let sourceFilePath = tempPath;
       let needsDownload = true;
-      
+
       if (currentLocalPath) {
-        console.log('🖼️ [DEBUG] Checking if cached file exists:', currentLocalPath);
+        console.log(
+          '🖼️ [DEBUG] Checking if cached file exists:',
+          currentLocalPath,
+        );
         const fileExists = await RNFS.exists(currentLocalPath);
         console.log('🖼️ [DEBUG] File exists result:', fileExists);
-        
+
         if (fileExists) {
           console.log('🖼️ [DEBUG] Using cached local file directly');
           sourceFilePath = currentLocalPath;
           needsDownload = false;
-          
+
           // Simulate progress for UI consistency
           setState(prev => ({
             ...prev,
@@ -450,11 +472,13 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
       // Download if we don't have a cached file
       if (needsDownload) {
         if (!imageUrl) {
-          throw new Error('No image URL available for download and no valid cached file');
+          throw new Error(
+            'No image URL available for download and no valid cached file',
+          );
         }
-        
+
         console.log('🖼️ [DEBUG] Downloading from URL:', imageUrl);
-        
+
         const downloadProgress = (data: any) => {
           const progress = (data.bytesWritten / data.contentLength) * 100;
           setState(prev => ({
@@ -470,9 +494,11 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
         }).promise;
 
         if (downloadResult.statusCode !== 200) {
-          throw new Error(`Download failed with status: ${downloadResult.statusCode}`);
+          throw new Error(
+            `Download failed with status: ${downloadResult.statusCode}`,
+          );
         }
-        
+
         setState(prev => ({
           ...prev,
           downloadProgress: 100,
@@ -487,7 +513,7 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
 
       // True folder selection using the folder picker utility
       console.log('🖼️ [DEBUG] Starting folder selection process');
-      
+
       try {
         const saveOptions = {
           sourceFilePath,
@@ -496,8 +522,10 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
         };
 
         console.log('📁 Opening folder picker for user selection');
-        const saveResult = await FolderPickerUtil.saveToUserSelectedFolder(saveOptions);
-        
+        const saveResult = await FolderPickerUtil.saveToUserSelectedFolder(
+          saveOptions,
+        );
+
         console.log('📁 Folder save result:', saveResult);
 
         if (saveResult.cancelled) {
@@ -508,7 +536,7 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
 
         if (saveResult.success && saveResult.finalPath) {
           // Success - file saved via Share Sheet
-          
+
           Alert.alert(
             '🎉 Image Saved!',
             `Your story illustration "${filename}" has been saved successfully!\n\nYou can find it in your chosen location using the Files app.`,
@@ -525,35 +553,35 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
             finalPath: saveResult.finalPath,
             timestamp: new Date().toISOString(),
           });
-
         } else {
           // Handle save errors
-          throw new Error(saveResult.error || 'Failed to save to selected folder');
+          throw new Error(
+            saveResult.error || 'Failed to save to selected folder',
+          );
         }
-
       } catch (folderError: any) {
         console.error('Folder save failed:', folderError);
-        
+
         // Don't show error if user cancelled
         if (folderError.message && folderError.message.includes('CANCELLED')) {
           console.log('📁 User cancelled save operation');
           return;
         }
-        
+
         // Provide helpful error message
         const errorMessage = folderError.message || 'Unknown error occurred';
-        
+
         Alert.alert(
           '❌ Save Failed',
           `Could not save to the selected folder: ${errorMessage}\n\nPlease try a different location or check your device permissions.`,
           [
             { text: 'OK', style: 'default' },
-            { 
-              text: 'Try Again', 
+            {
+              text: 'Try Again',
               onPress: () => {
                 // Retry the save operation
                 downloadImage();
-              }
+              },
             },
           ],
         );
@@ -568,7 +596,6 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
           console.log('📁 Could not clean up temporary file:', cleanupError);
         }
       }
-
     } catch (error: any) {
       console.error('Image download/save failed:', error);
 
@@ -587,165 +614,271 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
         [{ text: 'OK', style: 'default' }],
       );
     }
-  }, [imageUrl, sessionId, state.isDownloading, state.localPath, onImageSaved, onError]);
+  }, [
+    imageUrl,
+    sessionId,
+    state.isDownloading,
+    state.localPath,
+    onImageSaved,
+    onError,
+  ]);
 
-  // Share image functionality
+  // Share image functionality with robust fallback strategy
   const shareImage = useCallback(async () => {
-    if (!imageUrl) return;
+    if (!effectiveImageUrl) {
+      console.warn('📤 Share button clicked but no image URL available');
+      return;
+    }
 
     try {
       console.log('📤 Share button clicked');
       console.log('📤 RNFS simulation mode:', rnfsWrapper.isSimulationMode);
-      console.log('📤 RNFS DocumentDirectoryPath:', RNFS.DocumentDirectoryPath);
-      console.log('📤 Image URL type:', imageUrl.startsWith('http') ? 'remote' : 'local');
-      
-      // Force initialize RNFS if in simulation mode
-      if (rnfsWrapper.isSimulationMode) {
-        console.log('📤 RNFS in simulation mode, attempting initialization...');
-        retryNativeModuleInitialization();
-        await new Promise(resolve => setTimeout(resolve, 200));
-        
-        // If still in simulation mode and we have a remote URL, use it directly
-        if (rnfsWrapper.isSimulationMode && imageUrl.startsWith('http')) {
-          console.log('📤 Native FS not available but have remote URL - sharing directly');
-          
+      console.log(
+        '📤 Image URL type:',
+        effectiveImageUrl.startsWith('http') ? 'remote' : 'local',
+      );
+      console.log('📤 Image URL:', effectiveImageUrl.substring(0, 80) + '...');
+
+      const isRemoteUrl =
+        effectiveImageUrl.startsWith('http') ||
+        effectiveImageUrl.startsWith('https');
+
+      // STRATEGY 1: Direct URL Share (Best for remote URLs)
+      // Works on iOS/Android without file system access
+      if (isRemoteUrl) {
+        console.log('📤 Strategy 1: Attempting direct remote URL share');
+
+        try {
           const shareOptions = {
-            url: imageUrl,
+            url: effectiveImageUrl,
             title: storyTitle,
             message: `Check out this AI-generated illustration for my story: "${storyTitle}" 🎨\n\nCreated with CreativeBridge`,
             type: 'image/jpeg',
             filename: `${sessionId}_illustration.jpg`,
           };
-          
-          console.log('📤 Attempting direct URL share');
+
+          console.log('📤 Opening share sheet with direct URL');
           const result = await Share.open(shareOptions);
-          console.log('📤 Direct share result:', result);
-          
+          console.log('📤 Direct URL share result:', result);
+
           if (!result.dismissedAction) {
             console.log('📊 Analytics: Image shared successfully (direct URL)');
           }
-          return;
-        }
-        
-        // If we don't have a remote URL and FS isn't available, show error
-        if (rnfsWrapper.isSimulationMode) {
-          Alert.alert(
-            '⚠️ Share Not Available',
-            'This feature requires a physical device. File system is not available in the simulator.\n\nPlease test on a real iOS device.',
-            [{ text: 'OK' }]
+          return; // ✅ Success - exit early
+        } catch (directShareError: any) {
+          console.warn(
+            '📤 Direct URL share failed, will try download method:',
+            directShareError.message,
           );
-          return;
+
+          // If user cancelled, don't try other methods
+          if (
+            directShareError.message &&
+            (directShareError.message.includes('User did not share') ||
+              directShareError.message === 'CANCELLED')
+          ) {
+            console.log('📤 User cancelled direct share');
+            return;
+          }
+
+          // Continue to Strategy 2 (download method)
         }
       }
-      
-      // Prepare the file for sharing - prefer local path if available
-      let shareUrl = imageUrl;
-      let needsCleanup = false;
-      
-      // If we have a local cached file, use it
-      if (state.localPath) {
-        console.log('📤 Checking cached file:', state.localPath);
-        const localExists = await RNFS.exists(state.localPath);
-        console.log('📤 Cached file exists:', localExists);
-        
-        if (localExists) {
-          shareUrl = state.localPath;
-          if (!shareUrl.startsWith('file://')) {
-            shareUrl = `file://${shareUrl}`;
+
+      // STRATEGY 2: Cached Local File Share
+      // Use already-downloaded file if available
+      if (state.localPath && !state.localPath.includes('/dev/null')) {
+        console.log('📤 Strategy 2: Checking for cached local file');
+
+        try {
+          const localExists = await RNFS.exists(state.localPath);
+          console.log('📤 Cached file exists:', localExists);
+
+          if (localExists) {
+            let shareUrl = state.localPath;
+            if (!shareUrl.startsWith('file://')) {
+              shareUrl = `file://${shareUrl}`;
+            }
+
+            console.log('📤 Sharing cached local file:', shareUrl);
+
+            const shareOptions = {
+              url: shareUrl,
+              title: storyTitle,
+              message: `Check out this AI-generated illustration for my story: "${storyTitle}" 🎨\n\nCreated with CreativeBridge`,
+              type: 'image/jpeg',
+              filename: `${sessionId}_illustration.jpg`,
+            };
+
+            const result = await Share.open(shareOptions);
+            console.log('📤 Cached file share result:', result);
+
+            if (!result.dismissedAction) {
+              console.log(
+                '📊 Analytics: Image shared successfully (cached file)',
+              );
+            }
+            return; // ✅ Success - exit early
           }
-          console.log('📤 Using cached local file for sharing:', shareUrl);
+        } catch (cachedShareError: any) {
+          console.warn(
+            '📤 Cached file share failed:',
+            cachedShareError.message,
+          );
+
+          // If user cancelled, exit
+          if (
+            cachedShareError.message &&
+            (cachedShareError.message.includes('User did not share') ||
+              cachedShareError.message === 'CANCELLED')
+          ) {
+            console.log('📤 User cancelled cached file share');
+            return;
+          }
+
+          // Continue to Strategy 3 (download)
         }
-      } 
-      
-      // If imageUrl is a remote URL, download it first
-      if (imageUrl.startsWith('http')) {
-        console.log('📤 Downloading image for sharing from:', imageUrl);
+      }
+
+      // STRATEGY 3: Download and Share
+      // Download remote URL to temp file, then share (only if FS is available)
+      if (isRemoteUrl && !rnfsWrapper.isSimulationMode) {
+        console.log('📤 Strategy 3: Downloading image for sharing');
+
         const timestamp = new Date().getTime();
         const filename = `share_temp_${sessionId}_${timestamp}.jpg`;
         const tempPath = `${RNFS.DocumentDirectoryPath}/${filename}`;
-        
+
         console.log('📤 Download target path:', tempPath);
-        
-        const downloadResult = await RNFS.downloadFile({
-          fromUrl: imageUrl,
-          toFile: tempPath,
-        }).promise;
-        
-        console.log('📤 Download result:', downloadResult);
-        
-        if (downloadResult.statusCode === 200) {
-          shareUrl = `file://${tempPath}`;
-          needsCleanup = true;
-          console.log('📤 Downloaded image to temporary file for sharing:', tempPath);
-        }
-      }
 
-      // Validate the file path before sharing
-      if (shareUrl.includes('/dev/null')) {
-        throw new Error('Invalid file path - file system not properly initialized');
-      }
-
-      const shareOptions = {
-        url: shareUrl,
-        title: storyTitle,
-        message: `Check out this AI-generated illustration for my story: "${storyTitle}" 🎨\n\nCreated with CreativeBridge`,
-        type: 'image/jpeg',
-        filename: `${sessionId}_illustration.jpg`,
-      };
-
-      console.log('📤 Opening share sheet with options:', {
-        title: shareOptions.title,
-        type: shareOptions.type,
-        filename: shareOptions.filename,
-        url: shareUrl.length > 80 ? shareUrl.substring(0, 80) + '...' : shareUrl,
-      });
-
-      const result = await Share.open(shareOptions);
-      
-      console.log('📤 Share result:', result);
-
-      // Clean up temporary file if we created one
-      if (needsCleanup && shareUrl.startsWith('file://')) {
-        const cleanupPath = shareUrl.replace('file://', '');
         try {
-          await RNFS.unlink(cleanupPath);
-          console.log('📤 Cleaned up temporary share file');
-        } catch (cleanupError) {
-          console.log('📤 Could not clean up temporary file:', cleanupError);
+          const downloadResult = await RNFS.downloadFile({
+            fromUrl: effectiveImageUrl,
+            toFile: tempPath,
+          }).promise;
+
+          console.log('📤 Download result:', downloadResult);
+
+          if (downloadResult.statusCode === 200) {
+            const shareUrl = `file://${tempPath}`;
+
+            const shareOptions = {
+              url: shareUrl,
+              title: storyTitle,
+              message: `Check out this AI-generated illustration for my story: "${storyTitle}" 🎨\n\nCreated with CreativeBridge`,
+              type: 'image/jpeg',
+              filename: `${sessionId}_illustration.jpg`,
+            };
+
+            console.log('📤 Sharing downloaded file');
+            const result = await Share.open(shareOptions);
+            console.log('📤 Downloaded file share result:', result);
+
+            // Clean up temporary file
+            try {
+              await RNFS.unlink(tempPath);
+              console.log('📤 Cleaned up temporary share file');
+            } catch (cleanupError) {
+              console.log(
+                '📤 Could not clean up temporary file:',
+                cleanupError,
+              );
+            }
+
+            if (!result.dismissedAction) {
+              console.log(
+                '📊 Analytics: Image shared successfully (downloaded file)',
+              );
+            }
+            return; // ✅ Success - exit early
+          }
+        } catch (downloadShareError: any) {
+          console.warn(
+            '📤 Download and share failed:',
+            downloadShareError.message,
+          );
+
+          // If user cancelled, exit
+          if (
+            downloadShareError.message &&
+            (downloadShareError.message.includes('User did not share') ||
+              downloadShareError.message === 'CANCELLED')
+          ) {
+            console.log('📤 User cancelled download share');
+            return;
+          }
+
+          // Continue to error handling
         }
       }
 
-      // Track successful image share
-      console.log('📊 Analytics: Image shared successfully', {
-        imageUrl,
-        storyTitle,
-        timestamp: new Date().toISOString(),
-      });
+      // STRATEGY 4: Local File Direct Share
+      // For local file:// URLs that aren't cached
+      if (!isRemoteUrl) {
+        console.log('📤 Strategy 4: Sharing local file directly');
+
+        const shareOptions = {
+          url: effectiveImageUrl,
+          title: storyTitle,
+          message: `Check out this AI-generated illustration for my story: "${storyTitle}" 🎨\n\nCreated with CreativeBridge`,
+          type: 'image/jpeg',
+          filename: `${sessionId}_illustration.jpg`,
+        };
+
+        const result = await Share.open(shareOptions);
+        console.log('📤 Local file share result:', result);
+
+        if (!result.dismissedAction) {
+          console.log('📊 Analytics: Image shared successfully (local file)');
+        }
+        return; // ✅ Success - exit early
+      }
+
+      // If we got here, all strategies failed
+      throw new Error('All share strategies exhausted - unable to share image');
     } catch (error: any) {
       console.error('📤 Share failed with error:', error);
       console.error('📤 Error message:', error.message);
-      console.error('📤 Error stack:', error.stack);
-      
-      // Don't show error if user just cancelled sharing
-      if (error.message && (
-        error.message.includes('User did not share') ||
-        error.message.includes('cancelled') ||
-        error.message === 'CANCELLED'
-      )) {
-        console.log('📤 User cancelled share');
+
+      // Precise cancellation detection (only exact matches)
+      const errorMsg = error.message || '';
+      const isCancellation =
+        errorMsg === 'CANCELLED' ||
+        errorMsg === 'User did not share' ||
+        errorMsg.startsWith('User cancelled');
+
+      if (isCancellation) {
+        console.log('📤 User cancelled share - no error shown');
         return;
       }
-      
-      // Show detailed error for debugging
-      const errorDetails = error.message || 'Unknown error';
-      
-      Alert.alert(
-        '📤 Share Failed',
-        `Could not share your image.\n\nError: ${errorDetails}\n\nPlease check the logs for more details.`,
-        [{ text: 'OK' }],
-      );
+
+      // Show user-friendly error message
+      let userMessage = 'Could not share your image. ';
+
+      if (
+        errorMsg.includes('file system not properly initialized') ||
+        rnfsWrapper.isSimulationMode
+      ) {
+        userMessage +=
+          'This feature requires a physical device for full functionality.';
+      } else if (
+        errorMsg.includes('not available') ||
+        errorMsg.includes('not properly loaded')
+      ) {
+        userMessage +=
+          'The sharing feature is temporarily unavailable. Please try again.';
+      } else if (errorMsg.includes('Download failed')) {
+        userMessage +=
+          'Failed to download the image. Please check your internet connection.';
+      } else if (errorMsg.includes('File not found')) {
+        userMessage += 'The image file could not be found.';
+      } else {
+        userMessage += `Error: ${errorMsg}`;
+      }
+
+      Alert.alert('📤 Share Failed', userMessage, [{ text: 'OK' }]);
     }
-  }, [imageUrl, storyTitle, sessionId, state.localPath]);
+  }, [effectiveImageUrl, storyTitle, sessionId, state.localPath]);
 
   // Enhanced full-screen functionality
   const createStoryImageForModal = useCallback((): StoryImage => {
@@ -756,14 +889,23 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
       storyText,
       createdAt,
       sessionId,
-      metadata: metadata ? {
-        localPath: undefined,
-        downloadedAt: undefined,
-        size: undefined,
-        dimensions: undefined,
-      } : undefined,
+      metadata: metadata
+        ? {
+            localPath: undefined,
+            downloadedAt: undefined,
+            size: undefined,
+            dimensions: undefined,
+          }
+        : undefined,
     };
-  }, [sessionId, effectiveImageUrl, storyTitle, storyText, createdAt, metadata]);
+  }, [
+    sessionId,
+    effectiveImageUrl,
+    storyTitle,
+    storyText,
+    createdAt,
+    metadata,
+  ]);
 
   const handleImagePress = useCallback(() => {
     if (!enableFullScreen || !effectiveImageUrl) return;
@@ -786,7 +928,13 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
       storyTitle,
       timestamp: new Date().toISOString(),
     });
-  }, [enableFullScreen, effectiveImageUrl, onFullScreenOpen, sessionId, storyTitle]);
+  }, [
+    enableFullScreen,
+    effectiveImageUrl,
+    onFullScreenOpen,
+    sessionId,
+    storyTitle,
+  ]);
 
   const handleFullScreenClose = useCallback(() => {
     setState(prev => ({ ...prev, showFullScreen: false }));
@@ -854,7 +1002,9 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
 
       // NEW: Fallback logic - if Supabase URL failed and we have Replicate URL, try that
       if (supabaseUrl && replicateUrl && !state.attemptedSupabaseUrl) {
-        console.log('🖼️ [DEBUG] Supabase URL failed, attempting fallback to Replicate URL');
+        console.log(
+          '🖼️ [DEBUG] Supabase URL failed, attempting fallback to Replicate URL',
+        );
         setState(prev => ({
           ...prev,
           attemptedSupabaseUrl: true,
@@ -878,7 +1028,8 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
       } else if (effectiveImageUrl) {
         // Check if the image URL is accessible
         const urlCheck = await checkImageAvailability(effectiveImageUrl);
-        errorType = (urlCheck.errorType as ImageState['errorType']) || 'unknown';
+        errorType =
+          (urlCheck.errorType as ImageState['errorType']) || 'unknown';
       }
 
       setState(prev => ({
@@ -901,7 +1052,15 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
 
       onError?.(errorMessage);
     },
-    [onError, effectiveImageUrl, supabaseUrl, replicateUrl, state.isConnected, state.attemptedSupabaseUrl, checkImageAvailability],
+    [
+      onError,
+      effectiveImageUrl,
+      supabaseUrl,
+      replicateUrl,
+      state.isConnected,
+      state.attemptedSupabaseUrl,
+      checkImageAvailability,
+    ],
   );
 
   // Render placeholder when no image
@@ -1011,19 +1170,21 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
                       'This AI-generated image has expired from the server. Would you like to generate a fresh illustration for your story?',
                       [
                         { text: 'Maybe Later', style: 'cancel' },
-                        { 
-                          text: 'Generate New Image', 
+                        {
+                          text: 'Generate New Image',
                           style: 'default',
                           onPress: () => {
                             // Call the onBackToOptions callback and user can choose image generation
                             onBackToOptions?.();
-                          }
+                          },
                         },
                       ],
                     );
                   }}
                 >
-                  <Text style={styles.generateNewButtonText}>🎨 Generate New</Text>
+                  <Text style={styles.generateNewButtonText}>
+                    🎨 Generate New
+                  </Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
@@ -1090,7 +1251,11 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
       <View style={styles.uploadStatusBadgeContainer}>
         {uploadStatus === 'pending' && (
           <View style={styles.uploadStatusBadge}>
-            <ActivityIndicator size="small" color="#6f42c1" testID="upload-spinner" />
+            <ActivityIndicator
+              size="small"
+              color="#6f42c1"
+              testID="upload-spinner"
+            />
             <Text style={styles.uploadStatusText}>
               🔄 Backing up to permanent storage...
             </Text>
@@ -1100,9 +1265,7 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
         {uploadStatus === 'uploaded' && (
           <View style={[styles.uploadStatusBadge, styles.uploadSuccessBadge]}>
             <Text style={styles.uploadSuccessIcon}>✅</Text>
-            <Text style={styles.uploadSuccessText}>
-              Permanently saved
-            </Text>
+            <Text style={styles.uploadSuccessText}>Permanently saved</Text>
           </View>
         )}
 
@@ -1239,7 +1402,8 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
 
       // Check if it's an external URL (Replicate.delivery, etc.)
       const isExternalUrl =
-        effectiveImageUrl.startsWith('http') && !effectiveImageUrl.startsWith('file://');
+        effectiveImageUrl.startsWith('http') &&
+        !effectiveImageUrl.startsWith('file://');
 
       if (isExternalUrl) {
         console.log(
@@ -1317,7 +1481,9 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
 
   if (!effectiveImageUrl) {
     console.log('🖼️ [DEBUG] No effectiveImageUrl, showing placeholder');
-    return <View style={[getContainerStyle(), style]}>{renderPlaceholder()}</View>;
+    return (
+      <View style={[getContainerStyle(), style]}>{renderPlaceholder()}</View>
+    );
   }
 
   if (state.hasError) {
@@ -1353,7 +1519,10 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
             <View style={[getImageContainerStyle()]}>
               <Image
                 source={{
-                  uri: state.attemptedSupabaseUrl && replicateUrl ? state.localPath || replicateUrl : state.localPath || effectiveImageUrl,
+                  uri:
+                    state.attemptedSupabaseUrl && replicateUrl
+                      ? state.localPath || replicateUrl
+                      : state.localPath || effectiveImageUrl,
                   cache: 'force-cache',
                 }}
                 style={[getImageStyle(), imageDimensions]}
@@ -1372,7 +1541,10 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
                 onLoadStart={() => {
                   console.log(
                     '🖼️ [DEBUG] Image load started for:',
-                    (state.localPath || effectiveImageUrl || '').substring(0, 50) + '...',
+                    (state.localPath || effectiveImageUrl || '').substring(
+                      0,
+                      50,
+                    ) + '...',
                   );
                 }}
                 onLoadEnd={() => {
@@ -1398,7 +1570,10 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
           <View style={getImageContainerStyle()} testID="image-container">
             <Image
               source={{
-                uri: state.attemptedSupabaseUrl && replicateUrl ? state.localPath || replicateUrl : state.localPath || effectiveImageUrl,
+                uri:
+                  state.attemptedSupabaseUrl && replicateUrl
+                    ? state.localPath || replicateUrl
+                    : state.localPath || effectiveImageUrl,
                 cache: 'force-cache',
               }}
               style={[getImageStyle(), imageDimensions]}
@@ -1417,7 +1592,10 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
               onLoadStart={() => {
                 console.log(
                   '🖼️ [DEBUG] Image load started for:',
-                  (state.localPath || effectiveImageUrl || '').substring(0, 50) + '...',
+                  (state.localPath || effectiveImageUrl || '').substring(
+                    0,
+                    50,
+                  ) + '...',
                 );
               }}
               onLoadEnd={() => {

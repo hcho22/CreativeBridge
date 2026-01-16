@@ -27,7 +27,8 @@ describe('Integration Test: Image Generation + Supabase Upload', () => {
   const TEST_SESSION_ID = 'test-session-image-gen';
   const TEST_GRADE_LEVEL: GradeLevel = 'K-2';
   const MOCK_REPLICATE_URL = 'https://replicate.delivery/test-image-123.png';
-  const MOCK_SUPABASE_URL = 'https://supabase.co/storage/story-images/user-123/image.png';
+  const MOCK_SUPABASE_URL =
+    'https://supabase.co/storage/story-images/user-123/image.png';
 
   let mockDbState: any;
 
@@ -217,9 +218,9 @@ describe('Integration Test: Image Generation + Supabase Upload', () => {
                 supabaseUrl: MOCK_SUPABASE_URL,
                 attempts: 1,
               }),
-            100
-          )
-        )
+            100,
+          ),
+        ),
     );
 
     // Generate image
@@ -325,8 +326,14 @@ describe('Integration Test: Image Generation + Supabase Upload', () => {
     expect(mockDbState.image_upload_error).toContain(uploadError);
 
     console.log('  ✅ Replicate URL preserved despite backup failure');
-    console.log(`     - Primary URL (Replicate): ${mockDbState.generated_image_url}`);
-    console.log(`     - Backup URL (Supabase): ${mockDbState.supabase_image_url || 'null'}`);
+    console.log(
+      `     - Primary URL (Replicate): ${mockDbState.generated_image_url}`,
+    );
+    console.log(
+      `     - Backup URL (Supabase): ${
+        mockDbState.supabase_image_url || 'null'
+      }`,
+    );
     console.log(`     - Upload status: ${mockDbState.image_upload_status}`);
     console.log(`     - Error: ${mockDbState.image_upload_error}`);
   });
@@ -353,21 +360,23 @@ describe('Integration Test: Image Generation + Supabase Upload', () => {
     let attemptCount = 0;
 
     // Mock upload: fail twice, then succeed
-    (imageStorageService.uploadImageToSupabase as jest.Mock).mockImplementation(() => {
-      attemptCount++;
-      if (attemptCount < 3) {
+    (imageStorageService.uploadImageToSupabase as jest.Mock).mockImplementation(
+      () => {
+        attemptCount++;
+        if (attemptCount < 3) {
+          return Promise.resolve({
+            success: false,
+            attempts: attemptCount,
+            error: 'Network timeout',
+          });
+        }
         return Promise.resolve({
-          success: false,
+          success: true,
+          supabaseUrl: MOCK_SUPABASE_URL,
           attempts: attemptCount,
-          error: 'Network timeout',
         });
-      }
-      return Promise.resolve({
-        success: true,
-        supabaseUrl: MOCK_SUPABASE_URL,
-        attempts: attemptCount,
-      });
-    });
+      },
+    );
 
     // Generate image
     await imageGenerationService.generateImage({
@@ -400,7 +409,9 @@ describe('Integration Test: Image Generation + Supabase Upload', () => {
     console.log('🧪 Test 5: Graceful handling of Replicate failure');
 
     // Mock Replicate failure
-    (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('Replicate API error'));
+    (global.fetch as jest.Mock).mockRejectedValueOnce(
+      new Error('Replicate API error'),
+    );
 
     setupSupabaseMocks();
 
@@ -475,7 +486,10 @@ describe('Integration Test: Image Generation + Supabase Upload', () => {
         return {
           update: (data: any) => {
             Object.assign(mockDbState, data);
-            stateHistory.push({ ...mockDbState, timestamp: Date.now() - startTime });
+            stateHistory.push({
+              ...mockDbState,
+              timestamp: Date.now() - startTime,
+            });
             return {
               eq: jest.fn().mockReturnValue({
                 select: jest.fn().mockReturnValue({
@@ -566,9 +580,9 @@ describe('Integration Test: Image Generation + Supabase Upload', () => {
                 supabaseUrl: MOCK_SUPABASE_URL,
                 attempts: 1,
               }),
-            300
-          )
-        )
+            300,
+          ),
+        ),
     );
 
     // Generate image
@@ -602,7 +616,10 @@ describe('Integration Test: Image Generation + Supabase Upload', () => {
     const session2 = 'session-concurrent-2';
     const session3 = 'session-concurrent-3';
 
-    const sessionStates = {
+    const sessionStates: Record<
+      string,
+      { generated_image_url: string | null; image_upload_status: string | null }
+    > = {
       [session1]: { generated_image_url: null, image_upload_status: null },
       [session2]: { generated_image_url: null, image_upload_status: null },
       [session3]: { generated_image_url: null, image_upload_status: null },
@@ -622,19 +639,21 @@ describe('Integration Test: Image Generation + Supabase Upload', () => {
       if (table === 'game_sessions') {
         return {
           update: (data: any) => ({
-            eq: jest.fn().mockImplementation((field: string, sessionId: string) => ({
-              select: jest.fn().mockReturnValue({
-                single: jest.fn().mockImplementation(() => {
-                  if (sessionStates[sessionId]) {
-                    Object.assign(sessionStates[sessionId], data);
-                  }
-                  return Promise.resolve({
-                    data: sessionStates[sessionId] || mockDbState,
-                    error: null,
-                  });
+            eq: jest
+              .fn()
+              .mockImplementation((field: string, sessionId: string) => ({
+                select: jest.fn().mockReturnValue({
+                  single: jest.fn().mockImplementation(() => {
+                    if (sessionStates[sessionId]) {
+                      Object.assign(sessionStates[sessionId], data);
+                    }
+                    return Promise.resolve({
+                      data: sessionStates[sessionId] || mockDbState,
+                      error: null,
+                    });
+                  }),
                 }),
-              }),
-            })),
+              })),
           }),
           select: jest.fn().mockReturnValue({
             eq: jest.fn().mockReturnValue({
@@ -689,9 +708,15 @@ describe('Integration Test: Image Generation + Supabase Upload', () => {
     expect(sessionStates[session3].generated_image_url).toBeTruthy();
 
     console.log('  ✅ Concurrent generations handled independently');
-    console.log(`     - Session 1: ${sessionStates[session1].image_upload_status}`);
-    console.log(`     - Session 2: ${sessionStates[session2].image_upload_status}`);
-    console.log(`     - Session 3: ${sessionStates[session3].image_upload_status}`);
+    console.log(
+      `     - Session 1: ${sessionStates[session1].image_upload_status}`,
+    );
+    console.log(
+      `     - Session 2: ${sessionStates[session2].image_upload_status}`,
+    );
+    console.log(
+      `     - Session 3: ${sessionStates[session3].image_upload_status}`,
+    );
   });
 
   // Helper: Setup Supabase mocks with default behavior

@@ -51,12 +51,12 @@ describe('Performance Tests: Concurrent Upload Load Testing', () => {
           grade_level: 'K-2',
           current_round: 5,
           completed_at: new Date().toISOString(),
-        })
+        } as any)
         .select()
         .single();
 
       if (data) {
-        sessionIds.push(data.id);
+        sessionIds.push((data as any).id);
       }
     }
 
@@ -69,8 +69,8 @@ describe('Performance Tests: Concurrent Upload Load Testing', () => {
       imageStorageService.uploadImageToSupabase(
         `https://replicate.delivery/test-image-${index}.png`,
         sessionId,
-        `${TEST_BASE_USER_ID}-${index}`
-      )
+        `${TEST_BASE_USER_ID}-${index}`,
+      ),
     );
 
     const results = await Promise.allSettled(uploadPromises);
@@ -79,20 +79,30 @@ describe('Performance Tests: Concurrent Upload Load Testing', () => {
 
     // Analyze results
     const successfulUploads = results.filter(
-      r => r.status === 'fulfilled' && r.value.success
+      r => r.status === 'fulfilled' && r.value.success,
     ).length;
     const failedUploads = results.filter(
-      r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success)
+      r =>
+        r.status === 'rejected' ||
+        (r.status === 'fulfilled' && !r.value.success),
     ).length;
     const successRate = successfulUploads / uploadCount;
 
     // Assertions
     expect(successRate).toBeGreaterThanOrEqual(0.95); // >= 95% success rate
 
-    console.log(`✓ 100 concurrent uploads completed in ${(elapsed / 1000).toFixed(2)}s`);
-    console.log(`  - Success rate: ${(successRate * 100).toFixed(1)}% (${successfulUploads}/${uploadCount})`);
+    console.log(
+      `✓ 100 concurrent uploads completed in ${(elapsed / 1000).toFixed(2)}s`,
+    );
+    console.log(
+      `  - Success rate: ${(successRate * 100).toFixed(
+        1,
+      )}% (${successfulUploads}/${uploadCount})`,
+    );
     console.log(`  - Failed: ${failedUploads}`);
-    console.log(`  - Avg time per upload: ${(elapsed / uploadCount).toFixed(0)}ms`);
+    console.log(
+      `  - Avg time per upload: ${(elapsed / uploadCount).toFixed(0)}ms`,
+    );
 
     // Cleanup
     await cleanupTestSessions(sessionIds);
@@ -121,12 +131,12 @@ describe('Performance Tests: Concurrent Upload Load Testing', () => {
           grade_level: 'K-2',
           current_round: 5,
           completed_at: new Date().toISOString(),
-        })
+        } as any)
         .select()
         .single();
 
       if (data) {
-        sessionIds.push(data.id);
+        sessionIds.push((data as any).id);
       }
     }
 
@@ -136,7 +146,7 @@ describe('Performance Tests: Concurrent Upload Load Testing', () => {
       await imageStorageService.uploadImageToSupabase(
         `https://replicate.delivery/seq-${i}.png`,
         sessionIds[i],
-        `${TEST_BASE_USER_ID}-seq-${i}`
+        `${TEST_BASE_USER_ID}-seq-${i}`,
       );
     }
     const sequentialElapsed = Date.now() - sequentialStart;
@@ -148,9 +158,9 @@ describe('Performance Tests: Concurrent Upload Load Testing', () => {
         imageStorageService.uploadImageToSupabase(
           `https://replicate.delivery/con-${i}.png`,
           sessionId,
-          `${TEST_BASE_USER_ID}-seq-${i}`
-        )
-      )
+          `${TEST_BASE_USER_ID}-seq-${i}`,
+        ),
+      ),
     );
     const concurrentElapsed = Date.now() - concurrentStart;
 
@@ -200,12 +210,12 @@ describe('Performance Tests: Concurrent Upload Load Testing', () => {
           grade_level: 'K-2',
           current_round: 5,
           completed_at: new Date().toISOString(),
-        })
+        } as any)
         .select()
         .single();
 
       if (data) {
-        sessionIds.push(data.id);
+        sessionIds.push((data as any).id);
       }
     }
 
@@ -217,24 +227,30 @@ describe('Performance Tests: Concurrent Upload Load Testing', () => {
         imageStorageService.uploadImageToSupabase(
           `https://replicate.delivery/retry-${i}.png`,
           sessionId,
-          `${TEST_BASE_USER_ID}-retry-${i}`
-        )
-      )
+          `${TEST_BASE_USER_ID}-retry-${i}`,
+        ),
+      ),
     );
 
     const elapsed = Date.now() - startTime;
 
     const successCount = results.filter(
-      r => r.status === 'fulfilled' && r.value.success
+      r => r.status === 'fulfilled' && r.value.success,
     ).length;
 
     // Should still achieve high success rate despite retries
     const successRate = successCount / uploadCount;
-    expect(successRate).toBeGreaterThanOrEqual(0.90); // >= 90% (allowing for some failures)
+    expect(successRate).toBeGreaterThanOrEqual(0.9); // >= 90% (allowing for some failures)
 
-    console.log(`✓ ${uploadCount} uploads with retries: ${(elapsed / 1000).toFixed(2)}s`);
+    console.log(
+      `✓ ${uploadCount} uploads with retries: ${(elapsed / 1000).toFixed(2)}s`,
+    );
     console.log(`  - Success rate: ${(successRate * 100).toFixed(1)}%`);
-    console.log(`  - Total fetch calls: ${fetchCallCount} (avg ${(fetchCallCount / uploadCount).toFixed(1)} per upload)`);
+    console.log(
+      `  - Total fetch calls: ${fetchCallCount} (avg ${(
+        fetchCallCount / uploadCount
+      ).toFixed(1)} per upload)`,
+    );
 
     // Cleanup
     await cleanupTestSessions(sessionIds);
@@ -273,12 +289,12 @@ describe('Performance Tests: Concurrent Upload Load Testing', () => {
           grade_level: 'K-2',
           current_round: 5,
           completed_at: new Date().toISOString(),
-        })
+        } as any)
         .select()
         .single();
 
       if (data) {
-        sessionIds.push(data.id);
+        sessionIds.push((data as any).id);
       }
     }
 
@@ -289,21 +305,23 @@ describe('Performance Tests: Concurrent Upload Load Testing', () => {
         imageStorageService.uploadImageToSupabase(
           `https://replicate.delivery/mixed-${i}.png`,
           sessionId,
-          `${TEST_BASE_USER_ID}-mixed-${i}`
-        )
-      )
+          `${TEST_BASE_USER_ID}-mixed-${i}`,
+        ),
+      ),
     );
 
     const elapsed = Date.now() - startTime;
 
     const successCount = results.filter(
-      r => r.status === 'fulfilled' && r.value.success
+      r => r.status === 'fulfilled' && r.value.success,
     ).length;
     const partialSuccessCount = results.filter(
-      r => r.status === 'fulfilled' && !r.value.success
+      r => r.status === 'fulfilled' && !r.value.success,
     ).length;
 
-    console.log(`✓ Mixed load test (30 uploads): ${(elapsed / 1000).toFixed(2)}s`);
+    console.log(
+      `✓ Mixed load test (30 uploads): ${(elapsed / 1000).toFixed(2)}s`,
+    );
     console.log(`  - Successful: ${successCount}`);
     console.log(`  - Failed gracefully: ${partialSuccessCount}`);
     console.log(`  - Total time: ${elapsed}ms`);
@@ -350,12 +368,12 @@ describe('Performance Tests: Concurrent Upload Load Testing', () => {
           grade_level: 'K-2',
           current_round: 5,
           completed_at: new Date().toISOString(),
-        })
+        } as any)
         .select()
         .single();
 
       if (data) {
-        sessionIds.push(data.id);
+        sessionIds.push((data as any).id);
       }
     }
 
@@ -366,18 +384,20 @@ describe('Performance Tests: Concurrent Upload Load Testing', () => {
         imageStorageService.uploadImageToSupabase(
           `https://replicate.delivery/rate-${i}.png`,
           sessionId,
-          `${TEST_BASE_USER_ID}-rate-${i}`
-        )
-      )
+          `${TEST_BASE_USER_ID}-rate-${i}`,
+        ),
+      ),
     );
 
     const elapsed = Date.now() - startTime;
 
     const successCount = results.filter(
-      r => r.status === 'fulfilled' && r.value.success
+      r => r.status === 'fulfilled' && r.value.success,
     ).length;
 
-    console.log(`✓ Rate limiting test (50 uploads): ${(elapsed / 1000).toFixed(2)}s`);
+    console.log(
+      `✓ Rate limiting test (50 uploads): ${(elapsed / 1000).toFixed(2)}s`,
+    );
     console.log(`  - Success: ${successCount}`);
     console.log(`  - Rate limited: ${50 - successCount}`);
 

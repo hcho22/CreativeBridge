@@ -72,7 +72,10 @@
     "monitoring:test": "npx tsx scripts/test-monitoring-setup.ts",
     "monitoring:analytics": "psql $DATABASE_URL -f sql/analytics_queries.sql",
     "monitor:errors": "npx ts-node scripts/monitor-errors-daily.ts",
-    "monitor:errors:watch": "npx ts-node scripts/monitor-errors-daily.ts && echo '\nNext run in 24 hours...'"
+    "monitor:errors:watch": "npx ts-node scripts/monitor-errors-daily.ts && echo '\nNext run in 24 hours...'",
+    "ralph:start": "bash scripts/ralph/ralph.sh",
+    "ralph:status": "cat .agent/Ralph/progress.txt | tail -50",
+    "ralph:check-prd": "jq '.userStories[] | {id, title, passes}' .agent/Ralph/prd.json"
   },
   "dependencies": {
     "@clerk/clerk-expo": "^2.19.12",
@@ -136,6 +139,7 @@
     "@types/react-native-vector-icons": "^6.4.18",
     "@types/react-test-renderer": "^19.1.0",
     "babel-preset-expo": "^54.0.7",
+    "detox": "^20.18.0",
     "eas-cli": "^16.28.0",
     "eslint": "^8.19.0",
     "expo": "^54.0.25",
@@ -150,10 +154,9 @@
     "react-dom": "^19.2.3",
     "react-test-renderer": "19.1.0",
     "reactotron-react-native": "^5.1.16",
+    "ts-jest": "^29.1.2",
     "ts-node": "^10.9.2",
-    "typescript": "^5.8.3",
-    "detox": "^20.18.0",
-    "ts-jest": "^29.1.2"
+    "typescript": "^5.8.3"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [

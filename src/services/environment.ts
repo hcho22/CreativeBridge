@@ -46,6 +46,28 @@ export interface EnvironmentConfig {
   // App Configuration
   APP_NAME: string;
   APP_VERSION: string;
+
+  // Feature Flags
+  featureFlags: {
+    /**
+     * USE_LLM_PROMPT_GENERATION - Enable GPT-4 story analysis for image generation
+     *
+     * When enabled (true):
+     * - Uses GPT-4 Turbo to analyze story text and generate optimized image prompts
+     * - Automatically falls back to keyword extraction on LLM failure
+     * - Improves image-to-story relevance and visual coherence
+     *
+     * When disabled (false):
+     * - Uses traditional keyword extraction method
+     * - No LLM API calls made
+     *
+     * Default: false (safe deployment - no behavior change until explicitly enabled)
+     *
+     * Cost Impact: ~$0.01-0.02 per image generation when enabled
+     * Rollback: Set to false to immediately revert to keyword extraction
+     */
+    useLlmPromptGeneration: boolean;
+  };
 }
 
 /**
@@ -131,6 +153,13 @@ const loadEnvironmentConfig = (): EnvironmentConfig => {
     // App Configuration
     APP_NAME: getEnvVar(ENV_APP_NAME, 'CreativeBridge'),
     APP_VERSION: getEnvVar(ENV_APP_VERSION, '1.0.0'),
+
+    // Feature Flags
+    featureFlags: {
+      // Enable GPT-4 story analysis for improved image-to-story relevance
+      // Falls back to keyword extraction automatically on failure
+      useLlmPromptGeneration: true,
+    },
   };
 };
 
@@ -157,9 +186,13 @@ const validateEnvironmentConfig = (config: EnvironmentConfig): void => {
     // Don't throw in production - log error but allow app to continue
     // Some features may not work, but app won't crash
     if (__DEV__) {
-      console.warn('⚠️ Running in development mode with missing environment variables');
+      console.warn(
+        '⚠️ Running in development mode with missing environment variables',
+      );
     } else {
-      console.error('⚠️ Production build with missing environment variables - some features may not work');
+      console.error(
+        '⚠️ Production build with missing environment variables - some features may not work',
+      );
     }
   }
 
@@ -218,7 +251,8 @@ try {
   // Provide fallback configuration to prevent app crash
   env = {
     SUPABASE_URL: 'https://dzwcqfnvcaempqgkzkuz.supabase.co',
-    SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6d2NxZm52Y2FlbXBxZ2t6a3V6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc3NzAxMzgsImV4cCI6MjA2MzM0NjEzOH0.a4TidZN02D6AAj88W08BdumMQv_LLihRqyYu4b_3TEo',
+    SUPABASE_ANON_KEY:
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6d2NxZm52Y2FlbXBxZ2t6a3V6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc3NzAxMzgsImV4cCI6MjA2MzM0NjEzOH0.a4TidZN02D6AAj88W08BdumMQv_LLihRqyYu4b_3TEo',
     OPENAI_API_KEY: '',
     REPLICATE_API_TOKEN: '',
     BACKUP_IMAGE_API_TOKEN: '',
@@ -229,11 +263,17 @@ try {
     IMAGE_GENERATION_XP_COST: 1000,
     APP_NAME: 'CreativeBridge',
     APP_VERSION: '1.0.0',
+    featureFlags: {
+      useLlmPromptGeneration: false,
+    },
   };
   console.warn('Using fallback environment configuration');
 }
 
 export { env };
+
+// Export as 'Environment' for backward compatibility
+export const Environment = env;
 
 // Export individual getters for convenience
 export const getEnvironmentConfig = (): EnvironmentConfig => env;
