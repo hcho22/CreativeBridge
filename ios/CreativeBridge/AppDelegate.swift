@@ -3,6 +3,7 @@ import React
 import React_RCTAppDelegate
 import ReactAppDependencyProvider
 import AVFoundation
+import EXUpdates
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -15,6 +16,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
+    // CRITICAL: Initialize expo-updates AppController BEFORE React Native starts
+    // This must happen first to avoid crashes when modules try to access AppController.sharedInstance
+    AppController.initializeWithoutStarting()
+
     // Configure audio session for TTS playback
     // This allows TTS to work even when the device is in silent mode
     do {
@@ -25,7 +30,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     } catch {
       print("❌ Failed to configure audio session: \(error.localizedDescription)")
     }
-    
+
     let delegate = ReactNativeDelegate()
     let factory = RCTReactNativeFactory(delegate: delegate)
     delegate.dependencyProvider = RCTAppDependencyProvider()
