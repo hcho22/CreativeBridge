@@ -202,8 +202,12 @@ For TestFlight, we use the **production** profile.
 # Build for production (TestFlight/App Store)
 npm run eas:build:production
 
+
+
 # Or directly with EAS CLI
 eas build --platform ios --profile production
+
+EXPO_NO_CAPABILITY_SYNC=1 eas build --platform ios --profile production
 ```
 
 **What happens during the build:**
@@ -219,6 +223,8 @@ eas build --platform ios --profile production
 ```bash
 # Check build status
 eas build:list --platform ios
+
+npm run eas:submit:testflight
 
 # View detailed build logs
 eas build:view <build-id>
@@ -659,6 +665,25 @@ git push origin v0.0.2
 
 EAS automatically increments build numbers for each production build when configured in [eas.json](../eas.json).
 
+**Setting a Specific Starting Build Number**:
+
+If you need to start from a specific build number (e.g., after reverting code), configure it in [eas.json](../eas.json):
+
+```json
+{
+  "build": {
+    "production": {
+      "autoIncrement": true,
+      "ios": {
+        "buildNumber": "4"
+      }
+    }
+  }
+}
+```
+
+EAS will use this number for the next build and auto-increment from there. After the first build, you can remove the explicit `buildNumber` setting to let EAS continue auto-incrementing.
+
 **Manual Override** (not recommended):
 
 Edit [ios/CreativeBridge/Info.plist](../ios/CreativeBridge/Info.plist):
@@ -667,6 +692,8 @@ Edit [ios/CreativeBridge/Info.plist](../ios/CreativeBridge/Info.plist):
 <key>CFBundleVersion</key>
 <string>2</string>  <!-- Build number -->
 ```
+
+Note: Manual overrides can conflict with EAS auto-increment. Always prefer the EAS configuration method above.
 
 ---
 
