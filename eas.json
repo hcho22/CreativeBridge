@@ -12,10 +12,7 @@
       "distribution": "internal"
     },
     "production": {
-      "autoIncrement": true,
-      "ios": {
-        "buildNumber": "4"
-      }
+      "autoIncrement": true
     }
   },
   "submit": {
