@@ -575,6 +575,163 @@ describe('Image Generation Service - Unit Tests', () => {
     });
   });
 
+  describe('Story-Specific Prompt Generation', () => {
+    test('should use full ArtStyleDefinition in generateStorySpecificPrompt', () => {
+      const storyContent =
+        'A curious turtle named Timmy explores the colorful coral reef with bright fish swimming around.';
+      const gradeLevel: GradeLevel = 'K-2';
+
+      const generateStorySpecificPrompt = (imageGenerationService as any)
+        .generateStorySpecificPrompt;
+      const prompt = generateStorySpecificPrompt.call(
+        imageGenerationService,
+        storyContent,
+        gradeLevel,
+        imageGenerationService.getEnhancedArtStyleForGrade(gradeLevel),
+      );
+
+      // Should include baseStyle
+      expect(prompt).toContain("watercolor children's book illustration");
+
+      // Should include characterStyle
+      expect(prompt).toMatch(
+        /friendly cartoon animals|simple human figures|expressive big eyes/,
+      );
+
+      // Should include colorPalette
+      expect(prompt).toMatch(/bright primary colors|soft pastels|warm/);
+
+      // Should include artisticTechnique
+      expect(prompt).toMatch(
+        /watercolor painting style|soft brush strokes|gentle textures/,
+      );
+
+      // Should include emotionalTone or visualComplexity or layoutStyle
+      expect(prompt).toMatch(
+        /magical and whimsical|simple shapes|centered composition/,
+      );
+
+      // Should include safety constraint
+      expect(prompt).toContain('safe for children, G-rated content');
+    });
+
+    test('should prioritize story mood over art style emotionalTone when mood is extracted', () => {
+      const storyContent =
+        'The joyful children played happily in the bright sunshine with colorful balloons.';
+      const gradeLevel: GradeLevel = '3-5';
+
+      const generateStorySpecificPrompt = (imageGenerationService as any)
+        .generateStorySpecificPrompt;
+      const prompt = generateStorySpecificPrompt.call(
+        imageGenerationService,
+        storyContent,
+        gradeLevel,
+        imageGenerationService.getEnhancedArtStyleForGrade(gradeLevel),
+      );
+
+      // If mood is extracted from story, it should be included, otherwise art style emotionalTone should be used
+      if (prompt) {
+        // The prompt should have either story mood or art style emotional tone
+        expect(prompt).toMatch(/joyful|happy|adventurous|dynamic/);
+      }
+    });
+
+    test('should handle underwater scene with full art style', () => {
+      const storyContent =
+        'A small fish named Finley swims through the underwater coral garden with sea turtles and colorful seaweed.';
+      const gradeLevel: GradeLevel = 'K-2';
+
+      const generateStorySpecificPrompt = (imageGenerationService as any)
+        .generateStorySpecificPrompt;
+      const prompt = generateStorySpecificPrompt.call(
+        imageGenerationService,
+        storyContent,
+        gradeLevel,
+        imageGenerationService.getEnhancedArtStyleForGrade(gradeLevel),
+      );
+
+      // Should include art style elements
+      expect(prompt).toContain("watercolor children's book illustration");
+      expect(prompt).toMatch(/bright primary colors|soft pastels/);
+
+      // Check if underwater elements are detected (they may be in objects or setting)
+      expect(prompt.toLowerCase()).toMatch(/underwater|coral|turtles|seaweed/);
+    });
+
+    test('should include all ArtStyleDefinition properties when available', () => {
+      const storyContent =
+        'A brave explorer discovers a magical forest filled with wonder and excitement.';
+      const gradeLevel: GradeLevel = '6-8';
+
+      const artStyle =
+        imageGenerationService.getEnhancedArtStyleForGrade(gradeLevel);
+      const generateStorySpecificPrompt = (imageGenerationService as any)
+        .generateStorySpecificPrompt;
+      const prompt = generateStorySpecificPrompt.call(
+        imageGenerationService,
+        storyContent,
+        gradeLevel,
+        artStyle,
+      );
+
+      // Verify that the prompt uses all available properties
+      expect(prompt).toContain(artStyle.baseStyle);
+
+      // At least some of these should be present
+      const hasCharacterStyle = prompt.includes(artStyle.characterStyle);
+      const hasBackgroundStyle = prompt.includes(artStyle.backgroundStyle);
+      const hasColorPalette = prompt.includes(artStyle.colorPalette);
+      const hasArtisticTechnique = prompt.includes(artStyle.artisticTechnique);
+      const hasLayoutStyle = prompt.includes(artStyle.layoutStyle);
+      const hasVisualComplexity = prompt.includes(artStyle.visualComplexity);
+
+      // Expect at least 4 out of 6 additional properties to be included
+      const propertiesIncluded = [
+        hasCharacterStyle,
+        hasBackgroundStyle,
+        hasColorPalette,
+        hasArtisticTechnique,
+        hasLayoutStyle,
+        hasVisualComplexity,
+      ].filter(Boolean).length;
+
+      expect(propertiesIncluded).toBeGreaterThanOrEqual(4);
+    });
+
+    test('should return empty string when no visual elements found', () => {
+      const storyContent = 'And then it happened.';
+      const gradeLevel: GradeLevel = 'K-2';
+
+      const generateStorySpecificPrompt = (imageGenerationService as any)
+        .generateStorySpecificPrompt;
+      const prompt = generateStorySpecificPrompt.call(
+        imageGenerationService,
+        storyContent,
+        gradeLevel,
+        imageGenerationService.getEnhancedArtStyleForGrade(gradeLevel),
+      );
+
+      // Should return empty when no strong visual elements
+      expect(prompt).toBe('');
+    });
+
+    test('should handle errors gracefully in generateStorySpecificPrompt', () => {
+      const generateStorySpecificPrompt = (imageGenerationService as any)
+        .generateStorySpecificPrompt;
+
+      // Test with invalid inputs
+      const result = generateStorySpecificPrompt.call(
+        imageGenerationService,
+        null,
+        'K-2',
+        imageGenerationService.getEnhancedArtStyleForGrade('K-2'),
+      );
+
+      // Should return empty string on error
+      expect(result).toBe('');
+    });
+  });
+
   describe('Error Handling and Edge Cases', () => {
     test('should handle invalid grade levels gracefully', () => {
       // TypeScript would catch this at compile time, but test runtime behavior

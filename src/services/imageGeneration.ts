@@ -10205,9 +10205,12 @@ class ImageGenerationService {
       ) {
         let prompt = `Create a ${artStyleDefinition.baseStyle}`;
 
-        // Add character with physical descriptions
+        // Add character with physical descriptions using characterStyle
         if (visualElements.character) {
           prompt += ` showing ${visualElements.character}`;
+          if (artStyleDefinition.characterStyle) {
+            prompt += ` with ${artStyleDefinition.characterStyle}`;
+          }
         }
 
         // Add primary action/scene
@@ -10241,20 +10244,44 @@ class ImageGenerationService {
           }
         }
 
-        // Add setting context
+        // Add setting context with backgroundStyle
         if (visualElements.setting) {
           prompt += ` in ${visualElements.setting}`;
+          if (artStyleDefinition.backgroundStyle) {
+            prompt += `, ${artStyleDefinition.backgroundStyle}`;
+          }
         }
 
-        // Add colors and atmosphere
-        if (visualElements.colors.length > 0) {
-          const colorList = visualElements.colors.slice(0, 3).join(', ');
+        // Add colors from both story and art style definition
+        const storyColors = visualElements.colors.slice(0, 3);
+        if (storyColors.length > 0) {
+          const colorList = storyColors.join(', ');
           prompt += `, featuring ${colorList} colors`;
         }
+        if (artStyleDefinition.colorPalette) {
+          prompt += `, ${artStyleDefinition.colorPalette}`;
+        }
 
-        // Add emotional tone
+        // Add artistic technique for visual quality
+        if (artStyleDefinition.artisticTechnique) {
+          prompt += `, using ${artStyleDefinition.artisticTechnique}`;
+        }
+
+        // Add emotional tone - prioritize story mood, supplement with art style
         if (visualElements.mood) {
           prompt += `, ${visualElements.mood} atmosphere`;
+        } else if (artStyleDefinition.emotionalTone) {
+          prompt += `, ${artStyleDefinition.emotionalTone}`;
+        }
+
+        // Add layout style for composition
+        if (artStyleDefinition.layoutStyle) {
+          prompt += `, ${artStyleDefinition.layoutStyle}`;
+        }
+
+        // Add visual complexity
+        if (artStyleDefinition.visualComplexity) {
+          prompt += `, ${artStyleDefinition.visualComplexity}`;
         }
 
         // Always add safety constraint
@@ -10266,6 +10293,15 @@ class ImageGenerationService {
           setting: visualElements.setting,
           colors: visualElements.colors,
           mood: visualElements.mood,
+          artStyle: {
+            characterStyle: artStyleDefinition.characterStyle,
+            backgroundStyle: artStyleDefinition.backgroundStyle,
+            colorPalette: artStyleDefinition.colorPalette,
+            artisticTechnique: artStyleDefinition.artisticTechnique,
+            emotionalTone: artStyleDefinition.emotionalTone,
+            layoutStyle: artStyleDefinition.layoutStyle,
+            visualComplexity: artStyleDefinition.visualComplexity,
+          },
         });
 
         return prompt;
