@@ -16,6 +16,7 @@ import {
   GameSessionInsert,
   GameSessionUpdate,
 } from '../types';
+import { ChallengeService } from './challengeService';
 
 export interface StoryContribution {
   type: 'user' | 'ai';
@@ -90,7 +91,10 @@ class StorySessionManager {
   private readonly MAX_ROUNDS = 5; // Story completes after 5 rounds
 
   // NEW: In-memory cache for frequently accessed sessions (BUG-567 optimization)
-  private sessionCache: Map<string, { session: StorySession; timestamp: number }> = new Map();
+  private sessionCache: Map<
+    string,
+    { session: StorySession; timestamp: number }
+  > = new Map();
   private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache TTL
   private readonly MAX_CACHE_SIZE = 10; // Keep 10 most recent sessions in memory
 
@@ -193,13 +197,22 @@ class StorySessionManager {
 
     // NEW: Story completion tracking - increment round after AI response
     if (type === 'ai') {
-      session.current_round = Math.min(session.current_round + 1, this.MAX_ROUNDS);
+      session.current_round = Math.min(
+        session.current_round + 1,
+        this.MAX_ROUNDS,
+      );
 
       // Check if story should be completed (reached MAX_ROUNDS)
       if (session.current_round >= this.MAX_ROUNDS && !session.isCompleted) {
         console.log('🎉 Story reached MAX_ROUNDS - marking as complete');
         session.isCompleted = true;
         session.completed_at = new Date().toISOString();
+
+        // Calculate XP and score before updating statistics
+        await this.calculateAndSetRewards(session);
+
+        // Update user statistics in database
+        await this.updateUserStatisticsOnCompletion(session);
       }
     }
 
@@ -421,22 +434,39 @@ class StorySessionManager {
     try {
       console.log('Updating session in Supabase:', session.id);
 
-      const updateData = {
-        story_content: session.story_content,
+      // Debug: Log values before rounding to catch type mismatches
+      console.log('🔍 [DEBUG] Session values before database update:', {
         words_written: session.words_written,
         sentences_completed: session.sentences_completed,
         final_score: session.final_score,
         xp_earned: session.xp_earned,
-        completed_at: session.completed_at || (session.isCompleted ? new Date().toISOString() : null),
+        image_generation_cost: session.image_generation_cost,
+        current_round: session.current_round,
+        image_upload_attempts: session.image_upload_attempts,
+      });
+
+      const updateData = {
+        story_content: session.story_content,
+        words_written: Math.round(session.words_written),
+        sentences_completed: Math.round(session.sentences_completed),
+        final_score: Math.round(session.final_score),
+        xp_earned: Math.round(session.xp_earned),
+        completed_at:
+          session.completed_at ||
+          (session.isCompleted ? new Date().toISOString() : null),
         generated_image_url: session.generated_image_url || null,
         image_generation_timestamp: session.image_generation_timestamp || null,
-        image_generation_cost: session.image_generation_cost || null,
+        image_generation_cost: session.image_generation_cost
+          ? Math.round(session.image_generation_cost)
+          : null,
         // NEW: Story completion tracking
-        current_round: session.current_round,
+        current_round: Math.round(session.current_round),
         // NEW: Image persistence fields
         supabase_image_url: session.supabase_image_url || null,
         image_upload_status: session.image_upload_status || null,
-        image_upload_attempts: session.image_upload_attempts || 0,
+        image_upload_attempts: session.image_upload_attempts
+          ? Math.round(session.image_upload_attempts)
+          : 0,
         image_upload_error: session.image_upload_error || null,
       } as any;
 
@@ -478,7 +508,8 @@ class StorySessionManager {
         // NEW: Image persistence fields
         supabase_image_url: updatedDbSession.supabase_image_url || undefined,
         image_upload_status: updatedDbSession.image_upload_status || undefined,
-        image_upload_attempts: updatedDbSession.image_upload_attempts || undefined,
+        image_upload_attempts:
+          updatedDbSession.image_upload_attempts || undefined,
         image_upload_error: updatedDbSession.image_upload_error || undefined,
         isCompleted: !!updatedDbSession.completed_at,
         contributions: session.contributions,
@@ -584,7 +615,8 @@ class StorySessionManager {
     const session = await this.getSession(sessionId, true); // Preserve contributions
     if (!session) return null;
 
-    session.supabase_image_url = uploadStatus === 'uploaded' ? supabaseUrl : session.supabase_image_url;
+    session.supabase_image_url =
+      uploadStatus === 'uploaded' ? supabaseUrl : session.supabase_image_url;
     session.image_upload_status = uploadStatus;
     session.image_upload_attempts = attempts;
     session.image_upload_error = error;
@@ -818,7 +850,9 @@ class StorySessionManager {
       await this.cleanupOldSessions(sessions);
 
       await AsyncStorage.setItem(this.SESSIONS_KEY, JSON.stringify(sessions));
-      console.log('📦 Session cached locally with image URLs for offline access');
+      console.log(
+        '📦 Session cached locally with image URLs for offline access',
+      );
     } catch (error) {
       console.error('Error caching session locally:', error);
     }
@@ -841,6 +875,102 @@ class StorySessionManager {
       .trim()
       .split(/\s+/)
       .filter(word => word.length > 0).length;
+  }
+
+  /**
+   * Calculate XP rewards and final score for a completed story
+   * Sets xp_earned and final_score on the session object
+   */
+  private async calculateAndSetRewards(session: StorySession): Promise<void> {
+    try {
+      const challengeService = ChallengeService.getInstance();
+
+      // Calculate session duration in minutes
+      const startTime = new Date(session.created_at).getTime();
+      const endTime = new Date(session.completed_at || Date.now()).getTime();
+      const durationMinutes = (endTime - startTime) / (1000 * 60);
+
+      // Calculate XP rewards based on session data
+      // Note: We don't have detailed challenge progress, so we estimate based on challenges_completed count
+      const estimatedChallengeProgress = Array(
+        session.challenges_completed,
+      ).fill({
+        challengeId: 'completed',
+        xpEarned: 50, // Standard challenge XP
+        isCompleted: true,
+      });
+
+      const xpRewards = challengeService.calculateXPRewards(
+        session.words_written,
+        estimatedChallengeProgress as any,
+        durationMinutes,
+        true, // story is completed
+      );
+
+      // Sum up total XP
+      const totalXP = challengeService.getTotalXP(xpRewards);
+      session.xp_earned = totalXP;
+
+      // Calculate final score based on:
+      // - Base score: word count (1 point per word)
+      // - Challenge bonuses: completed challenges (50 points each)
+      // - Completion bonus: 100 points
+      const baseScore = session.words_written;
+      const challengeBonus = session.challenges_completed * 50;
+      const completionBonus = 100;
+      session.final_score = baseScore + challengeBonus + completionBonus;
+
+      console.log('💰 Calculated rewards:', {
+        xpEarned: session.xp_earned,
+        finalScore: session.final_score,
+        wordsWritten: session.words_written,
+        challengesCompleted: session.challenges_completed,
+        duration: `${durationMinutes.toFixed(1)} minutes`,
+      });
+    } catch (error) {
+      console.error('Failed to calculate rewards:', error);
+      // Set default values if calculation fails
+      session.xp_earned = session.words_written * 2; // Fallback: 2 XP per word
+      session.final_score = session.words_written + 100; // Fallback: words + completion bonus
+    }
+  }
+
+  /**
+   * Update user statistics when a story is completed
+   * Calls the Supabase RPC function to update XP, games played, words written, etc.
+   */
+  private async updateUserStatisticsOnCompletion(
+    session: StorySession,
+  ): Promise<void> {
+    try {
+      console.log('📊 Updating user statistics for completed story:', {
+        sessionId: session.id,
+        userId: session.user_id,
+        xpEarned: session.xp_earned,
+        wordsWritten: session.words_written,
+        finalScore: session.final_score,
+      });
+
+      // Call the database function to update all statistics atomically
+      // IMPORTANT: Database expects INTEGER types, so we must floor all values
+      const { error } = await (supabase.rpc as any)('complete_game_session', {
+        user_uuid: session.user_id,
+        xp_earned: Math.floor(session.xp_earned || 0),
+        words_written: Math.floor(session.words_written || 0),
+        final_score: Math.floor(session.final_score || 0),
+      });
+
+      if (error) {
+        console.error('❌ Failed to update user statistics:', error);
+        // Don't throw - we don't want to block story completion if stats update fails
+        // The session is still marked as complete, stats can be fixed later
+      } else {
+        console.log('✅ User statistics updated successfully');
+      }
+    } catch (error) {
+      console.error('💥 Exception updating user statistics:', error);
+      // Non-blocking error - stats update failure shouldn't prevent story completion
+    }
   }
 
   private buildCurrentStory(contributions: StoryContribution[]): string {

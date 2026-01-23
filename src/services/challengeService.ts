@@ -114,9 +114,8 @@ export class ChallengeService {
 
     // Speed bonus (completing in under 10 minutes)
     if (sessionDurationMinutes < 10 && isStoryCompleted) {
-      const speedBonus = Math.max(
-        10,
-        XP_BONUSES.SPEED_BONUS - sessionDurationMinutes,
+      const speedBonus = Math.floor(
+        Math.max(10, XP_BONUSES.SPEED_BONUS - sessionDurationMinutes),
       );
       rewards.push({
         type: 'bonus',
