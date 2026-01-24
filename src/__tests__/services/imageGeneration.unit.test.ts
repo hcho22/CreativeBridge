@@ -540,7 +540,7 @@ describe('Image Generation Service - Unit Tests', () => {
         );
 
         expect(prompt).toMatch(/children's book|digital/);
-        expect(prompt).toMatch(/Safe for children|appropriate content/);
+        expect(prompt).toMatch(/safe for children|appropriate content/i);
         expect(prompt.length).toBeGreaterThan(50);
       });
     });
@@ -571,7 +571,7 @@ describe('Image Generation Service - Unit Tests', () => {
       expect(prompt).not.toContain('weapons');
       expect(prompt).not.toContain('violent');
       expect(prompt).not.toContain('scary');
-      expect(prompt).toMatch(/Safe for children|appropriate content/);
+      expect(prompt).toMatch(/safe for children|appropriate content/i);
     });
   });
 
