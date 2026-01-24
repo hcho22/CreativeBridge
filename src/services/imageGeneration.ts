@@ -1539,6 +1539,12 @@ class ImageGenerationService {
   private generatePrompt(storyContent: string, gradeLevel: GradeLevel): string {
     const artStyleDefinition = ART_STYLE_MAPPING[gradeLevel];
 
+    console.log('🚀 [PROMPT GENERATION START]:', {
+      gradeLevel,
+      storyContentLength: storyContent.length,
+      expectedArtStyle: artStyleDefinition.baseStyle,
+    });
+
     // NEW: Try story-first extraction approach for better accuracy
     const storySpecificPrompt = this.generateStorySpecificPrompt(
       storyContent,
@@ -1551,16 +1557,41 @@ class ImageGenerationService {
         storySpecificPrompt.match(/showing [A-Z][a-z]+ the/) || // "showing Ben the"
         storySpecificPrompt.match(/showing [a-z\s]+ (named|called) [A-Z]/); // "showing little bear named Ben"
 
+      // Validate art style enforcement in Tier 1 prompt
+      const hasBaseStyle = storySpecificPrompt.includes(
+        artStyleDefinition.baseStyle,
+      );
+      const hasColorPalette = artStyleDefinition.colorPalette
+        ? storySpecificPrompt.includes(artStyleDefinition.colorPalette)
+        : true;
+      const hasArtisticTechnique = artStyleDefinition.artisticTechnique
+        ? storySpecificPrompt.includes(artStyleDefinition.artisticTechnique)
+        : true;
+
       console.log('🎯 Prompt Tier Selection (Tier 1):', {
         tier: 'Tier 1 - Story Specific',
         promptLength: storySpecificPrompt.trim().length,
         hasSpecificCharacter: !!hasSpecificCharacter,
+        artStyleValidation: {
+          hasBaseStyle,
+          hasColorPalette,
+          hasArtisticTechnique,
+          allPassed: hasBaseStyle && hasColorPalette && hasArtisticTechnique,
+        },
         prompt: storySpecificPrompt.substring(0, 120) + '...',
         storyPreview: storyContent.substring(0, 150) + '...',
       });
 
       if (hasSpecificCharacter) {
-        console.log('✅ Using Tier 1 prompt (validated specific character)');
+        if (hasBaseStyle && hasColorPalette && hasArtisticTechnique) {
+          console.log(
+            '✅ Using Tier 1 prompt (validated specific character + art style)',
+          );
+        } else {
+          console.warn(
+            '⚠️ Using Tier 1 prompt but art style validation incomplete!',
+          );
+        }
         return storySpecificPrompt;
       } else {
         console.log(
@@ -1568,9 +1599,16 @@ class ImageGenerationService {
         );
         // Fall through to Tier 2
       }
+    } else {
+      console.log(
+        '⚠️ Tier 1 prompt insufficient (length < 50), falling back to Tier 2',
+      );
     }
 
     // Use advanced analysis pipeline for enhanced story-to-image accuracy
+    console.log(
+      '🔍 [TIER 2] Starting NER analysis and advanced prompt generation',
+    );
     const nerEntities = this.performAdvancedNER(storyContent);
     const narrativeSequence = this.analyzeNarrativeSequence(
       storyContent,
@@ -1590,16 +1628,31 @@ class ImageGenerationService {
 
     // If advanced analysis produces a prompt, use it directly
     if (advancedPrompt && advancedPrompt.trim().length > 50) {
-      console.log(
-        '🎯 Using advanced analysis prompt:',
-        advancedPrompt.substring(0, 100) + '...',
+      // Validate art style in Tier 2 prompt
+      const hasBaseStyle = advancedPrompt.includes(
+        artStyleDefinition.baseStyle,
       );
+      console.log('🎯 [TIER 2] Using advanced analysis prompt:', {
+        promptLength: advancedPrompt.length,
+        artStyleValidation: {
+          hasBaseStyle,
+          baseStyle: artStyleDefinition.baseStyle,
+        },
+        preview: advancedPrompt.substring(0, 100) + '...',
+      });
+
+      if (!hasBaseStyle) {
+        console.warn(
+          '⚠️ [TIER 2] Art style baseStyle missing from advanced prompt!',
+        );
+      }
+
       return advancedPrompt;
     }
 
     // Fallback to basic analysis if advanced analysis fails
     console.log(
-      '⚠️ Advanced analysis insufficient, falling back to basic analysis',
+      '⚠️ [TIER 2] Advanced analysis insufficient, falling back to Tier 3 basic analysis',
     );
     const storyAnalysis = this.analyzeStoryContent(storyContent);
 
@@ -1610,12 +1663,32 @@ class ImageGenerationService {
     );
 
     // Generate enhanced grade-appropriate prompt using the ArtStyleDefinition
+    console.log(
+      '🔍 [TIER 3] Generating enhanced grade-appropriate prompt (fallback)',
+    );
     const enhancedPrompt = this.generateEnhancedGradeAppropriatePrompt(
       sanitizedContent,
       storyAnalysis,
       artStyleDefinition,
       gradeLevel,
     );
+
+    // Validate art style in Tier 3 prompt
+    const hasBaseStyle = enhancedPrompt.includes(artStyleDefinition.baseStyle);
+    console.log('🎯 [TIER 3] Using enhanced grade-appropriate prompt:', {
+      promptLength: enhancedPrompt.length,
+      artStyleValidation: {
+        hasBaseStyle,
+        baseStyle: artStyleDefinition.baseStyle,
+      },
+      preview: enhancedPrompt.substring(0, 100) + '...',
+    });
+
+    if (!hasBaseStyle) {
+      console.warn(
+        '⚠️ [TIER 3] Art style baseStyle missing from enhanced prompt!',
+      );
+    }
 
     return enhancedPrompt;
   }
@@ -10194,6 +10267,24 @@ class ImageGenerationService {
     artStyleDefinition: ArtStyleDefinition,
   ): string {
     try {
+      // Log art style enforcement start
+      console.log(
+        '🎨 [ART STYLE ENFORCEMENT] Starting generateStorySpecificPrompt:',
+        {
+          gradeLevel,
+          artStyleDefinition: {
+            baseStyle: artStyleDefinition.baseStyle,
+            colorPalette: artStyleDefinition.colorPalette,
+            visualComplexity: artStyleDefinition.visualComplexity,
+            artisticTechnique: artStyleDefinition.artisticTechnique,
+            emotionalTone: artStyleDefinition.emotionalTone,
+            layoutStyle: artStyleDefinition.layoutStyle,
+            characterStyle: artStyleDefinition.characterStyle,
+            backgroundStyle: artStyleDefinition.backgroundStyle,
+          },
+        },
+      );
+
       // Extract key visual elements directly from story
       const visualElements = this.extractDirectVisualElements(storyContent);
 
@@ -10204,12 +10295,20 @@ class ImageGenerationService {
         visualElements.setting
       ) {
         let prompt = `Create a ${artStyleDefinition.baseStyle}`;
+        console.log(
+          '🎨 [ART STYLE] Added baseStyle:',
+          artStyleDefinition.baseStyle,
+        );
 
         // Add character with physical descriptions using characterStyle
         if (visualElements.character) {
           prompt += ` showing ${visualElements.character}`;
           if (artStyleDefinition.characterStyle) {
             prompt += ` with ${artStyleDefinition.characterStyle}`;
+            console.log(
+              '🎨 [ART STYLE] Added characterStyle:',
+              artStyleDefinition.characterStyle,
+            );
           }
         }
 
@@ -10249,6 +10348,10 @@ class ImageGenerationService {
           prompt += ` in ${visualElements.setting}`;
           if (artStyleDefinition.backgroundStyle) {
             prompt += `, ${artStyleDefinition.backgroundStyle}`;
+            console.log(
+              '🎨 [ART STYLE] Added backgroundStyle:',
+              artStyleDefinition.backgroundStyle,
+            );
           }
         }
 
@@ -10260,11 +10363,19 @@ class ImageGenerationService {
         }
         if (artStyleDefinition.colorPalette) {
           prompt += `, ${artStyleDefinition.colorPalette}`;
+          console.log(
+            '🎨 [ART STYLE] Added colorPalette:',
+            artStyleDefinition.colorPalette,
+          );
         }
 
         // Add artistic technique for visual quality
         if (artStyleDefinition.artisticTechnique) {
           prompt += `, using ${artStyleDefinition.artisticTechnique}`;
+          console.log(
+            '🎨 [ART STYLE] Added artisticTechnique:',
+            artStyleDefinition.artisticTechnique,
+          );
         }
 
         // Add emotional tone - prioritize story mood, supplement with art style
@@ -10272,16 +10383,28 @@ class ImageGenerationService {
           prompt += `, ${visualElements.mood} atmosphere`;
         } else if (artStyleDefinition.emotionalTone) {
           prompt += `, ${artStyleDefinition.emotionalTone}`;
+          console.log(
+            '🎨 [ART STYLE] Added emotionalTone:',
+            artStyleDefinition.emotionalTone,
+          );
         }
 
         // Add layout style for composition
         if (artStyleDefinition.layoutStyle) {
           prompt += `, ${artStyleDefinition.layoutStyle}`;
+          console.log(
+            '🎨 [ART STYLE] Added layoutStyle:',
+            artStyleDefinition.layoutStyle,
+          );
         }
 
         // Add visual complexity
         if (artStyleDefinition.visualComplexity) {
           prompt += `, ${artStyleDefinition.visualComplexity}`;
+          console.log(
+            '🎨 [ART STYLE] Added visualComplexity:',
+            artStyleDefinition.visualComplexity,
+          );
         }
 
         // Always add safety constraint
@@ -10303,6 +10426,68 @@ class ImageGenerationService {
             visualComplexity: artStyleDefinition.visualComplexity,
           },
         });
+
+        // Verify art style enforcement in final prompt
+        const artStyleVerification = {
+          gradeLevel,
+          promptLength: prompt.length,
+          containsBaseStyle: prompt.includes(artStyleDefinition.baseStyle),
+          containsColorPalette: artStyleDefinition.colorPalette
+            ? prompt.includes(artStyleDefinition.colorPalette)
+            : null,
+          containsArtisticTechnique: artStyleDefinition.artisticTechnique
+            ? prompt.includes(artStyleDefinition.artisticTechnique)
+            : null,
+          containsVisualComplexity: artStyleDefinition.visualComplexity
+            ? prompt.includes(artStyleDefinition.visualComplexity)
+            : null,
+          containsLayoutStyle: artStyleDefinition.layoutStyle
+            ? prompt.includes(artStyleDefinition.layoutStyle)
+            : null,
+          containsCharacterStyle: artStyleDefinition.characterStyle
+            ? prompt.includes(artStyleDefinition.characterStyle)
+            : null,
+          containsBackgroundStyle: artStyleDefinition.backgroundStyle
+            ? prompt.includes(artStyleDefinition.backgroundStyle)
+            : null,
+          containsEmotionalTone: artStyleDefinition.emotionalTone
+            ? visualElements.mood
+              ? false
+              : prompt.includes(artStyleDefinition.emotionalTone)
+            : null,
+        };
+
+        console.log(
+          '✅ [ART STYLE VERIFICATION] Final prompt art style check:',
+          artStyleVerification,
+        );
+        console.log('📋 [FINAL PROMPT]:', prompt);
+
+        // Count how many art style properties were successfully included
+        const includedProperties = Object.entries(artStyleVerification).filter(
+          ([key, value]) => key.startsWith('contains') && value === true,
+        ).length;
+        const totalProperties = Object.entries(artStyleVerification).filter(
+          ([key, value]) => key.startsWith('contains') && value !== null,
+        ).length;
+
+        console.log(
+          `🎯 [ART STYLE COVERAGE] ${includedProperties}/${totalProperties} art style properties included in prompt`,
+        );
+
+        if (includedProperties < totalProperties) {
+          console.warn(
+            '⚠️ [ART STYLE WARNING] Some art style properties missing from prompt!',
+            {
+              missing: Object.entries(artStyleVerification)
+                .filter(
+                  ([key, value]) =>
+                    key.startsWith('contains') && value === false,
+                )
+                .map(([key]) => key.replace('contains', '')),
+            },
+          );
+        }
 
         return prompt;
       }
