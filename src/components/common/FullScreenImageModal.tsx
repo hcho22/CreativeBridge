@@ -39,11 +39,15 @@ export interface StoryImage {
       width: number;
       height: number;
     };
+    gradeLevel?: string;
+    wordCount?: number;
+    artStyle?: string;
+    [key: string]: any;
   };
 }
 
 // Enhanced full-screen modal props
-interface FullScreenImageModalProps {
+export interface FullScreenImageModalProps {
   visible: boolean;
   onClose: () => void;
   images: StoryImage[];
@@ -293,7 +297,7 @@ const FullScreenImageModal: React.FC<FullScreenImageModalProps> = ({
 
   // Current image reference
   const currentImage = images[currentIndex];
-  
+
   // Debug logging
   useEffect(() => {
     if (visible && currentImage) {
@@ -349,7 +353,12 @@ const FullScreenImageModal: React.FC<FullScreenImageModalProps> = ({
     if (!showOverlay || !currentImage) return null;
 
     return (
-      <View style={[styles.overlay, overlayVisible ? styles.overlayVisible : styles.overlayHidden]}>
+      <View
+        style={[
+          styles.overlay,
+          overlayVisible ? styles.overlayVisible : styles.overlayHidden,
+        ]}
+      >
         {/* Header */}
         <SafeAreaView style={styles.header}>
           <View style={styles.headerContent}>
@@ -405,7 +414,8 @@ const FullScreenImageModal: React.FC<FullScreenImageModalProps> = ({
               </Text>
               {currentImage.metadata && (
                 <Text style={styles.metadata} numberOfLines={1}>
-                  Created: {new Date(currentImage.createdAt || '').toLocaleDateString()}
+                  Created:{' '}
+                  {new Date(currentImage.createdAt || '').toLocaleDateString()}
                 </Text>
               )}
             </View>
@@ -435,12 +445,17 @@ const FullScreenImageModal: React.FC<FullScreenImageModalProps> = ({
   }
 
   if (!currentImage || !currentImage.url) {
-    console.error('🖼️ [FullScreenModal] No valid image to display:', currentImage);
+    console.error(
+      '🖼️ [FullScreenModal] No valid image to display:',
+      currentImage,
+    );
     return null;
   }
 
-  console.log('🔥 [DEBUG] FullScreenImageModal rendering with custom implementation!');
-  
+  console.log(
+    '🔥 [DEBUG] FullScreenImageModal rendering with custom implementation!',
+  );
+
   return (
     <Modal
       visible={visible}
@@ -473,11 +488,16 @@ const FullScreenImageModal: React.FC<FullScreenImageModalProps> = ({
                   source={{ uri: currentImage.url }}
                   style={styles.fullScreenImage}
                   resizeMode="contain"
-                  onError={(error) => {
-                    console.error('🖼️ [FullScreenModal] Image load error:', error);
+                  onError={error => {
+                    console.error(
+                      '🖼️ [FullScreenModal] Image load error:',
+                      error,
+                    );
                   }}
                   onLoad={() => {
-                    console.log('🖼️ [FullScreenModal] Image loaded successfully');
+                    console.log(
+                      '🖼️ [FullScreenModal] Image loaded successfully',
+                    );
                   }}
                 />
               </TouchableOpacity>
@@ -492,8 +512,11 @@ const FullScreenImageModal: React.FC<FullScreenImageModalProps> = ({
                 source={{ uri: currentImage.url }}
                 style={styles.fullScreenImage}
                 resizeMode="contain"
-                onError={(error) => {
-                  console.error('🖼️ [FullScreenModal] Image load error:', error);
+                onError={error => {
+                  console.error(
+                    '🖼️ [FullScreenModal] Image load error:',
+                    error,
+                  );
                 }}
                 onLoad={() => {
                   console.log('🖼️ [FullScreenModal] Image loaded successfully');

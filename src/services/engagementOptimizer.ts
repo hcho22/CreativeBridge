@@ -1,18 +1,29 @@
 /**
  * Engagement Optimizer Service
- * 
+ *
  * Engagement metric-driven UI improvements and optimization
  * Task 7.2: Dynamic UI Optimization - Subtask 2
  */
 
 import { structuredLogger } from '../utils/logger';
-import { uiPerformanceMonitor, OptimizationRecommendation } from './uiPerformanceMonitor';
-import { behaviorAnalyticsService, BehaviorPattern } from './behaviorAnalytics';
+import {
+  uiPerformanceMonitor,
+  OptimizationRecommendation,
+} from './uiPerformanceMonitor';
+import { behaviorAnalytics, BehaviorPattern } from './behaviorAnalytics';
 import { GradeLevel } from '../types/database';
 
 export interface EngagementMetric {
   id: string;
-  type: 'session_duration' | 'interaction_frequency' | 'task_completion' | 'content_engagement' | 'feature_usage' | 'error_recovery' | 'help_seeking' | 'retention_indicator';
+  type:
+    | 'session_duration'
+    | 'interaction_frequency'
+    | 'task_completion'
+    | 'content_engagement'
+    | 'feature_usage'
+    | 'error_recovery'
+    | 'help_seeking'
+    | 'retention_indicator';
   value: number;
   timestamp: number;
   sessionId: string;
@@ -29,7 +40,13 @@ export interface EngagementMetric {
 
 export interface EngagementPattern {
   id: string;
-  patternType: 'declining_engagement' | 'peak_performance' | 'struggle_indicator' | 'flow_state' | 'frustration_signal' | 'mastery_indicator';
+  patternType:
+    | 'declining_engagement'
+    | 'peak_performance'
+    | 'struggle_indicator'
+    | 'flow_state'
+    | 'frustration_signal'
+    | 'mastery_indicator';
   confidence: number;
   detectedAt: number;
   duration: number;
@@ -40,7 +57,15 @@ export interface EngagementPattern {
 
 export interface EngagementOptimization {
   id: string;
-  type: 'interface_simplification' | 'gamification_enhancement' | 'progress_visualization' | 'assistance_offering' | 'difficulty_adjustment' | 'reward_system' | 'social_features' | 'personalization';
+  type:
+    | 'interface_simplification'
+    | 'gamification_enhancement'
+    | 'progress_visualization'
+    | 'assistance_offering'
+    | 'difficulty_adjustment'
+    | 'reward_system'
+    | 'social_features'
+    | 'personalization';
   priority: number; // 1-5
   expectedImpact: number; // 0-1
   targetMetric: string;
@@ -55,7 +80,15 @@ export interface EngagementOptimization {
 }
 
 export interface UIEngagementChange {
-  changeType: 'color_scheme' | 'animation_speed' | 'feedback_intensity' | 'layout_complexity' | 'content_density' | 'interaction_patterns' | 'progress_indicators' | 'achievement_displays';
+  changeType:
+    | 'color_scheme'
+    | 'animation_speed'
+    | 'feedback_intensity'
+    | 'layout_complexity'
+    | 'content_density'
+    | 'interaction_patterns'
+    | 'progress_indicators'
+    | 'achievement_displays';
   target: string; // CSS selector or component identifier
   properties: Record<string, any>;
   condition?: string; // When to apply this change
@@ -82,12 +115,15 @@ interface EngagementConfig {
   analysisInterval: number; // milliseconds
   patternDetectionThreshold: number; // minimum confidence for pattern detection
   optimizationCooldown: number; // minimum time between optimizations for same component
-  gradeLevelAdaptations: Record<GradeLevel, {
-    attentionSpan: number; // expected attention span in minutes
-    preferredFeedbackFrequency: number; // feedback events per minute
-    complexityTolerance: number; // 0-1
-    gamificationPreference: number; // 0-1
-  }>;
+  gradeLevelAdaptations: Record<
+    GradeLevel,
+    {
+      attentionSpan: number; // expected attention span in minutes
+      preferredFeedbackFrequency: number; // feedback events per minute
+      complexityTolerance: number; // 0-1
+      gamificationPreference: number; // 0-1
+    }
+  >;
   engagementThresholds: {
     lowEngagement: number;
     highEngagement: number;
@@ -164,17 +200,17 @@ class EngagementOptimizerService {
       this.sessionId = sessionId;
       this.sessionStartTime = Date.now();
       this.lastInteractionTime = Date.now();
-      
+
       // Load engagement baselines
       await this.loadBaselines();
-      
+
       // Start periodic analysis
       if (this.config.enabled) {
         this.startAnalysis();
       }
-      
+
       this.isInitialized = true;
-      
+
       structuredLogger.info('Engagement Optimizer initialized', {
         sessionId,
         gradeLevel,
@@ -182,7 +218,11 @@ class EngagementOptimizerService {
         baselinesLoaded: this.baselines.size,
       });
     } catch (error) {
-      structuredLogger.error('Failed to initialize Engagement Optimizer', {}, error as Error);
+      structuredLogger.error(
+        'Failed to initialize Engagement Optimizer',
+        {},
+        error as Error,
+      );
       throw error;
     }
   }
@@ -196,7 +236,7 @@ class EngagementOptimizerService {
     screen: string,
     component: string | undefined,
     context: Partial<EngagementMetric['context']>,
-    metadata: Record<string, any> = {}
+    metadata: Record<string, any> = {},
   ): void {
     if (!this.isInitialized) return;
 
@@ -236,8 +276,8 @@ class EngagementOptimizerService {
     indicators: string[];
     recommendedActions: string[];
   } {
-    const recentMetrics = this.metrics.filter(m => 
-      Date.now() - m.timestamp < 60000 // Last minute
+    const recentMetrics = this.metrics.filter(
+      m => Date.now() - m.timestamp < 60000, // Last minute
     );
 
     const trend = this.calculateEngagementTrend(recentMetrics);
@@ -257,7 +297,7 @@ class EngagementOptimizerService {
    */
   getEngagementPatterns(timeWindow?: number): EngagementPattern[] {
     const cutoff = timeWindow ? Date.now() - timeWindow : 0;
-    
+
     return this.patterns
       .filter(p => p.detectedAt > cutoff)
       .sort((a, b) => b.detectedAt - a.detectedAt);
@@ -268,27 +308,38 @@ class EngagementOptimizerService {
    */
   async applyEngagementOptimization(optimizationId: string): Promise<boolean> {
     try {
-      const optimization = this.optimizations.find(o => o.id === optimizationId);
+      const optimization = this.optimizations.find(
+        o => o.id === optimizationId,
+      );
       if (!optimization) {
         structuredLogger.warn('Optimization not found', { optimizationId });
         return false;
       }
 
       // Check cooldown period
-      const lastOptimization = this.lastOptimizationTime.get(optimization.implementation.component);
-      if (lastOptimization && Date.now() - lastOptimization < this.config.optimizationCooldown) {
+      const lastOptimization = this.lastOptimizationTime.get(
+        optimization.implementation.component,
+      );
+      if (
+        lastOptimization &&
+        Date.now() - lastOptimization < this.config.optimizationCooldown
+      ) {
         structuredLogger.info('Optimization skipped due to cooldown', {
           component: optimization.implementation.component,
-          cooldownRemaining: this.config.optimizationCooldown - (Date.now() - lastOptimization),
+          cooldownRemaining:
+            this.config.optimizationCooldown - (Date.now() - lastOptimization),
         });
         return false;
       }
 
       // Apply the optimization
       await this.executeOptimization(optimization);
-      
+
       optimization.appliedAt = Date.now();
-      this.lastOptimizationTime.set(optimization.implementation.component, Date.now());
+      this.lastOptimizationTime.set(
+        optimization.implementation.component,
+        Date.now(),
+      );
 
       structuredLogger.info('Engagement optimization applied', {
         optimizationId,
@@ -299,7 +350,11 @@ class EngagementOptimizerService {
 
       return true;
     } catch (error) {
-      structuredLogger.error('Failed to apply engagement optimization', { optimizationId }, error as Error);
+      structuredLogger.error(
+        'Failed to apply engagement optimization',
+        { optimizationId },
+        error as Error,
+      );
       return false;
     }
   }
@@ -317,26 +372,40 @@ class EngagementOptimizerService {
       appliedAt: number;
     }>;
   } {
-    const appliedOptimizations = this.optimizations.filter(o => o.appliedAt && o.effectiveness !== undefined);
-    
+    const appliedOptimizations = this.optimizations.filter(
+      o => o.appliedAt && o.effectiveness !== undefined,
+    );
+
     if (optimizationId) {
-      const optimization = appliedOptimizations.find(o => o.id === optimizationId);
+      const optimization = appliedOptimizations.find(
+        o => o.id === optimizationId,
+      );
       return {
         overall: optimization?.effectiveness || 0,
-        byType: optimization ? { [optimization.type]: optimization.effectiveness } : {},
-        recentOptimizations: optimization ? [{
-          id: optimization.id,
-          type: optimization.type,
-          effectiveness: optimization.effectiveness,
-          appliedAt: optimization.appliedAt!,
-        }] : [],
+        byType: optimization
+          ? { [optimization.type]: optimization.effectiveness }
+          : {},
+        recentOptimizations: optimization
+          ? [
+              {
+                id: optimization.id,
+                type: optimization.type,
+                effectiveness: optimization.effectiveness,
+                appliedAt: optimization.appliedAt!,
+              },
+            ]
+          : [],
       };
     }
 
     // Calculate overall effectiveness
-    const overall = appliedOptimizations.length > 0
-      ? appliedOptimizations.reduce((sum, o) => sum + (o.effectiveness || 0), 0) / appliedOptimizations.length
-      : 0;
+    const overall =
+      appliedOptimizations.length > 0
+        ? appliedOptimizations.reduce(
+            (sum, o) => sum + (o.effectiveness || 0),
+            0,
+          ) / appliedOptimizations.length
+        : 0;
 
     // Group by type
     const byType: Record<string, number> = {};
@@ -344,7 +413,7 @@ class EngagementOptimizerService {
       if (!byType[o.type]) {
         byType[o.type] = 0;
       }
-      byType[o.type] += (o.effectiveness || 0);
+      byType[o.type] += o.effectiveness || 0;
     });
 
     Object.keys(byType).forEach(type => {
@@ -376,7 +445,9 @@ class EngagementOptimizerService {
    * Private helper methods
    */
   private generateMetricId(): string {
-    return `engagement_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    return `engagement_${Date.now()}_${Math.random()
+      .toString(36)
+      .substring(2, 8)}`;
   }
 
   private getTimeOfDay(): 'morning' | 'afternoon' | 'evening' {
@@ -393,7 +464,7 @@ class EngagementOptimizerService {
 
   private updateCurrentEngagementScore(metric: EngagementMetric): void {
     const weight = 0.1; // Learning rate
-    
+
     switch (metric.type) {
       case 'task_completion':
         this.currentEngagementScore += weight * (metric.value - 0.5);
@@ -416,7 +487,10 @@ class EngagementOptimizerService {
     }
 
     // Clamp score between 0 and 1
-    this.currentEngagementScore = Math.max(0, Math.min(1, this.currentEngagementScore));
+    this.currentEngagementScore = Math.max(
+      0,
+      Math.min(1, this.currentEngagementScore),
+    );
   }
 
   private updateInteractionTracking(metric: EngagementMetric): void {
@@ -436,13 +510,15 @@ class EngagementOptimizerService {
     if (metric.type === 'help_seeking' && metric.value > 0.8) {
       this.generateImmediateAssistanceOptimization(metric);
     }
-    
+
     if (metric.type === 'error_recovery' && metric.value < 0.3) {
       this.generateErrorAssistanceOptimization(metric);
     }
   }
 
-  private generateImmediateAssistanceOptimization(metric: EngagementMetric): void {
+  private generateImmediateAssistanceOptimization(
+    metric: EngagementMetric,
+  ): void {
     const optimization: EngagementOptimization = {
       id: this.generateOptimizationId(),
       type: 'assistance_offering',
@@ -463,11 +539,14 @@ class EngagementOptimizerService {
           },
         ],
       },
-      validationCriteria: ['help_seeking_reduction', 'task_completion_improvement'],
+      validationCriteria: [
+        'help_seeking_reduction',
+        'task_completion_improvement',
+      ],
     };
 
     this.optimizations.push(optimization);
-    
+
     // Auto-apply high priority optimizations
     if (optimization.priority >= 4) {
       this.applyEngagementOptimization(optimization.id);
@@ -512,7 +591,11 @@ class EngagementOptimizerService {
         count: this.baselines.size,
       });
     } catch (error) {
-      structuredLogger.error('Failed to load engagement baselines', {}, error as Error);
+      structuredLogger.error(
+        'Failed to load engagement baselines',
+        {},
+        error as Error,
+      );
     }
   }
 
@@ -526,16 +609,16 @@ class EngagementOptimizerService {
     try {
       // Detect engagement patterns
       this.detectEngagementPatterns();
-      
+
       // Generate optimizations
       this.generatePeriodicOptimizations();
-      
+
       // Measure optimization effectiveness
       this.measureOptimizationEffectiveness();
-      
+
       // Cleanup old data
       this.cleanupOldData();
-      
+
       structuredLogger.debug('Engagement analysis completed', {
         metricsCount: this.metrics.length,
         patternsDetected: this.patterns.length,
@@ -547,15 +630,19 @@ class EngagementOptimizerService {
   }
 
   private detectEngagementPatterns(): void {
-    const recentMetrics = this.metrics.filter(m => 
-      Date.now() - m.timestamp < this.config.analysisInterval * 2
+    const recentMetrics = this.metrics.filter(
+      m => Date.now() - m.timestamp < this.config.analysisInterval * 2,
     );
 
     if (recentMetrics.length < 3) return; // Need sufficient data
 
     // Check for declining engagement
-    const engagementMetrics = recentMetrics.filter(m => 
-      ['task_completion', 'content_engagement', 'interaction_frequency'].includes(m.type)
+    const engagementMetrics = recentMetrics.filter(m =>
+      [
+        'task_completion',
+        'content_engagement',
+        'interaction_frequency',
+      ].includes(m.type),
     );
 
     if (this.detectDecliningEngagement(engagementMetrics)) {
@@ -563,8 +650,8 @@ class EngagementOptimizerService {
     }
 
     // Check for frustration indicators
-    const errorMetrics = recentMetrics.filter(m => 
-      ['error_recovery', 'help_seeking'].includes(m.type)
+    const errorMetrics = recentMetrics.filter(m =>
+      ['error_recovery', 'help_seeking'].includes(m.type),
     );
 
     if (this.detectFrustrationSignal(errorMetrics)) {
@@ -579,10 +666,10 @@ class EngagementOptimizerService {
 
   private detectDecliningEngagement(metrics: EngagementMetric[]): boolean {
     if (metrics.length < 3) return false;
-    
+
     const sortedMetrics = metrics.sort((a, b) => a.timestamp - b.timestamp);
     const recent = sortedMetrics.slice(-3);
-    
+
     // Check if there's a declining trend
     return recent.every((metric, index) => {
       if (index === 0) return true;
@@ -591,13 +678,15 @@ class EngagementOptimizerService {
   }
 
   private detectFrustrationSignal(metrics: EngagementMetric[]): boolean {
-    const recentErrors = metrics.filter(m => 
-      m.type === 'error_recovery' && m.value < this.config.engagementThresholds.frustrationThreshold
+    const recentErrors = metrics.filter(
+      m =>
+        m.type === 'error_recovery' &&
+        m.value < this.config.engagementThresholds.frustrationThreshold,
     );
-    const recentHelp = metrics.filter(m => 
-      m.type === 'help_seeking' && m.value > 0.7
+    const recentHelp = metrics.filter(
+      m => m.type === 'help_seeking' && m.value > 0.7,
     );
-    
+
     return recentErrors.length > 2 || recentHelp.length > 1;
   }
 
@@ -605,32 +694,40 @@ class EngagementOptimizerService {
     const engagementValues = metrics
       .filter(m => ['task_completion', 'content_engagement'].includes(m.type))
       .map(m => m.value);
-    
+
     if (engagementValues.length === 0) return false;
-    
-    const avgEngagement = engagementValues.reduce((sum, val) => sum + val, 0) / engagementValues.length;
+
+    const avgEngagement =
+      engagementValues.reduce((sum, val) => sum + val, 0) /
+      engagementValues.length;
     return avgEngagement > this.config.engagementThresholds.highEngagement;
   }
 
   private createEngagementPattern(
-    patternType: EngagementPattern['patternType'], 
-    metrics: EngagementMetric[]
+    patternType: EngagementPattern['patternType'],
+    metrics: EngagementMetric[],
   ): void {
     const pattern: EngagementPattern = {
       id: `pattern_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       patternType,
       confidence: this.calculatePatternConfidence(patternType, metrics),
       detectedAt: Date.now(),
-      duration: metrics.length > 0 ? 
-        Math.max(...metrics.map(m => m.timestamp)) - Math.min(...metrics.map(m => m.timestamp)) : 0,
+      duration:
+        metrics.length > 0
+          ? Math.max(...metrics.map(m => m.timestamp)) -
+            Math.min(...metrics.map(m => m.timestamp))
+          : 0,
       associatedMetrics: metrics,
       triggers: this.identifyPatternTriggers(metrics),
-      recommendedActions: this.generatePatternRecommendations(patternType, metrics),
+      recommendedActions: this.generatePatternRecommendations(
+        patternType,
+        metrics,
+      ),
     };
 
     if (pattern.confidence >= this.config.patternDetectionThreshold) {
       this.patterns.push(pattern);
-      
+
       structuredLogger.info('Engagement pattern detected', {
         patternType,
         confidence: pattern.confidence,
@@ -640,77 +737,96 @@ class EngagementOptimizerService {
     }
   }
 
-  private calculatePatternConfidence(patternType: EngagementPattern['patternType'], metrics: EngagementMetric[]): number {
+  private calculatePatternConfidence(
+    patternType: EngagementPattern['patternType'],
+    metrics: EngagementMetric[],
+  ): number {
     // Simple confidence calculation based on metric consistency and sample size
     const sampleSizeConfidence = Math.min(metrics.length / 5, 1);
-    
+
     // Pattern-specific confidence
     let patternConfidence = 0;
-    
+
     switch (patternType) {
       case 'declining_engagement':
         const values = metrics.map(m => m.value);
-        const trend = values.length > 1 ? (values[values.length - 1] - values[0]) / values[0] : 0;
+        const trend =
+          values.length > 1
+            ? (values[values.length - 1] - values[0]) / values[0]
+            : 0;
         patternConfidence = Math.abs(trend);
         break;
       case 'frustration_signal':
-        const errorCount = metrics.filter(m => m.type === 'error_recovery').length;
+        const errorCount = metrics.filter(
+          m => m.type === 'error_recovery',
+        ).length;
         patternConfidence = Math.min(errorCount / 3, 1);
         break;
       case 'flow_state':
-        const avgEngagement = metrics.reduce((sum, m) => sum + m.value, 0) / metrics.length;
+        const avgEngagement =
+          metrics.reduce((sum, m) => sum + m.value, 0) / metrics.length;
         patternConfidence = avgEngagement;
         break;
       default:
         patternConfidence = 0.5;
     }
-    
+
     return (sampleSizeConfidence + patternConfidence) / 2;
   }
 
   private identifyPatternTriggers(metrics: EngagementMetric[]): string[] {
     const triggers: string[] = [];
-    
+
     // Identify common components/screens in the metrics
-    const components = new Set(metrics.filter(m => m.component).map(m => m.component!));
+    const components = new Set(
+      metrics.filter(m => m.component).map(m => m.component!),
+    );
     const screens = new Set(metrics.map(m => m.screen));
-    
+
     components.forEach(comp => triggers.push(`component:${comp}`));
     screens.forEach(screen => triggers.push(`screen:${screen}`));
-    
+
     // Check for time-based patterns
     const hours = new Set(metrics.map(m => new Date(m.timestamp).getHours()));
     if (hours.size === 1) {
       triggers.push(`time:${Array.from(hours)[0]}`);
     }
-    
+
     return triggers;
   }
 
   private generatePatternRecommendations(
-    patternType: EngagementPattern['patternType'], 
-    metrics: EngagementMetric[]
+    patternType: EngagementPattern['patternType'],
+    metrics: EngagementMetric[],
   ): EngagementOptimization[] {
     const recommendations: EngagementOptimization[] = [];
-    
+
     switch (patternType) {
       case 'declining_engagement':
         recommendations.push(this.createGamificationOptimization(metrics));
-        recommendations.push(this.createProgressVisualizationOptimization(metrics));
+        recommendations.push(
+          this.createProgressVisualizationOptimization(metrics),
+        );
         break;
       case 'frustration_signal':
         recommendations.push(this.createAssistanceOptimization(metrics));
-        recommendations.push(this.createDifficultyAdjustmentOptimization(metrics));
+        recommendations.push(
+          this.createDifficultyAdjustmentOptimization(metrics),
+        );
         break;
       case 'flow_state':
-        recommendations.push(this.createProgressAccelerationOptimization(metrics));
+        recommendations.push(
+          this.createProgressAccelerationOptimization(metrics),
+        );
         break;
     }
-    
+
     return recommendations.filter(r => r.priority >= 2);
   }
 
-  private createGamificationOptimization(metrics: EngagementMetric[]): EngagementOptimization {
+  private createGamificationOptimization(
+    metrics: EngagementMetric[],
+  ): EngagementOptimization {
     return {
       id: this.generateOptimizationId(),
       type: 'gamification_enhancement',
@@ -735,7 +851,9 @@ class EngagementOptimizerService {
     };
   }
 
-  private createProgressVisualizationOptimization(metrics: EngagementMetric[]): EngagementOptimization {
+  private createProgressVisualizationOptimization(
+    metrics: EngagementMetric[],
+  ): EngagementOptimization {
     return {
       id: this.generateOptimizationId(),
       type: 'progress_visualization',
@@ -756,11 +874,16 @@ class EngagementOptimizerService {
           },
         ],
       },
-      validationCriteria: ['completion_rate_increase', 'user_satisfaction_increase'],
+      validationCriteria: [
+        'completion_rate_increase',
+        'user_satisfaction_increase',
+      ],
     };
   }
 
-  private createAssistanceOptimization(metrics: EngagementMetric[]): EngagementOptimization {
+  private createAssistanceOptimization(
+    metrics: EngagementMetric[],
+  ): EngagementOptimization {
     return {
       id: this.generateOptimizationId(),
       type: 'assistance_offering',
@@ -785,7 +908,9 @@ class EngagementOptimizerService {
     };
   }
 
-  private createDifficultyAdjustmentOptimization(metrics: EngagementMetric[]): EngagementOptimization {
+  private createDifficultyAdjustmentOptimization(
+    metrics: EngagementMetric[],
+  ): EngagementOptimization {
     return {
       id: this.generateOptimizationId(),
       type: 'difficulty_adjustment',
@@ -810,7 +935,9 @@ class EngagementOptimizerService {
     };
   }
 
-  private createProgressAccelerationOptimization(metrics: EngagementMetric[]): EngagementOptimization {
+  private createProgressAccelerationOptimization(
+    metrics: EngagementMetric[],
+  ): EngagementOptimization {
     return {
       id: this.generateOptimizationId(),
       type: 'personalization',
@@ -837,8 +964,8 @@ class EngagementOptimizerService {
 
   private generatePeriodicOptimizations(): void {
     // Generate optimizations based on overall engagement trends
-    const recentPatterns = this.patterns.filter(p => 
-      Date.now() - p.detectedAt < this.config.analysisInterval * 3
+    const recentPatterns = this.patterns.filter(
+      p => Date.now() - p.detectedAt < this.config.analysisInterval * 3,
     );
 
     recentPatterns.forEach(pattern => {
@@ -851,30 +978,40 @@ class EngagementOptimizerService {
   }
 
   private measureOptimizationEffectiveness(): void {
-    const appliedOptimizations = this.optimizations.filter(o => 
-      o.appliedAt && !o.effectiveness && 
-      Date.now() - o.appliedAt > 60000 // At least 1 minute since application
+    const appliedOptimizations = this.optimizations.filter(
+      o => o.appliedAt && !o.effectiveness && Date.now() - o.appliedAt > 60000, // At least 1 minute since application
     );
 
     appliedOptimizations.forEach(optimization => {
-      const beforeMetrics = this.metrics.filter(m => 
-        m.timestamp < optimization.appliedAt! &&
-        m.timestamp > optimization.appliedAt! - 300000 && // 5 minutes before
-        (m.component === optimization.implementation.component || m.screen === optimization.implementation.component)
+      const beforeMetrics = this.metrics.filter(
+        m =>
+          m.timestamp < optimization.appliedAt! &&
+          m.timestamp > optimization.appliedAt! - 300000 && // 5 minutes before
+          (m.component === optimization.implementation.component ||
+            m.screen === optimization.implementation.component),
       );
 
-      const afterMetrics = this.metrics.filter(m => 
-        m.timestamp > optimization.appliedAt! &&
-        m.timestamp < optimization.appliedAt! + 300000 && // 5 minutes after
-        (m.component === optimization.implementation.component || m.screen === optimization.implementation.component)
+      const afterMetrics = this.metrics.filter(
+        m =>
+          m.timestamp > optimization.appliedAt! &&
+          m.timestamp < optimization.appliedAt! + 300000 && // 5 minutes after
+          (m.component === optimization.implementation.component ||
+            m.screen === optimization.implementation.component),
       );
 
       if (beforeMetrics.length > 0 && afterMetrics.length > 0) {
-        const beforeAvg = beforeMetrics.reduce((sum, m) => sum + m.value, 0) / beforeMetrics.length;
-        const afterAvg = afterMetrics.reduce((sum, m) => sum + m.value, 0) / afterMetrics.length;
-        
-        optimization.effectiveness = Math.max(0, Math.min(1, (afterAvg - beforeAvg + 1) / 2));
-        
+        const beforeAvg =
+          beforeMetrics.reduce((sum, m) => sum + m.value, 0) /
+          beforeMetrics.length;
+        const afterAvg =
+          afterMetrics.reduce((sum, m) => sum + m.value, 0) /
+          afterMetrics.length;
+
+        optimization.effectiveness = Math.max(
+          0,
+          Math.min(1, (afterAvg - beforeAvg + 1) / 2),
+        );
+
         structuredLogger.info('Optimization effectiveness measured', {
           optimizationId: optimization.id,
           type: optimization.type,
@@ -888,18 +1025,20 @@ class EngagementOptimizerService {
 
   private cleanupOldData(): void {
     const cutoff = Date.now() - 3600000; // Keep 1 hour of data
-    
+
     this.metrics = this.metrics.filter(m => m.timestamp > cutoff);
     this.patterns = this.patterns.filter(p => p.detectedAt > cutoff);
-    
+
     // Keep optimizations longer for effectiveness tracking
     const optimizationCutoff = Date.now() - 7200000; // Keep 2 hours
-    this.optimizations = this.optimizations.filter(o => 
-      !o.appliedAt || o.appliedAt > optimizationCutoff
+    this.optimizations = this.optimizations.filter(
+      o => !o.appliedAt || o.appliedAt > optimizationCutoff,
     );
   }
 
-  private async executeOptimization(optimization: EngagementOptimization): Promise<void> {
+  private async executeOptimization(
+    optimization: EngagementOptimization,
+  ): Promise<void> {
     // In a real implementation, this would apply the UI changes
     // For now, we'll just log the action
     structuredLogger.info('Executing engagement optimization', {
@@ -909,18 +1048,24 @@ class EngagementOptimizerService {
     });
   }
 
-  private calculateEngagementTrend(metrics: EngagementMetric[]): 'increasing' | 'stable' | 'decreasing' {
+  private calculateEngagementTrend(
+    metrics: EngagementMetric[],
+  ): 'increasing' | 'stable' | 'decreasing' {
     if (metrics.length < 2) return 'stable';
-    
-    const values = metrics.sort((a, b) => a.timestamp - b.timestamp).map(m => m.value);
+
+    const values = metrics
+      .sort((a, b) => a.timestamp - b.timestamp)
+      .map(m => m.value);
     const firstHalf = values.slice(0, Math.floor(values.length / 2));
     const secondHalf = values.slice(Math.floor(values.length / 2));
-    
-    const firstAvg = firstHalf.reduce((sum, val) => sum + val, 0) / firstHalf.length;
-    const secondAvg = secondHalf.reduce((sum, val) => sum + val, 0) / secondHalf.length;
-    
+
+    const firstAvg =
+      firstHalf.reduce((sum, val) => sum + val, 0) / firstHalf.length;
+    const secondAvg =
+      secondHalf.reduce((sum, val) => sum + val, 0) / secondHalf.length;
+
     const difference = secondAvg - firstAvg;
-    
+
     if (difference > 0.1) return 'increasing';
     if (difference < -0.1) return 'decreasing';
     return 'stable';
@@ -928,41 +1073,42 @@ class EngagementOptimizerService {
 
   private getEngagementIndicators(): string[] {
     const indicators: string[] = [];
-    
+
     if (this.currentEngagementScore > 0.8) {
       indicators.push('High engagement level');
     } else if (this.currentEngagementScore < 0.3) {
       indicators.push('Low engagement detected');
     }
-    
+
     const recentActivity = Date.now() - this.lastInteractionTime;
     if (recentActivity > 60000) {
       indicators.push('User may be idle');
     }
-    
+
     if (this.interactionCount > 10) {
       indicators.push('Active user session');
     }
-    
+
     return indicators;
   }
 
   private getRecommendedActions(): string[] {
     const actions: string[] = [];
-    
+
     if (this.currentEngagementScore < 0.4) {
       actions.push('Consider offering assistance or simplifying interface');
     }
-    
+
     if (this.currentEngagementScore > 0.8) {
       actions.push('User is highly engaged - maintain current experience');
     }
-    
+
     const inactiveTime = Date.now() - this.lastInteractionTime;
-    if (inactiveTime > 120000) { // 2 minutes
+    if (inactiveTime > 120000) {
+      // 2 minutes
       actions.push('User appears inactive - consider gentle re-engagement');
     }
-    
+
     return actions;
   }
 
@@ -974,7 +1120,7 @@ class EngagementOptimizerService {
       clearInterval(this.analysisTimer);
       this.analysisTimer = null;
     }
-    
+
     structuredLogger.info('Engagement Optimizer shutdown completed', {
       metricsRecorded: this.metrics.length,
       patternsDetected: this.patterns.length,

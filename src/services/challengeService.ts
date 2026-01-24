@@ -129,9 +129,11 @@ export class ChallengeService {
 
   /**
    * Get total XP from rewards array
+   * Always returns an integer to prevent database type errors
    */
   getTotalXP(rewards: XPReward[]): number {
-    return rewards.reduce((total, reward) => total + reward.amount, 0);
+    const total = rewards.reduce((total, reward) => total + reward.amount, 0);
+    return Math.floor(total);
   }
 
   /**

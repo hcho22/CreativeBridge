@@ -1,19 +1,28 @@
 /**
  * Reading Comprehension Optimizer Service
- * 
+ *
  * Educational reading comprehension enhancement and optimization features
  * Task 7.2: Dynamic UI Optimization - Subtask 4
  */
 
 import { structuredLogger } from '../utils/logger';
-import { behaviorAnalyticsService } from './behaviorAnalytics';
+import { behaviorAnalytics } from './behaviorAnalytics';
 import { engagementOptimizer } from './engagementOptimizer';
 import { uiPerformanceMonitor } from './uiPerformanceMonitor';
 import { GradeLevel } from '../types/database';
 
 export interface ReadingEvent {
   id: string;
-  type: 'reading_start' | 'reading_pause' | 'reading_resume' | 'reading_complete' | 'word_lookup' | 'reread_section' | 'highlight_text' | 'reading_assistance' | 'comprehension_question';
+  type:
+    | 'reading_start'
+    | 'reading_pause'
+    | 'reading_resume'
+    | 'reading_complete'
+    | 'word_lookup'
+    | 'reread_section'
+    | 'highlight_text'
+    | 'reading_assistance'
+    | 'comprehension_question';
   timestamp: number;
   sessionId: string;
   contentId: string;
@@ -34,7 +43,15 @@ export interface ReadingEvent {
 
 export interface ReadingPattern {
   id: string;
-  patternType: 'fluent_reading' | 'struggling_reader' | 'skipping_behavior' | 'high_comprehension' | 'vocabulary_gaps' | 'attention_issues' | 'advanced_reader' | 'assistance_seeking';
+  patternType:
+    | 'fluent_reading'
+    | 'struggling_reader'
+    | 'skipping_behavior'
+    | 'high_comprehension'
+    | 'vocabulary_gaps'
+    | 'attention_issues'
+    | 'advanced_reader'
+    | 'assistance_seeking';
   confidence: number;
   detectedAt: number;
   indicators: string[];
@@ -51,7 +68,15 @@ export interface ReadingPattern {
 
 export interface ReadingOptimization {
   id: string;
-  type: 'text_simplification' | 'vocabulary_assistance' | 'reading_pace_adjustment' | 'comprehension_aids' | 'visual_enhancements' | 'interactive_features' | 'progress_feedback' | 'adaptive_questioning';
+  type:
+    | 'text_simplification'
+    | 'vocabulary_assistance'
+    | 'reading_pace_adjustment'
+    | 'comprehension_aids'
+    | 'visual_enhancements'
+    | 'interactive_features'
+    | 'progress_feedback'
+    | 'adaptive_questioning';
   priority: number;
   expectedImpact: number;
   targetPattern: string;
@@ -67,7 +92,13 @@ export interface ReadingOptimization {
 }
 
 export interface TextModification {
-  modificationType: 'sentence_simplification' | 'vocabulary_replacement' | 'paragraph_chunking' | 'concept_explanation' | 'context_enhancement' | 'structure_improvement';
+  modificationType:
+    | 'sentence_simplification'
+    | 'vocabulary_replacement'
+    | 'paragraph_chunking'
+    | 'concept_explanation'
+    | 'context_enhancement'
+    | 'structure_improvement';
   target: string; // Text selection or identifier
   originalText: string;
   modifiedText: string;
@@ -76,14 +107,28 @@ export interface TextModification {
 }
 
 export interface UIReadingChange {
-  changeType: 'font_adjustment' | 'line_spacing' | 'highlight_current' | 'progress_visualization' | 'reading_guides' | 'focus_mode' | 'interactive_elements';
+  changeType:
+    | 'font_adjustment'
+    | 'line_spacing'
+    | 'highlight_current'
+    | 'progress_visualization'
+    | 'reading_guides'
+    | 'focus_mode'
+    | 'interactive_elements';
   target: string;
   properties: Record<string, any>;
   gradeSpecific: boolean;
 }
 
 export interface AssistanceFeature {
-  featureType: 'word_pronunciation' | 'definition_popup' | 'concept_linking' | 'comprehension_hints' | 'reading_buddy' | 'pace_guidance' | 'break_reminders';
+  featureType:
+    | 'word_pronunciation'
+    | 'definition_popup'
+    | 'concept_linking'
+    | 'comprehension_hints'
+    | 'reading_buddy'
+    | 'pace_guidance'
+    | 'break_reminders';
   trigger: string; // When to activate
   properties: Record<string, any>;
   adaptToUser: boolean;
@@ -104,12 +149,15 @@ interface ReadingConfig {
   enabled: boolean;
   analysisInterval: number; // milliseconds
   adaptationThreshold: number; // minimum confidence for optimizations
-  gradeLevelBaselines: Record<GradeLevel, {
-    expectedReadingSpeed: number; // WPM
-    averageAttentionSpan: number; // seconds
-    vocabularyThreshold: number; // complexity level
-    comprehensionTarget: number; // 0-1
-  }>;
+  gradeLevelBaselines: Record<
+    GradeLevel,
+    {
+      expectedReadingSpeed: number; // WPM
+      averageAttentionSpan: number; // seconds
+      vocabularyThreshold: number; // complexity level
+      comprehensionTarget: number; // 0-1
+    }
+  >;
   optimizationSettings: {
     maxTextSimplification: number; // 0-1, how much to simplify
     assistanceDelay: number; // ms before offering help
@@ -183,22 +231,27 @@ class ReadingComprehensionOptimizerService {
   async initialize(sessionId: string, gradeLevel: GradeLevel): Promise<void> {
     try {
       this.sessionId = sessionId;
-      
+
       // Start analysis if enabled
       if (this.config.enabled) {
         this.startAnalysis();
       }
-      
+
       this.isInitialized = true;
-      
+
       structuredLogger.info('Reading Comprehension Optimizer initialized', {
         sessionId,
         gradeLevel,
         analysisInterval: this.config.analysisInterval,
-        baselineSpeed: this.config.gradeLevelBaselines[gradeLevel].expectedReadingSpeed,
+        baselineSpeed:
+          this.config.gradeLevelBaselines[gradeLevel].expectedReadingSpeed,
       });
     } catch (error) {
-      structuredLogger.error('Failed to initialize Reading Comprehension Optimizer', {}, error as Error);
+      structuredLogger.error(
+        'Failed to initialize Reading Comprehension Optimizer',
+        {},
+        error as Error,
+      );
       throw error;
     }
   }
@@ -234,7 +287,7 @@ class ReadingComprehensionOptimizerService {
     contentId: string,
     position: ReadingEvent['context']['position'],
     context?: Partial<ReadingEvent['context']>,
-    metadata: Record<string, any> = {}
+    metadata: Record<string, any> = {},
   ): void {
     if (!this.isInitialized || !this.sessionId) return;
 
@@ -246,9 +299,13 @@ class ReadingComprehensionOptimizerService {
       contentId,
       context: {
         gradeLevel: context?.gradeLevel || 'Grade3',
-        readingSpeed: context?.readingSpeed || this.calculateCurrentReadingSpeed(),
-        comprehensionLevel: context?.comprehensionLevel || this.estimateComprehensionLevel(),
-        textComplexity: context?.textComplexity || this.calculateTextComplexity(position.currentSentence),
+        readingSpeed:
+          context?.readingSpeed || this.calculateCurrentReadingSpeed(),
+        comprehensionLevel:
+          context?.comprehensionLevel || this.estimateComprehensionLevel(),
+        textComplexity:
+          context?.textComplexity ||
+          this.calculateTextComplexity(position.currentSentence),
         position,
       },
       metadata,
@@ -270,9 +327,10 @@ class ReadingComprehensionOptimizerService {
       return this.getDefaultMetrics();
     }
 
-    const recentEvents = this.events.filter(e => 
-      e.contentId === this.currentReadingSession.contentId &&
-      Date.now() - e.timestamp < 300000 // Last 5 minutes
+    const recentEvents = this.events.filter(
+      e =>
+        e.contentId === this.currentReadingSession.contentId &&
+        Date.now() - e.timestamp < 300000, // Last 5 minutes
     );
 
     const readingSpeed = this.calculateReadingSpeed(recentEvents);
@@ -288,16 +346,22 @@ class ReadingComprehensionOptimizerService {
       strugglingIndicators: this.identifyStrugglingIndicators(recentEvents),
       strengths: this.identifyStrengths(recentEvents),
       improvementAreas: this.identifyImprovementAreas(recentEvents),
-      recommendedLevel: this.recommendGradeLevel(readingSpeed, comprehensionScore, vocabularyLevel),
+      recommendedLevel: this.recommendGradeLevel(
+        readingSpeed,
+        comprehensionScore,
+        vocabularyLevel,
+      ),
     };
   }
 
   /**
    * Get reading patterns
    */
-  getReadingPatterns(patternType?: ReadingPattern['patternType']): ReadingPattern[] {
+  getReadingPatterns(
+    patternType?: ReadingPattern['patternType'],
+  ): ReadingPattern[] {
     let patterns = this.patterns;
-    
+
     if (patternType) {
       patterns = patterns.filter(p => p.patternType === patternType);
     }
@@ -310,28 +374,38 @@ class ReadingComprehensionOptimizerService {
    */
   async applyReadingOptimization(optimizationId: string): Promise<boolean> {
     try {
-      const optimization = this.optimizations.find(o => o.id === optimizationId);
+      const optimization = this.optimizations.find(
+        o => o.id === optimizationId,
+      );
       if (!optimization || optimization.appliedAt) {
-        structuredLogger.warn('Reading optimization not found or already applied', { optimizationId });
+        structuredLogger.warn(
+          'Reading optimization not found or already applied',
+          { optimizationId },
+        );
         return false;
       }
 
       // Execute the optimization
       await this.executeReadingOptimization(optimization);
-      
+
       optimization.appliedAt = Date.now();
 
       structuredLogger.info('Reading optimization applied', {
         optimizationId,
         type: optimization.type,
         expectedImpact: optimization.expectedImpact,
-        textModificationsCount: optimization.implementation.textModifications.length,
+        textModificationsCount:
+          optimization.implementation.textModifications.length,
         uiChangesCount: optimization.implementation.uiChanges.length,
       });
 
       return true;
     } catch (error) {
-      structuredLogger.error('Failed to apply reading optimization', { optimizationId }, error as Error);
+      structuredLogger.error(
+        'Failed to apply reading optimization',
+        { optimizationId },
+        error as Error,
+      );
       return false;
     }
   }
@@ -349,20 +423,24 @@ class ReadingComprehensionOptimizerService {
       appliedAt: number;
     }>;
   } {
-    const appliedOptimizations = this.optimizations.filter(o => 
-      o.appliedAt && o.effectiveness !== undefined
+    const appliedOptimizations = this.optimizations.filter(
+      o => o.appliedAt && o.effectiveness !== undefined,
     );
 
-    const overall = appliedOptimizations.length > 0
-      ? appliedOptimizations.reduce((sum, o) => sum + (o.effectiveness || 0), 0) / appliedOptimizations.length
-      : 0;
+    const overall =
+      appliedOptimizations.length > 0
+        ? appliedOptimizations.reduce(
+            (sum, o) => sum + (o.effectiveness || 0),
+            0,
+          ) / appliedOptimizations.length
+        : 0;
 
     const byType: Record<string, number> = {};
     appliedOptimizations.forEach(o => {
       if (!byType[o.type]) {
         byType[o.type] = 0;
       }
-      byType[o.type] += (o.effectiveness || 0);
+      byType[o.type] += o.effectiveness || 0;
     });
 
     Object.keys(byType).forEach(type => {
@@ -393,29 +471,35 @@ class ReadingComprehensionOptimizerService {
    * Private helper methods
    */
   private generateEventId(): string {
-    return `reading_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    return `reading_${Date.now()}_${Math.random()
+      .toString(36)
+      .substring(2, 8)}`;
   }
 
   private calculateCurrentReadingSpeed(): number {
     if (!this.currentReadingSession) return 100; // Default speed
 
-    const timeElapsed = (Date.now() - this.currentReadingSession.startTime) / 1000 / 60; // minutes
+    const timeElapsed =
+      (Date.now() - this.currentReadingSession.startTime) / 1000 / 60; // minutes
     const wordsRead = this.currentReadingSession.currentPosition;
 
     return timeElapsed > 0 ? wordsRead / timeElapsed : 100;
   }
 
   private estimateComprehensionLevel(): number {
-    const recentEvents = this.events.filter(e => 
-      Date.now() - e.timestamp < 60000 // Last minute
+    const recentEvents = this.events.filter(
+      e => Date.now() - e.timestamp < 60000, // Last minute
     );
 
     // Higher comprehension if fewer lookups and re-reads
     const lookups = recentEvents.filter(e => e.type === 'word_lookup').length;
-    const rereads = recentEvents.filter(e => e.type === 'reread_section').length;
+    const rereads = recentEvents.filter(
+      e => e.type === 'reread_section',
+    ).length;
     const pauses = recentEvents.filter(e => e.type === 'reading_pause').length;
 
-    const struggleScore = (lookups + rereads + pauses) / Math.max(recentEvents.length, 1);
+    const struggleScore =
+      (lookups + rereads + pauses) / Math.max(recentEvents.length, 1);
     return Math.max(0.2, 1 - struggleScore);
   }
 
@@ -423,7 +507,8 @@ class ReadingComprehensionOptimizerService {
     if (!sentence) return 0.5;
 
     const words = sentence.split(' ');
-    const avgWordLength = words.reduce((sum, word) => sum + word.length, 0) / words.length;
+    const avgWordLength =
+      words.reduce((sum, word) => sum + word.length, 0) / words.length;
     const sentenceLength = words.length;
 
     // Simple complexity based on word and sentence length
@@ -446,33 +531,44 @@ class ReadingComprehensionOptimizerService {
         break;
     }
 
-    this.currentReadingSession.currentPosition = event.context.position.wordIndex;
+    this.currentReadingSession.currentPosition =
+      event.context.position.wordIndex;
   }
 
   private analyzeReadingBehavior(event: ReadingEvent): void {
     // Real-time analysis for immediate interventions
-    if (event.type === 'word_lookup' && this.shouldOfferVocabularyAssistance(event)) {
+    if (
+      event.type === 'word_lookup' &&
+      this.shouldOfferVocabularyAssistance(event)
+    ) {
       this.generateVocabularyOptimization(event);
     }
 
-    if (event.type === 'reading_pause' && this.shouldOfferReadingAssistance(event)) {
+    if (
+      event.type === 'reading_pause' &&
+      this.shouldOfferReadingAssistance(event)
+    ) {
       this.generateReadingAssistanceOptimization(event);
     }
   }
 
   private shouldOfferVocabularyAssistance(event: ReadingEvent): boolean {
-    const recentLookups = this.events.filter(e => 
-      e.type === 'word_lookup' &&
-      e.contentId === event.contentId &&
-      Date.now() - e.timestamp < 120000 // Last 2 minutes
+    const recentLookups = this.events.filter(
+      e =>
+        e.type === 'word_lookup' &&
+        e.contentId === event.contentId &&
+        Date.now() - e.timestamp < 120000, // Last 2 minutes
     ).length;
 
     return recentLookups > 3; // More than 3 lookups in 2 minutes
   }
 
   private shouldOfferReadingAssistance(event: ReadingEvent): boolean {
-    const timeSinceLastActivity = Date.now() - (this.currentReadingSession?.lastActivityTime || Date.now());
-    return timeSinceLastActivity > this.config.optimizationSettings.assistanceDelay;
+    const timeSinceLastActivity =
+      Date.now() - (this.currentReadingSession?.lastActivityTime || Date.now());
+    return (
+      timeSinceLastActivity > this.config.optimizationSettings.assistanceDelay
+    );
   }
 
   private generateVocabularyOptimization(triggerEvent: ReadingEvent): void {
@@ -483,34 +579,40 @@ class ReadingComprehensionOptimizerService {
       expectedImpact: 0.5,
       targetPattern: 'vocabulary_gaps',
       implementation: {
-        textModifications: [{
-          modificationType: 'vocabulary_replacement',
-          target: triggerEvent.context.position.currentSentence,
-          originalText: triggerEvent.metadata.word || '',
-          modifiedText: triggerEvent.metadata.simpleAlternative || '',
-          reasoning: 'High vocabulary lookup frequency detected',
-          reversible: true,
-        }],
-        uiChanges: [{
-          changeType: 'interactive_elements',
-          target: '.reading-content',
-          properties: {
-            vocabularyAssistance: true,
-            definitionTooltips: true,
-            synonymSuggestions: true,
+        textModifications: [
+          {
+            modificationType: 'vocabulary_replacement',
+            target: triggerEvent.context.position.currentSentence,
+            originalText: triggerEvent.metadata.word || '',
+            modifiedText: triggerEvent.metadata.simpleAlternative || '',
+            reasoning: 'High vocabulary lookup frequency detected',
+            reversible: true,
           },
-          gradeSpecific: true,
-        }],
-        assistanceFeatures: [{
-          featureType: 'definition_popup',
-          trigger: 'word_click',
-          properties: {
-            showDefinition: true,
-            showPronunciation: true,
-            showExamples: true,
+        ],
+        uiChanges: [
+          {
+            changeType: 'interactive_elements',
+            target: '.reading-content',
+            properties: {
+              vocabularyAssistance: true,
+              definitionTooltips: true,
+              synonymSuggestions: true,
+            },
+            gradeSpecific: true,
           },
-          adaptToUser: true,
-        }],
+        ],
+        assistanceFeatures: [
+          {
+            featureType: 'definition_popup',
+            trigger: 'word_click',
+            properties: {
+              showDefinition: true,
+              showPronunciation: true,
+              showExamples: true,
+            },
+            adaptToUser: true,
+          },
+        ],
       },
       gradeLevelAdaptation: {
         'K-2': { simplificationLevel: 0.8, visualAids: true },
@@ -518,18 +620,23 @@ class ReadingComprehensionOptimizerService {
         '6-8': { simplificationLevel: 0.4, etymologyHints: true },
         '9-12': { simplificationLevel: 0.2, advancedContext: true },
       },
-      validationCriteria: ['vocabulary_lookup_reduction', 'comprehension_improvement'],
+      validationCriteria: [
+        'vocabulary_lookup_reduction',
+        'comprehension_improvement',
+      ],
     };
 
     this.optimizations.push(optimization);
-    
+
     // Auto-apply high priority vocabulary optimizations
     if (optimization.priority >= 4) {
       this.applyReadingOptimization(optimization.id);
     }
   }
 
-  private generateReadingAssistanceOptimization(triggerEvent: ReadingEvent): void {
+  private generateReadingAssistanceOptimization(
+    triggerEvent: ReadingEvent,
+  ): void {
     const optimization: ReadingOptimization = {
       id: this.generateOptimizationId(),
       type: 'comprehension_aids',
@@ -538,26 +645,30 @@ class ReadingComprehensionOptimizerService {
       targetPattern: 'attention_issues',
       implementation: {
         textModifications: [],
-        uiChanges: [{
-          changeType: 'focus_mode',
-          target: '.reading-content',
-          properties: {
-            highlightCurrentSentence: true,
-            dimOtherContent: true,
-            progressIndicator: true,
+        uiChanges: [
+          {
+            changeType: 'focus_mode',
+            target: '.reading-content',
+            properties: {
+              highlightCurrentSentence: true,
+              dimOtherContent: true,
+              progressIndicator: true,
+            },
+            gradeSpecific: true,
           },
-          gradeSpecific: true,
-        }],
-        assistanceFeatures: [{
-          featureType: 'reading_buddy',
-          trigger: 'inactivity_detected',
-          properties: {
-            encouragementMessages: true,
-            readingTips: true,
-            breakSuggestions: true,
+        ],
+        assistanceFeatures: [
+          {
+            featureType: 'reading_buddy',
+            trigger: 'inactivity_detected',
+            properties: {
+              encouragementMessages: true,
+              readingTips: true,
+              breakSuggestions: true,
+            },
+            adaptToUser: true,
           },
-          adaptToUser: true,
-        }],
+        ],
       },
       gradeLevelAdaptation: {
         'K-2': { encouragement: 'high', breakFrequency: 'frequent' },
@@ -565,20 +676,25 @@ class ReadingComprehensionOptimizerService {
         '6-8': { encouragement: 'low', tips: 'intermediate' },
         '9-12': { encouragement: 'minimal', tips: 'advanced' },
       },
-      validationCriteria: ['attention_span_increase', 'reading_completion_rate'],
+      validationCriteria: [
+        'attention_span_increase',
+        'reading_completion_rate',
+      ],
     };
 
     this.optimizations.push(optimization);
   }
 
   private generateOptimizationId(): string {
-    return `reading_opt_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    return `reading_opt_${Date.now()}_${Math.random()
+      .toString(36)
+      .substring(2, 6)}`;
   }
 
   private recordWithOtherServices(event: ReadingEvent): void {
     // Record with behavior analytics
-    if (behaviorAnalyticsService) {
-      behaviorAnalyticsService.recordInteraction({
+    if (behaviorAnalytics) {
+      behaviorAnalytics.recordInteraction({
         component: 'reading_content',
         action: event.type,
         context: {
@@ -586,15 +702,17 @@ class ReadingComprehensionOptimizerService {
           position: event.context.position.percentageComplete,
           readingSpeed: event.context.readingSpeed,
         },
-        duration: event.type === 'reading_pause' ? 
-          (Date.now() - this.currentReadingSession?.lastActivityTime!) : undefined,
+        duration:
+          event.type === 'reading_pause'
+            ? Date.now() - this.currentReadingSession?.lastActivityTime!
+            : undefined,
       });
     }
 
     // Record with engagement optimizer
     if (engagementOptimizer) {
       let engagementValue = 0.5;
-      
+
       switch (event.type) {
         case 'reading_start':
         case 'reading_resume':
@@ -617,7 +735,7 @@ class ReadingComprehensionOptimizerService {
         engagementValue,
         'reading_content',
         'reading_optimizer',
-        event.context
+        event.context,
       );
     }
 
@@ -627,7 +745,7 @@ class ReadingComprehensionOptimizerService {
         'reading_content',
         'reading_screen',
         16.67, // Assume 60fps
-        event.context
+        event.context,
       );
     }
   }
@@ -642,16 +760,16 @@ class ReadingComprehensionOptimizerService {
     try {
       // Detect reading patterns
       this.detectReadingPatterns();
-      
+
       // Generate optimizations
       this.generatePeriodicOptimizations();
-      
+
       // Measure optimization effectiveness
       this.measureOptimizationEffectiveness();
-      
+
       // Clean up old data
       this.cleanupOldData();
-      
+
       structuredLogger.debug('Reading comprehension analysis completed', {
         eventsCount: this.events.length,
         patternsDetected: this.patterns.length,
@@ -659,13 +777,17 @@ class ReadingComprehensionOptimizerService {
         currentSession: !!this.currentReadingSession,
       });
     } catch (error) {
-      structuredLogger.error('Reading comprehension analysis failed', {}, error as Error);
+      structuredLogger.error(
+        'Reading comprehension analysis failed',
+        {},
+        error as Error,
+      );
     }
   }
 
   private detectReadingPatterns(): void {
-    const recentEvents = this.events.filter(e => 
-      Date.now() - e.timestamp < this.config.analysisInterval * 3
+    const recentEvents = this.events.filter(
+      e => Date.now() - e.timestamp < this.config.analysisInterval * 3,
     );
 
     if (recentEvents.length < 5) return; // Need sufficient data
@@ -695,27 +817,36 @@ class ReadingComprehensionOptimizerService {
     const lookups = events.filter(e => e.type === 'word_lookup').length;
     const rereads = events.filter(e => e.type === 'reread_section').length;
     const pauses = events.filter(e => e.type === 'reading_pause').length;
-    
-    const avgReadingSpeed = events
-      .filter(e => e.context.readingSpeed > 0)
-      .reduce((sum, e) => sum + e.context.readingSpeed, 0) / events.length || 100;
 
-    const expectedSpeed = this.config.gradeLevelBaselines.Grade3.expectedReadingSpeed; // Default
+    const avgReadingSpeed =
+      events
+        .filter(e => e.context.readingSpeed > 0)
+        .reduce((sum, e) => sum + e.context.readingSpeed, 0) / events.length ||
+      100;
 
-    return (lookups + rereads) > events.length * 0.2 || 
-           pauses > events.length * 0.3 ||
-           avgReadingSpeed < expectedSpeed * 0.7;
+    const expectedSpeed =
+      this.config.gradeLevelBaselines.Grade3.expectedReadingSpeed; // Default
+
+    return (
+      lookups + rereads > events.length * 0.2 ||
+      pauses > events.length * 0.3 ||
+      avgReadingSpeed < expectedSpeed * 0.7
+    );
   }
 
   private detectFluentReader(events: ReadingEvent[]): boolean {
-    const avgReadingSpeed = events
-      .filter(e => e.context.readingSpeed > 0)
-      .reduce((sum, e) => sum + e.context.readingSpeed, 0) / events.length || 100;
+    const avgReadingSpeed =
+      events
+        .filter(e => e.context.readingSpeed > 0)
+        .reduce((sum, e) => sum + e.context.readingSpeed, 0) / events.length ||
+      100;
 
-    const avgComprehension = events
-      .reduce((sum, e) => sum + e.context.comprehensionLevel, 0) / events.length;
+    const avgComprehension =
+      events.reduce((sum, e) => sum + e.context.comprehensionLevel, 0) /
+      events.length;
 
-    const expectedSpeed = this.config.gradeLevelBaselines.Grade3.expectedReadingSpeed; // Default
+    const expectedSpeed =
+      this.config.gradeLevelBaselines.Grade3.expectedReadingSpeed; // Default
 
     return avgReadingSpeed > expectedSpeed * 1.2 && avgComprehension > 0.8;
   }
@@ -729,9 +860,9 @@ class ReadingComprehensionOptimizerService {
 
   private detectAttentionIssues(events: ReadingEvent[]): boolean {
     const pauses = events.filter(e => e.type === 'reading_pause').length;
-    const longPauses = events.filter(e => 
-      e.type === 'reading_pause' && 
-      (e.metadata.pauseDuration || 0) > 30000 // 30+ seconds
+    const longPauses = events.filter(
+      e =>
+        e.type === 'reading_pause' && (e.metadata.pauseDuration || 0) > 30000, // 30+ seconds
     ).length;
 
     return pauses > events.length * 0.4 || longPauses > 2;
@@ -739,34 +870,44 @@ class ReadingComprehensionOptimizerService {
 
   private createReadingPattern(
     patternType: ReadingPattern['patternType'],
-    events: ReadingEvent[]
+    events: ReadingEvent[],
   ): void {
-    
-    const existingPattern = this.patterns.find(p => p.patternType === patternType);
-    
+    const existingPattern = this.patterns.find(
+      p => p.patternType === patternType,
+    );
+
     if (existingPattern) {
       // Update existing pattern
-      existingPattern.confidence = Math.min(1, existingPattern.confidence + 0.1);
-      existingPattern.associatedEvents.push(...events);
-      existingPattern.readingMetrics = this.calculateReadingMetrics(
-        [...existingPattern.associatedEvents, ...events]
+      existingPattern.confidence = Math.min(
+        1,
+        existingPattern.confidence + 0.1,
       );
+      existingPattern.associatedEvents.push(...events);
+      existingPattern.readingMetrics = this.calculateReadingMetrics([
+        ...existingPattern.associatedEvents,
+        ...events,
+      ]);
     } else {
       // Create new pattern
       const pattern: ReadingPattern = {
-        id: `pattern_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        id: `pattern_${Date.now()}_${Math.random()
+          .toString(36)
+          .substring(2, 6)}`,
         patternType,
         confidence: this.calculatePatternConfidence(patternType, events),
         detectedAt: Date.now(),
         indicators: this.identifyPatternIndicators(patternType, events),
         associatedEvents: events,
         readingMetrics: this.calculateReadingMetrics(events),
-        recommendedOptimizations: this.generatePatternOptimizations(patternType, events),
+        recommendedOptimizations: this.generatePatternOptimizations(
+          patternType,
+          events,
+        ),
       };
 
       if (pattern.confidence >= this.config.adaptationThreshold) {
         this.patterns.push(pattern);
-        
+
         structuredLogger.info('Reading pattern detected', {
           patternType,
           confidence: pattern.confidence,
@@ -777,77 +918,106 @@ class ReadingComprehensionOptimizerService {
     }
   }
 
-  private calculatePatternConfidence(patternType: ReadingPattern['patternType'], events: ReadingEvent[]): number {
+  private calculatePatternConfidence(
+    patternType: ReadingPattern['patternType'],
+    events: ReadingEvent[],
+  ): number {
     const sampleSizeConfidence = Math.min(events.length / 10, 1);
-    
+
     let patternStrengthConfidence = 0.5;
-    
+
     switch (patternType) {
       case 'struggling_reader':
-        const strugglingEvents = events.filter(e => 
-          ['word_lookup', 'reread_section', 'reading_assistance'].includes(e.type)
+        const strugglingEvents = events.filter(e =>
+          ['word_lookup', 'reread_section', 'reading_assistance'].includes(
+            e.type,
+          ),
         ).length;
-        patternStrengthConfidence = Math.min(strugglingEvents / events.length * 2, 1);
+        patternStrengthConfidence = Math.min(
+          (strugglingEvents / events.length) * 2,
+          1,
+        );
         break;
-        
+
       case 'fluent_reading':
-        const avgSpeed = events.reduce((sum, e) => sum + e.context.readingSpeed, 0) / events.length;
+        const avgSpeed =
+          events.reduce((sum, e) => sum + e.context.readingSpeed, 0) /
+          events.length;
         const expectedSpeed = 120; // Default expected speed
-        patternStrengthConfidence = Math.min((avgSpeed / expectedSpeed), 1);
+        patternStrengthConfidence = Math.min(avgSpeed / expectedSpeed, 1);
         break;
-        
+
       case 'vocabulary_gaps':
-        const lookupRatio = events.filter(e => e.type === 'word_lookup').length / events.length;
+        const lookupRatio =
+          events.filter(e => e.type === 'word_lookup').length / events.length;
         patternStrengthConfidence = Math.min(lookupRatio * 5, 1);
         break;
     }
-    
+
     return (sampleSizeConfidence + patternStrengthConfidence) / 2;
   }
 
-  private identifyPatternIndicators(patternType: ReadingPattern['patternType'], events: ReadingEvent[]): string[] {
+  private identifyPatternIndicators(
+    patternType: ReadingPattern['patternType'],
+    events: ReadingEvent[],
+  ): string[] {
     const indicators: string[] = [];
-    
+
     switch (patternType) {
       case 'struggling_reader':
         const lookups = events.filter(e => e.type === 'word_lookup').length;
         const rereads = events.filter(e => e.type === 'reread_section').length;
-        
+
         if (lookups > 0) indicators.push(`${lookups} vocabulary lookups`);
         if (rereads > 0) indicators.push(`${rereads} text re-reads`);
         break;
-        
+
       case 'fluent_reading':
-        const avgSpeed = events.reduce((sum, e) => sum + e.context.readingSpeed, 0) / events.length;
+        const avgSpeed =
+          events.reduce((sum, e) => sum + e.context.readingSpeed, 0) /
+          events.length;
         indicators.push(`Reading speed: ${Math.round(avgSpeed)} WPM`);
         break;
-        
+
       case 'vocabulary_gaps':
-        const uniqueWords = new Set(events.filter(e => e.type === 'word_lookup').map(e => e.metadata.word)).size;
+        const uniqueWords = new Set(
+          events
+            .filter(e => e.type === 'word_lookup')
+            .map(e => e.metadata.word),
+        ).size;
         indicators.push(`${uniqueWords} unique words looked up`);
         break;
     }
-    
+
     return indicators;
   }
 
-  private calculateReadingMetrics(events: ReadingEvent[]): ReadingPattern['readingMetrics'] {
+  private calculateReadingMetrics(
+    events: ReadingEvent[],
+  ): ReadingPattern['readingMetrics'] {
     const speedEvents = events.filter(e => e.context.readingSpeed > 0);
-    const averageSpeed = speedEvents.length > 0 
-      ? speedEvents.reduce((sum, e) => sum + e.context.readingSpeed, 0) / speedEvents.length 
-      : 100;
+    const averageSpeed =
+      speedEvents.length > 0
+        ? speedEvents.reduce((sum, e) => sum + e.context.readingSpeed, 0) /
+          speedEvents.length
+        : 100;
 
     const pauseEvents = events.filter(e => e.type === 'reading_pause');
     const pauseFrequency = pauseEvents.length / Math.max(events.length, 1);
 
     const rereadsCount = events.filter(e => e.type === 'reread_section').length;
-    const vocabularyLookups = events.filter(e => e.type === 'word_lookup').length;
+    const vocabularyLookups = events.filter(
+      e => e.type === 'word_lookup',
+    ).length;
 
     // Calculate attention span as average time between pauses
     const readingSessions = this.calculateReadingSessions(events);
-    const attentionSpan = readingSessions.length > 0 
-      ? readingSessions.reduce((sum, duration) => sum + duration, 0) / readingSessions.length / 1000 // Convert to seconds
-      : 120; // Default 2 minutes
+    const attentionSpan =
+      readingSessions.length > 0
+        ? readingSessions.reduce((sum, duration) => sum + duration, 0) /
+          readingSessions.length /
+          1000 // Convert to seconds
+        : 120; // Default 2 minutes
 
     return {
       averageSpeed,
@@ -862,44 +1032,55 @@ class ReadingComprehensionOptimizerService {
     const sessions: number[] = [];
     let sessionStart: number | null = null;
 
-    events.sort((a, b) => a.timestamp - b.timestamp).forEach(event => {
-      if (event.type === 'reading_start' || event.type === 'reading_resume') {
-        sessionStart = event.timestamp;
-      } else if ((event.type === 'reading_pause' || event.type === 'reading_complete') && sessionStart) {
-        sessions.push(event.timestamp - sessionStart);
-        sessionStart = null;
-      }
-    });
+    events
+      .sort((a, b) => a.timestamp - b.timestamp)
+      .forEach(event => {
+        if (event.type === 'reading_start' || event.type === 'reading_resume') {
+          sessionStart = event.timestamp;
+        } else if (
+          (event.type === 'reading_pause' ||
+            event.type === 'reading_complete') &&
+          sessionStart
+        ) {
+          sessions.push(event.timestamp - sessionStart);
+          sessionStart = null;
+        }
+      });
 
     return sessions;
   }
 
-  private generatePatternOptimizations(patternType: ReadingPattern['patternType'], events: ReadingEvent[]): ReadingOptimization[] {
+  private generatePatternOptimizations(
+    patternType: ReadingPattern['patternType'],
+    events: ReadingEvent[],
+  ): ReadingOptimization[] {
     const optimizations: ReadingOptimization[] = [];
-    
+
     switch (patternType) {
       case 'struggling_reader':
         optimizations.push(this.createTextSimplificationOptimization(events));
         optimizations.push(this.createReadingPaceOptimization(events));
         break;
-        
+
       case 'vocabulary_gaps':
         optimizations.push(this.createVocabularyAssistanceOptimization(events));
         break;
-        
+
       case 'attention_issues':
         optimizations.push(this.createAttentionSupportOptimization(events));
         break;
-        
+
       case 'fluent_reading':
         optimizations.push(this.createAdvancedFeaturesOptimization(events));
         break;
     }
-    
+
     return optimizations.filter(o => o.priority >= 2);
   }
 
-  private createTextSimplificationOptimization(events: ReadingEvent[]): ReadingOptimization {
+  private createTextSimplificationOptimization(
+    events: ReadingEvent[],
+  ): ReadingOptimization {
     return {
       id: this.generateOptimizationId(),
       type: 'text_simplification',
@@ -907,33 +1088,39 @@ class ReadingComprehensionOptimizerService {
       expectedImpact: 0.5,
       targetPattern: 'struggling_reader',
       implementation: {
-        textModifications: [{
-          modificationType: 'sentence_simplification',
-          target: 'complex_sentences',
-          originalText: '',
-          modifiedText: '',
-          reasoning: 'Struggling reader pattern detected',
-          reversible: true,
-        }],
-        uiChanges: [{
-          changeType: 'font_adjustment',
-          target: '.reading-content',
-          properties: {
-            fontSize: 'larger',
-            lineHeight: 'increased',
-            fontFamily: 'dyslexia-friendly',
+        textModifications: [
+          {
+            modificationType: 'sentence_simplification',
+            target: 'complex_sentences',
+            originalText: '',
+            modifiedText: '',
+            reasoning: 'Struggling reader pattern detected',
+            reversible: true,
           },
-          gradeSpecific: true,
-        }],
-        assistanceFeatures: [{
-          featureType: 'reading_buddy',
-          trigger: 'continuous',
-          properties: {
-            encouragement: true,
-            paceGuidance: true,
+        ],
+        uiChanges: [
+          {
+            changeType: 'font_adjustment',
+            target: '.reading-content',
+            properties: {
+              fontSize: 'larger',
+              lineHeight: 'increased',
+              fontFamily: 'dyslexia-friendly',
+            },
+            gradeSpecific: true,
           },
-          adaptToUser: true,
-        }],
+        ],
+        assistanceFeatures: [
+          {
+            featureType: 'reading_buddy',
+            trigger: 'continuous',
+            properties: {
+              encouragement: true,
+              paceGuidance: true,
+            },
+            adaptToUser: true,
+          },
+        ],
       },
       gradeLevelAdaptation: {
         'K-2': { simplificationLevel: 0.8 },
@@ -941,11 +1128,16 @@ class ReadingComprehensionOptimizerService {
         '6-8': { simplificationLevel: 0.4 },
         '9-12': { simplificationLevel: 0.2 },
       },
-      validationCriteria: ['reading_speed_improvement', 'comprehension_maintenance'],
+      validationCriteria: [
+        'reading_speed_improvement',
+        'comprehension_maintenance',
+      ],
     };
   }
 
-  private createReadingPaceOptimization(events: ReadingEvent[]): ReadingOptimization {
+  private createReadingPaceOptimization(
+    events: ReadingEvent[],
+  ): ReadingOptimization {
     return {
       id: this.generateOptimizationId(),
       type: 'reading_pace_adjustment',
@@ -954,25 +1146,29 @@ class ReadingComprehensionOptimizerService {
       targetPattern: 'struggling_reader',
       implementation: {
         textModifications: [],
-        uiChanges: [{
-          changeType: 'reading_guides',
-          target: '.reading-content',
-          properties: {
-            paceIndicator: true,
-            highlightCurrentLine: true,
-            scrollPacing: 'automatic',
+        uiChanges: [
+          {
+            changeType: 'reading_guides',
+            target: '.reading-content',
+            properties: {
+              paceIndicator: true,
+              highlightCurrentLine: true,
+              scrollPacing: 'automatic',
+            },
+            gradeSpecific: true,
           },
-          gradeSpecific: true,
-        }],
-        assistanceFeatures: [{
-          featureType: 'pace_guidance',
-          trigger: 'reading_speed_detection',
-          properties: {
-            suggestedPace: 'adaptive',
-            visualCues: true,
+        ],
+        assistanceFeatures: [
+          {
+            featureType: 'pace_guidance',
+            trigger: 'reading_speed_detection',
+            properties: {
+              suggestedPace: 'adaptive',
+              visualCues: true,
+            },
+            adaptToUser: true,
           },
-          adaptToUser: true,
-        }],
+        ],
       },
       gradeLevelAdaptation: {
         'K-2': { targetPace: 60 },
@@ -984,7 +1180,9 @@ class ReadingComprehensionOptimizerService {
     };
   }
 
-  private createVocabularyAssistanceOptimization(events: ReadingEvent[]): ReadingOptimization {
+  private createVocabularyAssistanceOptimization(
+    events: ReadingEvent[],
+  ): ReadingOptimization {
     return {
       id: this.generateOptimizationId(),
       type: 'vocabulary_assistance',
@@ -993,25 +1191,29 @@ class ReadingComprehensionOptimizerService {
       targetPattern: 'vocabulary_gaps',
       implementation: {
         textModifications: [],
-        uiChanges: [{
-          changeType: 'interactive_elements',
-          target: '.reading-content',
-          properties: {
-            wordClickDefinitions: true,
-            vocabularyHighlights: true,
-            contextualHints: true,
+        uiChanges: [
+          {
+            changeType: 'interactive_elements',
+            target: '.reading-content',
+            properties: {
+              wordClickDefinitions: true,
+              vocabularyHighlights: true,
+              contextualHints: true,
+            },
+            gradeSpecific: true,
           },
-          gradeSpecific: true,
-        }],
-        assistanceFeatures: [{
-          featureType: 'word_pronunciation',
-          trigger: 'word_click',
-          properties: {
-            audioPlayback: true,
-            syllableBreakdown: true,
+        ],
+        assistanceFeatures: [
+          {
+            featureType: 'word_pronunciation',
+            trigger: 'word_click',
+            properties: {
+              audioPlayback: true,
+              syllableBreakdown: true,
+            },
+            adaptToUser: true,
           },
-          adaptToUser: true,
-        }],
+        ],
       },
       gradeLevelAdaptation: {
         'K-2': { pronunciationGuide: true, visualCues: true },
@@ -1019,11 +1221,16 @@ class ReadingComprehensionOptimizerService {
         '6-8': { etymology: true, wordRelations: true },
         '9-12': { advancedDefinitions: true, usageExamples: true },
       },
-      validationCriteria: ['vocabulary_lookup_reduction', 'comprehension_improvement'],
+      validationCriteria: [
+        'vocabulary_lookup_reduction',
+        'comprehension_improvement',
+      ],
     };
   }
 
-  private createAttentionSupportOptimization(events: ReadingEvent[]): ReadingOptimization {
+  private createAttentionSupportOptimization(
+    events: ReadingEvent[],
+  ): ReadingOptimization {
     return {
       id: this.generateOptimizationId(),
       type: 'comprehension_aids',
@@ -1032,25 +1239,29 @@ class ReadingComprehensionOptimizerService {
       targetPattern: 'attention_issues',
       implementation: {
         textModifications: [],
-        uiChanges: [{
-          changeType: 'focus_mode',
-          target: '.reading-content',
-          properties: {
-            distractionReduction: true,
-            currentSentenceHighlight: true,
-            progressVisualization: true,
+        uiChanges: [
+          {
+            changeType: 'focus_mode',
+            target: '.reading-content',
+            properties: {
+              distractionReduction: true,
+              currentSentenceHighlight: true,
+              progressVisualization: true,
+            },
+            gradeSpecific: true,
           },
-          gradeSpecific: true,
-        }],
-        assistanceFeatures: [{
-          featureType: 'break_reminders',
-          trigger: 'attention_span_detection',
-          properties: {
-            gentleReminders: true,
-            optimalBreakTiming: true,
+        ],
+        assistanceFeatures: [
+          {
+            featureType: 'break_reminders',
+            trigger: 'attention_span_detection',
+            properties: {
+              gentleReminders: true,
+              optimalBreakTiming: true,
+            },
+            adaptToUser: true,
           },
-          adaptToUser: true,
-        }],
+        ],
       },
       gradeLevelAdaptation: {
         'K-2': { breakFrequency: 'high', gamification: true },
@@ -1058,11 +1269,16 @@ class ReadingComprehensionOptimizerService {
         '6-8': { breakFrequency: 'low', progress: true },
         '9-12': { breakFrequency: 'minimal', analytics: true },
       },
-      validationCriteria: ['attention_span_increase', 'completion_rate_improvement'],
+      validationCriteria: [
+        'attention_span_increase',
+        'completion_rate_improvement',
+      ],
     };
   }
 
-  private createAdvancedFeaturesOptimization(events: ReadingEvent[]): ReadingOptimization {
+  private createAdvancedFeaturesOptimization(
+    events: ReadingEvent[],
+  ): ReadingOptimization {
     return {
       id: this.generateOptimizationId(),
       type: 'interactive_features',
@@ -1071,25 +1287,29 @@ class ReadingComprehensionOptimizerService {
       targetPattern: 'fluent_reading',
       implementation: {
         textModifications: [],
-        uiChanges: [{
-          changeType: 'interactive_elements',
-          target: '.reading-content',
-          properties: {
-            speedReading: true,
-            comprehensionQuestions: true,
-            annotationTools: true,
+        uiChanges: [
+          {
+            changeType: 'interactive_elements',
+            target: '.reading-content',
+            properties: {
+              speedReading: true,
+              comprehensionQuestions: true,
+              annotationTools: true,
+            },
+            gradeSpecific: false,
           },
-          gradeSpecific: false,
-        }],
-        assistanceFeatures: [{
-          featureType: 'comprehension_hints',
-          trigger: 'section_completion',
-          properties: {
-            thinkingQuestions: true,
-            connectionPrompts: true,
+        ],
+        assistanceFeatures: [
+          {
+            featureType: 'comprehension_hints',
+            trigger: 'section_completion',
+            properties: {
+              thinkingQuestions: true,
+              connectionPrompts: true,
+            },
+            adaptToUser: true,
           },
-          adaptToUser: true,
-        }],
+        ],
       },
       gradeLevelAdaptation: {
         'K-2': { simpleQuestions: true },
@@ -1113,17 +1333,17 @@ class ReadingComprehensionOptimizerService {
   }
 
   private measureOptimizationEffectiveness(): void {
-    const appliedOptimizations = this.optimizations.filter(o => 
-      o.appliedAt && !o.effectiveness &&
-      Date.now() - o.appliedAt > 300000 // At least 5 minutes since application
+    const appliedOptimizations = this.optimizations.filter(
+      o => o.appliedAt && !o.effectiveness && Date.now() - o.appliedAt > 300000, // At least 5 minutes since application
     );
 
     appliedOptimizations.forEach(optimization => {
-      const effectiveness = this.calculateOptimizationEffectiveness(optimization);
-      
+      const effectiveness =
+        this.calculateOptimizationEffectiveness(optimization);
+
       if (effectiveness !== null) {
         optimization.effectiveness = effectiveness;
-        
+
         structuredLogger.info('Reading optimization effectiveness measured', {
           optimizationId: optimization.id,
           type: optimization.type,
@@ -1133,15 +1353,19 @@ class ReadingComprehensionOptimizerService {
     });
   }
 
-  private calculateOptimizationEffectiveness(optimization: ReadingOptimization): number | null {
-    const beforeEvents = this.events.filter(e => 
-      e.timestamp < optimization.appliedAt! &&
-      e.timestamp > optimization.appliedAt! - 600000 // 10 minutes before
+  private calculateOptimizationEffectiveness(
+    optimization: ReadingOptimization,
+  ): number | null {
+    const beforeEvents = this.events.filter(
+      e =>
+        e.timestamp < optimization.appliedAt! &&
+        e.timestamp > optimization.appliedAt! - 600000, // 10 minutes before
     );
 
-    const afterEvents = this.events.filter(e => 
-      e.timestamp > optimization.appliedAt! &&
-      e.timestamp < optimization.appliedAt! + 600000 // 10 minutes after
+    const afterEvents = this.events.filter(
+      e =>
+        e.timestamp > optimization.appliedAt! &&
+        e.timestamp < optimization.appliedAt! + 600000, // 10 minutes after
     );
 
     if (beforeEvents.length < 3 || afterEvents.length < 3) {
@@ -1153,7 +1377,10 @@ class ReadingComprehensionOptimizerService {
       case 'vocabulary_assistance':
         return this.calculateVocabularyEffectiveness(beforeEvents, afterEvents);
       case 'text_simplification':
-        return this.calculateSimplificationEffectiveness(beforeEvents, afterEvents);
+        return this.calculateSimplificationEffectiveness(
+          beforeEvents,
+          afterEvents,
+        );
       case 'reading_pace_adjustment':
         return this.calculatePaceEffectiveness(beforeEvents, afterEvents);
       default:
@@ -1161,39 +1388,66 @@ class ReadingComprehensionOptimizerService {
     }
   }
 
-  private calculateVocabularyEffectiveness(beforeEvents: ReadingEvent[], afterEvents: ReadingEvent[]): number {
-    const beforeLookups = beforeEvents.filter(e => e.type === 'word_lookup').length;
-    const afterLookups = afterEvents.filter(e => e.type === 'word_lookup').length;
-    
+  private calculateVocabularyEffectiveness(
+    beforeEvents: ReadingEvent[],
+    afterEvents: ReadingEvent[],
+  ): number {
+    const beforeLookups = beforeEvents.filter(
+      e => e.type === 'word_lookup',
+    ).length;
+    const afterLookups = afterEvents.filter(
+      e => e.type === 'word_lookup',
+    ).length;
+
     const beforeRate = beforeLookups / beforeEvents.length;
     const afterRate = afterLookups / afterEvents.length;
-    
-    const improvement = beforeRate > 0 ? (beforeRate - afterRate) / beforeRate : 0;
+
+    const improvement =
+      beforeRate > 0 ? (beforeRate - afterRate) / beforeRate : 0;
     return Math.max(0, Math.min(1, improvement));
   }
 
-  private calculateSimplificationEffectiveness(beforeEvents: ReadingEvent[], afterEvents: ReadingEvent[]): number {
-    const beforeComprehension = beforeEvents.reduce((sum, e) => sum + e.context.comprehensionLevel, 0) / beforeEvents.length;
-    const afterComprehension = afterEvents.reduce((sum, e) => sum + e.context.comprehensionLevel, 0) / afterEvents.length;
-    
+  private calculateSimplificationEffectiveness(
+    beforeEvents: ReadingEvent[],
+    afterEvents: ReadingEvent[],
+  ): number {
+    const beforeComprehension =
+      beforeEvents.reduce((sum, e) => sum + e.context.comprehensionLevel, 0) /
+      beforeEvents.length;
+    const afterComprehension =
+      afterEvents.reduce((sum, e) => sum + e.context.comprehensionLevel, 0) /
+      afterEvents.length;
+
     const improvement = afterComprehension - beforeComprehension;
     return Math.max(0, Math.min(1, improvement + 0.5));
   }
 
-  private calculatePaceEffectiveness(beforeEvents: ReadingEvent[], afterEvents: ReadingEvent[]): number {
-    const beforeSpeeds = beforeEvents.map(e => e.context.readingSpeed).filter(s => s > 0);
-    const afterSpeeds = afterEvents.map(e => e.context.readingSpeed).filter(s => s > 0);
-    
+  private calculatePaceEffectiveness(
+    beforeEvents: ReadingEvent[],
+    afterEvents: ReadingEvent[],
+  ): number {
+    const beforeSpeeds = beforeEvents
+      .map(e => e.context.readingSpeed)
+      .filter(s => s > 0);
+    const afterSpeeds = afterEvents
+      .map(e => e.context.readingSpeed)
+      .filter(s => s > 0);
+
     if (beforeSpeeds.length === 0 || afterSpeeds.length === 0) return 0.5;
-    
-    const beforeAvg = beforeSpeeds.reduce((sum, s) => sum + s, 0) / beforeSpeeds.length;
-    const afterAvg = afterSpeeds.reduce((sum, s) => sum + s, 0) / afterSpeeds.length;
-    
+
+    const beforeAvg =
+      beforeSpeeds.reduce((sum, s) => sum + s, 0) / beforeSpeeds.length;
+    const afterAvg =
+      afterSpeeds.reduce((sum, s) => sum + s, 0) / afterSpeeds.length;
+
     const beforeVariance = this.calculateVariance(beforeSpeeds);
     const afterVariance = this.calculateVariance(afterSpeeds);
-    
+
     // Effectiveness based on consistency improvement (lower variance is better)
-    const consistencyImprovement = beforeVariance > 0 ? (beforeVariance - afterVariance) / beforeVariance : 0;
+    const consistencyImprovement =
+      beforeVariance > 0
+        ? (beforeVariance - afterVariance) / beforeVariance
+        : 0;
     return Math.max(0, Math.min(1, consistencyImprovement));
   }
 
@@ -1203,7 +1457,9 @@ class ReadingComprehensionOptimizerService {
     return squaredDiffs.reduce((sum, d) => sum + d, 0) / numbers.length;
   }
 
-  private async executeReadingOptimization(optimization: ReadingOptimization): Promise<void> {
+  private async executeReadingOptimization(
+    optimization: ReadingOptimization,
+  ): Promise<void> {
     // In a real implementation, this would apply the reading optimizations
     structuredLogger.info('Executing reading optimization', {
       type: optimization.type,
@@ -1216,23 +1472,35 @@ class ReadingComprehensionOptimizerService {
   // Additional helper methods for metrics calculation
   private calculateReadingSpeed(events: ReadingEvent[]): number {
     const speedEvents = events.filter(e => e.context.readingSpeed > 0);
-    return speedEvents.length > 0 
-      ? speedEvents.reduce((sum, e) => sum + e.context.readingSpeed, 0) / speedEvents.length 
+    return speedEvents.length > 0
+      ? speedEvents.reduce((sum, e) => sum + e.context.readingSpeed, 0) /
+          speedEvents.length
       : 100;
   }
 
   private estimateComprehensionScore(events: ReadingEvent[]): number {
-    const comprehensionEvents = events.filter(e => e.context.comprehensionLevel !== undefined);
-    return comprehensionEvents.length > 0 
-      ? comprehensionEvents.reduce((sum, e) => sum + e.context.comprehensionLevel, 0) / comprehensionEvents.length 
+    const comprehensionEvents = events.filter(
+      e => e.context.comprehensionLevel !== undefined,
+    );
+    return comprehensionEvents.length > 0
+      ? comprehensionEvents.reduce(
+          (sum, e) => sum + e.context.comprehensionLevel,
+          0,
+        ) / comprehensionEvents.length
       : 0.5;
   }
 
   private estimateVocabularyLevel(events: ReadingEvent[]): number {
-    const complexityEvents = events.filter(e => e.context.textComplexity !== undefined);
-    const avgComplexity = complexityEvents.length > 0 
-      ? complexityEvents.reduce((sum, e) => sum + e.context.textComplexity, 0) / complexityEvents.length 
-      : 0.5;
+    const complexityEvents = events.filter(
+      e => e.context.textComplexity !== undefined,
+    );
+    const avgComplexity =
+      complexityEvents.length > 0
+        ? complexityEvents.reduce(
+            (sum, e) => sum + e.context.textComplexity,
+            0,
+          ) / complexityEvents.length
+        : 0.5;
 
     // Convert complexity to grade level (simplified mapping)
     if (avgComplexity < 0.3) return 2; // K-2
@@ -1243,88 +1511,112 @@ class ReadingComprehensionOptimizerService {
 
   private calculateAttentionSpan(events: ReadingEvent[]): number {
     const sessions = this.calculateReadingSessions(events);
-    return sessions.length > 0 
-      ? sessions.reduce((sum, duration) => sum + duration, 0) / sessions.length / 1000 
+    return sessions.length > 0
+      ? sessions.reduce((sum, duration) => sum + duration, 0) /
+          sessions.length /
+          1000
       : 120;
   }
 
   private identifyStrugglingIndicators(events: ReadingEvent[]): string[] {
     const indicators: string[] = [];
-    
+
     const lookupCount = events.filter(e => e.type === 'word_lookup').length;
     if (lookupCount > events.length * 0.15) {
       indicators.push('High vocabulary lookup frequency');
     }
-    
+
     const rereadCount = events.filter(e => e.type === 'reread_section').length;
     if (rereadCount > events.length * 0.1) {
       indicators.push('Frequent text re-reading');
     }
-    
+
     const avgSpeed = this.calculateReadingSpeed(events);
     if (avgSpeed < 80) {
       indicators.push('Below-average reading speed');
     }
-    
+
     return indicators;
   }
 
   private identifyStrengths(events: ReadingEvent[]): string[] {
     const strengths: string[] = [];
-    
+
     const avgSpeed = this.calculateReadingSpeed(events);
     if (avgSpeed > 150) {
       strengths.push('Above-average reading speed');
     }
-    
+
     const comprehension = this.estimateComprehensionScore(events);
     if (comprehension > 0.8) {
       strengths.push('High comprehension level');
     }
-    
+
     const attentionSpan = this.calculateAttentionSpan(events);
-    if (attentionSpan > 300) { // 5+ minutes
+    if (attentionSpan > 300) {
+      // 5+ minutes
       strengths.push('Good sustained attention');
     }
-    
+
     return strengths;
   }
 
   private identifyImprovementAreas(events: ReadingEvent[]): string[] {
     const areas: string[] = [];
-    
-    const lookupFreq = events.filter(e => e.type === 'word_lookup').length / events.length;
+
+    const lookupFreq =
+      events.filter(e => e.type === 'word_lookup').length / events.length;
     if (lookupFreq > 0.1) {
       areas.push('Vocabulary development');
     }
-    
+
     const attentionSpan = this.calculateAttentionSpan(events);
-    if (attentionSpan < 120) { // Less than 2 minutes
+    if (attentionSpan < 120) {
+      // Less than 2 minutes
       areas.push('Sustained attention');
     }
-    
+
     const comprehension = this.estimateComprehensionScore(events);
     if (comprehension < 0.6) {
       areas.push('Reading comprehension');
     }
-    
+
     return areas;
   }
 
-  private recommendGradeLevel(readingSpeed: number, comprehension: number, vocabulary: number): GradeLevel {
+  private recommendGradeLevel(
+    readingSpeed: number,
+    comprehension: number,
+    vocabulary: number,
+  ): GradeLevel {
     // Simple algorithm to recommend appropriate grade level
-    const speedGrade = readingSpeed < 80 ? 'K-2' : 
-                     readingSpeed < 130 ? '3-5' : 
-                     readingSpeed < 180 ? '6-8' : '9-12';
-    
-    const comprGrade = comprehension < 0.6 ? 'K-2' : 
-                      comprehension < 0.7 ? '3-5' : 
-                      comprehension < 0.8 ? '6-8' : '9-12';
-    
-    const vocabGrade = vocabulary < 4 ? 'K-2' : 
-                      vocabulary < 7 ? '3-5' : 
-                      vocabulary < 10 ? '6-8' : '9-12';
-    
+    const speedGrade =
+      readingSpeed < 80
+        ? 'K-2'
+        : readingSpeed < 130
+        ? '3-5'
+        : readingSpeed < 180
+        ? '6-8'
+        : '9-12';
+
+    const comprGrade =
+      comprehension < 0.6
+        ? 'K-2'
+        : comprehension < 0.7
+        ? '3-5'
+        : comprehension < 0.8
+        ? '6-8'
+        : '9-12';
+
+    const vocabGrade =
+      vocabulary < 4
+        ? 'K-2'
+        : vocabulary < 7
+        ? '3-5'
+        : vocabulary < 10
+        ? '6-8'
+        : '9-12';
+
     // Return the median grade level
     const grades = [speedGrade, comprGrade, vocabGrade];
     return grades.sort()[1] as GradeLevel;
@@ -1345,14 +1637,14 @@ class ReadingComprehensionOptimizerService {
 
   private cleanupOldData(): void {
     const cutoff = Date.now() - 3600000; // Keep 1 hour of data
-    
+
     this.events = this.events.filter(e => e.timestamp > cutoff);
     this.patterns = this.patterns.filter(p => p.detectedAt > cutoff);
-    
+
     // Keep optimizations longer for effectiveness tracking
     const optimizationCutoff = Date.now() - 7200000; // Keep 2 hours
-    this.optimizations = this.optimizations.filter(o => 
-      !o.appliedAt || o.appliedAt > optimizationCutoff
+    this.optimizations = this.optimizations.filter(
+      o => !o.appliedAt || o.appliedAt > optimizationCutoff,
     );
   }
 
@@ -1364,25 +1656,35 @@ class ReadingComprehensionOptimizerService {
       clearInterval(this.analysisTimer);
       this.analysisTimer = null;
     }
-    
+
     // Complete current reading session if active
     if (this.currentReadingSession) {
-      this.recordReadingEvent('reading_complete', this.currentReadingSession.contentId, {
-        wordIndex: this.currentReadingSession.currentPosition,
-        percentageComplete: this.currentReadingSession.currentPosition / this.currentReadingSession.wordCount,
-        currentSentence: '',
-        currentParagraph: 0,
-      });
+      this.recordReadingEvent(
+        'reading_complete',
+        this.currentReadingSession.contentId,
+        {
+          wordIndex: this.currentReadingSession.currentPosition,
+          percentageComplete:
+            this.currentReadingSession.currentPosition /
+            this.currentReadingSession.wordCount,
+          currentSentence: '',
+          currentParagraph: 0,
+        },
+      );
     }
-    
-    structuredLogger.info('Reading Comprehension Optimizer shutdown completed', {
-      eventsRecorded: this.events.length,
-      patternsDetected: this.patterns.length,
-      optimizationsGenerated: this.optimizations.length,
-      sessionCompleted: !!this.currentReadingSession,
-    });
+
+    structuredLogger.info(
+      'Reading Comprehension Optimizer shutdown completed',
+      {
+        eventsRecorded: this.events.length,
+        patternsDetected: this.patterns.length,
+        optimizationsGenerated: this.optimizations.length,
+        sessionCompleted: !!this.currentReadingSession,
+      },
+    );
   }
 }
 
-export const readingComprehensionOptimizer = new ReadingComprehensionOptimizerService();
+export const readingComprehensionOptimizer =
+  new ReadingComprehensionOptimizerService();
 export { ReadingComprehensionOptimizerService };

@@ -45,6 +45,7 @@ const mockDimensions = Dimensions.get as jest.MockedFunction<
 describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
   const mockProps = {
     sessionId: 'test-session-123',
+    userId: 'test-user-123',
     storyTitle: 'The Adventure Begins',
     onImageSaved: jest.fn(),
     onError: jest.fn(),
@@ -53,7 +54,12 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     // Reset to default iPhone X dimensions
-    mockDimensions.mockReturnValue({ width: 375, height: 812 });
+    mockDimensions.mockReturnValue({
+      width: 375,
+      height: 812,
+      scale: 3,
+      fontScale: 1,
+    });
   });
 
   describe('Task 6.1: Create image display component for generated images', () => {
@@ -101,7 +107,12 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
   describe('Task 6.1-T: Test image component displays various image sizes correctly', () => {
     test('should calculate correct dimensions for small screens', async () => {
       // Mock small phone screen
-      mockDimensions.mockReturnValue({ width: 320, height: 568 });
+      mockDimensions.mockReturnValue({
+        width: 320,
+        height: 568,
+        scale: 2,
+        fontScale: 1,
+      });
 
       const { getByTestId, getByText } = render(
         <StoryImageDisplay
@@ -122,7 +133,12 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
 
     test('should calculate correct dimensions for large screens', async () => {
       // Mock large tablet screen
-      mockDimensions.mockReturnValue({ width: 768, height: 1024 });
+      mockDimensions.mockReturnValue({
+        width: 768,
+        height: 1024,
+        scale: 2,
+        fontScale: 1,
+      });
 
       const { getByTestId } = render(
         <StoryImageDisplay
@@ -143,7 +159,12 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
 
     test('should respect maximum height constraints', async () => {
       // Mock very tall screen
-      mockDimensions.mockReturnValue({ width: 375, height: 2000 });
+      mockDimensions.mockReturnValue({
+        width: 375,
+        height: 2000,
+        scale: 3,
+        fontScale: 1,
+      });
 
       const { getByTestId } = render(
         <StoryImageDisplay
@@ -209,7 +230,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
         promise: Promise.resolve({ statusCode: 404 }),
       } as any);
 
-      const { getByText } = render(
+      const { getByText, getByTestId } = render(
         <StoryImageDisplay
           {...mockProps}
           imageUrl="https://example.com/image.jpg"
@@ -251,7 +272,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
         } as any;
       });
 
-      const { getByText } = render(
+      const { getByText, getByTestId } = render(
         <StoryImageDisplay
           {...mockProps}
           imageUrl="https://example.com/image.jpg"
@@ -282,7 +303,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
         promise: Promise.resolve({ statusCode: 200 }),
       } as any);
 
-      const { getByText } = render(
+      const { getByText, getByTestId } = render(
         <StoryImageDisplay
           {...mockProps}
           imageUrl="https://example.com/image.jpg"
@@ -313,7 +334,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
         promise: Promise.resolve({ statusCode: 200 }),
       } as any);
 
-      const { getByText } = render(
+      const { getByText, getByTestId } = render(
         <StoryImageDisplay
           {...mockProps}
           imageUrl="https://example.com/image.jpg"
@@ -344,7 +365,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
         promise: Promise.resolve({ statusCode: 200 }),
       } as any);
 
-      const { getByText } = render(
+      const { getByText, getByTestId } = render(
         <StoryImageDisplay
           {...mockProps}
           imageUrl="https://example.com/image.jpg"
@@ -376,7 +397,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
         promise: Promise.resolve({ statusCode: 200 }),
       } as any);
 
-      const { getByText } = render(
+      const { getByText, getByTestId } = render(
         <StoryImageDisplay
           {...mockProps}
           imageUrl="https://example.com/image.jpg"
@@ -465,7 +486,12 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
   describe('Task 6.5: Test image display across different screen sizes', () => {
     test('should render correctly on small screen devices', () => {
       // iPhone SE dimensions
-      mockDimensions.mockReturnValue({ width: 320, height: 568 });
+      mockDimensions.mockReturnValue({
+        width: 320,
+        height: 568,
+        scale: 2,
+        fontScale: 1,
+      });
 
       const { getByText } = render(
         <StoryImageDisplay
@@ -479,7 +505,12 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
 
     test('should render correctly on medium screen devices', () => {
       // iPhone 12 dimensions
-      mockDimensions.mockReturnValue({ width: 390, height: 844 });
+      mockDimensions.mockReturnValue({
+        width: 390,
+        height: 844,
+        scale: 3,
+        fontScale: 1,
+      });
 
       const { getByText } = render(
         <StoryImageDisplay
@@ -493,7 +524,12 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
 
     test('should render correctly on large screen devices', () => {
       // iPad Air dimensions
-      mockDimensions.mockReturnValue({ width: 820, height: 1180 });
+      mockDimensions.mockReturnValue({
+        width: 820,
+        height: 1180,
+        scale: 2,
+        fontScale: 1,
+      });
 
       const { getByText } = render(
         <StoryImageDisplay

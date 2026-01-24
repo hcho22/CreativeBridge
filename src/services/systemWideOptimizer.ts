@@ -1,6 +1,6 @@
 /**
  * System-Wide Optimizer Service
- * 
+ *
  * Analyzes comprehensive validation and statistical results to apply coordinated
  * optimizations across the entire Claude Skills integration system
  * Task 8.1: Comprehensive Performance Validation - Subtask 4
@@ -12,9 +12,15 @@ import { uiPerformanceMonitor } from './uiPerformanceMonitor';
 import { engagementOptimizer } from './engagementOptimizer';
 import { navigationOptimizer } from './navigationOptimizer';
 import { readingComprehensionOptimizer } from './readingComprehensionOptimizer';
-import { prdSuccessCriteriaValidator, PRDValidationReport } from './prdSuccessCriteriaValidator';
-import { statisticalAnalysisService, ExperimentResult } from './statisticalAnalysisService';
-import { behaviorAnalyticsService } from './behaviorAnalytics';
+import {
+  prdSuccessCriteriaValidator,
+  PRDValidationReport,
+} from './prdSuccessCriteriaValidator';
+import {
+  statisticalAnalysisService,
+  ExperimentResult,
+} from './statisticalAnalysisService';
+import { behaviorAnalytics } from './behaviorAnalytics';
 import { storyAnalytics } from './storyAnalytics';
 
 export interface SystemOptimizationAnalysis {
@@ -82,7 +88,13 @@ export interface OptimizationPhase {
 
 export interface OptimizationAction {
   id: string;
-  type: 'performance' | 'engagement' | 'navigation' | 'reading' | 'infrastructure' | 'configuration';
+  type:
+    | 'performance'
+    | 'engagement'
+    | 'navigation'
+    | 'reading'
+    | 'infrastructure'
+    | 'configuration';
   component: string;
   description: string;
   parameters: Record<string, any>;
@@ -148,18 +160,22 @@ class SystemWideOptimizerService {
   async initialize(): Promise<void> {
     try {
       this.isInitialized = true;
-      
+
       structuredLogger.info('System-Wide Optimizer initialized', {
         capabilities: [
           'Comprehensive system analysis',
           'Multi-component optimization',
           'Risk-aware execution',
           'Impact measurement',
-          'Rollback management'
+          'Rollback management',
         ],
       });
     } catch (error) {
-      structuredLogger.error('Failed to initialize System-Wide Optimizer', {}, error as Error);
+      structuredLogger.error(
+        'Failed to initialize System-Wide Optimizer',
+        {},
+        error as Error,
+      );
       throw error;
     }
   }
@@ -173,37 +189,47 @@ class SystemWideOptimizerService {
     }
 
     const analysisId = this.generateAnalysisId();
-    
-    structuredLogger.info('Starting comprehensive system analysis', { analysisId });
+
+    structuredLogger.info('Starting comprehensive system analysis', {
+      analysisId,
+    });
 
     // Collect validation results
     const prdResults = await prdSuccessCriteriaValidator.validateAllCriteria();
-    
+
     // Collect statistical analysis results
-    const abTestResults = await statisticalAnalysisService.analyzeClaudeSkillsABTest();
-    
+    const abTestResults =
+      await statisticalAnalysisService.analyzeClaudeSkillsABTest();
+
     // Collect current system state
     const uiState = dynamicUICoordinator.getOptimizationState();
     const performanceSummary = uiPerformanceMonitor.getPerformanceSummary();
-    
+
     // Analyze system health
-    const systemHealth = this.analyzeSystemHealth(prdResults, abTestResults, uiState);
-    
+    const systemHealth = this.analyzeSystemHealth(
+      prdResults,
+      abTestResults,
+      uiState,
+    );
+
     // Analyze performance gaps
-    const performanceAnalysis = this.analyzePerformanceGaps(prdResults, performanceSummary);
-    
+    const performanceAnalysis = this.analyzePerformanceGaps(
+      prdResults,
+      performanceSummary,
+    );
+
     // Extract validation insights
     const validationResults = this.extractValidationInsights(prdResults);
-    
+
     // Extract statistical insights
     const statisticalInsights = this.extractStatisticalInsights(abTestResults);
-    
+
     // Generate optimization plan
     const optimizationPlan = await this.generateOptimizationPlan(
       systemHealth,
       performanceAnalysis,
       validationResults,
-      statisticalInsights
+      statisticalInsights,
     );
 
     const analysis: SystemOptimizationAnalysis = {
@@ -232,15 +258,19 @@ class SystemWideOptimizerService {
   /**
    * Execute system-wide optimization plan
    */
-  async executeOptimizationPlan(analysisId: string): Promise<SystemOptimizationReport> {
-    const analysis = this.optimizationHistory.find(a => a.analysisId === analysisId);
+  async executeOptimizationPlan(
+    analysisId: string,
+  ): Promise<SystemOptimizationReport> {
+    const analysis = this.optimizationHistory.find(
+      a => a.analysisId === analysisId,
+    );
     if (!analysis) {
       throw new Error(`Analysis not found: ${analysisId}`);
     }
 
     const executionId = this.generateExecutionId();
     const startTime = Date.now();
-    
+
     structuredLogger.info('Starting optimization plan execution', {
       analysisId,
       executionId,
@@ -250,12 +280,14 @@ class SystemWideOptimizerService {
 
     // Capture baseline metrics
     const baselineMetrics = await this.captureSystemMetrics();
-    
+
     const results: OptimizationResult[] = [];
     let overallSuccess = true;
 
     // Execute phases in order
-    for (const phase of analysis.optimizationPlan.phases.sort((a, b) => a.order - b.order)) {
+    for (const phase of analysis.optimizationPlan.phases.sort(
+      (a, b) => a.order - b.order,
+    )) {
       structuredLogger.info('Executing optimization phase', {
         phaseId: phase.id,
         phaseName: phase.name,
@@ -265,7 +297,7 @@ class SystemWideOptimizerService {
       const phaseResults = await this.executeOptimizationPhase(
         analysis.optimizationPlan.id,
         phase,
-        baselineMetrics
+        baselineMetrics,
       );
 
       results.push(...phaseResults);
@@ -273,13 +305,19 @@ class SystemWideOptimizerService {
       // Check if phase succeeded
       const phaseSuccess = phaseResults.every(r => r.success);
       if (!phaseSuccess) {
-        structuredLogger.warn('Optimization phase failed, evaluating rollback', {
-          phaseId: phase.id,
-          failedActions: phaseResults.filter(r => !r.success).length,
-        });
+        structuredLogger.warn(
+          'Optimization phase failed, evaluating rollback',
+          {
+            phaseId: phase.id,
+            failedActions: phaseResults.filter(r => !r.success).length,
+          },
+        );
 
         // Check rollback triggers
-        const shouldRollback = this.evaluateRollbackTriggers(phase, phaseResults);
+        const shouldRollback = this.evaluateRollbackTriggers(
+          phase,
+          phaseResults,
+        );
         if (shouldRollback) {
           await this.performPhaseRollback(phase, phaseResults);
           overallSuccess = false;
@@ -296,13 +334,16 @@ class SystemWideOptimizerService {
 
     // Calculate impacts
     const achievedImpacts = this.calculateAchievedImpacts(results);
-    const metricsImprovement = this.calculateMetricsImprovement(baselineMetrics, finalMetrics);
-    
+    const metricsImprovement = this.calculateMetricsImprovement(
+      baselineMetrics,
+      finalMetrics,
+    );
+
     // Generate recommendations
     const recommendations = this.generatePostOptimizationRecommendations(
       analysis,
       results,
-      metricsImprovement
+      metricsImprovement,
     );
 
     const report: SystemOptimizationReport = {
@@ -339,7 +380,7 @@ class SystemWideOptimizerService {
   private analyzeSystemHealth(
     prdResults: PRDValidationReport,
     abTestResults: ExperimentResult,
-    uiState: any
+    uiState: any,
   ): SystemOptimizationAnalysis['systemHealth'] {
     const criticalIssues: string[] = [];
     const opportunities: string[] = [];
@@ -367,22 +408,33 @@ class SystemWideOptimizerService {
       opportunities.push('Strong foundation - focus on optimization');
     }
     if (abTestResults.primaryMetrics.some(m => m.effectSize > 0.5)) {
-      opportunities.push('Large effect sizes indicate high optimization potential');
+      opportunities.push(
+        'Large effect sizes indicate high optimization potential',
+      );
     }
 
     // Calculate overall health score
     const prdScore = prdResults.passedCriteria / prdResults.totalCriteria;
     const abTestScore = abTestResults.overallSignificance ? 1.0 : 0.5;
-    const uiScore = uiState.overall.health === 'excellent' ? 1.0 :
-                   uiState.overall.health === 'good' ? 0.8 :
-                   uiState.overall.health === 'fair' ? 0.6 : 0.4;
+    const uiScore =
+      uiState.overall.health === 'excellent'
+        ? 1.0
+        : uiState.overall.health === 'good'
+        ? 0.8
+        : uiState.overall.health === 'fair'
+        ? 0.6
+        : 0.4;
 
-    const overallScore = (prdScore * 0.4 + abTestScore * 0.3 + uiScore * 0.3);
+    const overallScore = prdScore * 0.4 + abTestScore * 0.3 + uiScore * 0.3;
 
-    const overall: SystemOptimizationAnalysis['systemHealth']['overall'] = 
-      criticalIssues.length > 2 ? 'critical' :
-      criticalIssues.length > 0 ? 'warning' :
-      overallScore > 0.8 ? 'optimal' : 'healthy';
+    const overall: SystemOptimizationAnalysis['systemHealth']['overall'] =
+      criticalIssues.length > 2
+        ? 'critical'
+        : criticalIssues.length > 0
+        ? 'warning'
+        : overallScore > 0.8
+        ? 'optimal'
+        : 'healthy';
 
     return {
       overall,
@@ -397,7 +449,7 @@ class SystemWideOptimizerService {
    */
   private analyzePerformanceGaps(
     prdResults: PRDValidationReport,
-    performanceSummary: any
+    performanceSummary: any,
   ): SystemOptimizationAnalysis['performanceAnalysis'] {
     const currentMetrics: Record<string, number> = {
       storyGenerationLatency: performanceSummary.averageRenderTime * 2.5, // Estimate
@@ -421,7 +473,7 @@ class SystemWideOptimizerService {
     Object.keys(currentMetrics).forEach(metric => {
       const current = currentMetrics[metric];
       const target = targets[metric];
-      
+
       if (metric === 'storyGenerationLatency' || metric === 'memoryUsage') {
         // Lower is better
         gaps[metric] = current - target;
@@ -448,16 +500,27 @@ class SystemWideOptimizerService {
   /**
    * Extract insights from validation results
    */
-  private extractValidationInsights(prdResults: PRDValidationReport): SystemOptimizationAnalysis['validationResults'] {
-    const passRate = (prdResults.passedCriteria / prdResults.totalCriteria) * 100;
-    
+  private extractValidationInsights(
+    prdResults: PRDValidationReport,
+  ): SystemOptimizationAnalysis['validationResults'] {
+    const passRate =
+      (prdResults.passedCriteria / prdResults.totalCriteria) * 100;
+
     const criticalFailures = prdResults.validationResults
-      .filter(r => !r.passed && r.criteriaId.includes('PERF_001') || r.criteriaId.includes('QUAL_001'))
+      .filter(
+        r =>
+          (!r.passed && r.criteriaId.includes('PERF_001')) ||
+          r.criteriaId.includes('QUAL_001'),
+      )
       .map(r => r.criteriaId);
 
     const nearMisses = prdResults.validationResults
-      .filter(r => !r.passed && typeof r.actualValue === 'string' && 
-               typeof r.targetValue === 'string')
+      .filter(
+        r =>
+          !r.passed &&
+          typeof r.actualValue === 'string' &&
+          typeof r.targetValue === 'string',
+      )
       .map(r => r.criteriaId);
 
     const strongPoints = prdResults.validationResults
@@ -475,7 +538,9 @@ class SystemWideOptimizerService {
   /**
    * Extract insights from statistical analysis
    */
-  private extractStatisticalInsights(abTestResults: ExperimentResult): SystemOptimizationAnalysis['statisticalInsights'] {
+  private extractStatisticalInsights(
+    abTestResults: ExperimentResult,
+  ): SystemOptimizationAnalysis['statisticalInsights'] {
     const significantEffects = abTestResults.primaryMetrics
       .filter(m => m.pValue < 0.05)
       .map(m => m.metric);
@@ -484,12 +549,17 @@ class SystemWideOptimizerService {
       .filter(m => m.effectSize > 0.2)
       .map(m => m.metric);
 
-    const confidenceLevel = abTestResults.bayesianAnalysis?.posteriorProbability || 0.85;
+    const confidenceLevel =
+      abTestResults.bayesianAnalysis?.posteriorProbability || 0.85;
 
     const recommendedActions = [
       ...abTestResults.recommendations,
-      ...(significantEffects.length > 2 ? ['Scale successful optimizations'] : []),
-      ...(practicalImprovements.length > 1 ? ['Focus on high-impact areas'] : []),
+      ...(significantEffects.length > 2
+        ? ['Scale successful optimizations']
+        : []),
+      ...(practicalImprovements.length > 1
+        ? ['Focus on high-impact areas']
+        : []),
     ];
 
     return {
@@ -507,24 +577,28 @@ class SystemWideOptimizerService {
     systemHealth: SystemOptimizationAnalysis['systemHealth'],
     performanceAnalysis: SystemOptimizationAnalysis['performanceAnalysis'],
     validationResults: SystemOptimizationAnalysis['validationResults'],
-    statisticalInsights: SystemOptimizationAnalysis['statisticalInsights']
+    statisticalInsights: SystemOptimizationAnalysis['statisticalInsights'],
   ): Promise<SystemOptimizationPlan> {
-    
     const planId = this.generatePlanId();
-    
+
     // Determine priority based on system health and critical issues
-    const priority: SystemOptimizationPlan['priority'] = 
-      systemHealth.overall === 'critical' ? 'emergency' :
-      systemHealth.criticalIssues.length > 1 ? 'critical' :
-      validationResults.passRate < 70 ? 'high' :
-      systemHealth.overall === 'warning' ? 'medium' : 'low';
+    const priority: SystemOptimizationPlan['priority'] =
+      systemHealth.overall === 'critical'
+        ? 'emergency'
+        : systemHealth.criticalIssues.length > 1
+        ? 'critical'
+        : validationResults.passRate < 70
+        ? 'high'
+        : systemHealth.overall === 'warning'
+        ? 'medium'
+        : 'low';
 
     // Estimate impact based on gaps and opportunities
     const estimatedImpact = Math.min(
-      (systemHealth.opportunities.length * 0.2) + 
-      (performanceAnalysis.priorityIssues.length * 0.15) +
-      (statisticalInsights.practicalImprovements.length * 0.1),
-      0.8 // Cap at 80%
+      systemHealth.opportunities.length * 0.2 +
+        performanceAnalysis.priorityIssues.length * 0.15 +
+        statisticalInsights.practicalImprovements.length * 0.1,
+      0.8, // Cap at 80%
     );
 
     // Generate optimization phases
@@ -535,15 +609,21 @@ class SystemWideOptimizerService {
       phases.push({
         id: `${planId}_phase_1`,
         name: 'Critical Infrastructure Fixes',
-        description: 'Address critical system issues that prevent optimal performance',
+        description:
+          'Address critical system issues that prevent optimal performance',
         order: 1,
         estimatedDuration: 2,
-        actions: this.generateCriticalInfrastructureActions(systemHealth.criticalIssues),
+        actions: this.generateCriticalInfrastructureActions(
+          systemHealth.criticalIssues,
+        ),
         validation: {
           criteria: ['No critical errors', 'System stability restored'],
           successThreshold: 1.0,
         },
-        rollbackTriggers: ['System instability', 'Performance degradation > 20%'],
+        rollbackTriggers: [
+          'System instability',
+          'Performance degradation > 20%',
+        ],
       });
     }
 
@@ -555,12 +635,16 @@ class SystemWideOptimizerService {
         description: 'Optimize key performance metrics to meet PRD targets',
         order: phases.length + 1,
         estimatedDuration: 3,
-        actions: this.generatePerformanceOptimizationActions(performanceAnalysis),
+        actions:
+          this.generatePerformanceOptimizationActions(performanceAnalysis),
         validation: {
           criteria: ['Latency targets met', 'Memory usage optimized'],
           successThreshold: 0.8,
         },
-        rollbackTriggers: ['Memory leaks detected', 'Response time regression > 30%'],
+        rollbackTriggers: [
+          'Memory leaks detected',
+          'Response time regression > 30%',
+        ],
       });
     }
 
@@ -569,15 +653,25 @@ class SystemWideOptimizerService {
       phases.push({
         id: `${planId}_phase_3`,
         name: 'User Experience Enhancement',
-        description: 'Optimize engagement, navigation, and reading comprehension',
+        description:
+          'Optimize engagement, navigation, and reading comprehension',
         order: phases.length + 1,
         estimatedDuration: 4,
-        actions: this.generateUserExperienceActions(validationResults, statisticalInsights),
+        actions: this.generateUserExperienceActions(
+          validationResults,
+          statisticalInsights,
+        ),
         validation: {
-          criteria: ['Engagement targets met', 'Navigation efficiency improved'],
+          criteria: [
+            'Engagement targets met',
+            'Navigation efficiency improved',
+          ],
           successThreshold: 0.8,
         },
-        rollbackTriggers: ['User satisfaction degradation', 'Navigation errors increased'],
+        rollbackTriggers: [
+          'User satisfaction degradation',
+          'Navigation errors increased',
+        ],
       });
     }
 
@@ -591,14 +685,23 @@ class SystemWideOptimizerService {
         estimatedDuration: 2,
         actions: this.generateAdvancedOptimizationActions(statisticalInsights),
         validation: {
-          criteria: ['All PRD targets exceeded', 'Statistical significance maintained'],
+          criteria: [
+            'All PRD targets exceeded',
+            'Statistical significance maintained',
+          ],
           successThreshold: 0.9,
         },
-        rollbackTriggers: ['System complexity increased', 'Maintenance burden increased'],
+        rollbackTriggers: [
+          'System complexity increased',
+          'Maintenance burden increased',
+        ],
       });
     }
 
-    const implementationTime = phases.reduce((total, phase) => total + phase.estimatedDuration, 0);
+    const implementationTime = phases.reduce(
+      (total, phase) => total + phase.estimatedDuration,
+      0,
+    );
 
     return {
       id: planId,
@@ -608,20 +711,36 @@ class SystemWideOptimizerService {
       phases,
       dependencies: ['System stability', 'Component availability'],
       riskAssessment: {
-        level: priority === 'emergency' || priority === 'critical' ? 'high' : 'medium',
+        level:
+          priority === 'emergency' || priority === 'critical'
+            ? 'high'
+            : 'medium',
         mitigations: [
           'Phased rollout approach',
           'Comprehensive monitoring',
           'Automated rollback triggers',
           'Performance validation at each phase',
         ],
-        rollbackPlan: 'Automated rollback to previous stable state if validation fails',
+        rollbackPlan:
+          'Automated rollback to previous stable state if validation fails',
       },
       successMetrics: [
         { metric: 'PRD pass rate', target: 95, measurement: 'percentage' },
-        { metric: 'System health score', target: 0.9, measurement: 'normalized score' },
-        { metric: 'User engagement', target: 0.8, measurement: 'engagement score' },
-        { metric: 'Performance targets met', target: 90, measurement: 'percentage' },
+        {
+          metric: 'System health score',
+          target: 0.9,
+          measurement: 'normalized score',
+        },
+        {
+          metric: 'User engagement',
+          target: 0.8,
+          measurement: 'engagement score',
+        },
+        {
+          metric: 'Performance targets met',
+          target: 90,
+          measurement: 'percentage',
+        },
       ],
     };
   }
@@ -632,13 +751,13 @@ class SystemWideOptimizerService {
   private async executeOptimizationPhase(
     planId: string,
     phase: OptimizationPhase,
-    baselineMetrics: Record<string, number>
+    baselineMetrics: Record<string, number>,
   ): Promise<OptimizationResult[]> {
     const results: OptimizationResult[] = [];
 
     for (const action of phase.actions) {
       const actionStartTime = Date.now();
-      
+
       try {
         structuredLogger.info('Executing optimization action', {
           actionId: action.id,
@@ -648,11 +767,14 @@ class SystemWideOptimizerService {
 
         const success = await this.executeOptimizationAction(action);
         const currentMetrics = await this.captureSystemMetrics();
-        
+
         const metricsBeforeAfter = {
           before: baselineMetrics,
           after: currentMetrics,
-          improvement: this.calculateImprovementPercentages(baselineMetrics, currentMetrics),
+          improvement: this.calculateImprovementPercentages(
+            baselineMetrics,
+            currentMetrics,
+          ),
         };
 
         const actualImpact = this.calculateActionImpact(metricsBeforeAfter);
@@ -674,7 +796,6 @@ class SystemWideOptimizerService {
             expectedImpact: action.expectedImpact,
           });
         }
-
       } catch (error) {
         results.push({
           planId,
@@ -690,9 +811,13 @@ class SystemWideOptimizerService {
           timestamp: actionStartTime,
         });
 
-        structuredLogger.error('Optimization action failed', {
-          actionId: action.id,
-        }, error as Error);
+        structuredLogger.error(
+          'Optimization action failed',
+          {
+            actionId: action.id,
+          },
+          error as Error,
+        );
       }
 
       // Small delay between actions
@@ -705,7 +830,9 @@ class SystemWideOptimizerService {
   /**
    * Execute a single optimization action
    */
-  private async executeOptimizationAction(action: OptimizationAction): Promise<boolean> {
+  private async executeOptimizationAction(
+    action: OptimizationAction,
+  ): Promise<boolean> {
     switch (action.type) {
       case 'performance':
         return await this.executePerformanceAction(action);
@@ -727,7 +854,9 @@ class SystemWideOptimizerService {
   /**
    * Generate action lists for different optimization phases
    */
-  private generateCriticalInfrastructureActions(criticalIssues: string[]): OptimizationAction[] {
+  private generateCriticalInfrastructureActions(
+    criticalIssues: string[],
+  ): OptimizationAction[] {
     const actions: OptimizationAction[] = [];
 
     criticalIssues.forEach((issue, index) => {
@@ -746,7 +875,9 @@ class SystemWideOptimizerService {
     return actions;
   }
 
-  private generatePerformanceOptimizationActions(analysis: SystemOptimizationAnalysis['performanceAnalysis']): OptimizationAction[] {
+  private generatePerformanceOptimizationActions(
+    analysis: SystemOptimizationAnalysis['performanceAnalysis'],
+  ): OptimizationAction[] {
     const actions: OptimizationAction[] = [];
 
     // Story generation latency optimization
@@ -755,7 +886,8 @@ class SystemWideOptimizerService {
         id: 'perf_story_latency',
         type: 'performance',
         component: 'storyGeneration',
-        description: 'Optimize story generation latency through caching and parallel processing',
+        description:
+          'Optimize story generation latency through caching and parallel processing',
         parameters: {
           enableCaching: true,
           parallelProcessing: true,
@@ -773,7 +905,8 @@ class SystemWideOptimizerService {
         id: 'perf_memory_optimization',
         type: 'performance',
         component: 'memoryManager',
-        description: 'Optimize memory usage through garbage collection and resource cleanup',
+        description:
+          'Optimize memory usage through garbage collection and resource cleanup',
         parameters: {
           enableAggressiveGC: true,
           resourceCleanupInterval: 30000,
@@ -790,17 +923,22 @@ class SystemWideOptimizerService {
 
   private generateUserExperienceActions(
     validationResults: SystemOptimizationAnalysis['validationResults'],
-    statisticalInsights: SystemOptimizationAnalysis['statisticalInsights']
+    statisticalInsights: SystemOptimizationAnalysis['statisticalInsights'],
   ): OptimizationAction[] {
     const actions: OptimizationAction[] = [];
 
     // Engagement optimization based on statistical insights
-    if (statisticalInsights.practicalImprovements.includes('user_engagement_score')) {
+    if (
+      statisticalInsights.practicalImprovements.includes(
+        'user_engagement_score',
+      )
+    ) {
       actions.push({
         id: 'ux_engagement_boost',
         type: 'engagement',
         component: 'engagementOptimizer',
-        description: 'Apply engagement optimizations proven effective in A/B testing',
+        description:
+          'Apply engagement optimizations proven effective in A/B testing',
         parameters: {
           enablePersonalization: true,
           adaptiveContent: true,
@@ -808,7 +946,10 @@ class SystemWideOptimizerService {
         },
         expectedImpact: 0.35,
         riskLevel: 'low',
-        validationChecks: ['Engagement score tracking', 'User session analysis'],
+        validationChecks: [
+          'Engagement score tracking',
+          'User session analysis',
+        ],
       });
     }
 
@@ -818,7 +959,8 @@ class SystemWideOptimizerService {
         id: 'ux_navigation_flow',
         type: 'navigation',
         component: 'navigationOptimizer',
-        description: 'Optimize navigation flows based on user behavior patterns',
+        description:
+          'Optimize navigation flows based on user behavior patterns',
         parameters: {
           enableFlowOptimization: true,
           personalizeNavigation: true,
@@ -836,7 +978,8 @@ class SystemWideOptimizerService {
         id: 'ux_reading_support',
         type: 'reading',
         component: 'readingComprehensionOptimizer',
-        description: 'Enhance reading comprehension support for struggling readers',
+        description:
+          'Enhance reading comprehension support for struggling readers',
         parameters: {
           enhancedSupport: true,
           adaptiveAssistance: true,
@@ -844,14 +987,19 @@ class SystemWideOptimizerService {
         },
         expectedImpact: 0.3,
         riskLevel: 'low',
-        validationChecks: ['Reading comprehension scores', 'Support effectiveness'],
+        validationChecks: [
+          'Reading comprehension scores',
+          'Support effectiveness',
+        ],
       });
     }
 
     return actions;
   }
 
-  private generateAdvancedOptimizationActions(insights: SystemOptimizationAnalysis['statisticalInsights']): OptimizationAction[] {
+  private generateAdvancedOptimizationActions(
+    insights: SystemOptimizationAnalysis['statisticalInsights'],
+  ): OptimizationAction[] {
     const actions: OptimizationAction[] = [];
 
     if (insights.confidenceLevel > 0.9) {
@@ -859,7 +1007,8 @@ class SystemWideOptimizerService {
         id: 'advanced_ml_optimization',
         type: 'configuration',
         component: 'mlOptimizer',
-        description: 'Apply machine learning-driven optimizations with high confidence',
+        description:
+          'Apply machine learning-driven optimizations with high confidence',
         parameters: {
           enableMLOptimization: true,
           confidenceThreshold: insights.confidenceLevel,
@@ -877,7 +1026,9 @@ class SystemWideOptimizerService {
   /**
    * Action execution methods
    */
-  private async executePerformanceAction(action: OptimizationAction): Promise<boolean> {
+  private async executePerformanceAction(
+    action: OptimizationAction,
+  ): Promise<boolean> {
     // In a real implementation, this would apply specific performance optimizations
     structuredLogger.info('Executing performance action', {
       actionId: action.id,
@@ -888,40 +1039,66 @@ class SystemWideOptimizerService {
     return Math.random() > 0.1; // 90% success rate
   }
 
-  private async executeEngagementAction(action: OptimizationAction): Promise<boolean> {
+  private async executeEngagementAction(
+    action: OptimizationAction,
+  ): Promise<boolean> {
     try {
       // Apply engagement optimization through existing service
       const optimizationId = `system_${action.id}`;
-      return await engagementOptimizer.applyEngagementOptimization(optimizationId);
+      return await engagementOptimizer.applyEngagementOptimization(
+        optimizationId,
+      );
     } catch (error) {
-      structuredLogger.error('Engagement action failed', { actionId: action.id }, error as Error);
+      structuredLogger.error(
+        'Engagement action failed',
+        { actionId: action.id },
+        error as Error,
+      );
       return false;
     }
   }
 
-  private async executeNavigationAction(action: OptimizationAction): Promise<boolean> {
+  private async executeNavigationAction(
+    action: OptimizationAction,
+  ): Promise<boolean> {
     try {
       // Apply navigation optimization through existing service
       const optimizationId = `system_${action.id}`;
-      return await navigationOptimizer.applyNavigationOptimization(optimizationId);
+      return await navigationOptimizer.applyNavigationOptimization(
+        optimizationId,
+      );
     } catch (error) {
-      structuredLogger.error('Navigation action failed', { actionId: action.id }, error as Error);
+      structuredLogger.error(
+        'Navigation action failed',
+        { actionId: action.id },
+        error as Error,
+      );
       return false;
     }
   }
 
-  private async executeReadingAction(action: OptimizationAction): Promise<boolean> {
+  private async executeReadingAction(
+    action: OptimizationAction,
+  ): Promise<boolean> {
     try {
       // Apply reading optimization through existing service
       const optimizationId = `system_${action.id}`;
-      return await readingComprehensionOptimizer.applyReadingOptimization(optimizationId);
+      return await readingComprehensionOptimizer.applyReadingOptimization(
+        optimizationId,
+      );
     } catch (error) {
-      structuredLogger.error('Reading action failed', { actionId: action.id }, error as Error);
+      structuredLogger.error(
+        'Reading action failed',
+        { actionId: action.id },
+        error as Error,
+      );
       return false;
     }
   }
 
-  private async executeInfrastructureAction(action: OptimizationAction): Promise<boolean> {
+  private async executeInfrastructureAction(
+    action: OptimizationAction,
+  ): Promise<boolean> {
     // Infrastructure actions are simulated for safety
     structuredLogger.info('Executing infrastructure action', {
       actionId: action.id,
@@ -930,7 +1107,9 @@ class SystemWideOptimizerService {
     return true;
   }
 
-  private async executeConfigurationAction(action: OptimizationAction): Promise<boolean> {
+  private async executeConfigurationAction(
+    action: OptimizationAction,
+  ): Promise<boolean> {
     // Configuration actions are simulated
     structuredLogger.info('Executing configuration action', {
       actionId: action.id,
@@ -951,17 +1130,22 @@ class SystemWideOptimizerService {
       averageRenderTime: performanceSummary.averageRenderTime,
       memoryUsage: performanceSummary.memoryUsage,
       engagementScore: engagementState.score,
-      overallHealth: uiState.overall.health === 'excellent' ? 1.0 :
-                    uiState.overall.health === 'good' ? 0.8 :
-                    uiState.overall.health === 'fair' ? 0.6 : 0.4,
+      overallHealth:
+        uiState.overall.health === 'excellent'
+          ? 1.0
+          : uiState.overall.health === 'good'
+          ? 0.8
+          : uiState.overall.health === 'fair'
+          ? 0.6
+          : 0.4,
       navigationEfficiency: uiState.navigation.efficiency,
       readingComprehension: uiState.reading.comprehensionScore,
     };
   }
 
   private calculateImprovementPercentages(
-    before: Record<string, number>, 
-    after: Record<string, number>
+    before: Record<string, number>,
+    after: Record<string, number>,
   ): Record<string, number> {
     const improvements: Record<string, number> = {};
 
@@ -980,24 +1164,41 @@ class SystemWideOptimizerService {
     return improvements;
   }
 
-  private calculateActionImpact(metricsBeforeAfter: OptimizationResult['metricsBeforeAfter']): number {
+  private calculateActionImpact(
+    metricsBeforeAfter: OptimizationResult['metricsBeforeAfter'],
+  ): number {
     const improvements = Object.values(metricsBeforeAfter.improvement);
     if (improvements.length === 0) return 0;
 
-    const avgImprovement = improvements.reduce((sum, val) => sum + Math.abs(val), 0) / improvements.length;
+    const avgImprovement =
+      improvements.reduce((sum, val) => sum + Math.abs(val), 0) /
+      improvements.length;
     return Math.min(avgImprovement / 100, 1.0); // Normalize to 0-1 scale
   }
 
-  private calculateAchievedImpacts(results: OptimizationResult[]): SystemOptimizationReport['achievedImpacts'] {
+  private calculateAchievedImpacts(
+    results: OptimizationResult[],
+  ): SystemOptimizationReport['achievedImpacts'] {
     const successfulResults = results.filter(r => r.success && r.actualImpact);
 
-    const performanceResults = successfulResults.filter(r => r.actionId.includes('perf_'));
-    const engagementResults = successfulResults.filter(r => r.actionId.includes('engagement'));
-    const navigationResults = successfulResults.filter(r => r.actionId.includes('navigation'));
-    const readingResults = successfulResults.filter(r => r.actionId.includes('reading'));
+    const performanceResults = successfulResults.filter(r =>
+      r.actionId.includes('perf_'),
+    );
+    const engagementResults = successfulResults.filter(r =>
+      r.actionId.includes('engagement'),
+    );
+    const navigationResults = successfulResults.filter(r =>
+      r.actionId.includes('navigation'),
+    );
+    const readingResults = successfulResults.filter(r =>
+      r.actionId.includes('reading'),
+    );
 
     const avgImpact = (results: OptimizationResult[]) =>
-      results.length > 0 ? results.reduce((sum, r) => sum + (r.actualImpact || 0), 0) / results.length : 0;
+      results.length > 0
+        ? results.reduce((sum, r) => sum + (r.actualImpact || 0), 0) /
+          results.length
+        : 0;
 
     const performance = avgImpact(performanceResults);
     const engagement = avgImpact(engagementResults);
@@ -1010,10 +1211,10 @@ class SystemWideOptimizerService {
 
   private calculateMetricsImprovement(
     before: Record<string, number>,
-    after: Record<string, number>
+    after: Record<string, number>,
   ): SystemOptimizationReport['metricsImprovement'] {
     const improvements = this.calculateImprovementPercentages(before, after);
-    
+
     const targetsAchieved: string[] = [];
     const targetsRemaining: string[] = [];
 
@@ -1030,9 +1231,11 @@ class SystemWideOptimizerService {
     Object.keys(targets).forEach(key => {
       if (after[key] !== undefined) {
         const target = targets[key as keyof typeof targets];
-        const achieved = key.includes('Time') || key.includes('Usage') ? 
-          after[key] <= target : after[key] >= target;
-        
+        const achieved =
+          key.includes('Time') || key.includes('Usage')
+            ? after[key] <= target
+            : after[key] >= target;
+
         if (achieved) {
           targetsAchieved.push(key);
         } else {
@@ -1053,19 +1256,24 @@ class SystemWideOptimizerService {
   private generatePostOptimizationRecommendations(
     analysis: SystemOptimizationAnalysis,
     results: OptimizationResult[],
-    metricsImprovement: SystemOptimizationReport['metricsImprovement']
+    metricsImprovement: SystemOptimizationReport['metricsImprovement'],
   ): SystemOptimizationReport['recommendations'] {
     const immediate: string[] = [];
     const shortTerm: string[] = [];
     const longTerm: string[] = [];
 
     const successRate = results.filter(r => r.success).length / results.length;
-    const overallImprovement = Object.values(metricsImprovement.improvements)
-      .reduce((sum, val) => sum + Math.abs(val), 0) / Object.keys(metricsImprovement.improvements).length;
+    const overallImprovement =
+      Object.values(metricsImprovement.improvements).reduce(
+        (sum, val) => sum + Math.abs(val),
+        0,
+      ) / Object.keys(metricsImprovement.improvements).length;
 
     // Immediate recommendations
     if (successRate < 0.8) {
-      immediate.push('Review failed optimizations and implement rollback procedures');
+      immediate.push(
+        'Review failed optimizations and implement rollback procedures',
+      );
     }
     if (metricsImprovement.targetsRemaining.length > 2) {
       immediate.push('Focus on remaining performance targets');
@@ -1075,40 +1283,52 @@ class SystemWideOptimizerService {
     if (overallImprovement > 10) {
       shortTerm.push('Monitor optimization stability over the next week');
     }
-    shortTerm.push('Implement continuous monitoring for key performance indicators');
+    shortTerm.push(
+      'Implement continuous monitoring for key performance indicators',
+    );
     shortTerm.push('Schedule performance validation testing');
 
     // Long-term recommendations
-    longTerm.push('Develop machine learning models for predictive optimization');
+    longTerm.push(
+      'Develop machine learning models for predictive optimization',
+    );
     longTerm.push('Implement automated performance regression detection');
     if (analysis.systemHealth.score > 0.8) {
-      longTerm.push('Consider advanced optimization techniques for exceptional performance');
+      longTerm.push(
+        'Consider advanced optimization techniques for exceptional performance',
+      );
     }
 
     return { immediate, shortTerm, longTerm };
   }
 
-  private evaluateRollbackTriggers(phase: OptimizationPhase, results: OptimizationResult[]): boolean {
+  private evaluateRollbackTriggers(
+    phase: OptimizationPhase,
+    results: OptimizationResult[],
+  ): boolean {
     const failureRate = results.filter(r => !r.success).length / results.length;
-    
+
     // Rollback if more than 50% of actions failed
     if (failureRate > 0.5) {
       return true;
     }
 
     // Check for specific rollback triggers
-    const hasRollbackIssues = results.some(r => 
-      r.issues?.some(issue => 
-        phase.rollbackTriggers.some(trigger => 
-          issue.toLowerCase().includes(trigger.toLowerCase())
-        )
-      )
+    const hasRollbackIssues = results.some(r =>
+      r.issues?.some(issue =>
+        phase.rollbackTriggers.some(trigger =>
+          issue.toLowerCase().includes(trigger.toLowerCase()),
+        ),
+      ),
     );
 
     return hasRollbackIssues;
   }
 
-  private async performPhaseRollback(phase: OptimizationPhase, results: OptimizationResult[]): Promise<void> {
+  private async performPhaseRollback(
+    phase: OptimizationPhase,
+    results: OptimizationResult[],
+  ): Promise<void> {
     structuredLogger.warn('Performing phase rollback', {
       phaseId: phase.id,
       failedActions: results.filter(r => !r.success).length,
@@ -1130,7 +1350,9 @@ class SystemWideOptimizerService {
    * Utility methods
    */
   private generateAnalysisId(): string {
-    return `analysis_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    return `analysis_${Date.now()}_${Math.random()
+      .toString(36)
+      .substring(2, 6)}`;
   }
 
   private generatePlanId(): string {
@@ -1159,8 +1381,9 @@ class SystemWideOptimizerService {
    * Get latest analysis
    */
   getLatestAnalysis(): SystemOptimizationAnalysis | null {
-    return this.optimizationHistory.length > 0 ? 
-      this.optimizationHistory[this.optimizationHistory.length - 1] : null;
+    return this.optimizationHistory.length > 0
+      ? this.optimizationHistory[this.optimizationHistory.length - 1]
+      : null;
   }
 
   /**
@@ -1182,8 +1405,10 @@ class SystemWideOptimizerService {
       },
       execution: {
         planExecuted: report.planExecuted,
-        phasesCompleted: report.results.length > 0 ? 
-          [...new Set(report.results.map(r => r.phaseId))].length : 0,
+        phasesCompleted:
+          report.results.length > 0
+            ? [...new Set(report.results.map(r => r.phaseId))].length
+            : 0,
         actionsExecuted: report.results.length,
         successfulActions: report.results.filter(r => r.success).length,
       },

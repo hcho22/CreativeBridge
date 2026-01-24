@@ -3,7 +3,7 @@
 
 import {
   imageGenerationService,
-  ImageGenerationRequest,
+  ImageGenerationEvent,
 } from '../../services/imageGeneration';
 
 describe('Task 3.4: Story Content Extraction and Prompt Generation (Simplified)', () => {
@@ -134,7 +134,7 @@ describe('Task 3.4: Story Content Extraction and Prompt Generation (Simplified)'
         return;
       }
 
-      const request: ImageGenerationRequest = {
+      const request: ImageGenerationEvent = {
         storyContent:
           'The friendly puppy discovered a magical garden filled with singing flowers and dancing butterflies.',
         gradeLevel: 'K-2',

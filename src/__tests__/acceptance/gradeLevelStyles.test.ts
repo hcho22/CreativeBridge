@@ -371,7 +371,7 @@ class GradeLevelStyleValidator {
   }
 
   // Generate recommendations for improvement
-  private generateRecommendations(
+  public generateRecommendations(
     gradeLevel: GradeLevel,
     score: number,
     issues: string[],

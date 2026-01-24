@@ -4,7 +4,7 @@
 
 import {
   enhancedContentAnalyzer,
-  type EnhancedContentAnalysis,
+  type EnhancedContentAnalyzer,
 } from './enhancedContentAnalysis';
 
 export type GradeLevel = 'K-2' | '3-5' | '6-8' | '9-12';
@@ -161,7 +161,7 @@ export class EnhancedPromptGenerator {
     gradeLevel: GradeLevel,
   ): {
     prompt: string;
-    analysis: EnhancedContentAnalysis;
+    analysis: EnhancedContentAnalyzer;
     reasoning: string[];
   } {
     // Analyze the content using enhanced analysis
@@ -228,7 +228,7 @@ export class EnhancedPromptGenerator {
   }
 
   private generateNarrativePrompt(
-    analysis: EnhancedContentAnalysis,
+    analysis: EnhancedContentAnalyzer,
     artStyle: ArtStyleDefinition[keyof ArtStyleDefinition],
     gradeLevel: GradeLevel,
   ): string {
@@ -271,7 +271,7 @@ export class EnhancedPromptGenerator {
   }
 
   private generateAbstractPrompt(
-    analysis: EnhancedContentAnalysis,
+    analysis: EnhancedContentAnalyzer,
     artStyle: ArtStyleDefinition[keyof ArtStyleDefinition],
     gradeLevel: GradeLevel,
   ): string {
@@ -321,7 +321,7 @@ export class EnhancedPromptGenerator {
   }
 
   private generateInspirationalPrompt(
-    analysis: EnhancedContentAnalysis,
+    analysis: EnhancedContentAnalyzer,
     artStyle: ArtStyleDefinition[keyof ArtStyleDefinition],
     gradeLevel: GradeLevel,
   ): string {
@@ -375,7 +375,7 @@ export class EnhancedPromptGenerator {
   }
 
   private generatePhilosophicalPrompt(
-    analysis: EnhancedContentAnalysis,
+    analysis: EnhancedContentAnalyzer,
     artStyle: ArtStyleDefinition[keyof ArtStyleDefinition],
     gradeLevel: GradeLevel,
   ): string {
@@ -425,7 +425,7 @@ export class EnhancedPromptGenerator {
   }
 
   private generatePoeticPrompt(
-    analysis: EnhancedContentAnalysis,
+    analysis: EnhancedContentAnalyzer,
     artStyle: ArtStyleDefinition[keyof ArtStyleDefinition],
     gradeLevel: GradeLevel,
   ): string {
@@ -469,7 +469,7 @@ export class EnhancedPromptGenerator {
   }
 
   private generateGenericPrompt(
-    analysis: EnhancedContentAnalysis,
+    analysis: EnhancedContentAnalyzer,
     artStyle: ArtStyleDefinition[keyof ArtStyleDefinition],
     gradeLevel: GradeLevel,
   ): string {

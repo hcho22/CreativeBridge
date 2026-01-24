@@ -3,7 +3,7 @@
 
 import {
   imageGenerationService,
-  ImageGenerationRequest,
+  ImageGenerationEvent,
   StoryAnalysis,
   ExtractedCharacters,
   ExtractedScenes,
@@ -19,7 +19,7 @@ describe('Task 3.4: Story Content Extraction and Prompt Generation Tests', () =>
         The bunny and owl danced together in the garden, laughing and having fun.
       `;
 
-      const request: ImageGenerationRequest = {
+      const request: ImageGenerationEvent = {
         storyContent: k2Story,
         gradeLevel: 'K-2',
         sessionId: 'test-k2-analysis',
@@ -156,7 +156,7 @@ describe('Task 3.4: Story Content Extraction and Prompt Generation Tests', () =>
         laughing and having the most wonderful time together.
       `;
 
-      const request: ImageGenerationRequest = {
+      const request: ImageGenerationEvent = {
         storyContent: k2Story,
         gradeLevel: 'K-2',
         sessionId: 'test-k2-prompt',
@@ -410,7 +410,7 @@ describe('Task 3.4: Story Content Extraction and Prompt Generation Tests', () =>
         return;
       }
 
-      const request: ImageGenerationRequest = {
+      const request: ImageGenerationEvent = {
         storyContent:
           'The friendly robot helped children learn about science in their colorful classroom.',
         gradeLevel: 'K-2',

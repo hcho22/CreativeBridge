@@ -10,7 +10,7 @@ import {
   BackupServiceClient,
 } from '../../services/imageGeneration';
 import { supabase } from '../../services/supabase';
-import type { GradeLevel, ImageGenerationRequest } from '../../types/database';
+import type { GradeLevel, ImageGenerationEvent } from '../../types/database';
 
 // Mock environment variables first
 jest.mock('react-native-dotenv', () => ({
@@ -987,7 +987,7 @@ describe('Image Generation Service - Unit Tests', () => {
     });
 
     test('should handle network errors in development mode', async () => {
-      const mockRequest: ImageGenerationRequest = {
+      const mockRequest: ImageGenerationEvent = {
         storyContent: 'Test story content for development mode testing.',
         gradeLevel: 'K-2',
         sessionId: 'test-session',

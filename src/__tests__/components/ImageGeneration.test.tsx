@@ -51,6 +51,9 @@ describe('ImageGeneration Component - Tasks 5.2-5.5', () => {
     onImageGenerated: jest.fn(),
     onError: jest.fn(),
     disabled: false,
+    isStoryCompleted: true,
+    currentRound: 5,
+    maxRounds: 5,
   };
 
   beforeEach(() => {
@@ -100,7 +103,7 @@ describe('ImageGeneration Component - Tasks 5.2-5.5', () => {
       const button = getByText('🎨 Generate Story Image');
       expect(button).toBeTruthy();
       // Text elements don't have disabled prop, test the button via parent TouchableOpacity
-      expect(button.parent.props.disabled).toBe(false);
+      expect(button.parent?.props.disabled).toBe(false);
     });
   });
 
@@ -172,7 +175,7 @@ describe('ImageGeneration Component - Tasks 5.2-5.5', () => {
 
       // Button should be disabled
       const button = getByText('🎨 Generate Story Image');
-      expect(button.parent.props.disabled).toBe(true);
+      expect(button.parent?.props.disabled).toBe(true);
 
       // Should show disabled state message
       expect(getByText('🔒')).toBeTruthy();
@@ -202,7 +205,7 @@ describe('ImageGeneration Component - Tasks 5.2-5.5', () => {
       );
 
       const button = getByText('🎨 Generate Story Image');
-      expect(button.parent.props.disabled).toBe(true);
+      expect(button.parent?.props.disabled).toBe(true);
       expect(getByText('Image Generation Locked')).toBeTruthy();
     });
   });

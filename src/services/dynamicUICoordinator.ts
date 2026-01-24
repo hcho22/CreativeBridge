@@ -1,16 +1,32 @@
 /**
  * Dynamic UI Coordinator Service
- * 
+ *
  * Central coordination service for all UI optimization components
  * Task 7.2: Dynamic UI Optimization - Integration Layer
  */
 
 import { structuredLogger } from '../utils/logger';
-import { uiPerformanceMonitor, UIPerformanceMetric, OptimizationRecommendation } from './uiPerformanceMonitor';
-import { engagementOptimizer, EngagementMetric, EngagementOptimization } from './engagementOptimizer';
-import { navigationOptimizer, NavigationEvent, NavigationOptimization } from './navigationOptimizer';
-import { readingComprehensionOptimizer, ReadingEvent, ReadingOptimization } from './readingComprehensionOptimizer';
-import { behaviorAnalyticsService } from './behaviorAnalytics';
+import {
+  uiPerformanceMonitor,
+  UIPerformanceMetric,
+  OptimizationRecommendation,
+} from './uiPerformanceMonitor';
+import {
+  engagementOptimizer,
+  EngagementMetric,
+  EngagementOptimization,
+} from './engagementOptimizer';
+import {
+  navigationOptimizer,
+  NavigationEvent,
+  NavigationOptimization,
+} from './navigationOptimizer';
+import {
+  readingComprehensionOptimizer,
+  ReadingEvent,
+  ReadingOptimization,
+} from './readingComprehensionOptimizer';
+import { behaviorAnalytics } from './behaviorAnalytics';
 import { GradeLevel } from '../types/database';
 
 export interface UIOptimizationState {
@@ -57,7 +73,13 @@ export interface CoordinatedOptimization {
   };
   dependencies: string[]; // Other optimizations this depends on
   conflicts: string[]; // Other optimizations that conflict with this
-  status: 'pending' | 'applying' | 'applied' | 'measuring' | 'completed' | 'failed';
+  status:
+    | 'pending'
+    | 'applying'
+    | 'applied'
+    | 'measuring'
+    | 'completed'
+    | 'failed';
   appliedAt?: number;
   effectiveness?: number;
 }
@@ -114,7 +136,11 @@ class DynamicUICoordinatorService {
   /**
    * Initialize the dynamic UI coordinator
    */
-  async initialize(sessionId: string, gradeLevel: GradeLevel, initialScreen: string): Promise<void> {
+  async initialize(
+    sessionId: string,
+    gradeLevel: GradeLevel,
+    initialScreen: string,
+  ): Promise<void> {
     try {
       this.sessionId = sessionId;
       this.gradeLevel = gradeLevel;
@@ -142,7 +168,11 @@ class DynamicUICoordinatorService {
         maxConcurrentOptimizations: this.config.maxConcurrentOptimizations,
       });
     } catch (error) {
-      structuredLogger.error('Failed to initialize Dynamic UI Coordinator', {}, error as Error);
+      structuredLogger.error(
+        'Failed to initialize Dynamic UI Coordinator',
+        {},
+        error as Error,
+      );
       throw error;
     }
   }
@@ -158,21 +188,22 @@ class DynamicUICoordinatorService {
     const performanceSummary = uiPerformanceMonitor.getPerformanceSummary();
     const engagementState = engagementOptimizer.getCurrentEngagementState();
     const navigationMetrics = navigationOptimizer.getNavigationMetrics();
-    const readingMetrics = readingComprehensionOptimizer.getCurrentComprehensionMetrics();
+    const readingMetrics =
+      readingComprehensionOptimizer.getCurrentComprehensionMetrics();
 
     const overallHealth = this.calculateOverallHealth(
       performanceSummary,
       engagementState,
       navigationMetrics,
-      readingMetrics
+      readingMetrics,
     );
 
     return {
       overall: {
         health: overallHealth,
         lastUpdate: Date.now(),
-        activeOptimizations: this.optimizations.filter(o => 
-          ['applying', 'applied', 'measuring'].includes(o.status)
+        activeOptimizations: this.optimizations.filter(o =>
+          ['applying', 'applied', 'measuring'].includes(o.status),
         ).length,
       },
       performance: {
@@ -188,9 +219,11 @@ class DynamicUICoordinatorService {
       },
       navigation: {
         efficiency: navigationMetrics.optimalPathAdherence,
-        strugglingPatterns: Object.values(navigationMetrics.backNavigationFrequency)
-          .filter(freq => freq > 0.3).length,
-        optimizationOpportunities: navigationOptimizer.getNavigationOptimizations(false).length,
+        strugglingPatterns: Object.values(
+          navigationMetrics.backNavigationFrequency,
+        ).filter(freq => freq > 0.3).length,
+        optimizationOpportunities:
+          navigationOptimizer.getNavigationOptimizations(false).length,
       },
       reading: {
         comprehensionScore: readingMetrics.comprehensionScore,
@@ -204,9 +237,11 @@ class DynamicUICoordinatorService {
   /**
    * Get coordinated optimizations
    */
-  getCoordinatedOptimizations(status?: CoordinatedOptimization['status']): CoordinatedOptimization[] {
+  getCoordinatedOptimizations(
+    status?: CoordinatedOptimization['status'],
+  ): CoordinatedOptimization[] {
     let optimizations = this.optimizations;
-    
+
     if (status) {
       optimizations = optimizations.filter(o => o.status === status);
     }
@@ -219,27 +254,34 @@ class DynamicUICoordinatorService {
    */
   async applyCoordinatedOptimization(optimizationId: string): Promise<boolean> {
     try {
-      const optimization = this.optimizations.find(o => o.id === optimizationId);
+      const optimization = this.optimizations.find(
+        o => o.id === optimizationId,
+      );
       if (!optimization || optimization.status !== 'pending') {
-        structuredLogger.warn('Coordinated optimization not available', { 
-          optimizationId, 
-          currentStatus: optimization?.status 
+        structuredLogger.warn('Coordinated optimization not available', {
+          optimizationId,
+          currentStatus: optimization?.status,
         });
         return false;
       }
 
       // Check cooldown
-      if (Date.now() - this.lastOptimizationTime < this.config.optimizationCooldown) {
+      if (
+        Date.now() - this.lastOptimizationTime <
+        this.config.optimizationCooldown
+      ) {
         structuredLogger.info('Optimization skipped due to cooldown', {
           optimizationId,
-          cooldownRemaining: this.config.optimizationCooldown - (Date.now() - this.lastOptimizationTime),
+          cooldownRemaining:
+            this.config.optimizationCooldown -
+            (Date.now() - this.lastOptimizationTime),
         });
         return false;
       }
 
       // Check concurrent optimizations limit
-      const activeOptimizations = this.optimizations.filter(o => 
-        ['applying', 'applied', 'measuring'].includes(o.status)
+      const activeOptimizations = this.optimizations.filter(o =>
+        ['applying', 'applied', 'measuring'].includes(o.status),
       ).length;
 
       if (activeOptimizations >= this.config.maxConcurrentOptimizations) {
@@ -255,10 +297,18 @@ class DynamicUICoordinatorService {
 
       // Apply optimizations across components
       const results = await Promise.all([
-        this.applyPerformanceOptimizations(optimization.implementation.performanceActions || []),
-        this.applyEngagementOptimizations(optimization.implementation.engagementActions || []),
-        this.applyNavigationOptimizations(optimization.implementation.navigationActions || []),
-        this.applyReadingOptimizations(optimization.implementation.readingActions || []),
+        this.applyPerformanceOptimizations(
+          optimization.implementation.performanceActions || [],
+        ),
+        this.applyEngagementOptimizations(
+          optimization.implementation.engagementActions || [],
+        ),
+        this.applyNavigationOptimizations(
+          optimization.implementation.navigationActions || [],
+        ),
+        this.applyReadingOptimizations(
+          optimization.implementation.readingActions || [],
+        ),
       ]);
 
       const allSucceeded = results.every(result => result);
@@ -284,12 +334,18 @@ class DynamicUICoordinatorService {
 
       return allSucceeded;
     } catch (error) {
-      const optimization = this.optimizations.find(o => o.id === optimizationId);
+      const optimization = this.optimizations.find(
+        o => o.id === optimizationId,
+      );
       if (optimization) {
         optimization.status = 'failed';
       }
 
-      structuredLogger.error('Failed to apply coordinated optimization', { optimizationId }, error as Error);
+      structuredLogger.error(
+        'Failed to apply coordinated optimization',
+        { optimizationId },
+        error as Error,
+      );
       return false;
     }
   }
@@ -308,13 +364,17 @@ class DynamicUICoordinatorService {
       appliedAt: number;
     }>;
   } {
-    const completedOptimizations = this.optimizations.filter(o => 
-      o.effectiveness !== undefined
+    const completedOptimizations = this.optimizations.filter(
+      o => o.effectiveness !== undefined,
     );
 
-    const overall = completedOptimizations.length > 0
-      ? completedOptimizations.reduce((sum, o) => sum + (o.effectiveness || 0), 0) / completedOptimizations.length
-      : 0;
+    const overall =
+      completedOptimizations.length > 0
+        ? completedOptimizations.reduce(
+            (sum, o) => sum + (o.effectiveness || 0),
+            0,
+          ) / completedOptimizations.length
+        : 0;
 
     // Group by type
     const byType: Record<string, number> = {};
@@ -322,7 +382,7 @@ class DynamicUICoordinatorService {
       if (!byType[o.type]) {
         byType[o.type] = 0;
       }
-      byType[o.type] += (o.effectiveness || 0);
+      byType[o.type] += o.effectiveness || 0;
     });
 
     Object.keys(byType).forEach(type => {
@@ -339,13 +399,13 @@ class DynamicUICoordinatorService {
         if (!byComponent[component]) {
           byComponent[component] = 0;
         }
-        byComponent[component] += (o.effectiveness || 0);
+        byComponent[component] += o.effectiveness || 0;
       });
     });
 
     Object.keys(byComponent).forEach(component => {
-      const count = completedOptimizations.filter(o => 
-        o.components.includes(component)
+      const count = completedOptimizations.filter(o =>
+        o.components.includes(component),
       ).length;
       if (count > 0) {
         byComponent[component] /= count;
@@ -384,47 +444,60 @@ class DynamicUICoordinatorService {
     try {
       // Analyze current state across all components
       const currentState = this.getOptimizationState();
-      
+
       // Generate coordinated optimizations
       await this.generateCoordinatedOptimizations(currentState);
-      
+
       // Auto-apply critical optimizations
       await this.autoApplyCriticalOptimizations();
-      
+
       // Measure effectiveness of applied optimizations
       this.measureCoordinatedEffectiveness();
-      
+
       // Clean up old optimizations
       this.cleanupOptimizations();
-      
+
       structuredLogger.debug('UI coordination completed', {
         overallHealth: currentState.overall.health,
         activeOptimizations: currentState.overall.activeOptimizations,
-        pendingOptimizations: this.optimizations.filter(o => o.status === 'pending').length,
+        pendingOptimizations: this.optimizations.filter(
+          o => o.status === 'pending',
+        ).length,
       });
     } catch (error) {
       structuredLogger.error('UI coordination failed', {}, error as Error);
     }
   }
 
-  private async generateCoordinatedOptimizations(state: UIOptimizationState): Promise<void> {
+  private async generateCoordinatedOptimizations(
+    state: UIOptimizationState,
+  ): Promise<void> {
     // Generate performance-focused optimizations
     if (state.performance.score < 0.7 || state.performance.criticalIssues > 0) {
       this.createPerformanceOptimization(state);
     }
 
     // Generate engagement-focused optimizations
-    if (state.engagement.score < 0.6 || state.engagement.trend === 'decreasing') {
+    if (
+      state.engagement.score < 0.6 ||
+      state.engagement.trend === 'decreasing'
+    ) {
       this.createEngagementOptimization(state);
     }
 
     // Generate navigation optimizations
-    if (state.navigation.efficiency < 0.7 || state.navigation.strugglingPatterns > 2) {
+    if (
+      state.navigation.efficiency < 0.7 ||
+      state.navigation.strugglingPatterns > 2
+    ) {
       this.createNavigationOptimization(state);
     }
 
     // Generate reading comprehension optimizations
-    if (state.reading.comprehensionScore < 0.7 || state.reading.strugglingIndicators > 2) {
+    if (
+      state.reading.comprehensionScore < 0.7 ||
+      state.reading.strugglingIndicators > 2
+    ) {
       this.createReadingOptimization(state);
     }
 
@@ -436,7 +509,7 @@ class DynamicUICoordinatorService {
 
   private createPerformanceOptimization(state: UIOptimizationState): void {
     const performanceInsights = uiPerformanceMonitor.getPerformanceInsights();
-    
+
     if (performanceInsights.recommendations.length > 0) {
       const optimization: CoordinatedOptimization = {
         id: this.generateOptimizationId(),
@@ -483,7 +556,8 @@ class DynamicUICoordinatorService {
   }
 
   private createNavigationOptimization(state: UIOptimizationState): void {
-    const navigationOptimizations = navigationOptimizer.getNavigationOptimizations(false)
+    const navigationOptimizations = navigationOptimizer
+      .getNavigationOptimizations(false)
       .filter(o => o.priority >= 3)
       .slice(0, 2);
 
@@ -532,14 +606,18 @@ class DynamicUICoordinatorService {
     }
   }
 
-  private shouldCreateCombinedOptimization(state: UIOptimizationState): boolean {
+  private shouldCreateCombinedOptimization(
+    state: UIOptimizationState,
+  ): boolean {
     // Create combined optimizations when multiple systems are struggling
     const strugglingComponents = [];
-    
+
     if (state.performance.score < 0.6) strugglingComponents.push('performance');
     if (state.engagement.score < 0.6) strugglingComponents.push('engagement');
-    if (state.navigation.efficiency < 0.6) strugglingComponents.push('navigation');
-    if (state.reading.comprehensionScore < 0.6) strugglingComponents.push('reading');
+    if (state.navigation.efficiency < 0.6)
+      strugglingComponents.push('navigation');
+    if (state.reading.comprehensionScore < 0.6)
+      strugglingComponents.push('reading');
 
     return strugglingComponents.length >= 2;
   }
@@ -568,7 +646,8 @@ class DynamicUICoordinatorService {
     // Include navigation actions if needed
     if (state.navigation.efficiency < 0.6) {
       components.push('navigation');
-      actions.navigationActions = navigationOptimizer.getNavigationOptimizations(false)
+      actions.navigationActions = navigationOptimizer
+        .getNavigationOptimizations(false)
         .filter(o => o.priority >= 3)
         .slice(0, 1);
     }
@@ -576,7 +655,8 @@ class DynamicUICoordinatorService {
     // Include reading actions if needed
     if (state.reading.comprehensionScore < 0.6) {
       components.push('reading');
-      const readingPatterns = readingComprehensionOptimizer.getReadingPatterns();
+      const readingPatterns =
+        readingComprehensionOptimizer.getReadingPatterns();
       actions.readingActions = readingPatterns
         .flatMap(p => p.recommendedOptimizations)
         .filter(o => o.priority >= 3)
@@ -601,19 +681,23 @@ class DynamicUICoordinatorService {
   }
 
   private async autoApplyCriticalOptimizations(): Promise<void> {
-    const criticalOptimizations = this.optimizations.filter(o => 
-      o.status === 'pending' && o.priority >= this.config.priorityThresholds.critical
+    const criticalOptimizations = this.optimizations.filter(
+      o =>
+        o.status === 'pending' &&
+        o.priority >= this.config.priorityThresholds.critical,
     );
 
     for (const optimization of criticalOptimizations) {
       await this.applyCoordinatedOptimization(optimization.id);
-      
+
       // Small delay between critical optimizations
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
   }
 
-  private async applyPerformanceOptimizations(actions: OptimizationRecommendation[]): Promise<boolean> {
+  private async applyPerformanceOptimizations(
+    actions: OptimizationRecommendation[],
+  ): Promise<boolean> {
     if (actions.length === 0) return true;
 
     try {
@@ -623,88 +707,131 @@ class DynamicUICoordinatorService {
       });
       return true;
     } catch (error) {
-      structuredLogger.error('Failed to apply performance optimizations', {}, error as Error);
+      structuredLogger.error(
+        'Failed to apply performance optimizations',
+        {},
+        error as Error,
+      );
       return false;
     }
   }
 
-  private async applyEngagementOptimizations(actions: EngagementOptimization[]): Promise<boolean> {
+  private async applyEngagementOptimizations(
+    actions: EngagementOptimization[],
+  ): Promise<boolean> {
     if (actions.length === 0) return true;
 
     try {
       const results = await Promise.all(
-        actions.map(action => engagementOptimizer.applyEngagementOptimization(action.id))
+        actions.map(action =>
+          engagementOptimizer.applyEngagementOptimization(action.id),
+        ),
       );
       return results.every(result => result);
     } catch (error) {
-      structuredLogger.error('Failed to apply engagement optimizations', {}, error as Error);
+      structuredLogger.error(
+        'Failed to apply engagement optimizations',
+        {},
+        error as Error,
+      );
       return false;
     }
   }
 
-  private async applyNavigationOptimizations(actions: NavigationOptimization[]): Promise<boolean> {
+  private async applyNavigationOptimizations(
+    actions: NavigationOptimization[],
+  ): Promise<boolean> {
     if (actions.length === 0) return true;
 
     try {
       const results = await Promise.all(
-        actions.map(action => navigationOptimizer.applyNavigationOptimization(action.id))
+        actions.map(action =>
+          navigationOptimizer.applyNavigationOptimization(action.id),
+        ),
       );
       return results.every(result => result);
     } catch (error) {
-      structuredLogger.error('Failed to apply navigation optimizations', {}, error as Error);
+      structuredLogger.error(
+        'Failed to apply navigation optimizations',
+        {},
+        error as Error,
+      );
       return false;
     }
   }
 
-  private async applyReadingOptimizations(actions: ReadingOptimization[]): Promise<boolean> {
+  private async applyReadingOptimizations(
+    actions: ReadingOptimization[],
+  ): Promise<boolean> {
     if (actions.length === 0) return true;
 
     try {
       const results = await Promise.all(
-        actions.map(action => readingComprehensionOptimizer.applyReadingOptimization(action.id))
+        actions.map(action =>
+          readingComprehensionOptimizer.applyReadingOptimization(action.id),
+        ),
       );
       return results.every(result => result);
     } catch (error) {
-      structuredLogger.error('Failed to apply reading optimizations', {}, error as Error);
+      structuredLogger.error(
+        'Failed to apply reading optimizations',
+        {},
+        error as Error,
+      );
       return false;
     }
   }
 
   private measureCoordinatedEffectiveness(): void {
-    const measuringOptimizations = this.optimizations.filter(o => 
-      o.status === 'applied' && !o.effectiveness &&
-      o.appliedAt && Date.now() - o.appliedAt > 300000 // At least 5 minutes
+    const measuringOptimizations = this.optimizations.filter(
+      o =>
+        o.status === 'applied' &&
+        !o.effectiveness &&
+        o.appliedAt &&
+        Date.now() - o.appliedAt > 300000, // At least 5 minutes
     );
 
     measuringOptimizations.forEach(optimization => {
-      const effectiveness = this.calculateCoordinatedEffectiveness(optimization);
-      
+      const effectiveness =
+        this.calculateCoordinatedEffectiveness(optimization);
+
       if (effectiveness !== null) {
         optimization.effectiveness = effectiveness;
         optimization.status = 'completed';
-        
-        structuredLogger.info('Coordinated optimization effectiveness measured', {
-          optimizationId: optimization.id,
-          type: optimization.type,
-          effectiveness,
-          components: optimization.components,
-        });
+
+        structuredLogger.info(
+          'Coordinated optimization effectiveness measured',
+          {
+            optimizationId: optimization.id,
+            type: optimization.type,
+            effectiveness,
+            components: optimization.components,
+          },
+        );
       } else {
         optimization.status = 'measuring'; // Continue measuring
       }
     });
   }
 
-  private calculateCoordinatedEffectiveness(optimization: CoordinatedOptimization): number | null {
+  private calculateCoordinatedEffectiveness(
+    optimization: CoordinatedOptimization,
+  ): number | null {
     const componentEffectiveness: number[] = [];
 
     // Get effectiveness from each component
     if (optimization.components.includes('performance')) {
       const perfSummary = uiPerformanceMonitor.getPerformanceSummary();
       // Simple heuristic: better performance means higher effectiveness
-      componentEffectiveness.push(perfSummary.overallHealth === 'excellent' ? 1.0 : 
-                                   perfSummary.overallHealth === 'good' ? 0.8 :
-                                   perfSummary.overallHealth === 'fair' ? 0.6 : 0.4);
+      componentEffectiveness.push(
+        perfSummary.overallHealth === 'excellent'
+          ? 1.0
+          : perfSummary.overallHealth === 'good'
+          ? 0.8
+          : perfSummary.overallHealth === 'fair'
+          ? 0.6
+          : 0.4,
+      );
     }
 
     if (optimization.components.includes('engagement')) {
@@ -718,7 +845,8 @@ class DynamicUICoordinatorService {
     }
 
     if (optimization.components.includes('reading')) {
-      const readingMetrics = readingComprehensionOptimizer.getCurrentComprehensionMetrics();
+      const readingMetrics =
+        readingComprehensionOptimizer.getCurrentComprehensionMetrics();
       componentEffectiveness.push(readingMetrics.comprehensionScore);
     }
 
@@ -727,15 +855,23 @@ class DynamicUICoordinatorService {
     // Calculate weighted average effectiveness
     const weights = optimization.components.map(component => {
       switch (component) {
-        case 'performance': return this.config.integrationSettings.performanceWeight;
-        case 'engagement': return this.config.integrationSettings.engagementWeight;
-        case 'navigation': return this.config.integrationSettings.navigationWeight;
-        case 'reading': return this.config.integrationSettings.readingWeight;
-        default: return 0.25;
+        case 'performance':
+          return this.config.integrationSettings.performanceWeight;
+        case 'engagement':
+          return this.config.integrationSettings.engagementWeight;
+        case 'navigation':
+          return this.config.integrationSettings.navigationWeight;
+        case 'reading':
+          return this.config.integrationSettings.readingWeight;
+        default:
+          return 0.25;
       }
     });
 
-    const weightedSum = componentEffectiveness.reduce((sum, eff, i) => sum + eff * weights[i], 0);
+    const weightedSum = componentEffectiveness.reduce(
+      (sum, eff, i) => sum + eff * weights[i],
+      0,
+    );
     const weightSum = weights.reduce((sum, w) => sum + w, 0);
 
     return weightSum > 0 ? weightedSum / weightSum : null;
@@ -745,20 +881,27 @@ class DynamicUICoordinatorService {
     performance: any,
     engagement: any,
     navigation: any,
-    reading: any
+    reading: any,
   ): 'excellent' | 'good' | 'fair' | 'poor' {
     const scores: number[] = [];
 
     // Convert performance health to score
-    scores.push(performance.overallHealth === 'excellent' ? 1.0 : 
-                performance.overallHealth === 'good' ? 0.8 :
-                performance.overallHealth === 'fair' ? 0.6 : 0.4);
+    scores.push(
+      performance.overallHealth === 'excellent'
+        ? 1.0
+        : performance.overallHealth === 'good'
+        ? 0.8
+        : performance.overallHealth === 'fair'
+        ? 0.6
+        : 0.4,
+    );
 
     scores.push(engagement.score);
     scores.push(navigation.optimalPathAdherence);
     scores.push(reading.comprehensionScore);
 
-    const averageScore = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+    const averageScore =
+      scores.reduce((sum, score) => sum + score, 0) / scores.length;
 
     if (averageScore >= 0.9) return 'excellent';
     if (averageScore >= 0.7) return 'good';
@@ -774,7 +917,9 @@ class DynamicUICoordinatorService {
     return 0.4;
   }
 
-  private determineSupportLevel(metrics: any): 'minimal' | 'moderate' | 'intensive' {
+  private determineSupportLevel(
+    metrics: any,
+  ): 'minimal' | 'moderate' | 'intensive' {
     const strugglingCount = metrics.strugglingIndicators.length;
     const comprehensionScore = metrics.comprehensionScore;
 
@@ -789,9 +934,9 @@ class DynamicUICoordinatorService {
 
   private cleanupOptimizations(): void {
     const cutoff = Date.now() - 3600000; // Keep 1 hour
-    
-    this.optimizations = this.optimizations.filter(o => 
-      o.appliedAt ? o.appliedAt > cutoff : Date.now() - cutoff < 300000
+
+    this.optimizations = this.optimizations.filter(o =>
+      o.appliedAt ? o.appliedAt > cutoff : Date.now() - cutoff < 300000,
     );
   }
 
@@ -846,7 +991,9 @@ class DynamicUICoordinatorService {
 
     structuredLogger.info('Dynamic UI Coordinator shutdown completed', {
       optimizationsGenerated: this.optimizations.length,
-      completedOptimizations: this.optimizations.filter(o => o.status === 'completed').length,
+      completedOptimizations: this.optimizations.filter(
+        o => o.status === 'completed',
+      ).length,
     });
   }
 }

@@ -44,6 +44,9 @@ describe('ImageGeneration Error Handling UI - Tasks 7.1-7.4', () => {
     wordCount: 150,
     onImageGenerated: jest.fn(),
     onError: jest.fn(),
+    isStoryCompleted: true,
+    currentRound: 5,
+    maxRounds: 5,
   };
 
   const defaultAuthMock = {

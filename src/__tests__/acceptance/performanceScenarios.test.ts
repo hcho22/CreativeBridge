@@ -3,9 +3,12 @@
  * Tests performance characteristics and user experience under various load conditions
  */
 
-import { imageGenerationService } from '../../services/imageGeneration';
+import {
+  imageGenerationService,
+  type ImageGenerationRequest,
+} from '../../services/imageGeneration';
 import { supabase } from '../../services/supabase';
-import type { ImageGenerationRequest, GradeLevel } from '../../types/database';
+import type { ImageGenerationEvent, GradeLevel } from '../../types/database';
 
 // Mock dependencies
 jest.mock('../../services/supabase', () => ({
@@ -45,7 +48,7 @@ class PerformanceTestRunner {
       }),
     };
     mockSupabase.from.mockReturnValue(mockQueryBuilder as any);
-    mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
+    mockSupabase.rpc.mockResolvedValue({ data: null, error: undefined } as any);
 
     mockFetch.mockResolvedValue({
       ok: true,
@@ -77,10 +80,13 @@ class PerformanceTestRunner {
     };
     mockSupabase.from.mockReturnValue(mockQueryBuilder as any);
     mockSupabase.rpc.mockImplementation(
-      () =>
+      (() =>
         new Promise(resolve =>
-          setTimeout(() => resolve({ data: null, error: null }), delay),
-        ),
+          setTimeout(
+            () => resolve({ data: null, error: undefined } as any),
+            delay,
+          ),
+        )) as any,
     );
 
     mockFetch.mockImplementation(

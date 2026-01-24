@@ -303,7 +303,7 @@ describe('User Journey Scenarios - User Acceptance Tests', () => {
       }),
     };
     mockSupabase.from.mockReturnValue(mockQueryBuilder as any);
-    mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
+    mockSupabase.rpc.mockResolvedValue({ data: null, error: undefined } as any);
 
     mockFetch.mockResolvedValue({
       ok: true,

@@ -69,6 +69,37 @@ This directory contains comprehensive documentation for the CreativeBridge educa
 - Troubleshooting common issues
 - Version management and best practices
 
+### 📋 Feature Development & PRDs
+
+#### Tasks Directory Structure
+
+The `Tasks/` directory contains Product Requirements Documents (PRDs) and implementation plans for features and bug fixes:
+
+**Active PRDs**:
+
+- [**Image Generation Watercolor Style Fix**](./Tasks/prd-image-generation-watercolor-style-fix.md) - Critical bug fix to enforce grade-appropriate art styles across all grade levels (K-2, 3-5, 6-8, 9-12)
+- [**Image Generation Quality Improvement**](./Tasks/prd-image-generation-quality-improvement.md) - LLM-based prompt generation for better story-to-image relevance
+- [**Story Agent Diversity**](./Tasks/prd-story-agent-diversity.md) - Multi-personality AI agents for varied storytelling experiences
+- [**Claude Skills Integration**](./Tasks/TASKS-claude-skills-integration-PRD.md) - Advanced AI optimization and quality assessment
+
+**Implementation Guides**:
+
+- [**Story Completion and Image Persistence**](./Tasks/story-completion-and-image-persistence-PRD.md) - Session completion tracking and image backup system
+- [**OAuth Google/Apple Sign-In**](./Tasks/oauth-google-apple-signin-PRD.md) - Social authentication integration
+- [**Production Conversion**](./Tasks/production-conversion-PRD.md) - Production environment setup and deployment
+
+**Bug Fixes & Maintenance**:
+
+- [**TestFlight Crash Fix**](./Tasks/testflight-crash-fix.md) - iOS app launch crash resolution
+- [**Statistics Not Updating Fix**](./Tasks/statistics-not-updating-fix.md) - Database statistics update issues
+
+**How to Use**:
+
+1. Check existing PRDs before starting new features to avoid duplication
+2. Follow the PRD template in `Tasks/create-prd.md` for new features
+3. Update PRD status (Draft → In Progress → Implemented) as work progresses
+4. Link related PRDs in the "Related Documentation" section
+
 ## 🚀 Quick Start Guide
 
 ### For New Developers

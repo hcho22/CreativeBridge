@@ -634,8 +634,8 @@ describe('Performance Testing', () => {
       );
 
       expect(duration).toBeLessThan(300); // Should validate efficiently
-      expect(result.memoryOptimized).toBe(true);
-      expect(result.processedInChunks).toBeGreaterThan(1);
+      expect((result as any).memoryOptimized).toBe(true);
+      expect((result as any).processedInChunks).toBeGreaterThan(1);
     });
 
     it('should efficiently handle pagination of large story lists', async () => {

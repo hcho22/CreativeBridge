@@ -34,7 +34,7 @@ describe('Performance Tests: Image Upload Speed', () => {
       grade_level: 'K-2',
       current_round: 5,
       completed_at: new Date().toISOString(),
-    });
+    } as any);
   });
 
   afterAll(async () => {
@@ -75,7 +75,7 @@ describe('Performance Tests: Image Upload Speed', () => {
     const result = await imageStorageService.uploadImageToSupabase(
       mockReplicateUrl,
       TEST_SESSION_ID,
-      TEST_USER_ID
+      TEST_USER_ID,
     );
 
     const elapsed = Date.now() - startTime;
@@ -106,7 +106,7 @@ describe('Performance Tests: Image Upload Speed', () => {
     const result = await imageStorageService.uploadImageToSupabase(
       mockReplicateUrl,
       `${TEST_SESSION_ID}-2`,
-      TEST_USER_ID
+      TEST_USER_ID,
     );
 
     const elapsed = Date.now() - startTime;
@@ -142,7 +142,7 @@ describe('Performance Tests: Image Upload Speed', () => {
     const result = await imageStorageService.uploadImageToSupabase(
       generateMockImageUrl(1),
       `${TEST_SESSION_ID}-retry`,
-      TEST_USER_ID
+      TEST_USER_ID,
     );
 
     const elapsed = Date.now() - startTime;
@@ -153,7 +153,11 @@ describe('Performance Tests: Image Upload Speed', () => {
     // Should be < 3 seconds total (1s delay + upload time)
     expect(elapsed).toBeLessThan(3000);
 
-    console.log(`✓ Retry completed in ${(elapsed / 1000).toFixed(2)}s (${attemptCount} attempts)`);
+    console.log(
+      `✓ Retry completed in ${(elapsed / 1000).toFixed(
+        2,
+      )}s (${attemptCount} attempts)`,
+    );
   }, 10000);
 
   /**
@@ -183,7 +187,9 @@ describe('Performance Tests: Image Upload Speed', () => {
     expect(blob.size).toBeGreaterThan(0);
     expect(fetchElapsed).toBeLessThan(2000); // < 2 seconds for download
 
-    console.log(`✓ Replicate download completed in ${(fetchElapsed / 1000).toFixed(2)}s`);
+    console.log(
+      `✓ Replicate download completed in ${(fetchElapsed / 1000).toFixed(2)}s`,
+    );
   });
 
   /**
@@ -204,7 +210,7 @@ describe('Performance Tests: Image Upload Speed', () => {
       const result = await imageStorageService.uploadImageToSupabase(
         generateMockImageUrl(1),
         `${TEST_SESSION_ID}-batch-${i}`,
-        TEST_USER_ID
+        TEST_USER_ID,
       );
       results.push(result.success);
     }
@@ -213,6 +219,10 @@ describe('Performance Tests: Image Upload Speed', () => {
 
     expect(successRate).toBeGreaterThanOrEqual(0.95); // >= 95% success
 
-    console.log(`✓ Success rate: ${(successRate * 100).toFixed(1)}% (${results.filter(r => r).length}/${uploadCount})`);
+    console.log(
+      `✓ Success rate: ${(successRate * 100).toFixed(1)}% (${
+        results.filter(r => r).length
+      }/${uploadCount})`,
+    );
   }, 30000); // Longer timeout for multiple uploads
 });

@@ -1,0 +1,146 @@
+# Ralphy Configuration
+# https://github.com/michaelshimeles/ralphy
+# Replaces legacy Ralph system - preserves learnings and patterns
+
+# Project info (auto-detected, customized for CreativeBridge)
+project:
+  name: "CreativeBridge"
+  language: "TypeScript, JavaScript"
+  framework: "React Native, Expo, Supabase"
+  description: "AI-powered educational storytelling app with gamification, multi-grade content (K-12), and collaborative story creation"
+
+# Commands (auto-detected and enhanced)
+commands:
+  test: "npm test"
+  lint: "npm run lint"
+  build: "npm run build"
+  typecheck: "npx tsc --noEmit"
+
+# Rules - instructions the AI MUST follow
+# These are injected into every prompt
+rules:
+  # === Code Quality ===
+  - "Follow TypeScript strict mode and existing type definitions in src/types/"
+  - "Follow existing code patterns in src/services/ directory"
+  - "Write comprehensive test suites with >80% coverage for business logic"
+  - "Use React Native best practices and cross-platform compatibility (iOS & Android)"
+  - "Use AsyncStorage for persistent storage (not localStorage or cookies)"
+
+  # === Database Rules (from Ralph learnings) ===
+  - "Database migrations: CREATE TABLE IF NOT EXISTS, comprehensive indexes, RLS policies, rollback procedures"
+  - "Always use SECURITY DEFINER for helper functions needing elevated privileges"
+  - "Database functions use explicit parameter naming (p_parameter_name for clarity)"
+  - "JSONB preferred for flexible metadata with GIN indexes for queries"
+  - "All user-owned data must have RLS policies checking auth.uid() = user_id"
+  - "Indexes follow naming convention: idx_tablename_column1_column2"
+  - "Add COMMENT ON TABLE/COLUMN statements for all database objects"
+  - "Migration files must be in sql/ directory with descriptive names"
+
+  # === Documentation (CLAUDE.md requirements) ===
+  - "ALWAYS update .agent/ documentation after implementing features"
+  - "Update .agent/System/ docs for system/architecture changes"
+  - "Update .agent/Tasks/ docs for feature implementations"
+  - "Update .agent/SOP/ docs for new procedures"
+  - "Document all database schema changes in .agent/System/database_schema.md"
+  - "Before planning any implementation, read .agent/README.md first to get context"
+
+  # === Security & Safety ===
+  - "Never commit sensitive keys, credentials, or API tokens"
+  - "Never modify .env files, *.keystore, credentials.json, or app.config.js"
+  - "Ensure all database changes include proper migration files with rollback procedures"
+  - "Test on both iOS and Android platforms before marking stories complete"
+  - "Follow Supabase Row Level Security patterns for all data access"
+  - "Validate all user inputs and sanitize before database insertion"
+
+  # === Service Layer Patterns (from Ralph learnings) ===
+  - "Error handling: exponential backoff retry logic with 3 attempts (1s, 2s, 4s delays)"
+  - "Never retry on authentication/authorization errors (fail fast with clear error messages)"
+  - "Always provide fallback/degraded functionality when external services fail"
+  - "LRU caching with TTL for expensive operations (1000 entry limit, 24hr TTL default)"
+  - "Performance targets: API calls <200ms p95, database queries <100ms p95"
+  - "All async operations must be non-blocking (fire-and-forget pattern for analytics)"
+  - "Use batch operations where possible to reduce API/database round-trips"
+
+  # === Testing Standards ===
+  - "Mock external services (OpenAI, Replicate, Supabase RPC) in unit tests"
+  - "Test edge cases: empty inputs, null values, special characters, error conditions"
+  - "Test authorization scenarios: authenticated/unauthenticated, session ownership, expired sessions"
+  - "Performance tests for operations with timing constraints"
+  - "Integration tests for multi-service workflows"
+  - "All tests must pass before marking user stories complete"
+
+  # === React Native Integration Patterns ===
+  - "API pattern: service functions called from screens (not REST endpoints)"
+  - "Session management: AsyncStorage for tokens with 24-hour expiration"
+  - "Supabase RPC: use SECURITY DEFINER functions for server-side operations"
+  - "Real-time: leverage Supabase subscriptions where needed"
+  - "Navigation: use React Navigation v7 (tabs + stack)"
+  - "State management: React Context API with AsyncStorage persistence"
+
+  # === AI/LLM Integration Patterns ===
+  - "Structured outputs: use explicit JSON schema in prompts"
+  - "Normalization: lowercase + singular form for consistency"
+  - "Fallback logic: implement regex-based extraction when LLM fails"
+  - "Embeddings: use OpenAI text-embedding-3-small (1536 dimensions)"
+  - "Semantic similarity: cosine similarity with 0.85 threshold for 'similar' elements"
+  - "Rate limiting: respect API quotas and implement exponential backoff"
+
+  # === Git & Version Control ===
+  - "Create feature branches following pattern: feature/description or fix/description"
+  - "Commit messages: use conventional commits (feat:, fix:, chore:, docs:, etc.)"
+  - "Always include Co-Authored-By: Claude in commit messages"
+  - "Never force push to main/master branches"
+
+# Boundaries - files/folders the AI should not modify
+boundaries:
+  never_touch:
+    # Sensitive configuration files
+    - ".env*"
+    - "*.keystore"
+    - "credentials.json"
+    - "app.config.js"
+    - "ios/Podfile.lock"
+    - "google-services.json"
+    - "GoogleService-Info.plist"
+
+    # Ralph historical archives (preserve legacy system)
+    - ".agent/Ralph/archive/**"
+
+    # Build artifacts
+    - "build/**"
+    - ".expo/**"
+    - "android/app/build/**"
+    - "ios/build/**"
+    - "ios/Pods/**"
+    - "node_modules/**"
+
+    # Lock files (managed by package managers)
+    - "package-lock.json"
+    - "yarn.lock"
+    - "pnpm-lock.yaml"
+
+# Ralph migration context
+# Preserves learnings from legacy Ralph system
+ralph_migration:
+  enabled: true
+  archive_path: ".agent/Ralph/archive/"
+  preserve_learnings: true
+  migration_date: "2026-01-20"
+  completion_rate: "15/16 user stories (93.75%)"
+
+  quality_gates:
+    - "typecheck"
+    - "lint"
+    - "test"
+
+  key_learnings:
+    - "Database: JSONB for embeddings, comprehensive RLS policies, indexed queries"
+    - "Services: Exponential backoff, LRU caching, batch operations"
+    - "Testing: 80%+ coverage, mock external services, test authorization"
+    - "React Native: AsyncStorage sessions, Supabase RPC, service-based APIs"
+
+# Additional metadata
+metadata:
+  ralphy_version: "4.3.0"
+  initialized: "2026-01-22"
+  migration_from: "Ralph JSON-based system"

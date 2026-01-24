@@ -47,11 +47,12 @@ describe('Regression Tests - Bug Fixes', () => {
 
       // Simulate slow network response
       const slowFetch = jest.fn().mockImplementation(() => {
-        return new Promise((resolve) => {
+        return new Promise(resolve => {
           setTimeout(() => {
             resolve({
               ok: true,
-              blob: () => Promise.resolve(new Blob(['test'], { type: 'image/png' })),
+              blob: () =>
+                Promise.resolve(new Blob(['test'], { type: 'image/png' })),
             });
           }, 25000); // 25 second delay
         });
@@ -62,7 +63,7 @@ describe('Regression Tests - Bug Fixes', () => {
       const result = await imageStorageService.uploadImageToSupabase(
         'https://slow-server.com/image.png',
         'session-123',
-        'user-456'
+        'user-456',
       );
 
       // Should eventually succeed with new 30s timeout
@@ -83,7 +84,8 @@ describe('Regression Tests - Bug Fixes', () => {
         // Succeed on 3rd attempt
         return Promise.resolve({
           ok: true,
-          blob: () => Promise.resolve(new Blob(['test'], { type: 'image/png' })),
+          blob: () =>
+            Promise.resolve(new Blob(['test'], { type: 'image/png' })),
         });
       });
 
@@ -92,7 +94,7 @@ describe('Regression Tests - Bug Fixes', () => {
       const result = await imageStorageService.uploadImageToSupabase(
         'https://unreliable-server.com/image.png',
         'session-789',
-        'user-101'
+        'user-101',
       );
 
       expect(result.attempts).toBe(3); // Failed twice, succeeded third time
@@ -112,7 +114,7 @@ describe('Regression Tests - Bug Fixes', () => {
       const result = await imageStorageService.uploadImageToSupabase(
         'https://always-fails.com/image.png',
         'session-fail',
-        'user-fail'
+        'user-fail',
       );
 
       expect(result.success).toBe(false);
@@ -153,7 +155,7 @@ describe('Regression Tests - Bug Fixes', () => {
 
       // Mock AsyncStorage to return local data
       (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
-        JSON.stringify({ [sessionId]: localSession })
+        JSON.stringify({ [sessionId]: localSession }),
       );
 
       // Mock Supabase to return remote data
@@ -186,14 +188,16 @@ describe('Regression Tests - Bug Fixes', () => {
       };
 
       (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
-        JSON.stringify({ [sessionId]: localSession })
+        JSON.stringify({ [sessionId]: localSession }),
       );
 
       // Simulate network failure
       (supabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnValue({
           eq: jest.fn().mockReturnValue({
-            single: jest.fn().mockRejectedValue(new Error('Network request failed')),
+            single: jest
+              .fn()
+              .mockRejectedValue(new Error('Network request failed')),
           }),
         }),
       });
@@ -221,7 +225,7 @@ describe('Regression Tests - Bug Fixes', () => {
       };
 
       (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
-        JSON.stringify({ [sessionId]: localSession })
+        JSON.stringify({ [sessionId]: localSession }),
       );
 
       // Remote doesn't have latest contribution yet
@@ -266,7 +270,8 @@ describe('Regression Tests - Bug Fixes', () => {
 
       // Mock setState that tracks all updates
       const setState = (newValue: number | ((prev: number) => number)) => {
-        const value = typeof newValue === 'function' ? newValue(currentRound) : newValue;
+        const value =
+          typeof newValue === 'function' ? newValue(currentRound) : newValue;
         stateUpdates.push(value);
         currentRound = value;
       };
@@ -384,7 +389,7 @@ describe('Regression Tests - Bug Fixes', () => {
           .select('generation_status')
           .eq('id', eventId);
 
-        if (data?.[0]?.generation_status === 'refunded') {
+        if ((data as any)?.[0]?.generation_status === 'refunded') {
           return { alreadyRefunded: true, refundProcessed: false };
         }
 
@@ -427,7 +432,7 @@ describe('Regression Tests - Bug Fixes', () => {
       await imageStorageService.uploadImageToSupabase(
         'https://fast-server.com/image.png',
         'session-fast',
-        'user-fast'
+        'user-fast',
       );
 
       const elapsed = Date.now() - startTime;
@@ -475,8 +480,8 @@ describe('Regression Tests - Bug Fixes', () => {
         imageStorageService.uploadImageToSupabase(
           `https://server.com/image${i}.png`,
           `session-${i}`,
-          `user-${i}`
-        )
+          `user-${i}`,
+        ),
       );
 
       const results = await Promise.all(uploads);
@@ -484,7 +489,7 @@ describe('Regression Tests - Bug Fixes', () => {
       const elapsed = Date.now() - startTime;
 
       // All should succeed
-      expect(results.every((r) => r.success)).toBe(true);
+      expect(results.every(r => r.success)).toBe(true);
 
       // Should complete in reasonable time (not 10x serial time)
       expect(elapsed).toBeLessThan(15000); // Under 15s for 10 uploads

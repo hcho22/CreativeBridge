@@ -77,6 +77,7 @@ describe('Enhanced StoryImageDisplay', () => {
     imageUrl: 'https://example.com/test-image.jpg',
     storyTitle: 'Test Story',
     sessionId: 'test-session-123',
+    userId: 'test-user-123',
   };
 
   beforeEach(() => {
@@ -351,6 +352,7 @@ describe('Enhanced StoryImageDisplay', () => {
           imageUrl={undefined}
           storyTitle="Test Story"
           sessionId="test-session"
+          userId="test-user"
           enableFullScreen={true}
         />,
       );

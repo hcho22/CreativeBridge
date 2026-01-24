@@ -1,18 +1,25 @@
 /**
  * Navigation Flow Optimizer Service
- * 
+ *
  * Intelligent navigation flow optimization and user journey enhancement
  * Task 7.2: Dynamic UI Optimization - Subtask 3
  */
 
 import { structuredLogger } from '../utils/logger';
-import { behaviorAnalyticsService, BehaviorPattern } from './behaviorAnalytics';
+import { behaviorAnalytics, BehaviorPattern } from './behaviorAnalytics';
 import { engagementOptimizer } from './engagementOptimizer';
 import { GradeLevel } from '../types/database';
 
 export interface NavigationEvent {
   id: string;
-  type: 'screen_enter' | 'screen_exit' | 'navigation_action' | 'back_navigation' | 'tab_switch' | 'deep_link' | 'external_link';
+  type:
+    | 'screen_enter'
+    | 'screen_exit'
+    | 'navigation_action'
+    | 'back_navigation'
+    | 'tab_switch'
+    | 'deep_link'
+    | 'external_link';
   fromScreen?: string;
   toScreen: string;
   timestamp: number;
@@ -30,7 +37,13 @@ export interface NavigationEvent {
 
 export interface NavigationPattern {
   id: string;
-  patternType: 'optimal_flow' | 'navigation_struggle' | 'dead_end' | 'loop_behavior' | 'abandonment_risk' | 'efficiency_opportunity';
+  patternType:
+    | 'optimal_flow'
+    | 'navigation_struggle'
+    | 'dead_end'
+    | 'loop_behavior'
+    | 'abandonment_risk'
+    | 'efficiency_opportunity';
   sequence: string[]; // Sequence of screens
   frequency: number;
   averageDuration: number;
@@ -44,7 +57,15 @@ export interface NavigationPattern {
 
 export interface NavigationOptimization {
   id: string;
-  type: 'shortcut_creation' | 'flow_simplification' | 'breadcrumb_enhancement' | 'contextual_navigation' | 'progress_indication' | 'smart_defaults' | 'gesture_optimization' | 'accessibility_improvement';
+  type:
+    | 'shortcut_creation'
+    | 'flow_simplification'
+    | 'breadcrumb_enhancement'
+    | 'contextual_navigation'
+    | 'progress_indication'
+    | 'smart_defaults'
+    | 'gesture_optimization'
+    | 'accessibility_improvement';
   targetFlow: string[];
   priority: number;
   expectedImpact: number;
@@ -58,7 +79,15 @@ export interface NavigationOptimization {
 }
 
 export interface NavigationChange {
-  changeType: 'add_shortcut' | 'remove_step' | 'reorder_flow' | 'add_progress' | 'improve_feedback' | 'enhance_gestures' | 'add_breadcrumbs' | 'optimize_transitions';
+  changeType:
+    | 'add_shortcut'
+    | 'remove_step'
+    | 'reorder_flow'
+    | 'add_progress'
+    | 'improve_feedback'
+    | 'enhance_gestures'
+    | 'add_breadcrumbs'
+    | 'optimize_transitions';
   target: string; // Screen or component identifier
   properties: Record<string, any>;
   condition?: string;
@@ -99,12 +128,15 @@ interface NavigationConfig {
   trackingInterval: number;
   patternDetectionMinSamples: number;
   optimizationThreshold: number; // Minimum efficiency drop to trigger optimization
-  gradeLevelFlows: Record<GradeLevel, {
-    maxFlowLength: number;
-    preferredNavigationMethods: string[];
-    complexityTolerance: number;
-    assistanceThreshold: number;
-  }>;
+  gradeLevelFlows: Record<
+    GradeLevel,
+    {
+      maxFlowLength: number;
+      preferredNavigationMethods: string[];
+      complexityTolerance: number;
+      assistanceThreshold: number;
+    }
+  >;
   commonFlows: Array<{
     name: string;
     sequence: string[];
@@ -139,7 +171,13 @@ const DEFAULT_CONFIG: NavigationConfig = {
     },
     '9-12': {
       maxFlowLength: 6,
-      preferredNavigationMethods: ['tab', 'button', 'gesture', 'modal', 'stack'],
+      preferredNavigationMethods: [
+        'tab',
+        'button',
+        'gesture',
+        'modal',
+        'stack',
+      ],
       complexityTolerance: 0.9,
       assistanceThreshold: 0.5,
     },
@@ -185,22 +223,26 @@ class NavigationOptimizerService {
   /**
    * Initialize navigation optimizer
    */
-  async initialize(sessionId: string, initialScreen: string, gradeLevel: GradeLevel): Promise<void> {
+  async initialize(
+    sessionId: string,
+    initialScreen: string,
+    gradeLevel: GradeLevel,
+  ): Promise<void> {
     try {
       this.sessionId = sessionId;
       this.currentScreen = initialScreen;
       this.screenEnterTime = Date.now();
-      
+
       // Initialize user journey
       this.startUserJourney(sessionId, initialScreen, gradeLevel);
-      
+
       // Start tracking
       if (this.config.enabled) {
         this.startTracking();
       }
-      
+
       this.isInitialized = true;
-      
+
       structuredLogger.info('Navigation Optimizer initialized', {
         sessionId,
         initialScreen,
@@ -208,7 +250,11 @@ class NavigationOptimizerService {
         commonFlows: this.config.commonFlows.length,
       });
     } catch (error) {
-      structuredLogger.error('Failed to initialize Navigation Optimizer', {}, error as Error);
+      structuredLogger.error(
+        'Failed to initialize Navigation Optimizer',
+        {},
+        error as Error,
+      );
       throw error;
     }
   }
@@ -221,12 +267,13 @@ class NavigationOptimizerService {
     toScreen: string,
     navigationMethod: NavigationEvent['navigationMethod'],
     context: Partial<NavigationEvent['context']>,
-    metadata: Record<string, any> = {}
+    metadata: Record<string, any> = {},
   ): void {
     if (!this.isInitialized || !this.sessionId) return;
 
     const fromScreen = this.currentScreen;
-    const duration = type === 'screen_exit' ? Date.now() - this.screenEnterTime : undefined;
+    const duration =
+      type === 'screen_exit' ? Date.now() - this.screenEnterTime : undefined;
 
     const event: NavigationEvent = {
       id: this.generateEventId(),
@@ -257,8 +304,8 @@ class NavigationOptimizerService {
     }
 
     // Record with behavior analytics
-    if (behaviorAnalyticsService) {
-      behaviorAnalyticsService.recordInteraction({
+    if (behaviorAnalytics) {
+      behaviorAnalytics.recordInteraction({
         component: 'navigation',
         action: `${type}_${navigationMethod}`,
         context: {
@@ -276,7 +323,7 @@ class NavigationOptimizerService {
         1,
         toScreen,
         'navigation',
-        context
+        context,
       );
     }
   }
@@ -284,9 +331,11 @@ class NavigationOptimizerService {
   /**
    * Get navigation patterns
    */
-  getNavigationPatterns(patternType?: NavigationPattern['patternType']): NavigationPattern[] {
+  getNavigationPatterns(
+    patternType?: NavigationPattern['patternType'],
+  ): NavigationPattern[] {
     let patterns = this.patterns;
-    
+
     if (patternType) {
       patterns = patterns.filter(p => p.patternType === patternType);
     }
@@ -298,15 +347,16 @@ class NavigationOptimizerService {
    * Get current navigation metrics
    */
   getNavigationMetrics(): NavigationMetrics {
-    const recentEvents = this.events.filter(e => 
-      Date.now() - e.timestamp < 3600000 // Last hour
+    const recentEvents = this.events.filter(
+      e => Date.now() - e.timestamp < 3600000, // Last hour
     );
 
     return {
       flowEfficiency: this.calculateFlowEfficiency(recentEvents),
       averageNavigationTime: this.calculateAverageNavigationTimes(recentEvents),
       abandonmentRates: this.calculateAbandonmentRates(recentEvents),
-      backNavigationFrequency: this.calculateBackNavigationFrequency(recentEvents),
+      backNavigationFrequency:
+        this.calculateBackNavigationFrequency(recentEvents),
       optimalPathAdherence: this.calculateOptimalPathAdherence(recentEvents),
       userSatisfactionByFlow: this.calculateSatisfactionByFlow(recentEvents),
     };
@@ -317,7 +367,7 @@ class NavigationOptimizerService {
    */
   getNavigationOptimizations(applied?: boolean): NavigationOptimization[] {
     let optimizations = this.optimizations;
-    
+
     if (applied !== undefined) {
       optimizations = optimizations.filter(o => !!o.appliedAt === applied);
     }
@@ -330,15 +380,19 @@ class NavigationOptimizerService {
    */
   async applyNavigationOptimization(optimizationId: string): Promise<boolean> {
     try {
-      const optimization = this.optimizations.find(o => o.id === optimizationId);
+      const optimization = this.optimizations.find(
+        o => o.id === optimizationId,
+      );
       if (!optimization || optimization.appliedAt) {
-        structuredLogger.warn('Optimization not found or already applied', { optimizationId });
+        structuredLogger.warn('Optimization not found or already applied', {
+          optimizationId,
+        });
         return false;
       }
 
       // Execute the optimization
       await this.executeNavigationOptimization(optimization);
-      
+
       optimization.appliedAt = Date.now();
 
       structuredLogger.info('Navigation optimization applied', {
@@ -350,7 +404,11 @@ class NavigationOptimizerService {
 
       return true;
     } catch (error) {
-      structuredLogger.error('Failed to apply navigation optimization', { optimizationId }, error as Error);
+      structuredLogger.error(
+        'Failed to apply navigation optimization',
+        { optimizationId },
+        error as Error,
+      );
       return false;
     }
   }
@@ -363,21 +421,26 @@ class NavigationOptimizerService {
     recentJourneys: UserJourney[];
     averageJourneyLength: number;
     commonDropoffPoints: string[];
-    efficiencyTrends: Array<{ timestamp: number; efficiency: number; }>;
+    efficiencyTrends: Array<{ timestamp: number; efficiency: number }>;
   } {
     const targetSessionId = sessionId || this.sessionId;
-    const currentJourney = targetSessionId ? this.journeys.get(targetSessionId) : undefined;
-    
+    const currentJourney = targetSessionId
+      ? this.journeys.get(targetSessionId)
+      : undefined;
+
     const recentJourneys = Array.from(this.journeys.values())
       .filter(j => Date.now() - j.startTime < 86400000) // Last 24 hours
       .sort((a, b) => b.startTime - a.startTime)
       .slice(0, 10);
 
-    const averageJourneyLength = recentJourneys.length > 0
-      ? recentJourneys.reduce((sum, j) => sum + j.screens.length, 0) / recentJourneys.length
-      : 0;
+    const averageJourneyLength =
+      recentJourneys.length > 0
+        ? recentJourneys.reduce((sum, j) => sum + j.screens.length, 0) /
+          recentJourneys.length
+        : 0;
 
-    const commonDropoffPoints = this.identifyCommonDropoffPoints(recentJourneys);
+    const commonDropoffPoints =
+      this.identifyCommonDropoffPoints(recentJourneys);
     const efficiencyTrends = this.calculateEfficiencyTrends(recentJourneys);
 
     return {
@@ -397,7 +460,8 @@ class NavigationOptimizerService {
   }
 
   private getSessionPosition(): number {
-    const sessionStart = this.journeys.get(this.sessionId!)?.startTime || Date.now();
+    const sessionStart =
+      this.journeys.get(this.sessionId!)?.startTime || Date.now();
     return (Date.now() - sessionStart) / 1000; // Seconds into session
   }
 
@@ -406,18 +470,24 @@ class NavigationOptimizerService {
     return journey ? journey.screens.map(s => s.screen) : [];
   }
 
-  private startUserJourney(sessionId: string, initialScreen: string, gradeLevel: GradeLevel): void {
+  private startUserJourney(
+    sessionId: string,
+    initialScreen: string,
+    gradeLevel: GradeLevel,
+  ): void {
     const journey: UserJourney = {
       id: `journey_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       userId: `user_${gradeLevel}`, // Simplified user ID
       sessionId,
       startTime: Date.now(),
-      screens: [{
-        screen: initialScreen,
-        enterTime: Date.now(),
-        interactions: 0,
-        strugglesDetected: false,
-      }],
+      screens: [
+        {
+          screen: initialScreen,
+          enterTime: Date.now(),
+          interactions: 0,
+          strugglesDetected: false,
+        },
+      ],
       completionStatus: 'ongoing',
       goalAchieved: false,
       efficencyScore: 1.0,
@@ -444,12 +514,15 @@ class NavigationOptimizerService {
       const lastScreen = journey.screens[journey.screens.length - 1];
       lastScreen.exitTime = event.timestamp;
       lastScreen.duration = event.duration;
-      
+
       // Check for struggles (very short or very long stays)
       if (event.duration) {
-        if (event.duration < 5000 || event.duration > 300000) { // Less than 5s or more than 5min
+        if (event.duration < 5000 || event.duration > 300000) {
+          // Less than 5s or more than 5min
           lastScreen.strugglesDetected = true;
-          journey.strugglesEncountered.push(`unusual_duration_${event.fromScreen}`);
+          journey.strugglesEncountered.push(
+            `unusual_duration_${event.fromScreen}`,
+          );
         }
       }
     }
@@ -461,18 +534,24 @@ class NavigationOptimizerService {
   private calculateJourneyEfficiency(journey: UserJourney): number {
     // Find matching optimal flow
     const currentSequence = journey.screens.map(s => s.screen);
-    const matchingFlow = this.config.commonFlows.find(flow => 
-      this.isSequenceMatch(currentSequence, flow.sequence)
+    const matchingFlow = this.config.commonFlows.find(flow =>
+      this.isSequenceMatch(currentSequence, flow.sequence),
     );
 
     if (!matchingFlow) return 0.5; // Default efficiency for unknown flows
 
     // Calculate efficiency based on optimal path adherence and time
-    const pathEfficiency = currentSequence.length <= matchingFlow.sequence.length ? 1.0 : 
-      matchingFlow.sequence.length / currentSequence.length;
+    const pathEfficiency =
+      currentSequence.length <= matchingFlow.sequence.length
+        ? 1.0
+        : matchingFlow.sequence.length / currentSequence.length;
 
-    const timeEfficiency = journey.totalDuration && journey.totalDuration <= matchingFlow.expectedDuration ? 1.0 :
-      matchingFlow.expectedDuration / (journey.totalDuration || matchingFlow.expectedDuration);
+    const timeEfficiency =
+      journey.totalDuration &&
+      journey.totalDuration <= matchingFlow.expectedDuration
+        ? 1.0
+        : matchingFlow.expectedDuration /
+          (journey.totalDuration || matchingFlow.expectedDuration);
 
     return (pathEfficiency + timeEfficiency) / 2;
   }
@@ -480,13 +559,13 @@ class NavigationOptimizerService {
   private isSequenceMatch(current: string[], optimal: string[]): boolean {
     // Check if current sequence follows the optimal sequence (allowing for extra steps)
     let optimalIndex = 0;
-    
+
     for (const screen of current) {
       if (optimalIndex < optimal.length && screen === optimal[optimalIndex]) {
         optimalIndex++;
       }
     }
-    
+
     return optimalIndex >= optimal.length * 0.8; // At least 80% of optimal sequence
   }
 
@@ -500,16 +579,16 @@ class NavigationOptimizerService {
     try {
       // Detect navigation patterns
       this.detectNavigationPatterns();
-      
+
       // Generate optimizations
       this.generateNavigationOptimizations();
-      
+
       // Measure optimization effectiveness
       this.measureOptimizationEffectiveness();
-      
+
       // Clean up old data
       this.cleanupOldData();
-      
+
       structuredLogger.debug('Navigation analysis completed', {
         eventsCount: this.events.length,
         patternsDetected: this.patterns.length,
@@ -522,17 +601,17 @@ class NavigationOptimizerService {
   }
 
   private detectNavigationPatterns(): void {
-    const recentEvents = this.events.filter(e => 
-      Date.now() - e.timestamp < this.config.trackingInterval * 4
+    const recentEvents = this.events.filter(
+      e => Date.now() - e.timestamp < this.config.trackingInterval * 4,
     );
 
     // Group events by navigation sequences
     const sequences = this.extractNavigationSequences(recentEvents);
-    
+
     sequences.forEach(sequence => {
       if (sequence.events.length >= this.config.patternDetectionMinSamples) {
         const patternType = this.classifyNavigationPattern(sequence);
-        
+
         if (patternType) {
           this.createNavigationPattern(patternType, sequence);
         }
@@ -547,7 +626,7 @@ class NavigationOptimizerService {
     averageDuration: number;
   }> {
     const sequenceMap = new Map<string, NavigationEvent[]>();
-    
+
     // Group events by session and extract sequences
     const sessionEvents = new Map<string, NavigationEvent[]>();
     events.forEach(event => {
@@ -557,15 +636,15 @@ class NavigationOptimizerService {
       sessionEvents.get(event.sessionId)!.push(event);
     });
 
-    sessionEvents.forEach((sessionEventList) => {
+    sessionEvents.forEach(sessionEventList => {
       const navigationEvents = sessionEventList
         .filter(e => e.type === 'screen_enter')
         .sort((a, b) => a.timestamp - b.timestamp);
-      
+
       if (navigationEvents.length >= 2) {
         const sequence = navigationEvents.map(e => e.toScreen);
         const sequenceKey = sequence.join(' -> ');
-        
+
         if (!sequenceMap.has(sequenceKey)) {
           sequenceMap.set(sequenceKey, []);
         }
@@ -576,17 +655,16 @@ class NavigationOptimizerService {
     // Convert to result format
     return Array.from(sequenceMap.entries()).map(([sequenceKey, events]) => {
       const sequence = sequenceKey.split(' -> ');
-      const durations = events
-        .filter(e => e.duration)
-        .map(e => e.duration!);
-      
+      const durations = events.filter(e => e.duration).map(e => e.duration!);
+
       return {
         sequence,
         events,
         frequency: events.length,
-        averageDuration: durations.length > 0 
-          ? durations.reduce((sum, d) => sum + d, 0) / durations.length 
-          : 0,
+        averageDuration:
+          durations.length > 0
+            ? durations.reduce((sum, d) => sum + d, 0) / durations.length
+            : 0,
       };
     });
   }
@@ -597,21 +675,20 @@ class NavigationOptimizerService {
     frequency: number;
     averageDuration: number;
   }): NavigationPattern['patternType'] | null {
-    
     // Check for optimal flows
-    const isOptimalFlow = this.config.commonFlows.some(flow => 
-      this.isSequenceMatch(sequence.sequence, flow.sequence)
+    const isOptimalFlow = this.config.commonFlows.some(flow =>
+      this.isSequenceMatch(sequence.sequence, flow.sequence),
     );
-    
+
     if (isOptimalFlow && sequence.averageDuration < 60000) {
       return 'optimal_flow';
     }
 
     // Check for navigation struggles
-    const backNavigations = sequence.events.filter(e => 
-      e.type === 'back_navigation'
+    const backNavigations = sequence.events.filter(
+      e => e.type === 'back_navigation',
     ).length;
-    
+
     if (backNavigations > sequence.sequence.length * 0.3) {
       return 'navigation_struggle';
     }
@@ -628,11 +705,14 @@ class NavigationOptimizerService {
     }
 
     // Check for efficiency opportunities
-    const matchingFlow = this.config.commonFlows.find(flow => 
-      this.isSequenceMatch(sequence.sequence, flow.sequence)
+    const matchingFlow = this.config.commonFlows.find(flow =>
+      this.isSequenceMatch(sequence.sequence, flow.sequence),
     );
-    
-    if (matchingFlow && sequence.sequence.length > matchingFlow.sequence.length * 1.3) {
+
+    if (
+      matchingFlow &&
+      sequence.sequence.length > matchingFlow.sequence.length * 1.3
+    ) {
       return 'efficiency_opportunity';
     }
 
@@ -646,12 +726,12 @@ class NavigationOptimizerService {
       events: NavigationEvent[];
       frequency: number;
       averageDuration: number;
-    }
+    },
   ): void {
-    
-    const existingPattern = this.patterns.find(p => 
-      p.patternType === patternType && 
-      JSON.stringify(p.sequence) === JSON.stringify(sequence.sequence)
+    const existingPattern = this.patterns.find(
+      p =>
+        p.patternType === patternType &&
+        JSON.stringify(p.sequence) === JSON.stringify(sequence.sequence),
     );
 
     if (existingPattern) {
@@ -659,12 +739,14 @@ class NavigationOptimizerService {
       existingPattern.frequency += sequence.frequency;
       existingPattern.lastSeen = Date.now();
       existingPattern.associatedEvents.push(...sequence.events);
-      existingPattern.averageDuration = 
+      existingPattern.averageDuration =
         (existingPattern.averageDuration + sequence.averageDuration) / 2;
     } else {
       // Create new pattern
       const pattern: NavigationPattern = {
-        id: `pattern_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        id: `pattern_${Date.now()}_${Math.random()
+          .toString(36)
+          .substring(2, 6)}`,
         patternType,
         sequence: sequence.sequence,
         frequency: sequence.frequency,
@@ -678,7 +760,7 @@ class NavigationOptimizerService {
       };
 
       this.patterns.push(pattern);
-      
+
       structuredLogger.info('Navigation pattern detected', {
         patternType,
         sequence: sequence.sequence,
@@ -689,26 +771,30 @@ class NavigationOptimizerService {
   }
 
   private calculateSuccessRate(events: NavigationEvent[]): number {
-    const completedJourneys = events.filter(e => 
-      e.metadata.journeyCompleted === true
+    const completedJourneys = events.filter(
+      e => e.metadata.journeyCompleted === true,
     ).length;
-    
+
     return events.length > 0 ? completedJourneys / events.length : 0.5;
   }
 
   private identifyStruggles(events: NavigationEvent[]): string[] {
     const struggles: string[] = [];
-    
-    const backNavigations = events.filter(e => e.type === 'back_navigation').length;
+
+    const backNavigations = events.filter(
+      e => e.type === 'back_navigation',
+    ).length;
     if (backNavigations > events.length * 0.2) {
       struggles.push('excessive_back_navigation');
     }
-    
-    const longDurations = events.filter(e => e.duration && e.duration > 180000).length;
+
+    const longDurations = events.filter(
+      e => e.duration && e.duration > 180000,
+    ).length;
     if (longDurations > events.length * 0.1) {
       struggles.push('long_screen_durations');
     }
-    
+
     return struggles;
   }
 
@@ -718,11 +804,14 @@ class NavigationOptimizerService {
     frequency: number;
     averageDuration: number;
   }): number {
-    
     const frequencyConfidence = Math.min(sequence.frequency / 10, 1); // Max confidence at 10+ occurrences
-    const consistencyConfidence = sequence.events.length > 1 ? 
-      1 - (this.calculateVariance(sequence.events.map(e => e.duration || 0)) / 100000) : 0.5;
-    
+    const consistencyConfidence =
+      sequence.events.length > 1
+        ? 1 -
+          this.calculateVariance(sequence.events.map(e => e.duration || 0)) /
+            100000
+        : 0.5;
+
     return (frequencyConfidence + consistencyConfidence) / 2;
   }
 
@@ -773,7 +862,10 @@ class NavigationOptimizerService {
           },
         ],
       },
-      validationMetrics: ['back_navigation_reduction', 'flow_completion_increase'],
+      validationMetrics: [
+        'back_navigation_reduction',
+        'flow_completion_increase',
+      ],
     };
 
     if (!this.optimizations.find(o => o.id === optimization.id)) {
@@ -801,7 +893,10 @@ class NavigationOptimizerService {
           },
         ],
       },
-      validationMetrics: ['navigation_time_reduction', 'user_satisfaction_increase'],
+      validationMetrics: [
+        'navigation_time_reduction',
+        'user_satisfaction_increase',
+      ],
     };
 
     if (!this.optimizations.find(o => o.id === optimization.id)) {
@@ -838,10 +933,14 @@ class NavigationOptimizerService {
   }
 
   private generateOptimizationId(): string {
-    return `nav_opt_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    return `nav_opt_${Date.now()}_${Math.random()
+      .toString(36)
+      .substring(2, 6)}`;
   }
 
-  private async executeNavigationOptimization(optimization: NavigationOptimization): Promise<void> {
+  private async executeNavigationOptimization(
+    optimization: NavigationOptimization,
+  ): Promise<void> {
     // In a real implementation, this would apply the navigation changes
     structuredLogger.info('Executing navigation optimization', {
       type: optimization.type,
@@ -851,36 +950,43 @@ class NavigationOptimizerService {
   }
 
   private measureOptimizationEffectiveness(): void {
-    const appliedOptimizations = this.optimizations.filter(o => 
-      o.appliedAt && !o.effectiveness &&
-      Date.now() - o.appliedAt > 300000 // At least 5 minutes since application
+    const appliedOptimizations = this.optimizations.filter(
+      o => o.appliedAt && !o.effectiveness && Date.now() - o.appliedAt > 300000, // At least 5 minutes since application
     );
 
     appliedOptimizations.forEach(optimization => {
-      const effectiveness = this.calculateOptimizationEffectiveness(optimization);
-      
+      const effectiveness =
+        this.calculateOptimizationEffectiveness(optimization);
+
       if (effectiveness !== null) {
         optimization.effectiveness = effectiveness;
-        
-        structuredLogger.info('Navigation optimization effectiveness measured', {
-          optimizationId: optimization.id,
-          type: optimization.type,
-          effectiveness,
-        });
+
+        structuredLogger.info(
+          'Navigation optimization effectiveness measured',
+          {
+            optimizationId: optimization.id,
+            type: optimization.type,
+            effectiveness,
+          },
+        );
       }
     });
   }
 
-  private calculateOptimizationEffectiveness(optimization: NavigationOptimization): number | null {
+  private calculateOptimizationEffectiveness(
+    optimization: NavigationOptimization,
+  ): number | null {
     // Compare metrics before and after optimization
-    const beforeEvents = this.events.filter(e => 
-      e.timestamp < optimization.appliedAt! &&
-      e.timestamp > optimization.appliedAt! - 1800000 // 30 minutes before
+    const beforeEvents = this.events.filter(
+      e =>
+        e.timestamp < optimization.appliedAt! &&
+        e.timestamp > optimization.appliedAt! - 1800000, // 30 minutes before
     );
 
-    const afterEvents = this.events.filter(e => 
-      e.timestamp > optimization.appliedAt! &&
-      e.timestamp < optimization.appliedAt! + 1800000 // 30 minutes after
+    const afterEvents = this.events.filter(
+      e =>
+        e.timestamp > optimization.appliedAt! &&
+        e.timestamp < optimization.appliedAt! + 1800000, // 30 minutes after
     );
 
     if (beforeEvents.length < 5 || afterEvents.length < 5) {
@@ -890,210 +996,253 @@ class NavigationOptimizerService {
     // Calculate improvement based on optimization type
     switch (optimization.type) {
       case 'flow_simplification':
-        return this.calculateFlowSimplificationEffectiveness(beforeEvents, afterEvents);
+        return this.calculateFlowSimplificationEffectiveness(
+          beforeEvents,
+          afterEvents,
+        );
       case 'shortcut_creation':
         return this.calculateShortcutEffectiveness(beforeEvents, afterEvents);
       case 'contextual_navigation':
-        return this.calculateContextualNavigationEffectiveness(beforeEvents, afterEvents);
+        return this.calculateContextualNavigationEffectiveness(
+          beforeEvents,
+          afterEvents,
+        );
       default:
         return 0.5; // Default moderate effectiveness
     }
   }
 
-  private calculateFlowSimplificationEffectiveness(beforeEvents: NavigationEvent[], afterEvents: NavigationEvent[]): number {
-    const beforeBackNavs = beforeEvents.filter(e => e.type === 'back_navigation').length;
-    const afterBackNavs = afterEvents.filter(e => e.type === 'back_navigation').length;
-    
+  private calculateFlowSimplificationEffectiveness(
+    beforeEvents: NavigationEvent[],
+    afterEvents: NavigationEvent[],
+  ): number {
+    const beforeBackNavs = beforeEvents.filter(
+      e => e.type === 'back_navigation',
+    ).length;
+    const afterBackNavs = afterEvents.filter(
+      e => e.type === 'back_navigation',
+    ).length;
+
     const beforeRate = beforeBackNavs / beforeEvents.length;
     const afterRate = afterBackNavs / afterEvents.length;
-    
-    return Math.max(0, Math.min(1, (beforeRate - afterRate + 0.5)));
+
+    return Math.max(0, Math.min(1, beforeRate - afterRate + 0.5));
   }
 
-  private calculateShortcutEffectiveness(beforeEvents: NavigationEvent[], afterEvents: NavigationEvent[]): number {
-    const beforeAvgDuration = beforeEvents
-      .filter(e => e.duration)
-      .reduce((sum, e) => sum + e.duration!, 0) / beforeEvents.length;
-    
-    const afterAvgDuration = afterEvents
-      .filter(e => e.duration)
-      .reduce((sum, e) => sum + e.duration!, 0) / afterEvents.length;
-    
+  private calculateShortcutEffectiveness(
+    beforeEvents: NavigationEvent[],
+    afterEvents: NavigationEvent[],
+  ): number {
+    const beforeAvgDuration =
+      beforeEvents
+        .filter(e => e.duration)
+        .reduce((sum, e) => sum + e.duration!, 0) / beforeEvents.length;
+
+    const afterAvgDuration =
+      afterEvents
+        .filter(e => e.duration)
+        .reduce((sum, e) => sum + e.duration!, 0) / afterEvents.length;
+
     if (beforeAvgDuration === 0) return 0.5;
-    
-    const improvement = (beforeAvgDuration - afterAvgDuration) / beforeAvgDuration;
+
+    const improvement =
+      (beforeAvgDuration - afterAvgDuration) / beforeAvgDuration;
     return Math.max(0, Math.min(1, improvement + 0.5));
   }
 
-  private calculateContextualNavigationEffectiveness(beforeEvents: NavigationEvent[], afterEvents: NavigationEvent[]): number {
+  private calculateContextualNavigationEffectiveness(
+    beforeEvents: NavigationEvent[],
+    afterEvents: NavigationEvent[],
+  ): number {
     // Measure based on abandonment reduction (simplified)
-    const beforeAbandonments = beforeEvents.filter(e => 
-      e.metadata.abandoned === true
+    const beforeAbandonments = beforeEvents.filter(
+      e => e.metadata.abandoned === true,
     ).length;
-    
-    const afterAbandonments = afterEvents.filter(e => 
-      e.metadata.abandoned === true
+
+    const afterAbandonments = afterEvents.filter(
+      e => e.metadata.abandoned === true,
     ).length;
-    
+
     const beforeRate = beforeAbandonments / beforeEvents.length;
     const afterRate = afterAbandonments / afterEvents.length;
-    
-    return Math.max(0, Math.min(1, (beforeRate - afterRate + 0.5)));
+
+    return Math.max(0, Math.min(1, beforeRate - afterRate + 0.5));
   }
 
-  private calculateFlowEfficiency(events: NavigationEvent[]): Record<string, number> {
+  private calculateFlowEfficiency(
+    events: NavigationEvent[],
+  ): Record<string, number> {
     const flowEfficiency: Record<string, number> = {};
-    
+
     this.config.commonFlows.forEach(flow => {
-      const flowEvents = events.filter(e => 
-        flow.sequence.includes(e.toScreen)
-      );
-      
+      const flowEvents = events.filter(e => flow.sequence.includes(e.toScreen));
+
       if (flowEvents.length > 0) {
-        const avgDuration = flowEvents
-          .filter(e => e.duration)
-          .reduce((sum, e) => sum + (e.duration || 0), 0) / flowEvents.length;
-        
-        const efficiency = flow.expectedDuration > 0 ? 
-          Math.min(1, flow.expectedDuration / avgDuration) : 0.5;
-        
+        const avgDuration =
+          flowEvents
+            .filter(e => e.duration)
+            .reduce((sum, e) => sum + (e.duration || 0), 0) / flowEvents.length;
+
+        const efficiency =
+          flow.expectedDuration > 0
+            ? Math.min(1, flow.expectedDuration / avgDuration)
+            : 0.5;
+
         flowEfficiency[flow.name] = efficiency;
       }
     });
-    
+
     return flowEfficiency;
   }
 
-  private calculateAverageNavigationTimes(events: NavigationEvent[]): Record<string, number> {
+  private calculateAverageNavigationTimes(
+    events: NavigationEvent[],
+  ): Record<string, number> {
     const navigationTimes: Record<string, number[]> = {};
-    
+
     events.forEach(event => {
       if (event.type === 'screen_enter' && event.duration) {
         const key = `${event.fromScreen || 'start'}_to_${event.toScreen}`;
-        
+
         if (!navigationTimes[key]) {
           navigationTimes[key] = [];
         }
         navigationTimes[key].push(event.duration);
       }
     });
-    
+
     const averageTimes: Record<string, number> = {};
     Object.entries(navigationTimes).forEach(([key, times]) => {
-      averageTimes[key] = times.reduce((sum, time) => sum + time, 0) / times.length;
+      averageTimes[key] =
+        times.reduce((sum, time) => sum + time, 0) / times.length;
     });
-    
+
     return averageTimes;
   }
 
-  private calculateAbandonmentRates(events: NavigationEvent[]): Record<string, number> {
+  private calculateAbandonmentRates(
+    events: NavigationEvent[],
+  ): Record<string, number> {
     const screenVisits: Record<string, number> = {};
     const screenAbandonments: Record<string, number> = {};
-    
+
     events.forEach(event => {
       if (event.type === 'screen_enter') {
         screenVisits[event.toScreen] = (screenVisits[event.toScreen] || 0) + 1;
-        
+
         if (event.metadata.abandoned) {
-          screenAbandonments[event.toScreen] = (screenAbandonments[event.toScreen] || 0) + 1;
+          screenAbandonments[event.toScreen] =
+            (screenAbandonments[event.toScreen] || 0) + 1;
         }
       }
     });
-    
+
     const abandonmentRates: Record<string, number> = {};
     Object.entries(screenVisits).forEach(([screen, visits]) => {
       const abandonments = screenAbandonments[screen] || 0;
       abandonmentRates[screen] = visits > 0 ? abandonments / visits : 0;
     });
-    
+
     return abandonmentRates;
   }
 
-  private calculateBackNavigationFrequency(events: NavigationEvent[]): Record<string, number> {
+  private calculateBackNavigationFrequency(
+    events: NavigationEvent[],
+  ): Record<string, number> {
     const screenEnters: Record<string, number> = {};
     const backNavigations: Record<string, number> = {};
-    
+
     events.forEach(event => {
       if (event.type === 'screen_enter') {
         screenEnters[event.toScreen] = (screenEnters[event.toScreen] || 0) + 1;
       } else if (event.type === 'back_navigation') {
-        backNavigations[event.toScreen] = (backNavigations[event.toScreen] || 0) + 1;
+        backNavigations[event.toScreen] =
+          (backNavigations[event.toScreen] || 0) + 1;
       }
     });
-    
+
     const backFrequency: Record<string, number> = {};
     Object.entries(screenEnters).forEach(([screen, enters]) => {
       const backs = backNavigations[screen] || 0;
       backFrequency[screen] = enters > 0 ? backs / enters : 0;
     });
-    
+
     return backFrequency;
   }
 
   private calculateOptimalPathAdherence(events: NavigationEvent[]): number {
     const navigationSequences = this.extractNavigationSequences(events);
-    
+
     if (navigationSequences.length === 0) return 0.5;
-    
+
     const adherenceScores = navigationSequences.map(sequence => {
-      const matchingFlow = this.config.commonFlows.find(flow => 
-        this.isSequenceMatch(sequence.sequence, flow.sequence)
+      const matchingFlow = this.config.commonFlows.find(flow =>
+        this.isSequenceMatch(sequence.sequence, flow.sequence),
       );
-      
+
       if (!matchingFlow) return 0.3; // Low score for unknown flows
-      
-      return sequence.sequence.length <= matchingFlow.sequence.length ? 1.0 :
-        matchingFlow.sequence.length / sequence.sequence.length;
+
+      return sequence.sequence.length <= matchingFlow.sequence.length
+        ? 1.0
+        : matchingFlow.sequence.length / sequence.sequence.length;
     });
-    
-    return adherenceScores.reduce((sum, score) => sum + score, 0) / adherenceScores.length;
+
+    return (
+      adherenceScores.reduce((sum, score) => sum + score, 0) /
+      adherenceScores.length
+    );
   }
 
-  private calculateSatisfactionByFlow(events: NavigationEvent[]): Record<string, number> {
+  private calculateSatisfactionByFlow(
+    events: NavigationEvent[],
+  ): Record<string, number> {
     // Simplified satisfaction calculation based on completion rates and efficiency
     const flowSatisfaction: Record<string, number> = {};
-    
+
     this.config.commonFlows.forEach(flow => {
-      const flowEvents = events.filter(e => 
-        flow.sequence.includes(e.toScreen)
-      );
-      
+      const flowEvents = events.filter(e => flow.sequence.includes(e.toScreen));
+
       if (flowEvents.length > 0) {
-        const completions = flowEvents.filter(e => 
-          e.metadata.completed === true
+        const completions = flowEvents.filter(
+          e => e.metadata.completed === true,
         ).length;
-        
+
         const completionRate = completions / flowEvents.length;
-        const backNavRate = flowEvents.filter(e => 
-          e.type === 'back_navigation'
-        ).length / flowEvents.length;
-        
+        const backNavRate =
+          flowEvents.filter(e => e.type === 'back_navigation').length /
+          flowEvents.length;
+
         // Satisfaction based on completion and low back navigation
         const satisfaction = completionRate * (1 - backNavRate);
         flowSatisfaction[flow.name] = Math.max(0, Math.min(1, satisfaction));
       }
     });
-    
+
     return flowSatisfaction;
   }
 
   private identifyCommonDropoffPoints(journeys: UserJourney[]): string[] {
     const dropoffs: Record<string, number> = {};
-    
+
     journeys.forEach(journey => {
-      if (journey.completionStatus === 'abandoned' && journey.screens.length > 0) {
+      if (
+        journey.completionStatus === 'abandoned' &&
+        journey.screens.length > 0
+      ) {
         const lastScreen = journey.screens[journey.screens.length - 1].screen;
         dropoffs[lastScreen] = (dropoffs[lastScreen] || 0) + 1;
       }
     });
-    
+
     return Object.entries(dropoffs)
       .sort(([, a], [, b]) => b - a)
       .slice(0, 5)
       .map(([screen]) => screen);
   }
 
-  private calculateEfficiencyTrends(journeys: UserJourney[]): Array<{ timestamp: number; efficiency: number; }> {
+  private calculateEfficiencyTrends(
+    journeys: UserJourney[],
+  ): Array<{ timestamp: number; efficiency: number }> {
     return journeys
       .map(journey => ({
         timestamp: journey.startTime,
@@ -1105,10 +1254,10 @@ class NavigationOptimizerService {
 
   private cleanupOldData(): void {
     const cutoff = Date.now() - 7200000; // Keep 2 hours of data
-    
+
     this.events = this.events.filter(e => e.timestamp > cutoff);
     this.patterns = this.patterns.filter(p => p.lastSeen > cutoff);
-    
+
     // Clean up journeys older than 24 hours
     const journeyKeys = Array.from(this.journeys.keys());
     journeyKeys.forEach(key => {
@@ -1127,7 +1276,7 @@ class NavigationOptimizerService {
       clearInterval(this.trackingTimer);
       this.trackingTimer = null;
     }
-    
+
     // Complete current journey if active
     if (this.sessionId) {
       const journey = this.journeys.get(this.sessionId);
@@ -1137,7 +1286,7 @@ class NavigationOptimizerService {
         journey.completionStatus = 'completed';
       }
     }
-    
+
     structuredLogger.info('Navigation Optimizer shutdown completed', {
       eventsRecorded: this.events.length,
       patternsDetected: this.patterns.length,

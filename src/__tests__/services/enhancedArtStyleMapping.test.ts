@@ -3,7 +3,7 @@
 
 import {
   imageGenerationService,
-  ImageGenerationRequest,
+  ImageGenerationEvent,
 } from '../../services/imageGeneration';
 
 describe('Task 3.5: Enhanced Grade-Level Art Style Mapping Tests', () => {

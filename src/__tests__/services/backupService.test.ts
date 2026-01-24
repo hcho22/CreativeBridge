@@ -9,7 +9,7 @@ import {
   OpenAIError,
   BackupServiceResponse,
   BackupServiceClientConfig,
-  ImageGenerationRequest,
+  ImageGenerationEvent,
 } from '../../services/imageGeneration';
 
 // Mock global fetch for testing
@@ -269,7 +269,7 @@ describe('Task 3.3: Backup Service Integration Tests', () => {
       if (!isEnabled) {
         // In test environment, if the service isn't configured,
         // we'll test the configuration validation instead
-        const request: ImageGenerationRequest = {
+        const request: ImageGenerationEvent = {
           storyContent:
             'A magical adventure story with enough content to pass validation requirements for testing the failover mechanism.',
           gradeLevel: 'K-2',
@@ -290,7 +290,7 @@ describe('Task 3.3: Backup Service Integration Tests', () => {
         .fn()
         .mockRejectedValue(new Error('Replicate service unavailable'));
 
-      const request: ImageGenerationRequest = {
+      const request: ImageGenerationEvent = {
         storyContent:
           'A magical adventure story with enough content to pass validation requirements for testing the failover mechanism.',
         gradeLevel: 'K-2',
@@ -332,7 +332,7 @@ describe('Task 3.3: Backup Service Integration Tests', () => {
       // Check if service is enabled first
       if (!imageGenerationService.isFeatureEnabled()) {
         // Test that disabled service fails gracefully
-        const request: ImageGenerationRequest = {
+        const request: ImageGenerationEvent = {
           storyContent:
             'A test story for complete service failure scenario with sufficient content length for validation.',
           gradeLevel: '3-5',
@@ -358,7 +358,7 @@ describe('Task 3.3: Backup Service Integration Tests', () => {
         .fn()
         .mockRejectedValue(new Error('Backup service down'));
 
-      const request: ImageGenerationRequest = {
+      const request: ImageGenerationEvent = {
         storyContent:
           'A test story for complete service failure scenario with sufficient content length for validation.',
         gradeLevel: '3-5',
@@ -474,7 +474,7 @@ describe('Task 3.3: Backup Service Integration Tests', () => {
         .fn()
         .mockRejectedValue(new Error('Primary service down'));
 
-      const k2Request: ImageGenerationRequest = {
+      const k2Request: ImageGenerationEvent = {
         storyContent:
           'A simple story about friendly animals having fun in a colorful garden with flowers and sunshine.',
         gradeLevel: 'K-2',

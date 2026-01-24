@@ -7,7 +7,7 @@ import { imageGenerationService } from '../../services/imageGeneration';
 import { supabase } from '../../services/supabase';
 import { xpEventTracker } from '../../services/xpEventTracker';
 import { storySessionManager } from '../../services/storySessionManager';
-import type { ImageGenerationRequest, GradeLevel } from '../../types/database';
+import type { ImageGenerationEvent, GradeLevel } from '../../types/database';
 
 // Mock external dependencies
 jest.mock('../../services/supabase', () => ({

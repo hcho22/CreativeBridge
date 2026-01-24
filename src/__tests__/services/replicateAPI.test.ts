@@ -6,7 +6,7 @@ import {
   ReplicatePredictionRequest,
   ReplicatePrediction,
   ReplicateError,
-  ImageGenerationRequest,
+  ImageGenerationEvent,
 } from '../../services/imageGeneration';
 
 describe('Task 3.2: Replicate.com API Integration Tests', () => {
@@ -179,7 +179,7 @@ describe('Task 3.2: Replicate.com API Integration Tests', () => {
     });
 
     it('should generate image with proper request flow in development', async () => {
-      const request: ImageGenerationRequest = {
+      const request: ImageGenerationEvent = {
         storyContent:
           'Once upon a time, there was a brave little mouse who discovered a magical forest filled with talking animals and glowing flowers that granted wishes to those pure of heart.',
         gradeLevel: 'K-2',
@@ -210,14 +210,14 @@ describe('Task 3.2: Replicate.com API Integration Tests', () => {
       const storyContent =
         'A magical adventure through an enchanted forest where brave heroes discover ancient secrets and forge lasting friendships.';
 
-      const k2Request: ImageGenerationRequest = {
+      const k2Request: ImageGenerationEvent = {
         storyContent,
         gradeLevel: 'K-2',
         sessionId: 'session-k2',
         userId: 'user-test',
       };
 
-      const highSchoolRequest: ImageGenerationRequest = {
+      const highSchoolRequest: ImageGenerationEvent = {
         storyContent,
         gradeLevel: '9-12',
         sessionId: 'session-hs',
@@ -283,7 +283,7 @@ describe('Task 3.2: Replicate.com API Integration Tests', () => {
       // Check if service is enabled first
       if (!imageGenerationService.isFeatureEnabled()) {
         // Test that disabled service fails gracefully
-        const request: ImageGenerationRequest = {
+        const request: ImageGenerationEvent = {
           storyContent:
             'A story for testing insufficient XP scenario with enough content to pass validation requirements.',
           gradeLevel: 'K-2',
@@ -303,7 +303,7 @@ describe('Task 3.2: Replicate.com API Integration Tests', () => {
         .fn()
         .mockResolvedValue(500); // Less than 1000
 
-      const request: ImageGenerationRequest = {
+      const request: ImageGenerationEvent = {
         storyContent:
           'A story for testing insufficient XP scenario with enough content to pass validation requirements.',
         gradeLevel: 'K-2',
@@ -325,7 +325,7 @@ describe('Task 3.2: Replicate.com API Integration Tests', () => {
 
   describe('Response Validation', () => {
     it('should validate ImageGenerationResult structure', async () => {
-      const request: ImageGenerationRequest = {
+      const request: ImageGenerationEvent = {
         storyContent:
           'A comprehensive test story that meets all the validation requirements for length and content quality testing.',
         gradeLevel: 'K-2',

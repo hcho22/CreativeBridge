@@ -27,7 +27,7 @@ describe('Image Generation End-to-End Flow', () => {
 
     // Step 3: Verify image generation service integration
     console.log('🎨 Step 3: Image generation service verification');
-    const mockImageGenerationRequest = {
+    const mockImageGenerationEvent = {
       storyContent: mockStoryContent,
       gradeLevel: mockGradeLevel,
       sessionId: mockSessionId,
@@ -37,10 +37,10 @@ describe('Image Generation End-to-End Flow', () => {
       },
     };
 
-    expect(mockImageGenerationRequest.storyContent).toBeDefined();
-    expect(mockImageGenerationRequest.gradeLevel).toBeDefined();
-    expect(mockImageGenerationRequest.sessionId).toBeDefined();
-    expect(mockImageGenerationRequest.userId).toBeDefined();
+    expect(mockImageGenerationEvent.storyContent).toBeDefined();
+    expect(mockImageGenerationEvent.gradeLevel).toBeDefined();
+    expect(mockImageGenerationEvent.sessionId).toBeDefined();
+    expect(mockImageGenerationEvent.userId).toBeDefined();
 
     // Step 4: Verify analytics tracking integration
     console.log('📊 Step 4: Analytics tracking verification');
@@ -49,7 +49,7 @@ describe('Image Generation End-to-End Flow', () => {
       sessionId: mockSessionId,
       eventType: 'image_generation_started',
       timestamp: new Date().toISOString(),
-      metadata: mockImageGenerationRequest.metadata,
+      metadata: mockImageGenerationEvent.metadata,
     };
 
     expect(mockAnalyticsEvent.userId).toBeDefined();

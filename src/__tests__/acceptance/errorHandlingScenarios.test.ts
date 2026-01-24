@@ -3,9 +3,12 @@
  * Tests user-facing error scenarios and recovery flows for image generation
  */
 
-import { imageGenerationService } from '../../services/imageGeneration';
+import {
+  imageGenerationService,
+  type ImageGenerationRequest,
+} from '../../services/imageGeneration';
 import { supabase } from '../../services/supabase';
-import type { ErrorType, ImageGenerationRequest } from '../../types/database';
+import type { ErrorType, ImageGenerationEvent } from '../../types/database';
 
 // Mock dependencies
 jest.mock('../../services/supabase', () => ({
@@ -48,7 +51,7 @@ class ErrorScenarioSimulator {
       }),
     };
     mockSupabase.from.mockReturnValue(mockQueryBuilder as any);
-    mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
+    mockSupabase.rpc.mockResolvedValue({ data: null, error: undefined } as any);
   }
 
   // Setup mock for API service failure
@@ -62,7 +65,7 @@ class ErrorScenarioSimulator {
       }),
     };
     mockSupabase.from.mockReturnValue(mockQueryBuilder as any);
-    mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
+    mockSupabase.rpc.mockResolvedValue({ data: null, error: undefined } as any);
 
     // Mock API failure
     mockFetch.mockRejectedValue(new Error('Service temporarily unavailable'));
@@ -79,7 +82,7 @@ class ErrorScenarioSimulator {
       }),
     };
     mockSupabase.from.mockReturnValue(mockQueryBuilder as any);
-    mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
+    mockSupabase.rpc.mockResolvedValue({ data: null, error: undefined } as any);
 
     // Mock content safety failure
     mockFetch.mockResolvedValue({
@@ -103,7 +106,7 @@ class ErrorScenarioSimulator {
       }),
     };
     mockSupabase.from.mockReturnValue(mockQueryBuilder as any);
-    mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
+    mockSupabase.rpc.mockResolvedValue({ data: null, error: undefined } as any);
 
     // Mock rate limit error
     mockFetch.mockResolvedValue({
@@ -127,7 +130,7 @@ class ErrorScenarioSimulator {
       }),
     };
     mockSupabase.from.mockReturnValue(mockQueryBuilder as any);
-    mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
+    mockSupabase.rpc.mockResolvedValue({ data: null, error: undefined } as any);
 
     // Mock timeout - slow response followed by abort
     mockFetch.mockImplementation(
@@ -149,7 +152,7 @@ class ErrorScenarioSimulator {
       }),
     };
     mockSupabase.from.mockReturnValue(mockQueryBuilder as any);
-    mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
+    mockSupabase.rpc.mockResolvedValue({ data: null, error: undefined } as any);
 
     // Mock network error
     mockFetch.mockRejectedValue(new Error('Network request failed'));
@@ -166,7 +169,7 @@ class ErrorScenarioSimulator {
       }),
     };
     mockSupabase.from.mockReturnValue(mockQueryBuilder as any);
-    mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
+    mockSupabase.rpc.mockResolvedValue({ data: null, error: undefined } as any);
 
     // Mock malformed response
     mockFetch.mockResolvedValue({
@@ -646,7 +649,10 @@ describe('Error Handling Scenarios - User Acceptance Tests', () => {
         }),
       };
       mockSupabase.from.mockReturnValue(mockQueryBuilder as any);
-      mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
+      mockSupabase.rpc.mockResolvedValue({
+        data: null,
+        error: undefined,
+      } as any);
 
       mockFetch.mockResolvedValue({
         ok: true,

@@ -1,19 +1,25 @@
 /**
  * UI Performance Monitor
- * 
+ *
  * Real-time interface performance monitoring and optimization service
  * Task 7.2: Dynamic UI Optimization - Subtask 1
  */
 
 import { structuredLogger } from '../utils/logger';
-import { behaviorAnalyticsService } from './behaviorAnalytics';
+import { behaviorAnalytics } from './behaviorAnalytics';
 import { GradeLevel } from '../types/database';
 
 export interface UIPerformanceMetric {
   id: string;
   component: string;
   screen: string;
-  metricType: 'render_time' | 'interaction_delay' | 'scroll_performance' | 'touch_response' | 'navigation_time' | 'memory_usage';
+  metricType:
+    | 'render_time'
+    | 'interaction_delay'
+    | 'scroll_performance'
+    | 'touch_response'
+    | 'navigation_time'
+    | 'memory_usage';
   value: number;
   timestamp: number;
   sessionId: string;
@@ -47,7 +53,12 @@ export interface PerformanceBaseline {
 
 export interface OptimizationTrigger {
   id: string;
-  triggerType: 'performance_degradation' | 'engagement_drop' | 'accessibility_issue' | 'memory_pressure' | 'user_struggle';
+  triggerType:
+    | 'performance_degradation'
+    | 'engagement_drop'
+    | 'accessibility_issue'
+    | 'memory_pressure'
+    | 'user_struggle';
   severity: 'low' | 'medium' | 'high' | 'critical';
   component: string;
   screen: string;
@@ -58,7 +69,15 @@ export interface OptimizationTrigger {
 }
 
 export interface OptimizationRecommendation {
-  type: 'reduce_animations' | 'simplify_layout' | 'lazy_loading' | 'cache_optimization' | 'component_memoization' | 'interaction_assistance' | 'font_scaling' | 'contrast_enhancement';
+  type:
+    | 'reduce_animations'
+    | 'simplify_layout'
+    | 'lazy_loading'
+    | 'cache_optimization'
+    | 'component_memoization'
+    | 'interaction_assistance'
+    | 'font_scaling'
+    | 'contrast_enhancement';
   priority: number; // 1-5, where 5 is highest priority
   expectedImpact: number; // 0-1, expected performance improvement
   implementation: string;
@@ -78,11 +97,14 @@ interface UIPerformanceConfig {
     memoryUsageThreshold: number; // MB
   };
   autoOptimizationEnabled: boolean;
-  gradeLevelThresholds: Record<GradeLevel, {
-    maxComplexity: number;
-    preferredAnimationSpeed: number;
-    touchTargetSize: number;
-  }>;
+  gradeLevelThresholds: Record<
+    GradeLevel,
+    {
+      maxComplexity: number;
+      preferredAnimationSpeed: number;
+      touchTargetSize: number;
+    }
+  >;
 }
 
 const DEFAULT_CONFIG: UIPerformanceConfig = {
@@ -145,17 +167,17 @@ class UIPerformanceMonitorService {
   async initialize(sessionId: string): Promise<void> {
     try {
       this.sessionId = sessionId;
-      
+
       // Load existing baselines
       await this.loadBaselines();
-      
+
       // Start monitoring if enabled
       if (this.config.monitoringEnabled) {
         this.startMonitoring();
       }
-      
+
       this.isInitialized = true;
-      
+
       structuredLogger.info('UI Performance Monitor initialized', {
         sessionId,
         monitoringEnabled: this.config.monitoringEnabled,
@@ -163,7 +185,11 @@ class UIPerformanceMonitorService {
         baselineCount: this.baselines.size,
       });
     } catch (error) {
-      structuredLogger.error('Failed to initialize UI Performance Monitor', {}, error as Error);
+      structuredLogger.error(
+        'Failed to initialize UI Performance Monitor',
+        {},
+        error as Error,
+      );
       throw error;
     }
   }
@@ -175,7 +201,7 @@ class UIPerformanceMonitorService {
     component: string,
     screen: string,
     renderTime: number,
-    context: Partial<UIPerformanceMetric['context']> = {}
+    context: Partial<UIPerformanceMetric['context']> = {},
   ): void {
     if (!this.isInitialized || !this.shouldSample()) return;
 
@@ -208,7 +234,7 @@ class UIPerformanceMonitorService {
     screen: string,
     delay: number,
     interactionType: string,
-    context: Partial<UIPerformanceMetric['context']> = {}
+    context: Partial<UIPerformanceMetric['context']> = {},
   ): void {
     if (!this.isInitialized || !this.shouldSample()) return;
 
@@ -230,10 +256,10 @@ class UIPerformanceMonitorService {
 
     this.metrics.push(metric);
     this.analyzePerformance(metric);
-    
+
     // Record interaction with behavior analytics
-    if (behaviorAnalyticsService) {
-      behaviorAnalyticsService.recordInteraction({
+    if (behaviorAnalytics) {
+      behaviorAnalytics.recordInteraction({
         component,
         action: `interaction_delay_${interactionType}`,
         context: { delay, screen },
@@ -250,7 +276,7 @@ class UIPerformanceMonitorService {
     screen: string,
     fps: number,
     scrollDistance: number,
-    context: Partial<UIPerformanceMetric['context']> = {}
+    context: Partial<UIPerformanceMetric['context']> = {},
   ): void {
     if (!this.isInitialized || !this.shouldSample()) return;
 
@@ -281,7 +307,7 @@ class UIPerformanceMonitorService {
     fromScreen: string,
     toScreen: string,
     navigationTime: number,
-    context: Partial<UIPerformanceMetric['context']> = {}
+    context: Partial<UIPerformanceMetric['context']> = {},
   ): void {
     if (!this.isInitialized || !this.shouldSample()) return;
 
@@ -303,24 +329,32 @@ class UIPerformanceMonitorService {
 
     this.metrics.push(metric);
     this.analyzePerformance(metric);
-    this.updateBaseline(metric.component, toScreen, navigationTime, 'navigation_time');
+    this.updateBaseline(
+      metric.component,
+      toScreen,
+      navigationTime,
+      'navigation_time',
+    );
   }
 
   /**
    * Get performance insights for a component or screen
    */
-  getPerformanceInsights(component?: string, screen?: string): {
+  getPerformanceInsights(
+    component?: string,
+    screen?: string,
+  ): {
     metrics: UIPerformanceMetric[];
     baseline: PerformanceBaseline | null;
     recentTriggers: OptimizationTrigger[];
     recommendations: OptimizationRecommendation[];
   } {
     let filteredMetrics = this.metrics;
-    
+
     if (component) {
       filteredMetrics = filteredMetrics.filter(m => m.component === component);
     }
-    
+
     if (screen) {
       filteredMetrics = filteredMetrics.filter(m => m.screen === screen);
     }
@@ -337,7 +371,10 @@ class UIPerformanceMonitorService {
       .sort((a, b) => b.detectedAt - a.detectedAt)
       .slice(0, 5);
 
-    const recommendations = this.generateRecommendations(filteredMetrics, baseline);
+    const recommendations = this.generateRecommendations(
+      filteredMetrics,
+      baseline,
+    );
 
     return {
       metrics: filteredMetrics.slice(-100), // Last 100 metrics
@@ -350,16 +387,16 @@ class UIPerformanceMonitorService {
   /**
    * Get optimization triggers for analysis
    */
-  getOptimizationTriggers(severity?: OptimizationTrigger['severity']): OptimizationTrigger[] {
+  getOptimizationTriggers(
+    severity?: OptimizationTrigger['severity'],
+  ): OptimizationTrigger[] {
     let triggers = this.triggers;
-    
+
     if (severity) {
       triggers = triggers.filter(t => t.severity === severity);
     }
 
-    return triggers
-      .sort((a, b) => b.detectedAt - a.detectedAt)
-      .slice(0, 20); // Most recent 20 triggers
+    return triggers.sort((a, b) => b.detectedAt - a.detectedAt).slice(0, 20); // Most recent 20 triggers
   }
 
   /**
@@ -373,41 +410,61 @@ class UIPerformanceMonitorService {
     memoryUsage: number;
     optimizationsApplied: number;
   } {
-    const recentMetrics = this.metrics.filter(m => 
-      Date.now() - m.timestamp < 300000 // Last 5 minutes
+    const recentMetrics = this.metrics.filter(
+      m => Date.now() - m.timestamp < 300000, // Last 5 minutes
     );
 
-    const renderMetrics = recentMetrics.filter(m => m.metricType === 'render_time');
-    const interactionMetrics = recentMetrics.filter(m => m.metricType === 'interaction_delay');
-    const memoryMetrics = recentMetrics.filter(m => m.metricType === 'memory_usage');
+    const renderMetrics = recentMetrics.filter(
+      m => m.metricType === 'render_time',
+    );
+    const interactionMetrics = recentMetrics.filter(
+      m => m.metricType === 'interaction_delay',
+    );
+    const memoryMetrics = recentMetrics.filter(
+      m => m.metricType === 'memory_usage',
+    );
 
-    const averageRenderTime = renderMetrics.length > 0 
-      ? renderMetrics.reduce((sum, m) => sum + m.value, 0) / renderMetrics.length 
-      : 0;
+    const averageRenderTime =
+      renderMetrics.length > 0
+        ? renderMetrics.reduce((sum, m) => sum + m.value, 0) /
+          renderMetrics.length
+        : 0;
 
-    const averageInteractionDelay = interactionMetrics.length > 0 
-      ? interactionMetrics.reduce((sum, m) => sum + m.value, 0) / interactionMetrics.length 
-      : 0;
+    const averageInteractionDelay =
+      interactionMetrics.length > 0
+        ? interactionMetrics.reduce((sum, m) => sum + m.value, 0) /
+          interactionMetrics.length
+        : 0;
 
-    const currentMemoryUsage = memoryMetrics.length > 0 
-      ? memoryMetrics[memoryMetrics.length - 1].value 
-      : 0;
+    const currentMemoryUsage =
+      memoryMetrics.length > 0
+        ? memoryMetrics[memoryMetrics.length - 1].value
+        : 0;
 
-    const criticalTriggers = this.triggers.filter(t => 
-      t.severity === 'critical' && Date.now() - t.detectedAt < 300000
+    const criticalTriggers = this.triggers.filter(
+      t => t.severity === 'critical' && Date.now() - t.detectedAt < 300000,
     ).length;
 
-    const optimizationsApplied = this.triggers.filter(t => 
-      Date.now() - t.detectedAt < 3600000 && // Last hour
-      t.suggestedOptimizations.length > 0
+    const optimizationsApplied = this.triggers.filter(
+      t =>
+        Date.now() - t.detectedAt < 3600000 && // Last hour
+        t.suggestedOptimizations.length > 0,
     ).length;
 
     // Determine overall health
     let overallHealth: 'excellent' | 'good' | 'fair' | 'poor' = 'excellent';
-    
-    if (criticalTriggers > 0 || averageRenderTime > 50 || averageInteractionDelay > 200) {
+
+    if (
+      criticalTriggers > 0 ||
+      averageRenderTime > 50 ||
+      averageInteractionDelay > 200
+    ) {
       overallHealth = 'poor';
-    } else if (averageRenderTime > 30 || averageInteractionDelay > 150 || currentMemoryUsage > 150) {
+    } else if (
+      averageRenderTime > 30 ||
+      averageInteractionDelay > 150 ||
+      currentMemoryUsage > 150
+    ) {
       overallHealth = 'fair';
     } else if (averageRenderTime > 20 || averageInteractionDelay > 100) {
       overallHealth = 'good';
@@ -457,7 +514,11 @@ class UIPerformanceMonitorService {
         count: this.baselines.size,
       });
     } catch (error) {
-      structuredLogger.error('Failed to load performance baselines', {}, error as Error);
+      structuredLogger.error(
+        'Failed to load performance baselines',
+        {},
+        error as Error,
+      );
     }
   }
 
@@ -471,55 +532,71 @@ class UIPerformanceMonitorService {
     try {
       // Update baselines
       this.updateAllBaselines();
-      
+
       // Clean up old metrics (keep last 1000)
       if (this.metrics.length > 1000) {
         this.metrics = this.metrics.slice(-1000);
       }
-      
+
       // Clean up old triggers (keep last 100)
       if (this.triggers.length > 100) {
         this.triggers = this.triggers.slice(-100);
       }
-      
+
       structuredLogger.debug('Periodic performance analysis completed', {
         metricsCount: this.metrics.length,
         triggersCount: this.triggers.length,
         baselinesCount: this.baselines.size,
       });
     } catch (error) {
-      structuredLogger.error('Periodic performance analysis failed', {}, error as Error);
+      structuredLogger.error(
+        'Periodic performance analysis failed',
+        {},
+        error as Error,
+      );
     }
   }
 
   private analyzePerformance(metric: UIPerformanceMetric): void {
-    const baseline = this.baselines.get(this.getBaselineKey(metric.component, metric.screen));
-    
+    const baseline = this.baselines.get(
+      this.getBaselineKey(metric.component, metric.screen),
+    );
+
     if (!baseline) return; // No baseline yet
-    
+
     // Check for performance degradation
-    const isRenderTimePoor = metric.metricType === 'render_time' && 
+    const isRenderTimePoor =
+      metric.metricType === 'render_time' &&
       metric.value > baseline.expectedRenderTime * 1.5;
-    
-    const isInteractionSlow = metric.metricType === 'interaction_delay' && 
+
+    const isInteractionSlow =
+      metric.metricType === 'interaction_delay' &&
       metric.value > baseline.maxInteractionDelay * 1.5;
-    
-    const isScrollPoor = metric.metricType === 'scroll_performance' && 
+
+    const isScrollPoor =
+      metric.metricType === 'scroll_performance' &&
       metric.value < baseline.optimalScrollFPS * 0.8;
-    
+
     if (isRenderTimePoor || isInteractionSlow || isScrollPoor) {
-      this.createOptimizationTrigger(metric, baseline, 'performance_degradation');
+      this.createOptimizationTrigger(
+        metric,
+        baseline,
+        'performance_degradation',
+      );
     }
   }
 
   private createOptimizationTrigger(
-    metric: UIPerformanceMetric, 
-    baseline: PerformanceBaseline, 
-    triggerType: OptimizationTrigger['triggerType']
+    metric: UIPerformanceMetric,
+    baseline: PerformanceBaseline,
+    triggerType: OptimizationTrigger['triggerType'],
   ): void {
     const severity = this.determineSeverity(metric, baseline);
-    const recommendations = this.generateRecommendationsForMetric(metric, baseline);
-    
+    const recommendations = this.generateRecommendationsForMetric(
+      metric,
+      baseline,
+    );
+
     const trigger: OptimizationTrigger = {
       id: `trigger_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       triggerType,
@@ -531,9 +608,9 @@ class UIPerformanceMonitorService {
       suggestedOptimizations: recommendations,
       confidence: this.calculateTriggerConfidence(metric, baseline),
     };
-    
+
     this.triggers.push(trigger);
-    
+
     structuredLogger.info('Performance optimization trigger created', {
       triggerType,
       severity,
@@ -544,18 +621,29 @@ class UIPerformanceMonitorService {
     });
   }
 
-  private determineSeverity(metric: UIPerformanceMetric, baseline: PerformanceBaseline): OptimizationTrigger['severity'] {
-    const degradationRatio = metric.value / (baseline.expectedRenderTime || baseline.maxInteractionDelay || baseline.optimalScrollFPS || 1);
-    
+  private determineSeverity(
+    metric: UIPerformanceMetric,
+    baseline: PerformanceBaseline,
+  ): OptimizationTrigger['severity'] {
+    const degradationRatio =
+      metric.value /
+      (baseline.expectedRenderTime ||
+        baseline.maxInteractionDelay ||
+        baseline.optimalScrollFPS ||
+        1);
+
     if (degradationRatio > 3) return 'critical';
     if (degradationRatio > 2) return 'high';
     if (degradationRatio > 1.5) return 'medium';
     return 'low';
   }
 
-  private generateRecommendationsForMetric(metric: UIPerformanceMetric, baseline: PerformanceBaseline): OptimizationRecommendation[] {
+  private generateRecommendationsForMetric(
+    metric: UIPerformanceMetric,
+    baseline: PerformanceBaseline,
+  ): OptimizationRecommendation[] {
     const recommendations: OptimizationRecommendation[] = [];
-    
+
     switch (metric.metricType) {
       case 'render_time':
         if (metric.value > baseline.expectedRenderTime * 2) {
@@ -568,7 +656,7 @@ class UIPerformanceMonitorService {
           });
         }
         break;
-        
+
       case 'interaction_delay':
         if (metric.value > baseline.maxInteractionDelay * 1.5) {
           recommendations.push({
@@ -580,7 +668,7 @@ class UIPerformanceMonitorService {
           });
         }
         break;
-        
+
       case 'scroll_performance':
         if (metric.value < baseline.optimalScrollFPS * 0.8) {
           recommendations.push({
@@ -593,41 +681,53 @@ class UIPerformanceMonitorService {
         }
         break;
     }
-    
+
     return recommendations;
   }
 
-  private calculateTriggerConfidence(metric: UIPerformanceMetric, baseline: PerformanceBaseline): number {
+  private calculateTriggerConfidence(
+    metric: UIPerformanceMetric,
+    baseline: PerformanceBaseline,
+  ): number {
     // Confidence based on baseline sample size and metric deviation
     const sampleSizeConfidence = Math.min(baseline.sampleSize / 100, 1);
     const deviationConfidence = Math.min(
-      Math.abs(metric.value - baseline.expectedRenderTime) / baseline.expectedRenderTime,
-      1
+      Math.abs(metric.value - baseline.expectedRenderTime) /
+        baseline.expectedRenderTime,
+      1,
     );
-    
+
     return (sampleSizeConfidence + deviationConfidence) / 2;
   }
 
-  private updateBaseline(component: string, screen: string, value: number, metricType: string): void {
+  private updateBaseline(
+    component: string,
+    screen: string,
+    value: number,
+    metricType: string,
+  ): void {
     const key = this.getBaselineKey(component, screen);
     const existing = this.baselines.get(key);
-    
+
     if (existing) {
       // Update existing baseline with exponential moving average
       const alpha = 0.1; // Learning rate
-      
+
       switch (metricType) {
         case 'render_time':
-          existing.expectedRenderTime = existing.expectedRenderTime * (1 - alpha) + value * alpha;
+          existing.expectedRenderTime =
+            existing.expectedRenderTime * (1 - alpha) + value * alpha;
           break;
         case 'interaction_delay':
-          existing.maxInteractionDelay = existing.maxInteractionDelay * (1 - alpha) + value * alpha;
+          existing.maxInteractionDelay =
+            existing.maxInteractionDelay * (1 - alpha) + value * alpha;
           break;
         case 'navigation_time':
-          existing.expectedRenderTime = existing.expectedRenderTime * (1 - alpha) + value * alpha;
+          existing.expectedRenderTime =
+            existing.expectedRenderTime * (1 - alpha) + value * alpha;
           break;
       }
-      
+
       existing.sampleSize++;
       existing.confidence = Math.min(existing.confidence + 0.01, 1);
     } else {
@@ -644,34 +744,46 @@ class UIPerformanceMonitorService {
         sampleSize: 1,
         confidence: 0.1,
       };
-      
+
       this.baselines.set(key, newBaseline);
     }
   }
 
   private updateAllBaselines(): void {
     // Update all baselines based on recent metrics
-    const recentMetrics = this.metrics.filter(m => 
-      Date.now() - m.timestamp < this.config.baselineUpdateInterval
+    const recentMetrics = this.metrics.filter(
+      m => Date.now() - m.timestamp < this.config.baselineUpdateInterval,
     );
-    
+
     recentMetrics.forEach(metric => {
-      this.updateBaseline(metric.component, metric.screen, metric.value, metric.metricType);
+      this.updateBaseline(
+        metric.component,
+        metric.screen,
+        metric.value,
+        metric.metricType,
+      );
     });
   }
 
-  private generateRecommendations(metrics: UIPerformanceMetric[], baseline: PerformanceBaseline | null): OptimizationRecommendation[] {
+  private generateRecommendations(
+    metrics: UIPerformanceMetric[],
+    baseline: PerformanceBaseline | null,
+  ): OptimizationRecommendation[] {
     if (!baseline || metrics.length === 0) return [];
-    
+
     const recommendations: OptimizationRecommendation[] = [];
-    
+
     // Analyze recent performance trends
     const renderMetrics = metrics.filter(m => m.metricType === 'render_time');
-    const interactionMetrics = metrics.filter(m => m.metricType === 'interaction_delay');
-    
+    const interactionMetrics = metrics.filter(
+      m => m.metricType === 'interaction_delay',
+    );
+
     if (renderMetrics.length > 0) {
-      const avgRenderTime = renderMetrics.reduce((sum, m) => sum + m.value, 0) / renderMetrics.length;
-      
+      const avgRenderTime =
+        renderMetrics.reduce((sum, m) => sum + m.value, 0) /
+        renderMetrics.length;
+
       if (avgRenderTime > baseline.expectedRenderTime * 1.3) {
         recommendations.push({
           type: 'component_memoization',
@@ -682,10 +794,12 @@ class UIPerformanceMonitorService {
         });
       }
     }
-    
+
     if (interactionMetrics.length > 0) {
-      const avgInteractionDelay = interactionMetrics.reduce((sum, m) => sum + m.value, 0) / interactionMetrics.length;
-      
+      const avgInteractionDelay =
+        interactionMetrics.reduce((sum, m) => sum + m.value, 0) /
+        interactionMetrics.length;
+
       if (avgInteractionDelay > baseline.maxInteractionDelay * 1.2) {
         recommendations.push({
           type: 'interaction_assistance',
@@ -696,7 +810,7 @@ class UIPerformanceMonitorService {
         });
       }
     }
-    
+
     return recommendations.sort((a, b) => b.priority - a.priority);
   }
 
@@ -708,7 +822,7 @@ class UIPerformanceMonitorService {
       clearInterval(this.monitoringTimer);
       this.monitoringTimer = null;
     }
-    
+
     structuredLogger.info('UI Performance Monitor shutdown completed', {
       metricsRecorded: this.metrics.length,
       triggersGenerated: this.triggers.length,

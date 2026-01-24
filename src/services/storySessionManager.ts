@@ -909,7 +909,7 @@ class StorySessionManager {
 
       // Sum up total XP
       const totalXP = challengeService.getTotalXP(xpRewards);
-      session.xp_earned = totalXP;
+      session.xp_earned = Math.floor(totalXP); // Ensure integer for database
 
       // Calculate final score based on:
       // - Base score: word count (1 point per word)
@@ -918,7 +918,9 @@ class StorySessionManager {
       const baseScore = session.words_written;
       const challengeBonus = session.challenges_completed * 50;
       const completionBonus = 100;
-      session.final_score = baseScore + challengeBonus + completionBonus;
+      session.final_score = Math.floor(
+        baseScore + challengeBonus + completionBonus,
+      );
 
       console.log('💰 Calculated rewards:', {
         xpEarned: session.xp_earned,
@@ -930,8 +932,9 @@ class StorySessionManager {
     } catch (error) {
       console.error('Failed to calculate rewards:', error);
       // Set default values if calculation fails
-      session.xp_earned = session.words_written * 2; // Fallback: 2 XP per word
-      session.final_score = session.words_written + 100; // Fallback: words + completion bonus
+      // IMPORTANT: Floor all values to ensure integers for database
+      session.xp_earned = Math.floor(session.words_written * 2); // Fallback: 2 XP per word
+      session.final_score = Math.floor(session.words_written + 100); // Fallback: words + completion bonus
     }
   }
 
