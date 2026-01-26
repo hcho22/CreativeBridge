@@ -220,8 +220,21 @@ Extract characters, settings, objects, and plot patterns. Return valid JSON only
 
     // Parse JSON response
     try {
-      // Remove markdown code blocks if present
+      // Step 1: Clean the response thoroughly
       let cleanedResponse = response.trim();
+
+      // Step 2: Remove BOM (Byte Order Mark) if present
+      if (cleanedResponse.charCodeAt(0) === 0xfeff) {
+        cleanedResponse = cleanedResponse.substring(1);
+      }
+
+      // Step 3: Remove zero-width characters and other invisible Unicode characters
+      cleanedResponse = cleanedResponse.replace(
+        /[\u200B-\u200D\uFEFF\u00A0]/g,
+        '',
+      );
+
+      // Step 4: Remove markdown code blocks if present
       if (cleanedResponse.startsWith('```json')) {
         cleanedResponse = cleanedResponse
           .replace(/^```json\s*/, '')
@@ -232,9 +245,24 @@ Extract characters, settings, objects, and plot patterns. Return valid JSON only
           .replace(/\s*```$/, '');
       }
 
+      // Step 5: Trim again after cleanup
+      cleanedResponse = cleanedResponse.trim();
+
+      // Step 6: Repair common JSON structure issues
+      cleanedResponse = this.repairMalformedJSON(cleanedResponse);
+
+      // Step 7: Log the first 500 chars for debugging (increased from 200)
+      console.log('🔍 Attempting to parse cleaned JSON:', {
+        firstChars: cleanedResponse.substring(0, 500),
+        length: cleanedResponse.length,
+        startsWithBrace: cleanedResponse.startsWith('{'),
+        endsWithBrace: cleanedResponse.endsWith('}'),
+      });
+
+      // Step 8: Parse JSON
       const elements = JSON.parse(cleanedResponse) as StoryElements;
 
-      // Validate structure
+      // Step 9: Validate structure
       if (
         !elements.characters ||
         !elements.settings ||
@@ -244,11 +272,33 @@ Extract characters, settings, objects, and plot patterns. Return valid JSON only
         throw new Error('Invalid JSON structure: missing required fields');
       }
 
+      // Step 10: Validate arrays exist (even if empty)
+      if (
+        !Array.isArray(elements.characters) ||
+        !Array.isArray(elements.settings) ||
+        !Array.isArray(elements.objects) ||
+        !Array.isArray(elements.plot_patterns)
+      ) {
+        throw new Error('Invalid JSON structure: fields must be arrays');
+      }
+
+      console.log('✅ JSON parsed successfully:', {
+        characterCount: elements.characters.length,
+        settingCount: elements.settings.length,
+        objectCount: elements.objects.length,
+        plotPatternCount: elements.plot_patterns.length,
+      });
+
       return elements;
     } catch (parseError: any) {
+      // Enhanced error logging with full response for debugging
       console.error('❌ Failed to parse LLM response as JSON:', {
-        response: response.substring(0, 200),
+        fullResponse: response, // Log FULL response to see the actual issue
+        firstChars: response.substring(0, 500),
+        lastChars: response.substring(Math.max(0, response.length - 100)),
+        length: response.length,
         error: parseError.message,
+        errorStack: parseError.stack,
       });
       throw new Error(`JSON parsing failed: ${parseError.message}`);
     }
@@ -280,6 +330,126 @@ Extract characters, settings, objects, and plot patterns. Return valid JSON only
         discovery_type: this.normalizeText(pattern.discovery_type),
       })),
     };
+  }
+
+  /**
+   * Repair common malformed JSON patterns from LLM responses
+   *
+   * Handles issues like:
+   * - Orphaned strings without keys
+   * - Missing required fields
+   * - Incomplete array/object structures
+   * - Trailing commas or broken syntax
+   *
+   * @private
+   */
+  private repairMalformedJSON(jsonString: string): string {
+    let repaired = jsonString;
+
+    // Pattern 1: Remove orphaned empty strings in the structure
+    // This handles cases like: `"objects":[], "" ]}`
+    // Remove standalone empty strings that appear after commas or arrays
+    repaired = repaired.replace(/,\s*""\s*(?=[,\]\}])/g, '');
+
+    // Pattern 2: Remove trailing commas in arrays
+    repaired = repaired.replace(/,\s*]/g, ']');
+
+    // Pattern 3: Remove trailing commas in objects
+    repaired = repaired.replace(/,\s*}/g, '}');
+
+    // Pattern 4: Fix nested object trailing commas
+    repaired = repaired.replace(/,(\s*[}\]])/g, '$1');
+
+    // Pattern 5: Check if required fields are missing and add defaults
+    const requiredFields = [
+      'characters',
+      'settings',
+      'objects',
+      'plot_patterns',
+    ];
+
+    try {
+      // Try to parse to check for missing fields
+      const partial = JSON.parse(repaired);
+
+      // Add missing required fields with empty arrays
+      let needsRepair = false;
+      requiredFields.forEach(field => {
+        if (!(field in partial)) {
+          needsRepair = true;
+        }
+      });
+
+      if (needsRepair) {
+        // Build complete object with defaults
+        const complete: any = {
+          characters: partial.characters || [],
+          settings: partial.settings || [],
+          objects: partial.objects || [],
+          plot_patterns: partial.plot_patterns || [],
+        };
+        repaired = JSON.stringify(complete);
+        console.log('🔧 Added missing required fields to JSON');
+      }
+
+      return repaired;
+    } catch (e) {
+      // If JSON is still unparseable, try aggressive repair
+      console.log(
+        '⚠️ JSON still malformed after basic repairs, attempting extraction',
+      );
+
+      // Strategy: Extract each field individually with regex, then reconstruct
+      const extracted: any = {
+        characters: [],
+        settings: [],
+        objects: [],
+        plot_patterns: [],
+      };
+
+      requiredFields.forEach(field => {
+        // Match field with its array content, handling nested structures
+        const fieldRegex = new RegExp(`"${field}"\\s*:\\s*\\[(.*?)\\]`, 's');
+        const fieldMatch = repaired.match(fieldRegex);
+
+        if (fieldMatch && fieldMatch[1]) {
+          const arrayContent = fieldMatch[1].trim();
+
+          if (arrayContent.length > 0) {
+            try {
+              // Try to parse the array content
+              const parsed = JSON.parse(`[${arrayContent}]`);
+              extracted[field] = parsed;
+              console.log(`✓ Extracted ${field}: ${parsed.length} items`);
+            } catch (arrayParseError) {
+              // Array content is malformed, try to fix it
+              let fixedArrayContent = arrayContent;
+
+              // Remove trailing commas within the array
+              fixedArrayContent = fixedArrayContent.replace(
+                /,(\s*[}\]])/g,
+                '$1',
+              );
+
+              try {
+                const parsed = JSON.parse(`[${fixedArrayContent}]`);
+                extracted[field] = parsed;
+                console.log(
+                  `✓ Extracted ${field} after repair: ${parsed.length} items`,
+                );
+              } catch {
+                console.log(`✗ Could not extract ${field}, using empty array`);
+                extracted[field] = [];
+              }
+            }
+          }
+        }
+      });
+
+      repaired = JSON.stringify(extracted);
+      console.log('🔧 Reconstructed JSON from extracted fields');
+      return repaired;
+    }
   }
 
   /**
