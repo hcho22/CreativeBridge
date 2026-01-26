@@ -11,6 +11,7 @@ import {
   ContentValidationResult,
   FallbackStory,
   StoryServiceConfig,
+  StoryAnalysis,
 } from '../types/story';
 // Removed unused import: OpenAIMessage
 import { GradeLevel } from '../types/database';
@@ -183,9 +184,26 @@ class StoryGenerationService {
 
   public async generateStory(request: StoryRequest): Promise<StoryResponse> {
     try {
+      // DIAGNOSTIC LOGGING: Track story length at generation entry point
+      console.log('📊 [STORY GENERATION] Request received:', {
+        gradeLevel: request.gradeLevel,
+        hasStorySoFar: !!request.storySoFar,
+        storySoFarLength: request.storySoFar?.length || 0,
+        userInputLength: request.userInput?.length || 0,
+        storyPreview:
+          request.storySoFar?.substring(
+            Math.max(0, (request.storySoFar?.length || 0) - 150),
+          ) || 'N/A',
+      });
+
       // Validate input
       const validationResult = this.validateRequest(request);
       if (!validationResult.isValid) {
+        console.error('❌ [STORY GENERATION] Validation failed:', {
+          violations: validationResult.violations,
+          storySoFarLength: request.storySoFar?.length || 0,
+          gradeLevel: request.gradeLevel,
+        });
         return {
           story: '',
           success: false,
@@ -199,9 +217,11 @@ class StoryGenerationService {
         console.log('🚀 Using OpenAI API for story generation');
         try {
           const story = await this.generateWithOpenAI(request);
-          console.log('✅ OpenAI generation successful:', {
+          console.log('✅ [STORY GENERATION] OpenAI generation successful:', {
             storyLength: story.length,
             hasContent: !!story,
+            inputContextLength: request.storySoFar?.length || 0,
+            generatedPreview: story.substring(0, 100) + '...',
           });
 
           // Trigger post-generation element extraction and storage (async, non-blocking)
@@ -214,9 +234,17 @@ class StoryGenerationService {
             challenge: request.challenge,
           };
         } catch (error) {
-          console.warn('❌ OpenAI generation failed, falling back:', error);
+          console.warn('❌ [STORY GENERATION] OpenAI generation failed:', {
+            error: error instanceof Error ? error.message : String(error),
+            storySoFarLength: request.storySoFar?.length || 0,
+            gradeLevel: request.gradeLevel,
+            willUseFallback: this.config.fallbackEnabled,
+          });
 
           if (this.config.fallbackEnabled) {
+            console.log(
+              '⚠️ [STORY GENERATION] Using fallback due to OpenAI failure',
+            );
             return this.generateFallbackStory(request);
           } else {
             throw error;
@@ -225,7 +253,9 @@ class StoryGenerationService {
       }
 
       // Use fallback if OpenAI not available
-      console.log('🔄 OpenAI not available, using fallback templates');
+      console.log(
+        '🔄 [STORY GENERATION] OpenAI not available, using fallback templates',
+      );
       if (this.config.fallbackEnabled) {
         return this.generateFallbackStory(request);
       }
@@ -752,6 +782,8 @@ class StoryGenerationService {
         model: this.config.model,
         maxTokens: this.config.maxTokens,
         temperature: this.config.temperature,
+        // Use stop sequences for story generation to prevent overly long responses
+        stop: ['\n\n', '###'],
       },
     );
 
@@ -1081,10 +1113,13 @@ Continue the story with 1-3 sentences. Keep your response under 200 words.`;
     const violations: string[] = [];
     let filteredContent = content;
 
-    // Check for inappropriate words
+    // Check for inappropriate words using word boundaries to avoid false positives
+    // e.g., "war" should not match "warm", "aware", "award"
     const lowerContent = content.toLowerCase();
     for (const word of this.config.contentFilter.inappropriateWords) {
-      if (lowerContent.includes(word.toLowerCase())) {
+      // Use word boundary regex to match whole words only
+      const wordRegex = new RegExp(`\\b${word.toLowerCase()}\\b`, 'i');
+      if (wordRegex.test(content)) {
         violations.push(`Contains inappropriate word: ${word}`);
       }
     }
@@ -1160,8 +1195,25 @@ Continue the story with 1-3 sentences. Keep your response under 200 words.`;
       violations.push('User input too long (max 1000 characters)');
     }
 
-    if (request.storySoFar && request.storySoFar.length > 2000) {
-      violations.push('Story content too long (max 2000 characters)');
+    // CRITICAL FIX: Increased story length limit to support longer stories for older students
+    // Grade-specific limits to prevent context loss:
+    // - K-2: 3000 chars (shorter, simpler stories)
+    // - 3-5: 5000 chars (moderate complexity)
+    // - 6-8: 8000 chars (developing narratives)
+    // - 9-12: 12000 chars (sophisticated, multi-paragraph stories)
+    const storyLengthLimits: Record<GradeLevel, number> = {
+      'K-2': 3000,
+      '3-5': 5000,
+      '6-8': 8000,
+      '9-12': 12000,
+    };
+
+    const maxLength = storyLengthLimits[request.gradeLevel] || 8000;
+
+    if (request.storySoFar && request.storySoFar.length > maxLength) {
+      violations.push(
+        `Story content too long (max ${maxLength} characters for ${request.gradeLevel})`,
+      );
     }
 
     // Skip validation of user input - it's just a prompt, not story content
@@ -1175,19 +1227,25 @@ Continue the story with 1-3 sentences. Keep your response under 200 words.`;
 
   private generateFallbackStory(request: StoryRequest): StoryResponse {
     try {
-      console.log('🎪 generateFallbackStory called', {
+      console.log('🎪 [FALLBACK] generateFallbackStory called', {
         gradeLevel: request.gradeLevel,
         hasStorySoFar: !!request.storySoFar,
-        userInput: request.userInput?.substring(0, 50) + '...',
+        storySoFarLength: request.storySoFar?.length || 0,
+        userInputLength: request.userInput?.length || 0,
+        storyContextPreview: request.storySoFar
+          ? request.storySoFar.substring(
+              Math.max(0, request.storySoFar.length - 200),
+            )
+          : 'N/A',
       });
 
       if (request.storySoFar) {
         // Generate story continuation
-        console.log('📖 Generating story continuation...');
+        console.log('📖 [FALLBACK] Generating story continuation with context');
         return this.generateStoryContinuation(request);
       } else {
         // Generate story starter
-        console.log('🌟 Generating story starter...');
+        console.log('🌟 [FALLBACK] Generating story starter');
         return this.generateStoryStarter(request);
       }
     } catch (error) {
