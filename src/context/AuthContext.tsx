@@ -138,7 +138,51 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       console.log('Fetching user profile for ID:', userId);
 
-      // First, try to get existing profile by user ID and update it if found
+      // For OAuth users, the userId is actually the Clerk user ID
+      // We need to check if this is a Clerk user ID (starts with 'user_')
+      // and query by clerk_user_id field instead of id field
+      const isClerkUserId = userId.startsWith('user_');
+
+      if (isClerkUserId) {
+        console.log(
+          '🔍 Detected Clerk user ID, querying by clerk_user_id field',
+        );
+
+        // Query by clerk_user_id for OAuth users
+        const { data: profiles, error: clerkError } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('clerk_user_id', userId)
+          .limit(1);
+
+        console.log('Profile query result (by clerk_user_id):', {
+          profiles,
+          error: clerkError,
+        });
+
+        if (clerkError) {
+          console.error(
+            '❌ Error fetching profile by clerk_user_id:',
+            clerkError,
+          );
+          return null;
+        }
+
+        const existingProfile =
+          profiles && profiles.length > 0 ? profiles[0] : null;
+
+        if (existingProfile) {
+          console.log('✅ Found OAuth user profile:', existingProfile.username);
+          return existingProfile;
+        }
+
+        // No profile found for OAuth user - will be created during profile completion
+        console.log('📋 No profile found for OAuth user');
+        return null;
+      }
+
+      // For regular email/password users, query by id field
+      console.log('🔍 Regular user ID, querying by id field');
       const { data: existingProfile, error } = await supabase
         .from('user_profiles')
         .select('*')
@@ -238,17 +282,26 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Generate unique username - avoid default 'user' which causes duplicates
       // Try to extract email from userParam.email or clerkUser.user.emailAddresses
-      const email = userParam.email || clerkUser?.user?.emailAddresses?.[0]?.emailAddress;
+      const email =
+        userParam.email || clerkUser?.user?.emailAddresses?.[0]?.emailAddress;
 
       let emailPrefix: string;
       if (email) {
         emailPrefix = email.split('@')[0];
-        console.log('📧 [createUserProfile] Extracting username from email:', emailPrefix, 'from', email);
+        console.log(
+          '📧 [createUserProfile] Extracting username from email:',
+          emailPrefix,
+          'from',
+          email,
+        );
       } else {
         // For users without email, create unique username using user ID suffix
         const uniqueSuffix = userParam.id.slice(-8);
         emailPrefix = `user_${uniqueSuffix}`;
-        console.log('🆔 [createUserProfile] No email available, using user ID suffix:', uniqueSuffix);
+        console.log(
+          '🆔 [createUserProfile] No email available, using user ID suffix:',
+          uniqueSuffix,
+        );
       }
 
       const displayName =
@@ -433,7 +486,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Set signing out flag to prevent re-syncing during logout
       isSigningOut.current = true;
-      
+
       // Clear the last synced Clerk user ID
       lastSyncedClerkUserId.current = null;
 
@@ -538,36 +591,114 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     try {
-      // For OAuth users without a profile, create one using RPC function that bypasses RLS
-      if (!userProfile?.id) {
-        console.log('📋 [AuthContext] Creating profile for OAuth user');
-        
-        // Get Clerk user ID if available (for OAuth users)
-        const clerkUserId = clerkUser?.id || user.user_metadata?.clerk_user_id;
-        
-        if (!clerkUserId) {
-          console.error('❌ [AuthContext] No Clerk user ID available for profile creation');
-          return { error: 'Authentication error: No user ID available' };
+      // Get Clerk user ID if available (for OAuth users)
+      // clerkUser from useClerkUser() returns UseUserReturn which has id, emailAddresses, etc. when loaded
+      // Using optional chaining to safely access id property
+      const clerkUserId: string | undefined =
+        (clerkUser as any)?.id || user.user_metadata?.clerk_user_id;
+
+      // For OAuth users, check if profile exists in database first
+      // Don't rely on userProfile context state as it may be stale
+      if (clerkUserId) {
+        console.log(
+          '📋 [AuthContext] Checking for existing profile for Clerk user ID:',
+          clerkUserId,
+        );
+
+        const { data: existingProfiles, error: fetchError } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('clerk_user_id', clerkUserId)
+          .limit(1);
+
+        if (fetchError) {
+          console.error(
+            '❌ [AuthContext] Error checking for existing profile:',
+            fetchError,
+          );
+          return { error: 'Failed to check profile status' };
         }
-        
+
+        const existingProfile =
+          existingProfiles && existingProfiles.length > 0
+            ? existingProfiles[0]
+            : null;
+
+        // Profile exists - update it
+        if (existingProfile) {
+          console.log(
+            '✅ [AuthContext] Found existing profile, updating it:',
+            existingProfile.id,
+          );
+
+          // For OAuth users, we need to update and then fetch separately
+          // because RLS policies might block SELECT in the same query
+          const { error: updateError } = await supabase
+            .from('user_profiles')
+            .update(profile as any)
+            .eq('clerk_user_id', clerkUserId);
+
+          if (updateError) {
+            console.error(
+              '❌ [AuthContext] Failed to update profile:',
+              updateError,
+            );
+            return { error: updateError.message };
+          }
+
+          // Fetch the updated profile using clerk_user_id (which passes RLS)
+          const { data: updatedProfiles, error: fetchError } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('clerk_user_id', clerkUserId)
+            .limit(1);
+
+          if (fetchError || !updatedProfiles || updatedProfiles.length === 0) {
+            console.error(
+              '❌ [AuthContext] Failed to fetch updated profile:',
+              fetchError,
+            );
+            return { error: 'Failed to fetch updated profile' };
+          }
+
+          const updatedProfile = updatedProfiles[0];
+          console.log('✅ [AuthContext] Profile updated successfully');
+          setUserProfile(updatedProfile);
+          return {};
+        }
+
+        // Profile doesn't exist - create one using RPC function that bypasses RLS
+        console.log(
+          '📋 [AuthContext] No existing profile found, creating new profile for OAuth user',
+        );
+
         // Generate unique username for OAuth users
         // If no email or username provided, generate one using Clerk user ID suffix
         const generateUniqueUsername = () => {
           if (profile.username) return profile.username;
 
-          // Try to extract username from email (check both user.email and clerkUser.user.emailAddresses)
-          // clerkUser is UseUserReturn type, the actual user object is clerkUser.user
-          const email = user.email || clerkUser?.user?.emailAddresses?.[0]?.emailAddress;
+          // Try to extract username from email (check both user.email and clerkUser emailAddresses)
+          // clerkUser is UseUserReturn type, use type assertion to access properties
+          const email =
+            user.email || (clerkUser as any)?.emailAddresses?.[0]?.emailAddress;
           if (email) {
             const emailPrefix = email.split('@')[0];
-            console.log('📧 [AuthContext] Extracting username from email:', emailPrefix, 'from', email);
+            console.log(
+              '📧 [AuthContext] Extracting username from email:',
+              emailPrefix,
+              'from',
+              email,
+            );
             return emailPrefix;
           }
 
           // For users without email (e.g., Apple "Hide My Email"), create unique username
           // Using last 8 characters of Clerk user ID for uniqueness
           const uniqueSuffix = clerkUserId.slice(-8);
-          console.log('🆔 [AuthContext] No email available, using Clerk user ID suffix:', uniqueSuffix);
+          console.log(
+            '🆔 [AuthContext] No email available, using Clerk user ID suffix:',
+            uniqueSuffix,
+          );
           return `user_${uniqueSuffix}`;
         };
 
@@ -575,24 +706,34 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           if (profile.display_name) return profile.display_name;
           if (profile.username) return profile.username;
 
-          // Try to extract display name from email (check both user.email and clerkUser.user.emailAddresses)
-          // clerkUser is UseUserReturn type, the actual user object is clerkUser.user
-          const email = user.email || clerkUser?.user?.emailAddresses?.[0]?.emailAddress;
+          // Try to extract display name from email (check both user.email and clerkUser emailAddresses)
+          // clerkUser is UseUserReturn type, use type assertion to access properties
+          const email =
+            user.email || (clerkUser as any)?.emailAddresses?.[0]?.emailAddress;
           if (email) {
             const emailPrefix = email.split('@')[0];
-            const displayName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
-            console.log('📧 [AuthContext] Extracting display name from email:', displayName);
+            const displayName =
+              emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
+            console.log(
+              '📧 [AuthContext] Extracting display name from email:',
+              displayName,
+            );
             return displayName;
           }
 
           // For users without email, use a friendly default with unique suffix
           const uniqueSuffix = clerkUserId.slice(-8);
-          console.log('🆔 [AuthContext] No email available, using default display name with suffix:', uniqueSuffix);
+          console.log(
+            '🆔 [AuthContext] No email available, using default display name with suffix:',
+            uniqueSuffix,
+          );
           return `User ${uniqueSuffix}`;
         };
 
         // Use RPC function to create profile (bypasses RLS)
-        const { data: createdProfile, error: createError } = await supabase
+        const { data: createdProfile, error: createError } = await (
+          supabase as any
+        )
           .rpc('create_oauth_user_profile', {
             p_clerk_user_id: clerkUserId,
             p_username: generateUniqueUsername(),
@@ -604,41 +745,58 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           .single();
 
         if (createError) {
-          console.error('❌ [AuthContext] Failed to create profile:', createError);
+          console.error(
+            '❌ [AuthContext] Failed to create profile:',
+            createError,
+          );
           return { error: createError.message };
         }
 
-        console.log('✅ [AuthContext] Profile created successfully:', createdProfile?.id);
-        
+        console.log(
+          '✅ [AuthContext] Profile created successfully:',
+          createdProfile?.id,
+        );
+
         // Update the synthetic user's ID to match the generated profile ID
         // This ensures that future operations that check user.id === profile.id will work
         if (createdProfile && user.id !== createdProfile.id) {
-          console.log('🔗 [AuthContext] Updating synthetic user ID to match profile ID:', createdProfile.id);
+          console.log(
+            '🔗 [AuthContext] Updating synthetic user ID to match profile ID:',
+            createdProfile.id,
+          );
           setUser({
             ...user,
             id: createdProfile.id,
           });
         }
-        
+
         setUserProfile(createdProfile as any);
         setNeedsProfileCompletion(false);
         return {};
       }
 
-      // Update existing profile
-      const { data: updatedProfile, error } = await supabase
-        .from('user_profiles')
-        .update(profile as any)
-        .eq('id', userProfile.id)
-        .select()
-        .single();
+      // For non-OAuth users with profile in context, update it directly
+      if (userProfile?.id) {
+        const { data: updatedProfile, error } = await supabase
+          .from('user_profiles')
+          .update(profile as any)
+          .eq('id', userProfile.id)
+          .select()
+          .single();
 
-      if (error) {
-        return { error: error.message };
+        if (error) {
+          return { error: error.message };
+        }
+
+        setUserProfile(updatedProfile);
+        return {};
       }
 
-      setUserProfile(updatedProfile);
-      return {};
+      // No Clerk user ID and no profile in context - shouldn't happen
+      console.error(
+        '❌ [AuthContext] Cannot update profile - no user identification available',
+      );
+      return { error: 'Unable to identify user profile' };
     } catch (error) {
       console.error('💥 [AuthContext] Profile update/create error:', error);
       return { error: 'An unexpected error occurred' };
@@ -1351,14 +1509,13 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         clerkUserId,
       );
 
-      const { data: profile, error: profileError } = await supabase
+      const { data: profiles, error: profileError } = await supabase
         .from('user_profiles')
         .select('*')
         .eq('clerk_user_id', clerkUserId)
-        .single();
+        .limit(1);
 
-      if (profileError && profileError.code !== 'PGRST116') {
-        // PGRST116 is "not found" - that's okay, profile needs to be created
+      if (profileError) {
         console.error(
           '❌ [AuthContext] Error checking profile:',
           profileError.message,
@@ -1366,6 +1523,17 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         // On error, assume profile needs completion
         setNeedsProfileCompletion(true);
         return;
+      }
+
+      // Handle case where query returns array
+      const profile = profiles && profiles.length > 0 ? profiles[0] : null;
+
+      // Log warning if multiple profiles found (data integrity issue)
+      if (profiles && profiles.length > 1) {
+        console.warn(
+          '⚠️ [AuthContext] Multiple profiles found for Clerk user ID. Using oldest profile.',
+          `Found ${profiles.length} profiles for clerk_user_id: ${clerkUserId}`,
+        );
       }
 
       if (profile) {
@@ -1421,7 +1589,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
     // Clear signing out flag if it's stuck - this is a new sign-in operation
     if (isSigningOut.current) {
-      console.log('🔄 [AuthContext] Clearing stuck isSigningOut flag for new OAuth sign-in');
+      console.log(
+        '🔄 [AuthContext] Clearing stuck isSigningOut flag for new OAuth sign-in',
+      );
       isSigningOut.current = false;
     }
 
@@ -1614,17 +1784,27 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         );
 
         // Find profile with Clerk user ID (account linking should have already happened)
-        const { data: profile, error: profileError } = await supabase
+        const { data: profiles, error: profileError } = await supabase
           .from('user_profiles')
           .select('*')
           .eq('clerk_user_id', oauthResult.clerkUserId)
-          .single();
+          .limit(1);
 
-        if (profileError && profileError.code !== 'PGRST116') {
-          // PGRST116 is "not found" - that's okay, profile will be created
+        if (profileError) {
           console.error(
             '❌ [AuthContext] Error finding profile:',
             profileError.message,
+          );
+        }
+
+        // Handle case where query returns array
+        const profile = profiles && profiles.length > 0 ? profiles[0] : null;
+
+        // Log warning if multiple profiles found (data integrity issue)
+        if (profiles && profiles.length > 1) {
+          console.warn(
+            '⚠️ [AuthContext] Multiple profiles found for Clerk user ID. Using oldest profile.',
+            `Found ${profiles.length} profiles for clerk_user_id: ${oauthResult.clerkUserId}`,
           );
         }
 
@@ -1703,9 +1883,16 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       // If Clerk is signed in but we don't have a session or user, try to sync
       // Check if we've already synced this Clerk user ID to prevent infinite loops
       const currentClerkUserId = clerkAuth?.userId;
-      const alreadySynced = currentClerkUserId === lastSyncedClerkUserId.current;
-      
-      if (clerkAuth?.isSignedIn && !session && !user && !loading && !alreadySynced) {
+      const alreadySynced =
+        currentClerkUserId === lastSyncedClerkUserId.current;
+
+      if (
+        clerkAuth?.isSignedIn &&
+        !session &&
+        !user &&
+        !loading &&
+        !alreadySynced
+      ) {
         console.log(
           '🔄 [AuthContext] Clerk signed in but no session/user - attempting sync...',
         );
@@ -1729,13 +1916,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     checkAndSync();
-  }, [
-    clerkAuth?.isSignedIn,
-    clerkAuth?.userId,
-    session,
-    user,
-    loading,
-  ]);
+  }, [clerkAuth?.isSignedIn, clerkAuth?.userId, session, user, loading]);
 
   useEffect(() => {
     const initializeAuth = async () => {
