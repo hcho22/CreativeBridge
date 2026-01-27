@@ -66,7 +66,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       });
 
       if (result.error) {
-        Alert.alert('Profile Setup Required', result.error);
+        // Provide user-friendly error message
+        const errorMessage = result.error.includes(
+          'JSON object requested, multiple',
+        )
+          ? 'There was an issue with your profile. Please contact support or try logging out and back in.'
+          : result.error;
+
+        Alert.alert('Update Failed', errorMessage);
         setSelectedGradeLevel(
           (userProfile?.preferred_grade_level as GradeLevel) || 'K-2',
         ); // Revert on error

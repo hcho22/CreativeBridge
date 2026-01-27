@@ -163,17 +163,28 @@ export async function syncClerkUserIdToProfile(
     // This handles cases where:
     // - User has already linked their account
     // - User is signing in with a previously linked OAuth provider
-    const { data: existingProfile, error: fetchError } = await supabase
+    const { data: profiles, error: fetchError } = await supabase
       .from('user_profiles')
       .select('*')
       .eq('clerk_user_id', clerkUserId)
-      .single();
+      .limit(1);
 
-    if (fetchError && fetchError.code !== 'PGRST116') {
-      // PGRST116 is "not found" - that's okay, we'll check for account linking
+    if (fetchError) {
       console.error(
         '❌ [Account Linking] Error fetching profile by Clerk user ID:',
         fetchError,
+      );
+    }
+
+    // Handle case where query returns array
+    const existingProfile =
+      profiles && profiles.length > 0 ? profiles[0] : null;
+
+    // Log warning if multiple profiles found (data integrity issue)
+    if (profiles && profiles.length > 1) {
+      console.warn(
+        '⚠️ [Account Linking] Multiple profiles found for Clerk user ID. Using oldest profile.',
+        `Found ${profiles.length} profiles for clerk_user_id: ${clerkUserId}`,
       );
     }
 
@@ -476,21 +487,28 @@ export async function findProfileByClerkUserId(
   clerkUserId: string,
 ): Promise<UserProfile | null> {
   try {
-    const { data, error } = await supabase
+    const { data: profiles, error } = await supabase
       .from('user_profiles')
       .select('*')
       .eq('clerk_user_id', clerkUserId)
-      .single();
+      .limit(1);
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        // Not found
-        return null;
-      }
       throw error;
     }
 
-    return data as UserProfile;
+    // Handle case where query returns array
+    const profile = profiles && profiles.length > 0 ? profiles[0] : null;
+
+    // Log warning if multiple profiles found (data integrity issue)
+    if (profiles && profiles.length > 1) {
+      console.warn(
+        '⚠️ [clerkSupabaseSync] Multiple profiles found for Clerk user ID. Using oldest profile.',
+        `Found ${profiles.length} profiles for clerk_user_id: ${clerkUserId}`,
+      );
+    }
+
+    return profile as UserProfile | null;
   } catch (error) {
     console.error('Error finding profile by Clerk user ID:', error);
     return null;

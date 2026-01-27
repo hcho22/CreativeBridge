@@ -2185,8 +2185,21 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       setUserProfile(profile);
       // Check profile completion after refresh
       await checkProfileCompletion();
+    } else if (
+      clerkUser &&
+      'id' in clerkUser &&
+      typeof clerkUser.id === 'string'
+    ) {
+      // Fallback for OAuth users if user.id is not set yet
+      console.log(
+        '🔄 [AuthContext] Refreshing profile using Clerk user ID:',
+        clerkUser.id,
+      );
+      const profile = await fetchUserProfile(clerkUser.id as string);
+      setUserProfile(profile);
+      await checkProfileCompletion();
     }
-  }, [user?.id, checkProfileCompletion]);
+  }, [user?.id, clerkUser, checkProfileCompletion]);
 
   const clearOAuthError = useCallback(() => {
     setOAuthError(null);

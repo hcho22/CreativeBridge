@@ -67,7 +67,10 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
       if (emailToUse) {
         const emailPrefix = emailToUse.split('@')[0];
         setUsername(emailPrefix);
-        console.log('🔤 [ProfileCompletion] Auto-filled username from email:', emailPrefix);
+        console.log(
+          '🔤 [ProfileCompletion] Auto-filled username from email:',
+          emailPrefix,
+        );
       }
     }
 
@@ -172,15 +175,38 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
 
       // If no Supabase user ID, we need to create a profile using Clerk user ID
       // First, check if a profile exists with this Clerk user ID
-      const { data: existingProfile } = await supabase
+      const { data: profiles, error: fetchError } = await supabase
         .from('user_profiles')
         .select('*')
         .eq('clerk_user_id', clerkUserId)
-        .single();
+        .limit(1);
+
+      if (fetchError) {
+        console.error('Error fetching profile:', fetchError);
+        Alert.alert(
+          'Error',
+          'Unable to verify your profile. Please try again.',
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Handle case where query returns array
+      const existingProfile =
+        profiles && profiles.length > 0 ? profiles[0] : null;
+
+      // Log warning if multiple profiles found (data integrity issue)
+      if (profiles && profiles.length > 1) {
+        console.warn(
+          '⚠️ [ProfileCompletion] Multiple profiles found for Clerk user ID. Using oldest profile.',
+          `Found ${profiles.length} profiles for clerk_user_id: ${clerkUserId}`,
+        );
+      }
 
       if (existingProfile) {
         // Profile exists, update it
         profileId = existingProfile.id;
+        // For OAuth users, update by clerk_user_id to avoid RLS issues
         const { error: updateError } = await supabase
           .from('user_profiles')
           .update({
@@ -189,7 +215,7 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
             preferred_grade_level: gradeLevel as GradeLevel,
             clerk_user_id: clerkUserId, // Ensure Clerk user ID is set
           })
-          .eq('id', profileId);
+          .eq('clerk_user_id', clerkUserId);
 
         if (updateError) {
           console.error('Error updating profile:', updateError);
@@ -258,10 +284,7 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
       }
     } catch (error) {
       console.error('Error completing profile:', error);
-      Alert.alert(
-        'Error',
-        'An unexpected error occurred. Please try again.',
-      );
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -630,4 +653,3 @@ const styles = StyleSheet.create({
 });
 
 export default ProfileCompletionScreen;
-
