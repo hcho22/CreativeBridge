@@ -919,7 +919,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     isAuthenticated,
     effectiveUserId,
     isGameActive,
-  ]); // eslint-disable-line react-hooks/exhaustive-deps
+  ]);
 
   const handleContinueImportedStory = async (
     continueParams: NonNullable<HomeStackParamList['Home']>['continueStory'],
@@ -2544,6 +2544,16 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                           📚 Story Length:{' '}
                           {currentSession?.story_content?.length || 0}{' '}
                           characters
+                        </Text>
+                        <Text style={styles.completionStat}>
+                          💰 XP Earned: {currentSession?.xp_earned || 0}
+                        </Text>
+                        <Text style={styles.completionStat}>
+                          ⭐ Total XP:{' '}
+                          {userProfile
+                            ? (userProfile.total_xp || 0) +
+                              (currentSession?.xp_earned || 0)
+                            : 'Loading...'}
                         </Text>
                       </View>
                     </View>

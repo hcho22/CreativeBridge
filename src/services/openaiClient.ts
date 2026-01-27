@@ -122,6 +122,7 @@ export class OpenAIClient {
       model?: string;
       maxTokens?: number;
       temperature?: number;
+      stop?: string[]; // Allow custom stop sequences
     } = {},
   ): Promise<string> {
     const request: OpenAICompletionRequest = {
@@ -134,7 +135,9 @@ export class OpenAIClient {
       temperature: options.temperature || Environment.openai.temperature,
       frequency_penalty: 0.7,
       presence_penalty: 0.6,
-      stop: ['\n\n', '###'],
+      // CRITICAL FIX: Only use stop sequences if explicitly provided
+      // Default stop sequences like '\n\n' can truncate JSON responses
+      ...(options.stop && { stop: options.stop }),
     };
 
     const response = await this.createChatCompletion(request);

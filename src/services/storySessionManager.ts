@@ -165,8 +165,19 @@ class StorySessionManager {
     content: string,
     existingSession?: StorySession,
   ): Promise<StorySession | null> {
+    // CRITICAL FIX: Invalidate cache FIRST to prevent using stale data
+    // This prevents duplicate content bugs where cached sessions contain already-appended content
+    this.invalidateCache(sessionId);
+
     // Use existing session if provided to avoid losing contributions array
-    const session = existingSession || (await this.getSession(sessionId));
+    // BUT: fetch fresh from DB if no existing session to ensure no stale story_content
+    let session: StorySession | null;
+    if (existingSession) {
+      session = existingSession;
+    } else {
+      session = await this.getSession(sessionId, true); // preserveContributions=true
+    }
+
     if (!session) return null;
 
     const wordCount = this.countWords(content);
@@ -481,6 +492,8 @@ class StorySessionManager {
         console.error('Error updating session in Supabase:', error);
         // Still cache locally as fallback
         await this.cacheSessionLocally(session);
+        // Add fresh session to cache (invalidation happens in addContribution before this is called)
+        this.addToCache(session);
         return session;
       }
 
@@ -519,6 +532,9 @@ class StorySessionManager {
 
       // Cache locally for offline access
       await this.cacheSessionLocally(updated);
+
+      // Add fresh session to cache (invalidation happens in addContribution before this is called)
+      this.addToCache(updated);
 
       return updated;
     } catch (error) {

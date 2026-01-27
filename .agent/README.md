@@ -57,6 +57,18 @@ This directory contains comprehensive documentation for the CreativeBridge educa
 - Deployment and monitoring procedures
 - Emergency response and incident handling
 
+#### [Image Generation Art Styles](./SOP/image-generation-art-styles.md)
+
+**Critical for image generation work** - Art style enforcement guidelines:
+
+- Art style architecture and enforcement system
+- Prompt generation tier system (Tier 1, Tier 2, Tier 3)
+- ART_STYLE_MAPPING: single source of truth for grade-level styles
+- Validation system and quality assurance
+- Guidelines for adding or modifying art styles
+- Testing procedures and debugging techniques
+- Comprehensive code examples and common pitfalls
+
 #### [TestFlight Deployment Procedure](./SOP/testflight-deployment-procedure.md)
 
 **Essential for deployment** - Comprehensive iOS deployment guide:
