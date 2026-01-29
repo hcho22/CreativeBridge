@@ -1076,7 +1076,10 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
 
 // Calculate responsive font size for title
 const screenWidth = Dimensions.get('window').width;
-const titleFontSize = Math.min(screenWidth * 0.18, 80);
+// Use a more conservative scaling factor to ensure text fits on one line
+// For iPhone (390px): 0.11 * 390 = 42.9px
+// For iPad (820px): 0.11 * 820 = 90.2px (capped at 80)
+const titleFontSize = Math.min(screenWidth * 0.11, 80);
 
 const styles = StyleSheet.create({
   container: {
