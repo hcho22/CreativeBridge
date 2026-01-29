@@ -70,9 +70,9 @@ class ReactNativeDelegate: RCTDefaultReactNativeFactoryDelegate {
         // For simulator, use localhost
         return URL(string: "http://localhost:8081/index.bundle?platform=ios&dev=true&minify=false")
       #else
-        // For physical device, you may need to replace localhost with your machine's IP
-        // For now, try localhost (works if device is on same network and Metro is accessible)
-        return URL(string: "http://localhost:8081/index.bundle?platform=ios&dev=true&minify=false")
+        // For physical device, use your Mac's local IP address
+        // Make sure your iPhone is on the same WiFi network as your Mac
+        return URL(string: "http://192.168.1.68:8081/index.bundle?platform=ios&dev=true&minify=false")
       #endif
     }
     

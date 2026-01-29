@@ -102,6 +102,10 @@ The `Tasks/` directory contains Product Requirements Documents (PRDs) and implem
 
 **Bug Fixes & Maintenance**:
 
+- [**Voice Input Duplication Fix**](./Tasks/prd-voice-input-duplication-fix.md) - Critical fix for voice input text duplication bug with comprehensive investigation
+  - [Debug Notes](./Tasks/voice-input-duplication-debug-notes.md) - Root cause analysis
+  - [Additional Issues Investigation](./Tasks/voice-input-additional-issues.md) - 7 related issues identified and prioritized
+  - [Validation Test Plan](./Tasks/voice-input-validation-test-plan.md) - 22 comprehensive test cases
 - [**TestFlight Crash Fix**](./Tasks/testflight-crash-fix.md) - iOS app launch crash resolution
 - [**Statistics Not Updating Fix**](./Tasks/statistics-not-updating-fix.md) - Database statistics update issues
 

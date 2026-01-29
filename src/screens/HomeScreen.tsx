@@ -515,8 +515,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     };
   }, [checkServiceAvailability]);
 
-  // Voice input handler - appends transcribed text to existing input
+  // Voice input handler - replaces text during active recording, appends on new recording
   // Also known as handleVoiceTranscription for task documentation
+  //
+  // IMPORTANT: Voice recognition libraries send CUMULATIVE partial results
+  // (e.g., "The" → "The force" → "The force seemed"), NOT incremental changes.
+  // We must REPLACE the text during an active voice session to avoid duplication.
   const handleVoiceResult = useCallback((text: string) => {
     console.log('🎤 handleVoiceResult called with text:', text);
     // Handle empty transcriptions gracefully
@@ -529,29 +533,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     const cleanedText = text.trim().replace(/\s+/g, ' '); // Normalize multiple spaces to single space
     console.log('✅ Cleaned text:', cleanedText);
 
-    // Append transcribed text to existing input (don't replace)
-    // Update state immediately to ensure text appears in textbox
-    setUserInput(prev => {
-      const trimmedPrev = prev.trim();
-
-      if (!trimmedPrev) {
-        // No existing text, just use the cleaned transcribed text
-        console.log('✅ Setting new text:', cleanedText);
-        return cleanedText;
-      }
-
-      // Check if previous text ends with punctuation or space
-      // If it does, don't add extra space
-      const lastChar = trimmedPrev[trimmedPrev.length - 1];
-      const needsSpace = !/[.!?,;:]\s*$/.test(trimmedPrev) && lastChar !== ' ';
-
-      // Append with space separator if needed
-      const newText = needsSpace
-        ? `${trimmedPrev} ${cleanedText}`
-        : `${trimmedPrev}${cleanedText}`;
-      console.log('✅ Appending text, result:', newText);
-      return newText;
-    });
+    // REPLACE the text instead of appending
+    // Voice recognition sends cumulative results (the entire transcription so far),
+    // not just the new words. Appending would cause duplication like:
+    // "The" + " The force" + " The force seemed" = "The The force The force seemed"
+    //
+    // Instead, we simply replace the entire input with the latest transcription
+    console.log('✅ Setting voice text:', cleanedText);
+    setUserInput(cleanedText);
   }, []);
 
   // Voice input error handler

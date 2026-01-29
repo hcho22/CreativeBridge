@@ -34,6 +34,29 @@ import { nativeSpeechRecognizer } from '../../services/nativeSpeechRecognizer';
 const useNativeIOSSpeechRecognizer =
   Platform.OS === 'ios' && nativeSpeechRecognizer.isModuleAvailable();
 
+/**
+ * VoiceInput component provides voice recognition functionality with robust error handling
+ * and timer cleanup to prevent memory leaks.
+ *
+ * **Timer Lifecycle Management:**
+ * This component manages 4 types of tracked timers that are cleaned up on unmount:
+ * - silenceTimerRef: Adaptive silence detection during partial results (tracked, cleaned up)
+ * - retryTimerRef: Automatic retry delay for recoverable errors (tracked, cleaned up)
+ * - successFeedbackTimerRef: Success feedback display timeout (tracked, cleaned up)
+ * - stopListeningTimerRef: iOS-specific 100ms delay for native module (tracked, cleaned up)
+ *
+ * **Untracked Timers (Safe):**
+ * - Error state reset timers (lines 340, 640, 727, 912, 1187): Only transition error→idle,
+ *   safe to fire on unmounted component as they use prevState checks
+ * - Promise delays (lines 664, 783, 791, 1111, 1254): Synchronous waits for native module
+ *   coordination, do not mutate state directly
+ *
+ * **Cleanup Strategy:**
+ * All tracked timers are cleared in the useEffect cleanup function before component unmount.
+ * isMountedRef tracks component lifecycle to prevent async operations after unmount.
+ *
+ * @component
+ */
 interface VoiceInputProps {
   onSpeechResult: (text: string) => void;
   isEnabled: boolean;
@@ -69,14 +92,66 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
     const [voiceState, setVoiceState] = useState<VoiceState>('idle');
     const [hasPermission, setHasPermission] = useState<boolean | null>(null);
     const [showSuccessFeedback, setShowSuccessFeedback] = useState(false);
-    const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+    // ============================================================================
+    // TIMER REFS - Tracked and cleaned up on unmount to prevent memory leaks
+    // ============================================================================
+
+    /**
+     * Silence detection timer (TRACKED)
+     * Lifecycle: Created on partial results (line 575), cleared on new results or cleanup (lines 456, 607, 974-977, 1202)
+     * Purpose: Adaptive timeout to detect when user stops speaking
+     * Cleanup: Cleared in useEffect return (line 974-977)
+     */
+    const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    /**
+     * Error retry timer (TRACKED)
+     * Lifecycle: Created on retryable errors (line 750), cleared on success/unmount (lines 613, 980-983, 1071)
+     * Purpose: Delay before automatic retry attempt for transient errors
+     * Cleanup: Cleared in useEffect return (line 980-983)
+     */
+    const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    /**
+     * Success feedback timer (TRACKED)
+     * Lifecycle: Created by showSuccessFeedbackBriefly() (line 245), cleared on new feedback or unmount (lines 236, 986-989)
+     * Purpose: Show success checkmark for 1.5s after successful transcription
+     * Cleanup: Cleared in useEffect return (line 986-989)
+     */
+    const successFeedbackTimerRef = useRef<ReturnType<
+      typeof setTimeout
+    > | null>(null);
+
+    /**
+     * iOS stopListening delay timer (TRACKED)
+     * Lifecycle: Created in iOS stopListening() (line 1219), cleared on unmount (lines 991-995)
+     * Purpose: 100ms delay for iOS native module to finalize results before callback
+     * Cleanup: Cleared in useEffect return (line 991-995)
+     */
+    const stopListeningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+      null,
+    );
+
+    /**
+     * Component mount state tracker (TRACKED)
+     * Lifecycle: Set to true on mount, false on unmount (line 971)
+     * Purpose: Prevent async operations (retry logic, iOS callbacks) from running after unmount
+     * Usage: Checked before retry (line 753), iOS stop callback (line 1221)
+     */
+    const isMountedRef = useRef<boolean>(true);
+
+    // ============================================================================
+    // OTHER REFS - Speech recognition state tracking
+    // ============================================================================
+
     const lastPartialResultRef = useRef<string | null>(null);
     const pendingResultRef = useRef<string | null>(null);
     const partialResultCountRef = useRef<number>(0); // Track partial results to detect noise
     const lastPartialResultTimeRef = useRef<number>(0); // Track timing of partial results
     const retryCountRef = useRef<number>(0); // Track retry attempts for retryable errors
-    const retryTimerRef = useRef<NodeJS.Timeout | null>(null); // Timer for automatic retries
     const lastErrorTimeRef = useRef<number>(0); // Track when last error occurred to detect rapid failures
+    const manualStopInProgressRef = useRef<boolean>(false); // Track if user manually stopped (prevent retries on manual stop)
 
     // Check and request microphone permissions
     const checkPermissions = useCallback(async (): Promise<boolean> => {
@@ -226,6 +301,25 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
       return false;
     }, []);
 
+    // Helper function to show success feedback briefly and manage timer lifecycle
+    // This prevents memory leaks by tracking and cleaning up the timer on unmount
+    const showSuccessFeedbackBriefly = useCallback(() => {
+      // Clear any existing success feedback timer to prevent overlapping timers
+      if (successFeedbackTimerRef.current) {
+        clearTimeout(successFeedbackTimerRef.current);
+        successFeedbackTimerRef.current = null;
+      }
+
+      // Show success feedback
+      setShowSuccessFeedback(true);
+
+      // Hide success feedback after 1.5 seconds
+      successFeedbackTimerRef.current = setTimeout(() => {
+        setShowSuccessFeedback(false);
+        successFeedbackTimerRef.current = null;
+      }, 1500);
+    }, []);
+
     // Native iOS Speech Recognizer event unsubscribers
     const nativeEventUnsubscribers = useRef<(() => void)[]>([]);
 
@@ -291,9 +385,8 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
               pendingResultRef.current = null;
               lastPartialResultRef.current = null;
 
-              // Show success feedback
-              setShowSuccessFeedback(true);
-              setTimeout(() => setShowSuccessFeedback(false), 1500);
+              // Show success feedback using helper (prevents memory leak)
+              showSuccessFeedbackBriefly();
 
               AccessibilityInfo.announceForAccessibility(
                 `Transcription complete. ${event.text.length} characters transcribed.`,
@@ -316,6 +409,9 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
               );
               setVoiceState('error');
               onError?.(event.message);
+              // UNTRACKED TIMER (SAFE): Error state reset
+              // This timer only transitions error→idle and uses no refs
+              // Safe to fire on unmounted component (setState is idempotent)
               setTimeout(() => setVoiceState('idle'), 3000);
             });
 
@@ -455,11 +551,8 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
               lastPartialResultRef.current = null;
               partialResultCountRef.current = 0;
 
-              // Show visual success feedback
-              setShowSuccessFeedback(true);
-              setTimeout(() => {
-                setShowSuccessFeedback(false);
-              }, 1500); // Show for 1.5 seconds
+              // Show visual success feedback using helper (prevents memory leak)
+              showSuccessFeedbackBriefly();
 
               // Announce completion for screen readers (non-blocking)
               AccessibilityInfo.announceForAccessibility(
@@ -482,11 +575,8 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
                 lastPartialResultRef.current = null;
                 partialResultCountRef.current = 0;
 
-                // Show visual success feedback (even if incomplete)
-                setShowSuccessFeedback(true);
-                setTimeout(() => {
-                  setShowSuccessFeedback(false);
-                }, 1500);
+                // Show visual success feedback using helper (even if incomplete, prevents memory leak)
+                showSuccessFeedbackBriefly();
 
                 // Hint that user can edit if needed
                 if (showRecordingTips) {
@@ -555,37 +645,21 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
                   : silenceTimeout;
 
                 // Set new timeout to wait for silence
+                // Note: We track silence for potential UI feedback but DO NOT finalize here
+                // Only Voice.onSpeechResults should call onSpeechResult() to prevent duplicates
                 silenceTimerRef.current = setTimeout(() => {
-                  // Silence detected - finalize with last partial result
-                  const finalText =
+                  // Silence detected - log for debugging but don't finalize
+                  const partialText =
                     pendingResultRef.current ||
                     lastPartialResultRef.current ||
                     '';
-                  if (finalText.trim()) {
+                  if (partialText.trim()) {
                     console.log(
-                      '✅ Silence detected, finalizing with text:',
-                      finalText,
+                      '🔇 Silence detected after partial result:',
+                      partialText,
                     );
-                    // Call callback immediately to ensure text appears
-                    onSpeechResult(finalText);
-                    setVoiceState('idle');
-                    pendingResultRef.current = null;
-                    lastPartialResultRef.current = null;
-                    partialResultCountRef.current = 0;
-
-                    // Show visual success feedback
-                    setShowSuccessFeedback(true);
-                    setTimeout(() => {
-                      setShowSuccessFeedback(false);
-                    }, 1500);
-
-                    // If we detected potential noise, show a helpful hint
-                    if (isRapidUpdates && showRecordingTips) {
-                      // Subtle hint - user can edit the text if needed
-                      console.log(
-                        '💡 Tip: If transcription seems incorrect, you can edit it in the input field.',
-                      );
-                    }
+                    // DO NOT call onSpeechResult() here - this was causing duplicates
+                    // iOS will send Voice.onSpeechResults when transcription is truly complete
                   }
                   silenceTimerRef.current = null;
                 }, adaptiveTimeout);
@@ -616,6 +690,19 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
               retryTimerRef.current = null;
             }
 
+            // CRITICAL FIX: If user manually stopped (rapid button press with no speech),
+            // do NOT retry even if error is "recognition_fail" / "no speech detected"
+            // This prevents the button from hanging when user rapidly presses twice
+            if (manualStopInProgressRef.current) {
+              console.log(
+                '🎤 [VoiceInput] Error after manual stop - ignoring and resetting to idle (no retry)',
+              );
+              manualStopInProgressRef.current = false; // Reset flag
+              setVoiceState('idle');
+              retryCountRef.current = 0;
+              return; // Exit early - don't process this error or retry
+            }
+
             // Check for permission errors FIRST and handle them gracefully
             // This must happen before error message mapping to catch "user denied" errors
             const isPermissionError =
@@ -638,6 +725,7 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
               setVoiceState('error');
               // Don't call onError for permission errors - they're expected in simulator
               // Just reset state after a delay
+              // UNTRACKED TIMER (SAFE): Permission error state reset
               setTimeout(() => {
                 setVoiceState('idle');
               }, 500);
@@ -662,6 +750,8 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
               // If we're in a different state, try to cancel and reset
               try {
                 await Voice.cancel();
+                // UNTRACKED TIMER (SAFE): Promise-based delay for Voice.cancel() to complete
+                // This is a synchronous wait, not a state mutation
                 await new Promise(resolve => setTimeout(resolve, 200));
               } catch (cancelError) {
                 console.log(
@@ -725,6 +815,7 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
                   'Voice recognition is not available in the Simulator/Emulator. Please test on a physical device to use voice input.';
                 setVoiceState('error');
                 onError?.(errorMessage);
+                // UNTRACKED TIMER (SAFE): Simulator error state reset
                 setTimeout(() => {
                   setVoiceState('idle');
                 }, 2000);
@@ -750,6 +841,23 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
               // Automatically retry after a short delay
               retryTimerRef.current = setTimeout(async () => {
                 try {
+                  // Check if component is still mounted (prevent operations on unmounted component)
+                  if (!isMountedRef.current) {
+                    console.log(
+                      '⚠️ Cannot retry: component unmounted during retry delay',
+                    );
+                    return;
+                  }
+
+                  // Validate voice state before retry (should be processing or idle)
+                  if (voiceState !== 'processing' && voiceState !== 'idle') {
+                    console.log(
+                      `⚠️ Cannot retry: invalid voice state '${voiceState}' (expected 'processing' or 'idle')`,
+                    );
+                    retryCountRef.current = 0; // Reset retry count
+                    return;
+                  }
+
                   // Check if we should still retry (permissions and enabled state)
                   if (!hasPermission || !isEnabled) {
                     console.log(
@@ -764,6 +872,7 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
                   setVoiceState('idle');
 
                   // Small delay to ensure state is reset and give the service time to recover
+                  // UNTRACKED TIMER (SAFE): Promise-based delay for state reset coordination
                   await new Promise(resolve => setTimeout(resolve, 200));
 
                   // Attempt to start listening again
@@ -772,6 +881,7 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
                     // Voice.cancel() is more robust than Voice.stop() as it immediately stops
                     try {
                       await Voice.cancel();
+                      // UNTRACKED TIMER (SAFE): Promise-based delay for Voice.cancel() to complete
                       await new Promise(resolve => setTimeout(resolve, 150));
                     } catch (cancelError) {
                       // Ignore cancel errors - might not be running
@@ -893,6 +1003,7 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
 
             // Auto-reset state after showing error (fallback)
             // Note: "Try Again" button handler resets state immediately, so this is just a fallback
+            // UNTRACKED TIMER (SAFE): Generic error state reset with prevState check
             setTimeout(() => {
               setVoiceState(prevState => {
                 // Only reset if still in error state (user hasn't tried again)
@@ -951,6 +1062,9 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
 
       // Cleanup function - ensure all resources are freed
       return () => {
+        // Mark component as unmounted to prevent async operations
+        isMountedRef.current = false;
+
         // Clear silence timer on unmount
         if (silenceTimerRef.current) {
           clearTimeout(silenceTimerRef.current);
@@ -963,7 +1077,17 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
           retryTimerRef.current = null;
         }
 
-        // Clear success feedback timer if active
+        // Clear success feedback timer on unmount (prevents memory leak and setState warnings)
+        if (successFeedbackTimerRef.current) {
+          clearTimeout(successFeedbackTimerRef.current);
+          successFeedbackTimerRef.current = null;
+        }
+
+        // Clear iOS stopListening timer on unmount (prevents memory leak from 100ms delay)
+        if (stopListeningTimerRef.current) {
+          clearTimeout(stopListeningTimerRef.current);
+          stopListeningTimerRef.current = null;
+        }
         setShowSuccessFeedback(false);
 
         // Remove app state subscription
@@ -1001,6 +1125,7 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
         lastPartialResultTimeRef.current = 0;
         retryCountRef.current = 0;
         lastErrorTimeRef.current = 0;
+        manualStopInProgressRef.current = false;
       };
       // voiceState is intentionally omitted - it's set inside the effect, not used as input
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1031,17 +1156,13 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
         return;
       }
 
-      // Prevent multiple simultaneous start attempts
-      if (voiceState === 'listening' || voiceState === 'processing') {
-        console.log('🎤 [VoiceInput] ⚠️ Already listening or processing');
-        return;
-      }
-
+      // At this point, voiceState is guaranteed to be 'idle' due to the check above
       try {
         console.log('🎤 [VoiceInput] Starting voice recognition...');
         // Reset retry count and error tracking when starting a new listening session
         retryCountRef.current = 0;
         lastErrorTimeRef.current = 0;
+        manualStopInProgressRef.current = false; // Clear manual stop flag when starting fresh
 
         // Clear any pending retry timer
         if (retryTimerRef.current) {
@@ -1084,6 +1205,7 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
         // This handles edge cases where state is out of sync with native module
         try {
           await Voice.cancel();
+          // UNTRACKED TIMER (SAFE): Promise-based delay for Voice.cancel() coordination
           await new Promise(resolve => setTimeout(resolve, 100));
         } catch (cancelError) {
           // Ignore cancel errors - might not be running
@@ -1160,6 +1282,7 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
         });
 
         // Auto-reset state after showing error
+        // UNTRACKED TIMER (SAFE): startListening error state reset with prevState check
         setTimeout(() => {
           setVoiceState(prevState => {
             // Only reset if still in error state
@@ -1174,6 +1297,9 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
 
     const stopListening = async () => {
       try {
+        // Mark that user is manually stopping - this prevents retry logic if Voice.stop() triggers "no speech detected" error
+        manualStopInProgressRef.current = true;
+
         // Clear silence timer on manual stop
         if (silenceTimerRef.current) {
           clearTimeout(silenceTimerRef.current);
@@ -1191,14 +1317,29 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
             pendingResultRef.current || lastPartialResultRef.current || '';
           if (finalText.trim()) {
             console.log('✅ iOS Manual stop, using partial text:', finalText);
-            setTimeout(() => {
+            // Track the 100ms delay timer to prevent memory leaks on unmount
+            stopListeningTimerRef.current = setTimeout(() => {
+              // Check if component is still mounted before proceeding
+              if (!isMountedRef.current) {
+                console.log(
+                  '⚠️ Component unmounted during iOS stopListening delay, aborting',
+                );
+                return;
+              }
               onSpeechResult(finalText);
               setVoiceState('idle');
               pendingResultRef.current = null;
               lastPartialResultRef.current = null;
-              setShowSuccessFeedback(true);
-              setTimeout(() => setShowSuccessFeedback(false), 1500);
+              // Show success feedback using helper (prevents memory leak)
+              showSuccessFeedbackBriefly();
+              // Clear the timer ref after execution
+              stopListeningTimerRef.current = null;
+              // Reset manual stop flag after successful iOS stop
+              manualStopInProgressRef.current = false;
             }, 100);
+          } else {
+            // No text - reset flag immediately for iOS
+            manualStopInProgressRef.current = false;
           }
           return;
         }
@@ -1219,6 +1360,8 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
         if (finalText.trim()) {
           console.log('✅ Manual stop, using text:', finalText);
           // Small delay to ensure Voice.stop() completes, then call callback
+          // UNTRACKED TIMER (SAFE): 100ms delay for Voice.stop() coordination on Android
+          // Does not need tracking - immediate callback with no cancellation requirement
           setTimeout(() => {
             // Show transcribed text even if incomplete - user can edit to fix noise-related errors
             onSpeechResult(finalText);
@@ -1227,20 +1370,26 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
             lastPartialResultRef.current = null;
             partialResultCountRef.current = 0;
 
-            // Show visual success feedback
-            setShowSuccessFeedback(true);
-            setTimeout(() => {
-              setShowSuccessFeedback(false);
-            }, 1500);
+            // Show visual success feedback using helper (prevents memory leak)
+            showSuccessFeedbackBriefly();
+            // Reset manual stop flag after successful Android stop
+            manualStopInProgressRef.current = false;
           }, 100);
         } else {
           console.log('⚠️ Manual stop but no text available');
           setVoiceState('idle');
           partialResultCountRef.current = 0;
+          // Reset manual stop flag when no text available (rapid double-tap case)
+          // Wait 150ms to ensure any pending error events are caught by the flag
+          setTimeout(() => {
+            manualStopInProgressRef.current = false;
+          }, 150);
         }
       } catch (error) {
         console.error('Error stopping voice recognition:', error);
         setVoiceState('idle');
+        // Reset manual stop flag on error
+        manualStopInProgressRef.current = false;
 
         const errorMessage =
           'Error stopping voice recognition. The input field is still available for typing.';

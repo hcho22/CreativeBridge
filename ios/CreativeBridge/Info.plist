@@ -56,6 +56,12 @@
       <key>NSAllowsLocalNetworking</key>
       <true/>
     </dict>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>CreativeBridge needs to connect to your development server on the local network for debugging and development.</string>
+    <key>NSBonjourServices</key>
+    <array>
+      <string>_http._tcp</string>
+    </array>
     <key>NSMicrophoneUsageDescription</key>
     <string>CreativeBridge needs access to your microphone to enable voice input for continuing your stories.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
