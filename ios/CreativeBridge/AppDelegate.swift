@@ -48,7 +48,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, AppControllerDelegate {
     }
 
     factory.startReactNative(
-      withModuleName: "CreativeBridge",
+      withModuleName: "main",
       in: window,
       launchOptions: launchOptions
     )
