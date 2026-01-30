@@ -6,7 +6,7 @@ import AVFoundation
 import EXUpdates
 
 @main
-class AppDelegate: UIResponder, UIApplicationDelegate {
+class AppDelegate: UIResponder, UIApplicationDelegate, AppControllerDelegate {
   var window: UIWindow?
 
   var reactNativeDelegate: ReactNativeDelegate?
@@ -40,6 +40,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     window = UIWindow(frame: UIScreen.main.bounds)
 
+    // CRITICAL: Start expo-updates BEFORE starting React Native
+    // This ensures startupProcedure is initialized before getConstantsForModule() is called
+    if AppController.sharedInstance.isActiveController {
+      AppController.sharedInstance.delegate = self
+      AppController.sharedInstance.start()
+    }
+
     factory.startReactNative(
       withModuleName: "CreativeBridge",
       in: window,
@@ -47,6 +54,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     )
 
     return true
+  }
+
+  // MARK: - AppControllerDelegate
+
+  func appController(_ appController: AppControllerInterface, didStartWithSuccess success: Bool) {
+    // This delegate method is called when expo-updates finishes loading
+    // We don't need to do anything here since React Native is already running
+    if success {
+      print("✅ expo-updates started successfully")
+    } else {
+      print("⚠️ expo-updates failed to start, using fallback bundle")
+    }
   }
 }
 
