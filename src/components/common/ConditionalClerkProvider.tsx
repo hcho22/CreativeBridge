@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { ClerkProvider } from '@clerk/clerk-expo';
 import { isClerkConfigured, getClerkConfig } from '../../config/environment';
+import { clerkTokenCache } from '../../utils/clerkTokenCache';
 
 interface ConditionalClerkProviderProps {
   children: React.ReactNode;
@@ -64,7 +65,10 @@ export const ConditionalClerkProvider: React.FC<
   // Clerk is configured, wrap with ClerkProvider
   // This ensures ClerkProvider is present when Clerk hooks are called
   return (
-    <ClerkProvider publishableKey={clerkConfig.publishableKey}>
+    <ClerkProvider
+      publishableKey={clerkConfig.publishableKey}
+      tokenCache={clerkTokenCache}
+    >
       {children}
     </ClerkProvider>
   );
