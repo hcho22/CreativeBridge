@@ -20,11 +20,24 @@ import * as SecureStore from 'expo-secure-store';
 import type { TokenCache } from '@clerk/clerk-expo';
 
 // Prefix for all Clerk tokens stored in SecureStore
-const CLERK_TOKEN_PREFIX = '@clerk_token_';
+// Note: Must use only alphanumeric, ".", "-", "_" per iOS SecureStore requirements
+const CLERK_TOKEN_PREFIX = 'clerk.token.';
 
 // Track all token keys for efficient bulk clearing
 // Using a Set for O(1) lookups and deduplication
 const tokenKeys = new Set<string>();
+
+/**
+ * Sanitize a key to meet SecureStore requirements
+ * Keys must contain only alphanumeric characters, ".", "-", and "_"
+ * @param key - Original key from Clerk
+ * @returns Sanitized key safe for iOS SecureStore
+ */
+function sanitizeKey(key: string): string {
+  // Replace double underscores with single underscore
+  // Replace any other invalid characters with underscore
+  return key.replace(/__/g, '_').replace(/[^a-zA-Z0-9._-]/g, '_');
+}
 
 /**
  * Custom TokenCache implementation for Clerk
@@ -38,11 +51,14 @@ export const clerkTokenCache: TokenCache = {
    */
   async getToken(key: string): Promise<string | null> {
     try {
-      const prefixedKey = `${CLERK_TOKEN_PREFIX}${key}`;
+      const sanitizedKey = sanitizeKey(key);
+      const prefixedKey = `${CLERK_TOKEN_PREFIX}${sanitizedKey}`;
       const value = await SecureStore.getItemAsync(prefixedKey);
 
       if (value) {
-        console.log(`✅ Retrieved Clerk token: ${key}`);
+        console.log(
+          `✅ Retrieved Clerk token: ${key} (stored as: ${prefixedKey})`,
+        );
       }
 
       return value;
@@ -60,7 +76,8 @@ export const clerkTokenCache: TokenCache = {
    */
   async saveToken(key: string, value: string): Promise<void> {
     try {
-      const prefixedKey = `${CLERK_TOKEN_PREFIX}${key}`;
+      const sanitizedKey = sanitizeKey(key);
+      const prefixedKey = `${CLERK_TOKEN_PREFIX}${sanitizedKey}`;
 
       // Store token securely
       await SecureStore.setItemAsync(prefixedKey, value);
@@ -69,7 +86,7 @@ export const clerkTokenCache: TokenCache = {
       tokenKeys.add(prefixedKey);
 
       console.log(
-        `✅ Saved Clerk token: ${key} (total tokens: ${tokenKeys.size})`,
+        `✅ Saved Clerk token: ${key} (stored as: ${prefixedKey}, total tokens: ${tokenKeys.size})`,
       );
     } catch (error) {
       // Log error but don't throw - app should continue working

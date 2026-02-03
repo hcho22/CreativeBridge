@@ -510,17 +510,16 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       if (clerkAuth?.isSignedIn) {
         console.log('🔐 Signing out from Clerk...');
         try {
-          // Clear Clerk tokens BEFORE calling signOut (fail-safe approach)
-          console.log('🧹 Clearing Clerk tokens from secure storage...');
-          const tokensCleared = await clearAllClerkTokens();
-          if (tokensCleared) {
-            console.log('✅ All Clerk tokens cleared successfully');
-          } else {
-            console.warn('⚠️ Some Clerk tokens failed to clear');
-          }
-
+          // Call Clerk's signOut() first to let it clean up properly
           await clerkAuth.signOut();
           console.log('✅ Signed out from Clerk successfully');
+
+          // Clear any remaining tokens as a fail-safe (in case signOut didn't clean up)
+          console.log('🧹 Clearing any remaining Clerk tokens as fail-safe...');
+          const tokensCleared = await clearAllClerkTokens();
+          if (tokensCleared) {
+            console.log('✅ All remaining Clerk tokens cleared');
+          }
 
           // Verify that Clerk session is fully cleared
           if (clerkAuth.isSignedIn) {
@@ -530,8 +529,17 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           } else {
             console.log('✅ Verified Clerk isSignedIn is now false');
           }
-        } catch (clerkError) {
-          console.error('❌ Error signing out from Clerk:', clerkError);
+        } catch (clerkError: any) {
+          // If the error is "already signed out", treat it as success
+          const errorMessage = clerkError?.message || String(clerkError);
+          if (errorMessage.includes('signed out')) {
+            console.log(
+              'ℹ️ Clerk reports already signed out - clearing tokens as fail-safe',
+            );
+            await clearAllClerkTokens();
+          } else {
+            console.error('❌ Error signing out from Clerk:', clerkError);
+          }
           // Continue with Supabase signout even if Clerk fails
         }
       }
@@ -577,19 +585,26 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       // Force sign out from Clerk even if there's an error
       if (clerkAuth?.isSignedIn) {
         try {
-          // Force-clear Clerk tokens even in error scenario (fail-safe)
-          console.log('🆘 Force-clearing Clerk tokens...');
-          await clearAllClerkTokens();
-
           await clerkAuth.signOut();
           console.log('✅ Force signed out from Clerk');
-        } catch (clerkForceError) {
+
+          // Clear tokens as fail-safe after signOut
+          await clearAllClerkTokens();
+        } catch (clerkForceError: any) {
           console.error(
             '❌ Force Clerk sign out also failed:',
             clerkForceError,
           );
-          // Even if Clerk signOut fails, tokens were cleared above
-          console.log('ℹ️ Clerk tokens were cleared despite signOut failure');
+          // Clear tokens even if signOut fails (ultimate fail-safe)
+          console.log(
+            '🆘 Force-clearing Clerk tokens despite signOut failure...',
+          );
+          try {
+            await clearAllClerkTokens();
+            console.log('✅ Clerk tokens force-cleared');
+          } catch (tokenClearError) {
+            console.error('❌ Failed to clear tokens:', tokenClearError);
+          }
         }
       }
 
