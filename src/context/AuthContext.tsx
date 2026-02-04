@@ -510,15 +510,24 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       if (clerkAuth?.isSignedIn) {
         console.log('🔐 Signing out from Clerk...');
         try {
-          // Call Clerk's signOut() first to let it clean up properly
+          // CRITICAL: Clear tokens BEFORE calling signOut to prevent Clerk from writing them back
+          console.log('🧹 Pre-clearing Clerk tokens before signOut...');
+          const preCleared = await clearAllClerkTokens();
+          if (preCleared) {
+            console.log('✅ Tokens pre-cleared before Clerk signOut');
+          }
+
+          // Now call Clerk's signOut() - it should have nothing to write back
           await clerkAuth.signOut();
           console.log('✅ Signed out from Clerk successfully');
 
-          // Clear any remaining tokens as a fail-safe (in case signOut didn't clean up)
-          console.log('🧹 Clearing any remaining Clerk tokens as fail-safe...');
-          const tokensCleared = await clearAllClerkTokens();
-          if (tokensCleared) {
-            console.log('✅ All remaining Clerk tokens cleared');
+          // Double-check: clear any tokens that might have been written during signOut
+          console.log(
+            '🧹 Post-clearing any remaining Clerk tokens as fail-safe...',
+          );
+          const postCleared = await clearAllClerkTokens();
+          if (postCleared) {
+            console.log('✅ Post-signOut token clearing completed');
           }
 
           // Verify that Clerk session is fully cleared
@@ -1088,29 +1097,57 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       // US-004: Pre-OAuth session detection and cleanup
-      // Check for existing Clerk session before starting OAuth flow
-      if (clerkAuth?.isSignedIn) {
+      // CRITICAL: Always check for stale tokens regardless of clerkAuth.isSignedIn
+      // because Clerk's in-memory state may not reflect SecureStore reality after app restart
+      console.log('🔍 [AuthContext] Pre-OAuth: Checking for stale sessions...');
+
+      const hasTokens = await hasClerkTokens();
+      const clerkIsSignedIn = clerkAuth?.isSignedIn || false;
+
+      console.log('🔍 [AuthContext] Pre-OAuth state check:', {
+        hasTokensInStorage: hasTokens,
+        clerkIsSignedIn: clerkIsSignedIn,
+      });
+
+      // If EITHER condition is true, we need to clear the session
+      if (hasTokens || clerkIsSignedIn) {
         console.warn(
-          '⚠️ [AuthContext] Clerk session already exists before Google OAuth!',
+          '⚠️ [AuthContext] Stale session detected before Google OAuth!',
         );
-        const hasTokens = await hasClerkTokens();
         console.log(
-          '🔍 [AuthContext] Stale token check result:',
-          hasTokens ? 'Tokens found' : 'No tokens found',
+          '🧹 [AuthContext] Aggressively clearing ALL session data before Google OAuth...',
         );
 
-        if (hasTokens) {
-          console.log(
-            '🧹 [AuthContext] Clearing stale session before Google OAuth...',
-          );
-          await clearAllClerkTokens();
-          await clerkAuth.signOut();
-          // Wait 200ms to ensure cleanup completes before proceeding with OAuth
-          await new Promise(resolve => setTimeout(resolve, 200));
-          console.log(
-            '✅ [AuthContext] Stale session cleared, proceeding with Google OAuth',
-          );
+        // Step 1: Clear tokens from SecureStore FIRST
+        await clearAllClerkTokens();
+        console.log('✅ [AuthContext] Tokens cleared from SecureStore');
+
+        // Step 2: Sign out from Clerk if it thinks user is signed in
+        if (clerkIsSignedIn) {
+          try {
+            await clerkAuth.signOut();
+            console.log('✅ [AuthContext] Clerk signOut completed');
+          } catch (signOutError) {
+            console.warn(
+              '⚠️ [AuthContext] Clerk signOut failed (may already be signed out):',
+              signOutError,
+            );
+          }
         }
+
+        // Step 3: Final token sweep to catch anything written during signOut
+        await clearAllClerkTokens();
+        console.log('✅ [AuthContext] Final token sweep completed');
+
+        // Step 4: Wait longer to ensure all async cleanup completes
+        await new Promise(resolve => setTimeout(resolve, 500));
+        console.log(
+          '✅ [AuthContext] Stale session fully cleared, proceeding with Google OAuth',
+        );
+      } else {
+        console.log(
+          '✅ [AuthContext] No stale session detected, proceeding with clean Google OAuth',
+        );
       }
 
       // Mark that we're processing OAuth
@@ -1232,29 +1269,57 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       // US-004: Pre-OAuth session detection and cleanup
-      // Check for existing Clerk session before starting OAuth flow
-      if (clerkAuth?.isSignedIn) {
+      // CRITICAL: Always check for stale tokens regardless of clerkAuth.isSignedIn
+      // because Clerk's in-memory state may not reflect SecureStore reality after app restart
+      console.log('🔍 [AuthContext] Pre-OAuth: Checking for stale sessions...');
+
+      const hasTokens = await hasClerkTokens();
+      const clerkIsSignedIn = clerkAuth?.isSignedIn || false;
+
+      console.log('🔍 [AuthContext] Pre-OAuth state check:', {
+        hasTokensInStorage: hasTokens,
+        clerkIsSignedIn: clerkIsSignedIn,
+      });
+
+      // If EITHER condition is true, we need to clear the session
+      if (hasTokens || clerkIsSignedIn) {
         console.warn(
-          '⚠️ [AuthContext] Clerk session already exists before Apple OAuth!',
+          '⚠️ [AuthContext] Stale session detected before Apple OAuth!',
         );
-        const hasTokens = await hasClerkTokens();
         console.log(
-          '🔍 [AuthContext] Stale token check result:',
-          hasTokens ? 'Tokens found' : 'No tokens found',
+          '🧹 [AuthContext] Aggressively clearing ALL session data before Apple OAuth...',
         );
 
-        if (hasTokens) {
-          console.log(
-            '🧹 [AuthContext] Clearing stale session before Apple OAuth...',
-          );
-          await clearAllClerkTokens();
-          await clerkAuth.signOut();
-          // Wait 200ms to ensure cleanup completes before proceeding with OAuth
-          await new Promise(resolve => setTimeout(resolve, 200));
-          console.log(
-            '✅ [AuthContext] Stale session cleared, proceeding with Apple OAuth',
-          );
+        // Step 1: Clear tokens from SecureStore FIRST
+        await clearAllClerkTokens();
+        console.log('✅ [AuthContext] Tokens cleared from SecureStore');
+
+        // Step 2: Sign out from Clerk if it thinks user is signed in
+        if (clerkIsSignedIn) {
+          try {
+            await clerkAuth.signOut();
+            console.log('✅ [AuthContext] Clerk signOut completed');
+          } catch (signOutError) {
+            console.warn(
+              '⚠️ [AuthContext] Clerk signOut failed (may already be signed out):',
+              signOutError,
+            );
+          }
         }
+
+        // Step 3: Final token sweep to catch anything written during signOut
+        await clearAllClerkTokens();
+        console.log('✅ [AuthContext] Final token sweep completed');
+
+        // Step 4: Wait longer to ensure all async cleanup completes
+        await new Promise(resolve => setTimeout(resolve, 500));
+        console.log(
+          '✅ [AuthContext] Stale session fully cleared, proceeding with Apple OAuth',
+        );
+      } else {
+        console.log(
+          '✅ [AuthContext] No stale session detected, proceeding with clean Apple OAuth',
+        );
       }
 
       // Mark that we're processing OAuth

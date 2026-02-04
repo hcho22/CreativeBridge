@@ -1,15 +1,14 @@
 diff --git a/node_modules/expo-dev-launcher/.DS_Store b/node_modules/expo-dev-launcher/.DS_Store
 new file mode 100644
-index 0000000..59d4d36
-Binary files /dev/null and b/node_modules/expo-dev-launcher/.DS_Store differ
+index 0000000..e69de29
 diff --git a/node_modules/expo-dev-launcher/expo-dev-launcher.podspec b/node_modules/expo-dev-launcher/expo-dev-launcher.podspec
-index ffcac95..4a832da 100644
+index ffcac95..ddc133e 100644
 --- a/node_modules/expo-dev-launcher/expo-dev-launcher.podspec
 +++ b/node_modules/expo-dev-launcher/expo-dev-launcher.podspec
 @@ -32,6 +32,10 @@ Pod::Spec.new do |s|
    s.requires_arc   = true
    s.header_dir     = 'EXDevLauncher'
-   
+ 
 +  # Link React framework so Swift can import it
 +  s.vendored_frameworks = []
 +  s.frameworks = 'React'
@@ -100,7 +99,7 @@ index 8d9d6da..f91fe54 100644
  + (instancetype)sharedInstance;
  
 diff --git a/node_modules/expo-dev-launcher/ios/EXDevLauncherController.m b/node_modules/expo-dev-launcher/ios/EXDevLauncherController.m
-index 0fc0dd9..920f248 100644
+index 0fc0dd9..5acd967 100644
 --- a/node_modules/expo-dev-launcher/ios/EXDevLauncherController.m
 +++ b/node_modules/expo-dev-launcher/ios/EXDevLauncherController.m
 @@ -401,9 +401,19 @@ - (BOOL)_handleExternalDeepLink:(NSURL *)url options:(NSDictionary *)options
@@ -156,7 +155,7 @@ index 0fc0dd9..920f248 100644
    }
    NSString *installationID = [_installationIDHelper getOrCreateInstallationID];
  
-@@ -507,14 +532,27 @@ - (void)loadApp:(NSURL *)url
+@@ -507,14 +532,28 @@ - (void)loadApp:(NSURL *)url
                                                   session:[NSURLSession sharedSession]
                                                   requestTimeout:requestTimeout];
  
@@ -174,9 +173,10 @@ index 0fc0dd9..920f248 100644
  
 -    if ([self->_updatesInterface isValidUpdatesConfiguration:updatesConfiguration] != YES) {
 +#if __has_include(<EXUpdatesInterface/EXUpdatesInterface-Swift.h>)
-+    BOOL isValidConfig = [((id<EXUpdatesExternalInterface>)strongSelf->_updatesInterface) isValidUpdatesConfiguration:updatesConfiguration];
++    BOOL isValidConfig = strongSelf->_updatesInterface ? [((id<EXUpdatesExternalInterface>)strongSelf->_updatesInterface) isValidUpdatesConfiguration:updatesConfiguration] : NO;
 +#else
-+    BOOL isValidConfig = YES;
++    // When updatesInterface is nil (EXUpdates disabled), default to NO so we parse manifest and launch directly
++    BOOL isValidConfig = NO;
 +    if (strongSelf->_updatesInterface && [strongSelf->_updatesInterface respondsToSelector:@selector(isValidUpdatesConfiguration:)]) {
 +      isValidConfig = (BOOL)[strongSelf->_updatesInterface performSelector:@selector(isValidUpdatesConfiguration:) withObject:updatesConfiguration];
 +    }
@@ -185,7 +185,7 @@ index 0fc0dd9..920f248 100644
        [manifestParser tryToParseManifest:^(EXManifestsManifest *manifest) {
          if (!manifest.isUsingDeveloperTool) {
            onError([NSError errorWithDomain:@"DevelopmentClient" code:1 userInfo:@{NSLocalizedDescriptionKey: @"expo-updates is not properly installed or integrated. In order to load published projects with this development client, follow all installation and setup instructions for both the expo-dev-client and expo-updates packages."}]);
-@@ -525,7 +563,8 @@ - (void)loadApp:(NSURL *)url
+@@ -525,7 +564,8 @@ - (void)loadApp:(NSURL *)url
        return;
      }
  
@@ -195,7 +195,7 @@ index 0fc0dd9..920f248 100644
        EXManifestsManifest *devLauncherManifest = [EXManifestsManifestFactory manifestForManifestJSON:manifest];
        if (devLauncherManifest.isUsingDeveloperTool) {
          // launch right away rather than continuing to load through EXUpdates
-@@ -536,10 +575,50 @@ - (void)loadApp:(NSURL *)url
+@@ -536,10 +576,57 @@ - (void)loadApp:(NSURL *)url
      } progress:^(NSUInteger successfulAssetCount, NSUInteger failedAssetCount, NSUInteger totalAssetCount) {
        // do nothing for now
      } success:^(NSDictionary * _Nullable manifest) {
@@ -240,14 +240,21 @@ index 0fc0dd9..920f248 100644
 +        }
 +      }, onError);
 +    } else {
-+      onError([NSError errorWithDomain:@"DevelopmentClient" code:1 userInfo:@{NSLocalizedDescriptionKey: @"expo-updates is not properly installed or integrated."}]);
-+      return;
++      // updatesInterface is nil - this means EXUpdates is disabled.
++      // Just parse the manifest and launch the dev server directly
++      [manifestParser tryToParseManifest:^(EXManifestsManifest *manifest) {
++        if (manifest.isUsingDeveloperTool) {
++          launchExpoApp([NSURL URLWithString:manifest.bundleUrl], manifest);
++        } else {
++          onError([NSError errorWithDomain:@"DevelopmentClient" code:1 userInfo:@{NSLocalizedDescriptionKey: @"This development client is not configured to load published projects. expo-updates must be installed and configured."}]);
++        }
++      } onError:onError];
 +    }
 +#endif
    };
  
    [manifestParser isManifestURLWithCompletion:onIsManifestURL onError:^(NSError * _Nonnull error) {
-@@ -682,7 +761,13 @@ -(NSDictionary *)getBuildInfo
+@@ -682,7 +769,13 @@ -(NSDictionary *)getBuildInfo
    NSString *appIcon = [self getAppIcon];
    NSString *runtimeVersion = @"";
    if (_updatesInterface) {
@@ -262,7 +269,7 @@ index 0fc0dd9..920f248 100644
    }
  
    NSString *appVersion = [self getFormattedAppVersion];
-@@ -772,12 +857,25 @@ -(NSDictionary *)getUpdatesConfig: (nullable NSDictionary *) constants
+@@ -772,12 +865,25 @@ -(NSDictionary *)getUpdatesConfig: (nullable NSDictionary *) constants
  
    NSString *runtimeVersion = @"";
    if (_updatesInterface) {
@@ -290,7 +297,7 @@ index 0fc0dd9..920f248 100644
    NSString *projectUrl = @"";
    if (_updatesInterface) {
      projectUrl = [[self.manifest updatesInfo] valueForKey:@"url"] ?: @"";
-@@ -817,7 +915,11 @@ -(NSDictionary *)getUpdatesConfig: (nullable NSDictionary *) constants
+@@ -817,7 +923,11 @@ -(NSDictionary *)getUpdatesConfig: (nullable NSDictionary *) constants
    return updatesConfig;
  }
  

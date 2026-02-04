@@ -2,20 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
   <dict>
-    <key>EXUpdatesEnabled</key>
-    <true/>
     <key>EXUpdatesCheckOnLaunch</key>
     <string>ALWAYS</string>
+    <key>EXUpdatesEnabled</key>
+    <false/>
     <key>EXUpdatesLaunchWaitMs</key>
     <integer>0</integer>
-    <key>EXUpdatesURL</key>
-    <string>https://u.expo.dev/3212248a-37c8-4ca7-b054-bac5b7730c35</string>
-    <key>EXUpdatesRuntimeVersion</key>
-    <string>0.0.3</string>
-    <key>EXUpdatesRequestHeaders</key>
-    <dict>
-      <key>expo-channel-name</key>
-      <string>production</string>
-    </dict>
   </dict>
 </plist>

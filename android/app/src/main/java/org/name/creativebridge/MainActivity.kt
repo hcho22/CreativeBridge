@@ -1,4 +1,4 @@
-package org.name.creativebridge
+package org.name.CreativeBridge
 
 import android.os.Build
 import android.os.Bundle

@@ -104,6 +104,9 @@ export const clerkTokenCache: TokenCache = {
  *
  * Call this BEFORE clerkAuth.signOut() during logout to ensure complete cleanup.
  *
+ * IMPORTANT: This function now clears tokens even if tokenKeys Set is empty
+ * (which happens after app restart). It attempts to clear all common Clerk tokens.
+ *
  * @returns Promise<boolean> - true if all tokens were cleared successfully
  */
 export async function clearAllClerkTokens(): Promise<boolean> {
@@ -114,14 +117,39 @@ export async function clearAllClerkTokens(): Promise<boolean> {
   let successCount = 0;
   let failureCount = 0;
 
-  // Convert Set to Array for iteration (avoids downlevelIteration requirement)
-  const keysArray = Array.from(tokenKeys);
+  // Get keys to clear: use tracked keys if available, otherwise use common keys
+  let keysToCheck: string[] = [];
 
-  // Iterate through all tracked token keys
-  for (const key of keysArray) {
+  if (tokenKeys.size > 0) {
+    // Use tracked keys (normal case during same app session)
+    keysToCheck = Array.from(tokenKeys);
+    console.log(`🧹 Clearing ${tokenKeys.size} tracked token keys...`);
+  } else {
+    // After app restart, tokenKeys is empty but tokens may still exist
+    // Clear common Clerk token keys to ensure thorough cleanup
+    console.log(
+      '🧹 tokenKeys Set is empty (app may have restarted), clearing common Clerk token keys...',
+    );
+
+    const commonClerkKeys = [
+      '__clerk_client_jwt',
+      '__session',
+      '__clerk_db_jwt',
+      '__clerk_refresh_token',
+      '__clerk_session',
+    ];
+
+    keysToCheck = commonClerkKeys.map(
+      key => `${CLERK_TOKEN_PREFIX}${sanitizeKey(key)}`,
+    );
+  }
+
+  // Iterate through all keys and delete them
+  for (const key of keysToCheck) {
     try {
       await SecureStore.deleteItemAsync(key);
       successCount++;
+      console.log(`✅ Deleted token: ${key}`);
     } catch (error) {
       console.error(`❌ Failed to delete token ${key}:`, error);
       failureCount++;
@@ -150,6 +178,10 @@ export async function clearAllClerkTokens(): Promise<boolean> {
  * Used to detect stale sessions before starting OAuth flows.
  * If tokens exist but user should not be signed in, call clearAllClerkTokens().
  *
+ * IMPORTANT: This function attempts to detect tokens by trying to read
+ * common Clerk token keys. Since expo-secure-store doesn't provide getAllKeys(),
+ * we check for the most common token that Clerk uses.
+ *
  * @returns Promise<boolean> - true if Clerk tokens are present
  */
 export async function hasClerkTokens(): Promise<boolean> {
@@ -159,15 +191,51 @@ export async function hasClerkTokens(): Promise<boolean> {
     return true;
   }
 
-  // Double-check by scanning SecureStore for any keys with our prefix
-  // This catches tokens that were stored before we started tracking
+  // After app restart, tokenKeys Set is empty but tokens may still exist in SecureStore
+  // We need to probe SecureStore for common Clerk token keys
   try {
-    // Note: expo-secure-store doesn't provide a getAllKeys() method
-    // We rely on our tokenKeys tracking, but we log this limitation
-    console.log('🔍 No tracked Clerk tokens found');
+    console.log(
+      '🔍 tokenKeys Set is empty (app may have restarted), probing SecureStore for actual tokens...',
+    );
+
+    // List of common Clerk token keys to check
+    // These are the standard keys Clerk uses for session management
+    const commonClerkKeys = [
+      '__clerk_client_jwt',
+      '__session',
+      '__clerk_db_jwt',
+      '__clerk_refresh_token',
+      '__clerk_session',
+    ];
+
+    // Check each common key to see if it exists in SecureStore
+    for (const key of commonClerkKeys) {
+      const sanitizedKey = sanitizeKey(key);
+      const prefixedKey = `${CLERK_TOKEN_PREFIX}${sanitizedKey}`;
+
+      try {
+        const value = await SecureStore.getItemAsync(prefixedKey);
+        if (value) {
+          console.log(
+            `🔍 Found existing Clerk token in SecureStore: ${key} (stored as: ${prefixedKey})`,
+          );
+          // Re-populate tokenKeys Set with found key for future operations
+          tokenKeys.add(prefixedKey);
+          return true;
+        }
+      } catch (readError) {
+        // Continue checking other keys even if one fails
+        console.warn(`⚠️ Failed to check token ${prefixedKey}:`, readError);
+      }
+    }
+
+    console.log(
+      '✅ No Clerk tokens found in SecureStore (checked common token keys)',
+    );
     return false;
   } catch (error) {
     console.error('❌ Error checking for Clerk tokens:', error);
-    return false;
+    // Return true on error to be safe - triggers cleanup attempt
+    return true;
   }
 }

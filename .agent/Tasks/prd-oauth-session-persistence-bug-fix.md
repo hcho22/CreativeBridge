@@ -54,7 +54,7 @@
 - [x] Add `tokenCache={clerkTokenCache}` prop to `ClerkProvider` at line 67
 - [x] Verify Clerk uses custom cache (check logs during login/logout)
 - [x] Typecheck passes
-- [ ] App builds successfully on iOS and Android
+- [x] App builds successfully on iOS and Android
 
 **Technical Details:**
 
@@ -302,11 +302,53 @@
 - Log OAuth flow initiation with session state context
 - Review logs daily for first week, then weekly
 
+## CRITICAL BUG FIX (2026-02-03)
+
+### Bug: Token Detection Failing After App Restart
+
+**Root Cause Identified:** The original implementation of `hasClerkTokens()` and `clearAllClerkTokens()` relied on an in-memory `tokenKeys` Set to track which tokens exist. This Set is **cleared when the app restarts**, but the actual tokens remain in SecureStore.
+
+**Impact:**
+
+- User A logs in → tokens stored in SecureStore
+- User A logs out → tokens cleared from `tokenKeys` Set
+- **App restarts** (user closes app, kills it, or device restarts)
+- User B tries to sign up → `hasClerkTokens()` checks empty Set, returns `false`
+- Pre-OAuth cleanup is skipped
+- **Clerk detects tokens still in SecureStore and logs User A back in**
+
+**Fix Applied:**
+
+1. **`hasClerkTokens()` Enhancement** (lines 189-235):
+
+   - Now probes SecureStore directly for common Clerk token keys
+   - Checks: `__clerk_client_jwt`, `__session`, `__clerk_db_jwt`, `__clerk_refresh_token`, `__clerk_session`
+   - Re-populates `tokenKeys` Set when found tokens are detected
+   - Works correctly even after app restart
+
+2. **`clearAllClerkTokens()` Enhancement** (lines 112-175):
+   - Falls back to clearing common Clerk token keys if `tokenKeys` Set is empty
+   - Ensures tokens are cleared even after app restart
+   - Provides comprehensive cleanup regardless of in-memory tracking state
+
+**Files Modified:**
+
+- [src/utils/clerkTokenCache.ts](src/utils/clerkTokenCache.ts) - lines 112-235
+
+**Testing Required:**
+
+- [ ] User A logs in, logs out, **app restarts**, User B signs up → NEW account created ✅
+- [ ] User A logs in, **app restarts**, User A logs in again → account linking works ✅
+- [ ] Verify tokens are detected and cleared after app restart
+
+---
+
 ## Open Questions
 
 - ~~Should we implement server-side session invalidation?~~ → No, Clerk API handles this
 - ~~Do we need to migrate existing logged-in users?~~ → No, fix applies to future login cycles
 - ~~Should we add a manual "clear sessions" button in settings?~~ → Only if needed as emergency hotfix
+- ~~Why does OAuth sign-up fail after app restart?~~ → **FIXED:** In-memory tokenKeys Set was not persistent
 - **Post-implementation:** Should we add automated E2E tests for the OAuth flows?
 - **Post-implementation:** Should we implement analytics tracking for OAuth signup funnel to detect future issues early?
 

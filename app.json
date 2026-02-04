@@ -11,5 +11,8 @@
   },
   "scheme": "creativebridge",
   "owner": "hcho22",
-  "plugins": ["expo-web-browser"]
+  "plugins": ["expo-web-browser", "expo-secure-store"],
+  "android": {
+    "package": "org.name.CreativeBridge"
+  }
 }

@@ -27,6 +27,7 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
+          <string>creativebridge</string>
           <string>org.name.CreativeBridge</string>
         </array>
       </dict>
@@ -36,15 +37,9 @@
           <string>exp+creativebridge</string>
         </array>
       </dict>
-      <dict>
-        <key>CFBundleURLSchemes</key>
-        <array>
-          <string>creativebridge</string>
-        </array>
-      </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>4</string>
+    <string>1</string>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
@@ -62,6 +57,8 @@
     <array>
       <string>_http._tcp</string>
     </array>
+    <key>NSFaceIDUsageDescription</key>
+    <string>Allow $(PRODUCT_NAME) to access your Face ID biometric data.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>CreativeBridge needs access to your microphone to enable voice input for continuing your stories.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
@@ -81,7 +78,7 @@
       <string>arm64</string>
     </array>
     <key>UIRequiresFullScreen</key>
-    <true/>
+    <false/>
     <key>UIStatusBarStyle</key>
     <string>UIStatusBarStyleDefault</string>
     <key>UISupportedInterfaceOrientations</key>
