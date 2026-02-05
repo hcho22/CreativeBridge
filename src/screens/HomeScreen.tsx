@@ -348,6 +348,23 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     };
   }, [keyboardHeight]);
 
+  // Auto-scroll to show latest story contribution
+  useEffect(() => {
+    if (!currentSession?.contributions) return;
+
+    const contributionCount = currentSession.contributions.length;
+
+    // Only scroll when new contributions are added (skip initial render)
+    if (contributionCount > 0) {
+      // Small delay to allow layout to settle after content render
+      const scrollTimer = setTimeout(() => {
+        gameScrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 150);
+
+      return () => clearTimeout(scrollTimer);
+    }
+  }, [currentSession?.contributions?.length]);
+
   // Check service availability
   const checkServiceAvailability = useCallback(async () => {
     // Check TTS service availability
