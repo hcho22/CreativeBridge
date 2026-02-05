@@ -1259,6 +1259,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
             // Show completion options screen after a brief delay
             setTimeout(() => {
+              // Scroll to top to ensure modal is visible
+              gameScrollViewRef.current?.scrollTo({
+                y: 0,
+                animated: false, // Instant scroll to prevent modal being off-screen
+              });
               setShowCompletionOptions(true);
             }, 2000);
           } else {
@@ -3200,9 +3205,9 @@ const styles = StyleSheet.create({
   },
   completionScrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 40,
+    paddingTop: 80,
+    paddingBottom: 40,
     paddingHorizontal: 20,
   },
   completionOptionsContainer: {
