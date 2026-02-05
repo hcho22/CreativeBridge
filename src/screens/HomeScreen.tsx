@@ -19,6 +19,7 @@ import {
   Platform,
   Keyboard,
   KeyboardEvent,
+  Pressable,
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useRoute, RouteProp } from '@react-navigation/native';
@@ -1499,6 +1500,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
       // Image generated successfully - no popup needed, user will see the image directly
 
+      // Auto-scroll to show the generated image after modal dismisses and image renders
+      setTimeout(() => {
+        gameScrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 300); // Delay to allow modal dismissal and image rendering
+
       console.log('✅ [DEBUG] handleImageGenerated completed');
     },
     [currentSession],
@@ -2151,22 +2157,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               </ScrollView>
             </View>
 
-            {/* Image Generation Section */}
-            {showImageGeneration && currentSession && (
-              <ImageGeneration
-                storyContent={currentSession.story_content || ''}
-                sessionId={currentSession.id}
-                gradeLevel={gradeLevel}
-                wordCount={currentSession.sessionStats.userWords}
-                onImageGenerated={handleImageGenerated}
-                onError={handleImageGenerationError}
-                disabled={!isGameCompleted}
-                isStoryCompleted={isGameCompleted}
-                currentRound={currentRound}
-                maxRounds={MAX_ROUNDS}
-              />
-            )}
-
             {/* Generated Image Display */}
             {(() => {
               const shouldShowImage =
@@ -2635,6 +2625,52 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             )}
           </Animated.View>
         </ScrollView>
+
+        {/* Image Generation Modal Overlay */}
+        {showImageGeneration && currentSession && (
+          <Pressable
+            style={styles.imageGenerationModalOverlay}
+            onPress={() => {
+              Alert.alert(
+                'Cancel Image Generation?',
+                'You can generate an image later from the completion options.',
+                [
+                  { text: 'Continue Generating', style: 'cancel' },
+                  {
+                    text: 'Cancel',
+                    style: 'destructive',
+                    onPress: () => setShowImageGeneration(false),
+                  },
+                ],
+              );
+            }}
+          >
+            <Pressable
+              style={styles.imageGenerationScrollView}
+              onPress={e => e.stopPropagation()}
+            >
+              <ScrollView
+                contentContainerStyle={styles.imageGenerationScrollContent}
+                showsVerticalScrollIndicator={false}
+              >
+                <View style={styles.imageGenerationContainer}>
+                  <ImageGeneration
+                    storyContent={currentSession.story_content || ''}
+                    sessionId={currentSession.id}
+                    gradeLevel={gradeLevel}
+                    wordCount={currentSession.sessionStats.userWords}
+                    onImageGenerated={handleImageGenerated}
+                    onError={handleImageGenerationError}
+                    disabled={!isGameCompleted}
+                    isStoryCompleted={isGameCompleted}
+                    currentRound={currentRound}
+                    maxRounds={MAX_ROUNDS}
+                  />
+                </View>
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        )}
       </View>
     );
   }
@@ -3298,6 +3334,46 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: 'bold',
     textAlign: 'center',
+  },
+  // Image Generation Modal Overlay Styles
+  imageGenerationModalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Semi-transparent backdrop
+    zIndex: 1001, // Above completion modal (zIndex: 1000)
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageGenerationScrollView: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageGenerationScrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 60,
+    paddingBottom: 40,
+    paddingHorizontal: 20,
+  },
+  imageGenerationContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 0, // ImageGeneration has its own padding (16px)
+    width: '100%',
+    maxWidth: 500,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 16,
+    borderWidth: 3,
+    borderColor: '#9C27B0', // Purple border to distinguish from green completion modal
   },
   // Back to Options Button Styles
   backToOptionsContainer: {
