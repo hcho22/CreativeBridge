@@ -20,7 +20,7 @@
 		13B07F961A680F5B00A75B9A /* CreativeBridge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CreativeBridge.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = CreativeBridge/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = CreativeBridge/Info.plist; sourceTree = "<group>"; };
-		3DD58F9F32B66CB46460BB0A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = CreativeBridge/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		3DD58F9F32B66CB46460BB0A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = CreativeBridge/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		7BCD27F16A4111FD4941C11B /* libPods-CreativeBridge.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-CreativeBridge.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		817050AF5074E686783C9EEC /* Pods-CreativeBridge.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CreativeBridge.release.xcconfig"; path = "Target Support Files/Pods-CreativeBridge/Pods-CreativeBridge.release.xcconfig"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = CreativeBridge/SplashScreen.storyboard; sourceTree = "<group>"; };
@@ -73,7 +73,6 @@
 				AC80231F9C5E6AC29FFA369F /* Pods-CreativeBridge.debug.xcconfig */,
 				817050AF5074E686783C9EEC /* Pods-CreativeBridge.release.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -393,12 +392,14 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = CreativeBridge/CreativeBridge.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = QH9S83CX4Y;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
 					"FB_SONARKIT_ENABLED=1",
 				);
 				INFOPLIST_FILE = CreativeBridge/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -429,7 +430,9 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = CreativeBridge/CreativeBridge.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = QH9S83CX4Y;
 				INFOPLIST_FILE = CreativeBridge/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

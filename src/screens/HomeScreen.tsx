@@ -2812,17 +2812,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
   },
-  // Legacy styles (will be removed/modified)
-  gameScrollContainer: {
-    flex: 1,
-  },
-  gameScrollContent: {
-    flexGrow: 1,
-  },
   gameContainer: {
     padding: 8,
-    paddingTop: 60, // Add top padding to avoid dynamic island
-    minHeight: '100%',
   },
   welcomeSection: {
     marginBottom: 60,
@@ -2979,7 +2970,6 @@ const styles = StyleSheet.create({
   },
   storyBookContainer: {
     marginBottom: 8,
-    flex: 1,
   },
   storyBookHeader: {
     flexDirection: 'row',
@@ -3105,9 +3095,7 @@ const styles = StyleSheet.create({
     color: '#888',
     fontWeight: '500',
   },
-  inputSection: {
-    marginBottom: 8,
-  },
+  inputSection: {},
   storyInput: {
     backgroundColor: '#ffffff',
     padding: 12,

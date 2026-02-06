@@ -1,0 +1,9 @@
+{
+  "tasks": {
+    "markdown:./Tasks/prd-fixed-challenge-input-layout.md:64": {
+      "count": 1,
+      "last": "2026-02-06T22:01:29.480Z",
+      "title": "Add `safeContainer` style: flex: 1, backgroundColor: '#f0f2f5'"
+    }
+  }
+}
