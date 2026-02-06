@@ -25,6 +25,20 @@ jest.mock('@react-navigation/native', () => {
   };
 });
 
+// Mock SafeAreaContext
+jest.mock('react-native-safe-area-context', () => ({
+  SafeAreaView: 'SafeAreaView',
+  SafeAreaProvider: ({ children }) => children,
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}));
+
+// Mock react-native-share
+jest.mock('react-native-share', () => ({
+  default: {
+    open: jest.fn(() => Promise.resolve()),
+  },
+}));
+
 // Mock Vector Icons
 jest.mock('react-native-vector-icons/MaterialIcons', () => {
   const { Text } = require('react-native');
