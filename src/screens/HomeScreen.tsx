@@ -3003,7 +3003,6 @@ const styles = StyleSheet.create({
   storyBook: {
     backgroundColor: '#ffffff',
     borderRadius: 4,
-    flex: 1,
     width: '100%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
