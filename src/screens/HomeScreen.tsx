@@ -2196,7 +2196,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                   showBackButton={true}
                   displayMode="responsive"
                   enableFullScreen={false}
-                  onBackToOptions={() => setShowCompletionOptions(true)}
+                  onBackToOptions={() => {
+                    // Scroll to top to ensure completion options modal is visible
+                    gameScrollViewRef.current?.scrollTo({
+                      y: 0,
+                      animated: true,
+                    });
+                    setShowCompletionOptions(true);
+                  }}
                   onRetryUpload={handleRetryImageUpload}
                   onImageSaved={localPath => {
                     console.log('✅ [DEBUG] Image saved locally:', localPath);
@@ -2224,7 +2231,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 <View style={styles.backToOptionsContainer}>
                   <TouchableOpacity
                     style={styles.backToOptionsButton}
-                    onPress={() => setShowCompletionOptions(true)}
+                    onPress={() => {
+                      // Scroll to top to ensure completion options modal is visible
+                      gameScrollViewRef.current?.scrollTo({
+                        y: 0,
+                        animated: true,
+                      });
+                      setShowCompletionOptions(true);
+                    }}
                   >
                     <Text style={styles.backToOptionsText}>
                       ← Back to Options
