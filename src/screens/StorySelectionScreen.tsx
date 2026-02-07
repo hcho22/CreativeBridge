@@ -3,7 +3,6 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, StatusBar, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
@@ -61,7 +60,7 @@ export const StorySelectionScreen: React.FC<StorySelectionScreenProps> = ({
 
   if (!user) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
         <View style={styles.errorContainer}>
           <Text style={styles.errorTitle}>Authentication Required</Text>
@@ -69,12 +68,12 @@ export const StorySelectionScreen: React.FC<StorySelectionScreenProps> = ({
             Please log in to access your story library.
           </Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
 
       <StorySelectionModal
@@ -84,7 +83,7 @@ export const StorySelectionScreen: React.FC<StorySelectionScreenProps> = ({
         onClose={handleBack}
         title="Your Stories"
       />
-    </SafeAreaView>
+    </View>
   );
 };
 

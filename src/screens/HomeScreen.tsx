@@ -2260,7 +2260,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           style={[
             styles.fixedInputSection,
             {
-              paddingBottom: Animated.add(keyboardHeight, 8),
+              paddingBottom: Animated.add(keyboardHeight, 4),
             },
           ]}
         >
@@ -2808,7 +2808,7 @@ const styles = StyleSheet.create({
   fixedInputSection: {
     backgroundColor: '#f0f2f5',
     paddingHorizontal: 8,
-    paddingBottom: 8,
+    paddingBottom: 4,
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
   },
@@ -3216,7 +3216,7 @@ const styles = StyleSheet.create({
   },
   // Game action buttons styles
   gameButtonsContainer: {
-    marginBottom: 8,
+    marginBottom: 0,
   },
   buttonRow: {
     flexDirection: 'row',
