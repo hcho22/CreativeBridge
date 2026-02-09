@@ -51,12 +51,12 @@ Enhance the CreativeBridge onboarding experience to increase activation rates, i
 
 **Acceptance Criteria:**
 
-- [ ] CelebrationModal component created in `src/components/common/`
-- [ ] Component accepts props: `title`, `message`, `emoji/icon`, `ctaText`, `onClose`, `onCtaPress`
-- [ ] Modal has celebratory visual design (confetti animation or equivalent)
-- [ ] Modal is accessible (proper contrast, screen reader support)
-- [ ] Modal can be dismissed by tapping outside or pressing close button
-- [ ] Typecheck/lint passes
+- [x] CelebrationModal component created in `src/components/common/`
+- [x] Component accepts props: `title`, `message`, `emoji/icon`, `ctaText`, `onClose`, `onCtaPress`
+- [x] Modal has celebratory visual design (confetti animation or equivalent)
+- [x] Modal is accessible (proper contrast, screen reader support)
+- [x] Modal can be dismissed by tapping outside or pressing close button
+- [x] Typecheck/lint passes
 
 ---
 
