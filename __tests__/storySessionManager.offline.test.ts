@@ -1,7 +1,10 @@
 // Offline Image Caching Tests
 // Tests for Task 3.2: Offline caching for images
 
-import { storySessionManager, StorySession } from '../src/services/storySessionManager';
+import {
+  storySessionManager,
+  StorySession,
+} from '../src/services/storySessionManager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../src/services/supabase';
 import { GradeLevel } from '../src/types';
@@ -10,7 +13,9 @@ import { GradeLevel } from '../src/types';
 const mockAsyncStorage: { [key: string]: string } = {};
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
-  getItem: jest.fn((key: string) => Promise.resolve(mockAsyncStorage[key] || null)),
+  getItem: jest.fn((key: string) =>
+    Promise.resolve(mockAsyncStorage[key] || null),
+  ),
   setItem: jest.fn((key: string, value: string) => {
     mockAsyncStorage[key] = value;
     return Promise.resolve();
@@ -59,7 +64,9 @@ describe('Offline Image Caching - Task 3.2', () => {
         challenges_completed: 0,
         xp_earned: 0,
         story_content: 'Test story content',
-        supabase_image_url: 'https://supabase.co/storage/story-images/user-123/image.png',
+        story_source: 'New' as const,
+        supabase_image_url:
+          'https://supabase.co/storage/story-images/user-123/image.png',
         image_upload_status: 'uploaded' as const,
       };
 
@@ -100,9 +107,11 @@ describe('Offline Image Caching - Task 3.2', () => {
       const cachedSessions = JSON.parse(cachedData);
       expect(cachedSessions[mockSessionId]).toBeTruthy();
       expect(cachedSessions[mockSessionId].supabase_image_url).toBe(
-        'https://supabase.co/storage/story-images/user-123/image.png'
+        'https://supabase.co/storage/story-images/user-123/image.png',
       );
-      expect(cachedSessions[mockSessionId].image_upload_status).toBe('uploaded');
+      expect(cachedSessions[mockSessionId].image_upload_status).toBe(
+        'uploaded',
+      );
     });
 
     it('should cache both Replicate and Supabase URLs', async () => {
@@ -119,8 +128,10 @@ describe('Offline Image Caching - Task 3.2', () => {
         challenges_completed: 0,
         xp_earned: 500,
         story_content: 'Complete story',
+        story_source: 'New' as const,
         generated_image_url: 'https://replicate.delivery/temp/image.png',
-        supabase_image_url: 'https://supabase.co/storage/story-images/user-123/image.png',
+        supabase_image_url:
+          'https://supabase.co/storage/story-images/user-123/image.png',
         image_upload_status: 'uploaded' as const,
         completed_at: new Date().toISOString(),
       };
@@ -158,10 +169,10 @@ describe('Offline Image Caching - Task 3.2', () => {
       const cachedSessions = JSON.parse(cachedData);
 
       expect(cachedSessions[mockSessionId].generated_image_url).toBe(
-        'https://replicate.delivery/temp/image.png'
+        'https://replicate.delivery/temp/image.png',
       );
       expect(cachedSessions[mockSessionId].supabase_image_url).toBe(
-        'https://supabase.co/storage/story-images/user-123/image.png'
+        'https://supabase.co/storage/story-images/user-123/image.png',
       );
     });
 
@@ -179,6 +190,7 @@ describe('Offline Image Caching - Task 3.2', () => {
         challenges_completed: 0,
         xp_earned: 500,
         story_content: 'Complete story',
+        story_source: 'New' as const,
         generated_image_url: 'https://replicate.delivery/temp/image.png',
         image_upload_status: 'pending' as const,
         image_upload_attempts: 1,
@@ -237,7 +249,9 @@ describe('Offline Image Caching - Task 3.2', () => {
         challenges_completed: 0,
         xp_earned: 400,
         story_content: 'Offline story content',
-        supabase_image_url: 'https://supabase.co/storage/story-images/cached.png',
+        story_source: 'New',
+        supabase_image_url:
+          'https://supabase.co/storage/story-images/cached.png',
         image_upload_status: 'uploaded' as const,
         isCompleted: false,
         contributions: [],
@@ -262,19 +276,24 @@ describe('Offline Image Caching - Task 3.2', () => {
           eq: jest.fn().mockReturnValue({
             single: jest.fn().mockResolvedValue({
               data: null,
-              error: { message: 'Network request failed', code: 'NETWORK_ERROR' },
+              error: {
+                message: 'Network request failed',
+                code: 'NETWORK_ERROR',
+              },
             }),
           }),
         }),
       });
 
       // Should still retrieve from cache
-      const offlineSession = await storySessionManager.getSession(mockSessionId);
+      const offlineSession = await storySessionManager.getSession(
+        mockSessionId,
+      );
 
       expect(offlineSession).toBeTruthy();
       expect(offlineSession?.id).toBe(mockSessionId);
       expect(offlineSession?.supabase_image_url).toBe(
-        'https://supabase.co/storage/story-images/cached.png'
+        'https://supabase.co/storage/story-images/cached.png',
       );
       expect(offlineSession?.image_upload_status).toBe('uploaded');
       expect(offlineSession?.story_content).toBe('Offline story content');
@@ -295,7 +314,9 @@ describe('Offline Image Caching - Task 3.2', () => {
         }),
       });
 
-      const session = await storySessionManager.getSession(nonExistentSessionId);
+      const session = await storySessionManager.getSession(
+        nonExistentSessionId,
+      );
 
       expect(session).toBeNull();
     });
@@ -314,6 +335,7 @@ describe('Offline Image Caching - Task 3.2', () => {
         challenges_completed: 0,
         xp_earned: 500,
         story_content: 'Complete story',
+        story_source: 'New',
         generated_image_url: 'https://replicate.delivery/temp/image.png',
         supabase_image_url: 'https://supabase.co/storage/permanent/image.png',
         image_upload_status: 'uploaded' as const,
@@ -350,8 +372,12 @@ describe('Offline Image Caching - Task 3.2', () => {
 
       const retrieved = await storySessionManager.getSession(mockSessionId);
 
-      expect(retrieved?.generated_image_url).toBe('https://replicate.delivery/temp/image.png');
-      expect(retrieved?.supabase_image_url).toBe('https://supabase.co/storage/permanent/image.png');
+      expect(retrieved?.generated_image_url).toBe(
+        'https://replicate.delivery/temp/image.png',
+      );
+      expect(retrieved?.supabase_image_url).toBe(
+        'https://supabase.co/storage/permanent/image.png',
+      );
       expect(retrieved?.image_upload_status).toBe('uploaded');
       expect(retrieved?.image_upload_attempts).toBe(2);
     });
@@ -402,9 +428,13 @@ describe('Offline Image Caching - Task 3.2', () => {
       });
 
       // Fetch session (should get new data from DB and update cache)
-      const fetchedSession = await storySessionManager.getSession(mockSessionId);
+      const fetchedSession = await storySessionManager.getSession(
+        mockSessionId,
+      );
 
-      expect(fetchedSession?.supabase_image_url).toBe('https://supabase.co/storage/new-image.png');
+      expect(fetchedSession?.supabase_image_url).toBe(
+        'https://supabase.co/storage/new-image.png',
+      );
       expect(fetchedSession?.image_upload_status).toBe('uploaded');
 
       // Note: The current implementation doesn't auto-cache on getSession
@@ -426,6 +456,7 @@ describe('Offline Image Caching - Task 3.2', () => {
         challenges_completed: 0,
         xp_earned: 500,
         story_content: 'Updated story',
+        story_source: 'New' as const,
         generated_image_url: 'https://replicate.delivery/image.png',
         supabase_image_url: 'https://supabase.co/storage/updated-image.png',
         image_upload_status: 'uploaded' as const,
@@ -468,9 +499,11 @@ describe('Offline Image Caching - Task 3.2', () => {
 
       const cachedSessions = JSON.parse(cachedData);
       expect(cachedSessions[mockSessionId].supabase_image_url).toBe(
-        'https://supabase.co/storage/updated-image.png'
+        'https://supabase.co/storage/updated-image.png',
       );
-      expect(cachedSessions[mockSessionId].image_upload_status).toBe('uploaded');
+      expect(cachedSessions[mockSessionId].image_upload_status).toBe(
+        'uploaded',
+      );
     });
 
     it('should cache even when Supabase update fails', async () => {
@@ -487,6 +520,7 @@ describe('Offline Image Caching - Task 3.2', () => {
         challenges_completed: 0,
         xp_earned: 400,
         story_content: 'Story content',
+        story_source: 'New',
         supabase_image_url: 'https://supabase.co/storage/image.png',
         image_upload_status: 'uploaded' as const,
         isCompleted: false,
@@ -524,7 +558,7 @@ describe('Offline Image Caching - Task 3.2', () => {
       const cachedSessions = JSON.parse(cachedData);
       expect(cachedSessions[mockSessionId]).toBeTruthy();
       expect(cachedSessions[mockSessionId].supabase_image_url).toBe(
-        'https://supabase.co/storage/image.png'
+        'https://supabase.co/storage/image.png',
       );
     });
   });
@@ -545,6 +579,7 @@ describe('Offline Image Caching - Task 3.2', () => {
         challenges_completed: 0,
         xp_earned: 300,
         story_content: 'Performance test story',
+        story_source: 'New',
         supabase_image_url: 'https://supabase.co/storage/perf-test.png',
         image_upload_status: 'uploaded' as const,
         isCompleted: false,

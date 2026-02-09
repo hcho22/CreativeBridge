@@ -2077,9 +2077,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                   <View style={styles.storyTitleRow}>
                     <Text style={styles.storyBookTitle}>📖 Your Story</Text>
                     <Text style={styles.gradeLevel}>{gradeLevel}</Text>
-                    <Text style={styles.roundCounter}>
-                      Round {currentRound}/{MAX_ROUNDS}
-                    </Text>
+                    {currentSession?.story_source === 'New' && (
+                      <Text style={styles.roundCounter}>
+                        Round {currentRound}/{MAX_ROUNDS}
+                      </Text>
+                    )}
                   </View>
                   <TouchableOpacity
                     style={styles.copyButton}
