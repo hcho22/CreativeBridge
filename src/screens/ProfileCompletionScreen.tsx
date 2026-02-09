@@ -435,6 +435,10 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
                   </TouchableOpacity>
                 ))}
               </View>
+              <Text style={styles.hintText}>
+                Your grade level personalizes story language, illustration
+                style, and challenge difficulty.
+              </Text>
             </View>
 
             <TouchableOpacity

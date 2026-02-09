@@ -973,6 +973,10 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
                     </TouchableOpacity>
                   ))}
                 </View>
+                <Text style={styles.passwordHint}>
+                  Your grade level personalizes story language, illustration
+                  style, and challenge difficulty.
+                </Text>
               </View>
             )}
 
