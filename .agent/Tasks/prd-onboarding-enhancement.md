@@ -66,13 +66,20 @@ Enhance the CreativeBridge onboarding experience to increase activation rates, i
 
 **Acceptance Criteria:**
 
-- [ ] Celebration modal appears when user completes their first story ever
-- [ ] Modal displays: "🎉 You wrote your first story!"
-- [ ] Modal includes encouraging message about their achievement
-- [ ] Modal shows XP earned for the story
-- [ ] CTA button leads to viewing the completed story or returning home
-- [ ] Celebration only triggers once (tracked in database or local storage)
-- [ ] Typecheck/lint passes
+- [x] Celebration modal appears when user completes their first story ever
+- [x] Modal displays: "🎉 You wrote your first story!"
+- [x] Modal includes encouraging message about their achievement
+- [x] Modal shows XP earned for the story
+- [x] CTA button leads to viewing the completed story or returning home
+- [x] Celebration only triggers once (tracked in database or local storage)
+- [x] Typecheck/lint passes
+
+**Implementation Notes (Completed Feb 2025):**
+
+- Created `src/services/onboardingMilestoneTracker.ts` for tracking first-time achievements
+- Uses AsyncStorage for milestone tracking (will migrate to database when US-007 is completed)
+- Integrated `CelebrationModal` component (from US-003) into `HomeScreen.tsx`
+- Celebration triggers at story completion (round 5) before showing completion options
 
 ---
 

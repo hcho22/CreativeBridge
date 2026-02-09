@@ -49,6 +49,8 @@ import { imageStorageService } from '../services/imageStorageService';
 import RNFS, { rnfsWrapper } from '../utils/rnfsWrapper';
 import { VoiceInput } from '../components/common/VoiceInput';
 import Share from '../utils/shareWrapper';
+import { CelebrationModal } from '../components/common/CelebrationModal';
+import { onboardingMilestoneTracker } from '../services/onboardingMilestoneTracker';
 
 type HomeScreenNavigationProp = BottomTabNavigationProp<TabParamList, 'Home'>;
 
@@ -140,6 +142,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     null,
   );
   const MAX_ROUNDS = 5;
+
+  // First story celebration state (US-004)
+  const [showFirstStoryCelebration, setShowFirstStoryCelebration] =
+    useState(false);
+  const [firstStoryXpEarned, setFirstStoryXpEarned] = useState(0);
 
   // Use the user's preferred grade level from their profile, or default to K-2
   const gradeLevel: GradeLevel =
@@ -1276,15 +1283,33 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           if (currentRound >= MAX_ROUNDS) {
             setIsGameCompleted(true);
 
-            // Show completion options screen after a brief delay
-            setTimeout(() => {
-              // Scroll to top to ensure modal is visible
-              storyScrollViewRef.current?.scrollTo({
-                y: 0,
-                animated: false, // Instant scroll to prevent modal being off-screen
-              });
-              setShowCompletionOptions(true);
-            }, 2000);
+            // Check if this is the user's first story completion (US-004)
+            const { shouldShowCelebration } =
+              await onboardingMilestoneTracker.markFirstStoryCompleted();
+
+            if (shouldShowCelebration) {
+              // Store XP earned for celebration modal
+              setFirstStoryXpEarned(updatedSession.xp_earned || 0);
+
+              // Show first story celebration before completion options
+              setTimeout(() => {
+                storyScrollViewRef.current?.scrollTo({
+                  y: 0,
+                  animated: false,
+                });
+                setShowFirstStoryCelebration(true);
+              }, 1500);
+            } else {
+              // Not first story - show completion options directly
+              setTimeout(() => {
+                // Scroll to top to ensure modal is visible
+                storyScrollViewRef.current?.scrollTo({
+                  y: 0,
+                  animated: false, // Instant scroll to prevent modal being off-screen
+                });
+                setShowCompletionOptions(true);
+              }, 2000);
+            }
           } else {
             // Only increment round counter if game is continuing
             const nextRound = currentRound + 1;
@@ -1468,6 +1493,29 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
     // The story is now visible - user can scroll and read it
     // "Back to Options" button is available if they want to return to options
+  }, []);
+
+  // Handler for first story celebration modal (US-004)
+  const handleFirstStoryCelebrationClose = useCallback(async () => {
+    // Mark celebration as shown so it doesn't repeat
+    await onboardingMilestoneTracker.markFirstStoryCelebrationShown();
+    setShowFirstStoryCelebration(false);
+
+    // Now show the regular completion options
+    setTimeout(() => {
+      setShowCompletionOptions(true);
+    }, 300);
+  }, []);
+
+  // CTA handler for first story celebration - view the story
+  const handleFirstStoryCelebrationCta = useCallback(async () => {
+    await onboardingMilestoneTracker.markFirstStoryCelebrationShown();
+    setShowFirstStoryCelebration(false);
+
+    // Show completion options so user can interact with the story
+    setTimeout(() => {
+      setShowCompletionOptions(true);
+    }, 300);
   }, []);
 
   const handleImageGenerated = useCallback(
@@ -2546,6 +2594,22 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             )}
           </View>
         </Animated.View>
+
+        {/* First Story Celebration Modal (US-004) */}
+        <CelebrationModal
+          visible={showFirstStoryCelebration}
+          title="You wrote your first story!"
+          message="Amazing work! You've completed your very first collaborative story with AI. This is just the beginning of your creative journey!"
+          icon="🎉"
+          ctaText="See My Story"
+          onClose={handleFirstStoryCelebrationClose}
+          onCtaPress={handleFirstStoryCelebrationCta}
+          secondaryMessage={
+            firstStoryXpEarned > 0
+              ? `+${firstStoryXpEarned} XP earned!`
+              : undefined
+          }
+        />
 
         {/* Story Completion Options Screen - Full Screen Overlay */}
         {showCompletionOptions && (
