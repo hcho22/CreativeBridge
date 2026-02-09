@@ -89,11 +89,18 @@ Enhance the CreativeBridge onboarding experience to increase activation rates, i
 
 **Acceptance Criteria:**
 
-- [ ] Celebration modal appears when user's first story image is generated
-- [ ] Modal displays: "🎨 Your story came to life!"
-- [ ] Modal explains that illustrations match their grade level art style
-- [ ] Celebration only triggers once per user
-- [ ] Typecheck/lint passes
+- [x] Celebration modal appears when user's first story image is generated
+- [x] Modal displays: "🎨 Your story came to life!"
+- [x] Modal explains that illustrations match their grade level art style
+- [x] Celebration only triggers once per user
+- [x] Typecheck/lint passes
+
+**Implementation Notes (Completed Feb 2025):**
+
+- Reused existing `onboardingMilestoneTracker` service (from US-004) which already had `markFirstImageGenerated()` and `markFirstImageCelebrationShown()` methods
+- Integrated `CelebrationModal` component into `HomeScreen.tsx` at the `handleImageGenerated` callback
+- Celebration triggers when image generation completes successfully, before auto-scroll to image
+- Uses AsyncStorage for milestone tracking (will migrate to database when US-007 is completed)
 
 ---
 

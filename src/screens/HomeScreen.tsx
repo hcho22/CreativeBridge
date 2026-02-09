@@ -148,6 +148,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     useState(false);
   const [firstStoryXpEarned, setFirstStoryXpEarned] = useState(0);
 
+  // First image generation celebration state (US-005)
+  const [showFirstImageCelebration, setShowFirstImageCelebration] =
+    useState(false);
+
   // Use the user's preferred grade level from their profile, or default to K-2
   const gradeLevel: GradeLevel =
     (userProfile?.preferred_grade_level as GradeLevel) || 'K-2';
@@ -1518,6 +1522,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     }, 300);
   }, []);
 
+  // Handler for first image generation celebration modal (US-005)
+  const handleFirstImageCelebrationClose = useCallback(async () => {
+    // Mark celebration as shown so it doesn't repeat
+    await onboardingMilestoneTracker.markFirstImageCelebrationShown();
+    setShowFirstImageCelebration(false);
+  }, []);
+
+  // CTA handler for first image celebration - continue viewing
+  const handleFirstImageCelebrationCta = useCallback(async () => {
+    await onboardingMilestoneTracker.markFirstImageCelebrationShown();
+    setShowFirstImageCelebration(false);
+  }, []);
+
   const handleImageGenerated = useCallback(
     async (imageUrl: string) => {
       console.log('✅ [DEBUG] handleImageGenerated called with URL:', imageUrl);
@@ -1547,7 +1564,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         }
       }
 
-      // Image generated successfully - no popup needed, user will see the image directly
+      // Check if this is the user's first image generation (US-005)
+      try {
+        const { shouldShowCelebration } =
+          await onboardingMilestoneTracker.markFirstImageGenerated();
+        if (shouldShowCelebration) {
+          console.log('🎨 First image generated! Showing celebration modal.');
+          setShowFirstImageCelebration(true);
+        }
+      } catch (error) {
+        console.error('❌ Error checking first image milestone:', error);
+      }
 
       // Auto-scroll to show the generated image after modal dismisses and image renders
       setTimeout(() => {
@@ -2609,6 +2636,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               ? `+${firstStoryXpEarned} XP earned!`
               : undefined
           }
+        />
+
+        {/* First Image Generation Celebration Modal (US-005) */}
+        <CelebrationModal
+          visible={showFirstImageCelebration}
+          title="Your story came to life!"
+          message="Amazing! AI has created a unique illustration just for your story. The art style is tailored to match your grade level for the perfect look!"
+          icon="🎨"
+          ctaText="View My Illustration"
+          onClose={handleFirstImageCelebrationClose}
+          onCtaPress={handleFirstImageCelebrationCta}
         />
 
         {/* Story Completion Options Screen - Full Screen Overlay */}
