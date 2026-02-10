@@ -165,18 +165,29 @@ Enhance the CreativeBridge onboarding experience to increase activation rates, i
 
 **Acceptance Criteria:**
 
-- [ ] OnboardingChecklist component created in `src/components/onboarding/`
-- [ ] Checklist displays 5 items with completion status:
+- [x] OnboardingChecklist component created in `src/components/onboarding/`
+- [x] Checklist displays 5 items with completion status:
   - ✅ Create your account (auto-completed on signup)
   - 📝 Write your first story (+50 XP)
   - 🎨 See your first illustration (+25 XP)
   - 🎤 Try voice input (+25 XP)
   - 🔥 Start a streak (+50 XP)
-- [ ] Each item shows XP reward amount
-- [ ] Completed items show checkmark and strikethrough styling
-- [ ] Progress bar shows overall completion percentage
-- [ ] Component can be collapsed/expanded
-- [ ] Typecheck/lint passes
+- [x] Each item shows XP reward amount
+- [x] Completed items show checkmark and strikethrough styling
+- [x] Progress bar shows overall completion percentage
+- [x] Component can be collapsed/expanded
+- [x] Typecheck/lint passes
+
+**Implementation Notes (Completed Feb 2026):**
+
+- Created `src/components/onboarding/OnboardingChecklist.tsx` following CelebrationModal patterns
+- Uses `onboardingMilestoneTracker.getMilestoneProgress()` to fetch completion status
+- Features animated progress bar with percentage display
+- Implements LayoutAnimation for smooth collapse/expand transitions
+- Includes full accessibility support (labels, hints, states)
+- XP badges with distinct styling for completed vs pending items
+- Dismissible via optional `onDismiss` callback
+- Exports via `src/components/onboarding/index.ts` for clean imports
 
 ---
 
