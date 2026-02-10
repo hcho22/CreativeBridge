@@ -366,11 +366,29 @@ Enhance the CreativeBridge onboarding experience to increase activation rates, i
 
 **Acceptance Criteria:**
 
-- [ ] Tooltip appears when first story image is being generated or appears
-- [ ] Tooltip text: "AI creates illustrations matching your grade level!"
-- [ ] Tooltip dismisses on tap or after 5 seconds
-- [ ] Tooltip only appears once per user
-- [ ] Typecheck/lint passes
+- [x] Tooltip appears when first story image is being generated or appears
+- [x] Tooltip text: "AI creates illustrations matching your grade level!"
+- [x] Tooltip dismisses on tap or after 5 seconds
+- [x] Tooltip only appears once per user
+- [x] Typecheck/lint passes
+
+**Implementation Notes (Completed Feb 2026):**
+
+- Reused existing `FeatureTooltip` component (from US-016) with `icon="🎨"` and `position="bottom"`
+- Extended `src/services/onboardingMilestoneTracker.ts` with tooltip tracking methods (already implemented in US-013):
+  - `shouldShowImageGenerationTooltip()` - Check if tooltip should display
+  - `markImageGenerationTooltipShown()` - Mark as shown after dismissal
+- Integrated into `src/screens/HomeScreen.tsx`:
+  - Added state: `showImageGenerationTooltip`, `imageGenerationLayout`
+  - Added ref: `imageGenerationContainerRef` attached to image generation modal container
+  - Added `useEffect` watching `showImageGeneration` state to trigger tooltip check
+  - Uses `measureInWindow()` for accurate tooltip positioning relative to image generation container
+  - Tooltip appears when image generation modal opens for the first time
+- Dismissal behavior:
+  - Auto-dismiss after 5 seconds (configurable via `autoHideDelay` prop)
+  - Manual dismiss by tapping tooltip
+  - Calls `markImageGenerationTooltipShown()` on dismiss to prevent re-showing
+- Full accessibility support inherited from `FeatureTooltip` component
 
 ---
 
