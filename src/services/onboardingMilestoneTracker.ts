@@ -17,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const STORAGE_PREFIX = '@CreativeBridge:onboarding:';
 const MILESTONES_KEY = `${STORAGE_PREFIX}milestones`;
 const CHECKLIST_DISMISSED_KEY = `${STORAGE_PREFIX}checklistDismissed`;
+const FIRST_STORY_GUIDANCE_KEY = `${STORAGE_PREFIX}firstStoryGuidanceShown`;
 
 export interface OnboardingMilestones {
   firstStoryCompletedAt?: string; // ISO timestamp
@@ -322,12 +323,49 @@ class OnboardingMilestoneTracker {
   }
 
   /**
+   * Check if first story guidance modal has been shown (US-012)
+   * Returns true if guidance should NOT be shown (already shown or dismissed)
+   */
+  async hasFirstStoryGuidanceBeenShown(): Promise<boolean> {
+    try {
+      const shown = await AsyncStorage.getItem(FIRST_STORY_GUIDANCE_KEY);
+      return shown === 'true';
+    } catch (error) {
+      console.error('❌ Error checking first story guidance state:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check if first story guidance should be shown (US-012)
+   * Returns true if user has never seen the guidance modal
+   */
+  async shouldShowFirstStoryGuidance(): Promise<boolean> {
+    const hasBeenShown = await this.hasFirstStoryGuidanceBeenShown();
+    return !hasBeenShown;
+  }
+
+  /**
+   * Mark the first story guidance as shown (US-012)
+   * Call this after user sees or dismisses the guidance modal
+   */
+  async markFirstStoryGuidanceShown(): Promise<void> {
+    try {
+      await AsyncStorage.setItem(FIRST_STORY_GUIDANCE_KEY, 'true');
+      console.log('📚 First story guidance marked as shown.');
+    } catch (error) {
+      console.error('❌ Error marking first story guidance as shown:', error);
+    }
+  }
+
+  /**
    * Clear all milestones (for testing or account reset)
    */
   async clearMilestones(): Promise<void> {
     this.cachedMilestones = null;
     await AsyncStorage.removeItem(MILESTONES_KEY);
     await AsyncStorage.removeItem(CHECKLIST_DISMISSED_KEY);
+    await AsyncStorage.removeItem(FIRST_STORY_GUIDANCE_KEY);
     console.log('🧹 Onboarding milestones cleared.');
   }
 

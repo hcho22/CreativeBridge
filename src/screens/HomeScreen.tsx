@@ -50,7 +50,10 @@ import RNFS, { rnfsWrapper } from '../utils/rnfsWrapper';
 import { VoiceInput } from '../components/common/VoiceInput';
 import Share from '../utils/shareWrapper';
 import { CelebrationModal } from '../components/common/CelebrationModal';
-import { OnboardingChecklist } from '../components/onboarding/OnboardingChecklist';
+import {
+  OnboardingChecklist,
+  FirstStoryGuidanceModal,
+} from '../components/onboarding';
 import { onboardingMilestoneTracker } from '../services/onboardingMilestoneTracker';
 
 type HomeScreenNavigationProp = BottomTabNavigationProp<TabParamList, 'Home'>;
@@ -75,7 +78,7 @@ interface GenerationError {
 }
 
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
-  const { userProfile, user, refreshProfile } = useAuth();
+  const { userProfile, user, refreshProfile, awardOnboardingXP } = useAuth();
   const { clerkAuth } = useSafeClerkAuth();
   const route = useRoute<RouteProp<HomeStackParamList, 'Home'>>();
 
@@ -163,6 +166,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [showOnboardingChecklist, setShowOnboardingChecklist] = useState(false);
   const [checklistKey, setChecklistKey] = useState(0); // Force re-render on milestone updates
 
+  // First story guidance modal state (US-012)
+  const [showFirstStoryGuidance, setShowFirstStoryGuidance] = useState(false);
+  const [dontShowGuidanceAgain, setDontShowGuidanceAgain] = useState(false);
+  // Store the pending action to execute after guidance is dismissed
+  const pendingStoryActionRef = useRef<(() => void) | null>(null);
+
   // Use the user's preferred grade level from their profile, or default to K-2
   const gradeLevel: GradeLevel =
     (userProfile?.preferred_grade_level as GradeLevel) || 'K-2';
@@ -191,6 +200,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
         if (shouldShowCelebration) {
           console.log('🔥 [US-006] Showing first streak celebration!');
+          // Award XP for first streak achievement (US-010)
+          const xpResult = await awardOnboardingXP('first_streak');
+          if (xpResult.success) {
+            console.log(
+              `🎁 [US-010] Awarded ${xpResult.xpAwarded} XP for first streak!`,
+            );
+          }
           setShowFirstStreakCelebration(true);
         }
       }
@@ -667,27 +683,48 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   // IMPORTANT: Voice recognition libraries send CUMULATIVE partial results
   // (e.g., "The" → "The force" → "The force seemed"), NOT incremental changes.
   // We must REPLACE the text during an active voice session to avoid duplication.
-  const handleVoiceResult = useCallback((text: string) => {
-    console.log('🎤 handleVoiceResult called with text:', text);
-    // Handle empty transcriptions gracefully
-    if (!text || !text.trim()) {
-      console.log('⚠️ Empty transcription received, ignoring');
-      return;
-    }
+  const handleVoiceResult = useCallback(
+    async (text: string) => {
+      console.log('🎤 handleVoiceResult called with text:', text);
+      // Handle empty transcriptions gracefully
+      if (!text || !text.trim()) {
+        console.log('⚠️ Empty transcription received, ignoring');
+        return;
+      }
 
-    // Clean transcribed text: trim whitespace and normalize
-    const cleanedText = text.trim().replace(/\s+/g, ' '); // Normalize multiple spaces to single space
-    console.log('✅ Cleaned text:', cleanedText);
+      // Clean transcribed text: trim whitespace and normalize
+      const cleanedText = text.trim().replace(/\s+/g, ' '); // Normalize multiple spaces to single space
+      console.log('✅ Cleaned text:', cleanedText);
 
-    // REPLACE the text instead of appending
-    // Voice recognition sends cumulative results (the entire transcription so far),
-    // not just the new words. Appending would cause duplication like:
-    // "The" + " The force" + " The force seemed" = "The The force The force seemed"
-    //
-    // Instead, we simply replace the entire input with the latest transcription
-    console.log('✅ Setting voice text:', cleanedText);
-    setUserInput(cleanedText);
-  }, []);
+      // REPLACE the text instead of appending
+      // Voice recognition sends cumulative results (the entire transcription so far),
+      // not just the new words. Appending would cause duplication like:
+      // "The" + " The force" + " The force seemed" = "The The force The force seemed"
+      //
+      // Instead, we simply replace the entire input with the latest transcription
+      console.log('✅ Setting voice text:', cleanedText);
+      setUserInput(cleanedText);
+
+      // Track first voice input for onboarding milestone (US-010, US-011)
+      try {
+        const isFirst =
+          await onboardingMilestoneTracker.markFirstVoiceInputUsed();
+        if (isFirst) {
+          console.log('🎤 First voice input used! Awarding XP.');
+          // Award XP for first voice input (US-010)
+          const xpResult = await awardOnboardingXP('first_voice');
+          if (xpResult.success) {
+            console.log(
+              `🎁 [US-010] Awarded ${xpResult.xpAwarded} XP for first voice input!`,
+            );
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error tracking first voice input milestone:', error);
+      }
+    },
+    [awardOnboardingXP],
+  );
 
   // Voice input error handler
   const handleVoiceError = useCallback((error: string) => {
@@ -1115,29 +1152,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     }
   };
 
-  const handleStartNewGame = async () => {
-    if (!isAuthenticated || !effectiveUserId) {
-      Alert.alert('Error', 'Please log in to start a story');
-      return;
-    }
-
-    // Check if effectiveUserId is a valid UUID for database operations
-    // Clerk user IDs start with "user_" and are not valid UUIDs for Supabase
-    const isClerkUserId = effectiveUserId.startsWith('user_');
-    if (isClerkUserId && !userProfile?.id) {
-      Alert.alert(
-        'Profile Setup Required',
-        'Please complete your profile setup before starting a story. This ensures your progress is properly saved.',
-        [
-          {
-            text: 'Complete Profile',
-            onPress: () => navigation.navigate('Profile'),
-          },
-        ],
-      );
-      return;
-    }
-
+  // Core story creation logic - extracted for reuse after guidance modal (US-012)
+  const executeStartNewGame = async () => {
     try {
       // Clear any previous errors and reset image state
       setGenerationError(null);
@@ -1228,7 +1244,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           { text: 'Cancel', style: 'cancel' },
           {
             text: 'Retry',
-            onPress: () => setTimeout(handleStartNewGame, 1000),
+            onPress: () => setTimeout(executeStartNewGame, 1000),
           },
         ]);
       } else {
@@ -1243,6 +1259,50 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         currentTask: '',
       }));
     }
+  };
+
+  // Wrapper function that shows first story guidance modal if needed (US-012)
+  const handleStartNewGame = async () => {
+    if (!isAuthenticated || !effectiveUserId) {
+      Alert.alert('Error', 'Please log in to start a story');
+      return;
+    }
+
+    // Check if effectiveUserId is a valid UUID for database operations
+    // Clerk user IDs start with "user_" and are not valid UUIDs for Supabase
+    const isClerkUserId = effectiveUserId.startsWith('user_');
+    if (isClerkUserId && !userProfile?.id) {
+      Alert.alert(
+        'Profile Setup Required',
+        'Please complete your profile setup before starting a story. This ensures your progress is properly saved.',
+        [
+          {
+            text: 'Complete Profile',
+            onPress: () => navigation.navigate('Profile'),
+          },
+        ],
+      );
+      return;
+    }
+
+    // Check if first story guidance should be shown (US-012)
+    try {
+      const shouldShowGuidance =
+        await onboardingMilestoneTracker.shouldShowFirstStoryGuidance();
+
+      if (shouldShowGuidance) {
+        // Store the action to execute after guidance is dismissed
+        pendingStoryActionRef.current = executeStartNewGame;
+        setShowFirstStoryGuidance(true);
+        return;
+      }
+    } catch (error) {
+      console.error('❌ Error checking first story guidance:', error);
+      // Continue with story creation on error
+    }
+
+    // No guidance needed, proceed directly
+    executeStartNewGame();
   };
 
   const generateFallbackStarter = async (): Promise<string> => {
@@ -1408,8 +1468,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               await onboardingMilestoneTracker.markFirstStoryCompleted();
 
             if (shouldShowCelebration) {
-              // Store XP earned for celebration modal
-              setFirstStoryXpEarned(updatedSession.xp_earned || 0);
+              // Award XP for first story completion (US-010)
+              const xpResult = await awardOnboardingXP('first_story');
+              if (xpResult.success) {
+                console.log(
+                  `🎁 [US-010] Awarded ${xpResult.xpAwarded} XP for first story!`,
+                );
+              }
+              // Store XP earned for celebration modal (story XP + onboarding bonus)
+              const totalXpEarned =
+                (updatedSession.xp_earned || 0) + (xpResult.xpAwarded || 0);
+              setFirstStoryXpEarned(totalXpEarned);
 
               // Show first story celebration before completion options
               setTimeout(() => {
@@ -1664,6 +1733,35 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     setShowFirstStreakCelebration(false);
   }, []);
 
+  // Handler for first story guidance modal close (US-012)
+  const handleFirstStoryGuidanceClose = useCallback(async () => {
+    // If "don't show again" was checked, mark as permanently shown
+    if (dontShowGuidanceAgain) {
+      await onboardingMilestoneTracker.markFirstStoryGuidanceShown();
+    }
+    setShowFirstStoryGuidance(false);
+    pendingStoryActionRef.current = null;
+  }, [dontShowGuidanceAgain]);
+
+  // Handler for "Let's Go!" button in first story guidance modal (US-012)
+  const handleFirstStoryGuidanceProceed = useCallback(async () => {
+    // Always mark guidance as shown when user proceeds
+    await onboardingMilestoneTracker.markFirstStoryGuidanceShown();
+    setShowFirstStoryGuidance(false);
+
+    // Execute the pending story creation action
+    if (pendingStoryActionRef.current) {
+      const action = pendingStoryActionRef.current;
+      pendingStoryActionRef.current = null;
+      action();
+    }
+  }, []);
+
+  // Handler for "Don't show again" toggle change (US-012)
+  const handleDontShowGuidanceAgainChange = useCallback((value: boolean) => {
+    setDontShowGuidanceAgain(value);
+  }, []);
+
   const handleImageGenerated = useCallback(
     async (imageUrl: string) => {
       console.log('✅ [DEBUG] handleImageGenerated called with URL:', imageUrl);
@@ -1699,6 +1797,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           await onboardingMilestoneTracker.markFirstImageGenerated();
         if (shouldShowCelebration) {
           console.log('🎨 First image generated! Showing celebration modal.');
+          // Award XP for first image generation (US-010)
+          const xpResult = await awardOnboardingXP('first_image');
+          if (xpResult.success) {
+            console.log(
+              `🎁 [US-010] Awarded ${xpResult.xpAwarded} XP for first image!`,
+            );
+          }
           setShowFirstImageCelebration(true);
         }
       } catch (error) {
@@ -2776,6 +2881,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           ctaText="View My Illustration"
           onClose={handleFirstImageCelebrationClose}
           onCtaPress={handleFirstImageCelebrationCta}
+          secondaryMessage="+25 XP earned!"
         />
 
         {/* First Streak Achievement Celebration Modal (US-006) */}
@@ -2788,6 +2894,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           onClose={handleFirstStreakCelebrationClose}
           onCtaPress={handleFirstStreakCelebrationCta}
           secondaryMessage="+50 Bonus XP for your streak!"
+        />
+
+        {/* First Story Guidance Modal (US-012) */}
+        <FirstStoryGuidanceModal
+          visible={showFirstStoryGuidance}
+          onClose={handleFirstStoryGuidanceClose}
+          onProceed={handleFirstStoryGuidanceProceed}
+          showDontShowAgain={true}
+          onDontShowAgainChange={handleDontShowGuidanceAgainChange}
         />
 
         {/* Story Completion Options Screen - Full Screen Overlay */}

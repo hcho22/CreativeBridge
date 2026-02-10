@@ -7,3 +7,6 @@
 
 export { OnboardingChecklist } from './OnboardingChecklist';
 export type { OnboardingChecklistProps } from './OnboardingChecklist';
+
+export { FirstStoryGuidanceModal } from './FirstStoryGuidanceModal';
+export type { FirstStoryGuidanceModalProps } from './FirstStoryGuidanceModal';

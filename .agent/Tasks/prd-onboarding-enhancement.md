@@ -296,16 +296,33 @@ Enhance the CreativeBridge onboarding experience to increase activation rates, i
 
 **Acceptance Criteria:**
 
-- [ ] Modal appears before/when user starts their very first story
-- [ ] Modal explains the collaborative AI storytelling concept in 3-4 bullet points:
+- [x] Modal appears before/when user starts their very first story
+- [x] Modal explains the collaborative AI storytelling concept in 3-4 bullet points:
   - "You'll write a story together with AI"
   - "The AI will continue your story and create illustrations"
   - "Complete 5 rounds to finish your story"
   - "Earn XP and level up as you write!"
-- [ ] Modal has "Got it!" or "Let's go!" CTA button
-- [ ] Modal only appears once (first story attempt)
-- [ ] User can optionally check "Don't show again" if they dismiss early
-- [ ] Typecheck/lint passes
+- [x] Modal has "Got it!" or "Let's go!" CTA button
+- [x] Modal only appears once (first story attempt)
+- [x] User can optionally check "Don't show again" if they dismiss early
+- [x] Typecheck/lint passes
+
+**Implementation Notes (Completed Feb 2026):**
+
+- Created `src/components/onboarding/FirstStoryGuidanceModal.tsx` following CelebrationModal patterns
+- Uses animated entrance (spring scale + opacity fade) for engaging appearance
+- Features 4 guidance bullet points with emoji icons in styled cards
+- Includes "Don't show again" toggle switch for user preference
+- Integrated into `src/screens/HomeScreen.tsx`:
+  - Wraps `handleStartNewGame` to check `shouldShowFirstStoryGuidance()` before starting
+  - Uses `pendingStoryActionRef` pattern to defer story creation until after modal is dismissed
+  - When user clicks "Let's Go!", proceeds to `executeStartNewGame()` automatically
+- Extended `src/services/onboardingMilestoneTracker.ts` with new methods:
+  - `hasFirstStoryGuidanceBeenShown()` - Check if guidance was previously shown
+  - `shouldShowFirstStoryGuidance()` - Returns true if modal should display
+  - `markFirstStoryGuidanceShown()` - Persists shown state to AsyncStorage
+- Exported via `src/components/onboarding/index.ts` for clean imports
+- Full accessibility support with proper labels and hints
 
 ---
 
