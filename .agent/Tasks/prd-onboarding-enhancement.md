@@ -398,11 +398,29 @@ Enhance the CreativeBridge onboarding experience to increase activation rates, i
 
 **Acceptance Criteria:**
 
-- [ ] Tooltip appears near XP indicator or challenge display on first story
-- [ ] Tooltip text: "Complete challenges for bonus XP and level up!"
-- [ ] Tooltip dismisses on tap or after 5 seconds
-- [ ] Tooltip only appears once per user
-- [ ] Typecheck/lint passes
+- [x] Tooltip appears near XP indicator or challenge display on first story
+- [x] Tooltip text: "Complete challenges for bonus XP and level up!"
+- [x] Tooltip dismisses on tap or after 5 seconds
+- [x] Tooltip only appears once per user
+- [x] Typecheck/lint passes
+
+**Implementation Notes (Completed Feb 2026):**
+
+- Reused existing `FeatureTooltip` component (from US-016) with `icon="🏆"` and `position="bottom"`
+- Extended `src/services/onboardingMilestoneTracker.ts` tooltip tracking methods (already implemented in US-013):
+  - `shouldShowXpChallengesTooltip()` - Check if tooltip should display
+  - `markXpChallengesTooltipShown()` - Mark as shown after dismissal
+- Integrated into `src/screens/HomeScreen.tsx`:
+  - Added state: `showXpChallengesTooltip`, `challengeDisplayLayout`
+  - Added ref: `challengeDisplayContainerRef` attached to ChallengeDisplay wrapper
+  - Added `useEffect` watching `isGameActive` and `currentChallenge` to trigger tooltip check
+  - Uses `measureInWindow()` for accurate tooltip positioning relative to challenge display
+  - Tooltip appears when game becomes active with a challenge displayed (first story experience)
+- Dismissal behavior:
+  - Auto-dismiss after 5 seconds (configurable via `autoHideDelay` prop)
+  - Manual dismiss by tapping tooltip
+  - Calls `markXpChallengesTooltipShown()` on dismiss to prevent re-showing
+- Full accessibility support inherited from `FeatureTooltip` component
 
 ---
 
