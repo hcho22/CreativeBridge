@@ -459,13 +459,32 @@ Enhance the CreativeBridge onboarding experience to increase activation rates, i
 
 **Acceptance Criteria:**
 
-- [ ] Empty state includes a preview/mockup of what a story looks like
-- [ ] Shows sample story card with illustration thumbnail
-- [ ] Includes brief tagline: "Create magical stories with AI"
-- [ ] Primary CTA "Start Your First Story" is prominent
-- [ ] Optional "See how it works" link/button for guidance modal
-- [ ] Design is visually engaging, not plain
-- [ ] Typecheck/lint passes
+- [x] Empty state includes a preview/mockup of what a story looks like
+- [x] Shows sample story card with illustration thumbnail
+- [x] Includes brief tagline: "Create magical stories with AI"
+- [x] Primary CTA "Start Your First Story" is prominent
+- [x] Optional "See how it works" link/button for guidance modal
+- [x] Design is visually engaging, not plain
+- [x] Typecheck/lint passes
+
+**Implementation Notes (Completed Feb 2026):**
+
+- Created `src/components/onboarding/EnhancedEmptyState.tsx` with the following features:
+  - **Sample Story Card**: Floating animated mockup showing "The Magic Garden" with shimmer effect on illustration placeholder
+  - **Header Section**: Large 📚 emoji, tagline "Create magical stories with AI", personalized subtitle with user's name
+  - **Feature Highlights**: Three pill badges showcasing key features (AI story continuation, illustrations, XP system)
+  - **Animated Visuals**: Spring entrance animation, floating card animation (8px vertical oscillation), shimmer effect on image placeholder
+  - **Primary CTA**: Prominent red "🎮 Start Your First Story" button matching existing design
+  - **Secondary CTA**: "💡 See how it works" link that opens FirstStoryGuidanceModal (US-012)
+- Integrated into `src/screens/HomeScreen.tsx`:
+  - Added `isNewUser` state tracked via `onboardingMilestoneTracker.getMilestoneProgress()`
+  - Empty state displays when user hasn't completed first story (`!progress.storiesCompleted`)
+  - State automatically updates when first story celebration triggers
+  - OnboardingChecklist (US-009) positioned below empty state with `initiallyCollapsed={true}`
+  - Created `handleSeeHowItWorks()` handler to open guidance modal from empty state
+- Exported via `src/components/onboarding/index.ts` for clean imports
+- Uses theme constants throughout for consistent styling
+- Full accessibility support with proper labels and hints
 
 ---
 

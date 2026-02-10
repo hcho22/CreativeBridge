@@ -10,3 +10,6 @@ export type { OnboardingChecklistProps } from './OnboardingChecklist';
 
 export { FirstStoryGuidanceModal } from './FirstStoryGuidanceModal';
 export type { FirstStoryGuidanceModalProps } from './FirstStoryGuidanceModal';
+
+export { EnhancedEmptyState } from './EnhancedEmptyState';
+export type { EnhancedEmptyStateProps } from './EnhancedEmptyState';

@@ -54,6 +54,7 @@ import { FeatureTooltip } from '../components/common/FeatureTooltip';
 import {
   OnboardingChecklist,
   FirstStoryGuidanceModal,
+  EnhancedEmptyState,
 } from '../components/onboarding';
 import { onboardingMilestoneTracker } from '../services/onboardingMilestoneTracker';
 
@@ -204,6 +205,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   } | null>(null);
   const challengeDisplayContainerRef = useRef<View>(null);
 
+  // Enhanced empty state for new users (US-017)
+  const [isNewUser, setIsNewUser] = useState(false);
+
   // Use the user's preferred grade level from their profile, or default to K-2
   const gradeLevel: GradeLevel =
     (userProfile?.preferred_grade_level as GradeLevel) || 'K-2';
@@ -264,6 +268,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         if (onboardingCompleted === true) {
           // User has completed all onboarding tasks - auto-hide checklist
           setShowOnboardingChecklist(false);
+          setIsNewUser(false); // US-017: Not a new user if onboarding completed
           return;
         }
 
@@ -273,10 +278,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
         // Show checklist if not completed AND not dismissed
         setShowOnboardingChecklist(!isDismissed);
+
+        // US-017: Check if user is "new" (hasn't completed first story yet)
+        // This determines whether to show the enhanced empty state
+        const progress =
+          await onboardingMilestoneTracker.getMilestoneProgress();
+        setIsNewUser(!progress.storiesCompleted);
       } catch (error) {
         console.error('❌ Error loading checklist visibility:', error);
         // Default to showing checklist on error (better UX for new users)
         setShowOnboardingChecklist(true);
+        setIsNewUser(true); // Assume new user on error
       }
     };
 
@@ -297,12 +309,21 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       if (isComplete) {
         // All milestones done - hide the checklist
         setShowOnboardingChecklist(false);
+        setIsNewUser(false); // US-017: No longer a new user
         console.log(
           '📋 [US-009] All onboarding milestones complete, hiding checklist',
         );
       } else {
         // Force re-render of checklist to show updated progress
         setChecklistKey(prev => prev + 1);
+      }
+
+      // US-017: Update new user status when first story celebration shows
+      if (showFirstStoryCelebration) {
+        setIsNewUser(false);
+        console.log(
+          '📚 [US-017] First story completed, hiding enhanced empty state',
+        );
       }
     };
 
@@ -3299,84 +3320,123 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     );
   }
 
+  // Handler for "See how it works" button in EnhancedEmptyState (US-017)
+  const handleSeeHowItWorks = () => {
+    setShowFirstStoryGuidance(true);
+    console.log('📚 [US-017] Opening guidance modal from enhanced empty state');
+  };
+
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
     >
       <View style={styles.homeContainer}>
-        {/* Welcome Section */}
-        <View style={styles.welcomeSection}>
-          <Text style={styles.welcomeTitle}>
-            Welcome back, {userProfile?.display_name || 'Writer'}!
-          </Text>
-          <Text style={styles.welcomeSubtitle}>
-            Ready to create amazing stories?
-          </Text>
-        </View>
+        {/* US-017: Enhanced Empty State for new users */}
+        {isNewUser ? (
+          <>
+            <EnhancedEmptyState
+              userName={userProfile?.display_name}
+              onStartFirstStory={handleStartNewGame}
+              onSeeHowItWorks={handleSeeHowItWorks}
+              isLoading={loadingState.isGenerating}
+            />
 
-        {/* Onboarding Checklist (US-009) */}
-        {showOnboardingChecklist && (
-          <OnboardingChecklist
-            key={checklistKey}
-            onDismiss={async () => {
-              await onboardingMilestoneTracker.dismissChecklist();
-              setShowOnboardingChecklist(false);
-              console.log('📋 [US-009] Onboarding checklist dismissed by user');
-            }}
-            initiallyCollapsed={false}
-          />
-        )}
-
-        {/* Story Action Buttons */}
-        <View style={styles.startSection}>
-          <TouchableOpacity
-            style={[
-              styles.startButton,
-              loadingState.isGenerating && styles.disabledButton,
-            ]}
-            onPress={handleStartNewGame}
-            disabled={loadingState.isGenerating}
-          >
-            {loadingState.isGenerating ? (
-              <View style={styles.loadingButtonContent}>
-                <Animated.View
-                  style={{
-                    transform: [
-                      {
-                        rotate: spinValue.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: ['0deg', '360deg'],
-                        }),
-                      },
-                    ],
+            {/* Onboarding Checklist below empty state (US-009) */}
+            {showOnboardingChecklist && (
+              <View style={styles.checklistBelowEmptyState}>
+                <OnboardingChecklist
+                  key={checklistKey}
+                  onDismiss={async () => {
+                    await onboardingMilestoneTracker.dismissChecklist();
+                    setShowOnboardingChecklist(false);
+                    console.log(
+                      '📋 [US-009] Onboarding checklist dismissed by user',
+                    );
                   }}
-                >
-                  <Text style={styles.loadingSpinnerButton}>✨</Text>
-                </Animated.View>
-                <Text
-                  style={[styles.startButtonText, styles.loadingButtonText]}
-                >
-                  {loadingState.currentTask || 'Creating Story...'}
-                </Text>
+                  initiallyCollapsed={true}
+                />
               </View>
-            ) : (
-              <Text style={styles.startButtonText}>🎮 Start New Story</Text>
             )}
-          </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            {/* Welcome Section - for returning users */}
+            <View style={styles.welcomeSection}>
+              <Text style={styles.welcomeTitle}>
+                Welcome back, {userProfile?.display_name || 'Writer'}!
+              </Text>
+              <Text style={styles.welcomeSubtitle}>
+                Ready to create amazing stories?
+              </Text>
+            </View>
 
-          {/* Continue Story Button */}
-          <TouchableOpacity
-            style={[
-              styles.continueButton,
-              loadingState.isGenerating && styles.disabledButton,
-            ]}
-            onPress={handleContinueStoryOption}
-            disabled={loadingState.isGenerating}
-          >
-            <Text style={styles.continueButtonText}>📖 Continue Story</Text>
-          </TouchableOpacity>
-        </View>
+            {/* Onboarding Checklist (US-009) */}
+            {showOnboardingChecklist && (
+              <OnboardingChecklist
+                key={checklistKey}
+                onDismiss={async () => {
+                  await onboardingMilestoneTracker.dismissChecklist();
+                  setShowOnboardingChecklist(false);
+                  console.log(
+                    '📋 [US-009] Onboarding checklist dismissed by user',
+                  );
+                }}
+                initiallyCollapsed={false}
+              />
+            )}
+
+            {/* Story Action Buttons */}
+            <View style={styles.startSection}>
+              <TouchableOpacity
+                style={[
+                  styles.startButton,
+                  loadingState.isGenerating && styles.disabledButton,
+                ]}
+                onPress={handleStartNewGame}
+                disabled={loadingState.isGenerating}
+              >
+                {loadingState.isGenerating ? (
+                  <View style={styles.loadingButtonContent}>
+                    <Animated.View
+                      style={{
+                        transform: [
+                          {
+                            rotate: spinValue.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: ['0deg', '360deg'],
+                            }),
+                          },
+                        ],
+                      }}
+                    >
+                      <Text style={styles.loadingSpinnerButton}>✨</Text>
+                    </Animated.View>
+                    <Text
+                      style={[styles.startButtonText, styles.loadingButtonText]}
+                    >
+                      {loadingState.currentTask || 'Creating Story...'}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={styles.startButtonText}>🎮 Start New Story</Text>
+                )}
+              </TouchableOpacity>
+
+              {/* Continue Story Button */}
+              <TouchableOpacity
+                style={[
+                  styles.continueButton,
+                  loadingState.isGenerating && styles.disabledButton,
+                ]}
+                onPress={handleContinueStoryOption}
+                disabled={loadingState.isGenerating}
+              >
+                <Text style={styles.continueButtonText}>📖 Continue Story</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
       </View>
     </ScrollView>
   );
@@ -3430,6 +3490,12 @@ const styles = StyleSheet.create({
   welcomeSection: {
     marginBottom: 60,
     alignItems: 'center',
+  },
+  // US-017: Checklist container when shown below enhanced empty state
+  checklistBelowEmptyState: {
+    width: '100%',
+    marginTop: 8,
+    marginBottom: 24,
   },
   welcomeTitle: {
     fontSize: 24,
