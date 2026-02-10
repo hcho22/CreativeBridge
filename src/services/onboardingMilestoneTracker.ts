@@ -16,6 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Storage keys for milestone tracking
 const STORAGE_PREFIX = '@CreativeBridge:onboarding:';
 const MILESTONES_KEY = `${STORAGE_PREFIX}milestones`;
+const CHECKLIST_DISMISSED_KEY = `${STORAGE_PREFIX}checklistDismissed`;
 
 export interface OnboardingMilestones {
   firstStoryCompletedAt?: string; // ISO timestamp
@@ -273,11 +274,60 @@ class OnboardingMilestoneTracker {
   }
 
   /**
+   * Check if the onboarding checklist has been dismissed (US-009)
+   */
+  async isChecklistDismissed(): Promise<boolean> {
+    try {
+      const dismissed = await AsyncStorage.getItem(CHECKLIST_DISMISSED_KEY);
+      return dismissed === 'true';
+    } catch (error) {
+      console.error('❌ Error checking checklist dismissed state:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Mark the onboarding checklist as dismissed (US-009)
+   * User can re-access from Settings/Profile screen
+   */
+  async dismissChecklist(): Promise<void> {
+    try {
+      await AsyncStorage.setItem(CHECKLIST_DISMISSED_KEY, 'true');
+      console.log('📋 Onboarding checklist dismissed.');
+    } catch (error) {
+      console.error('❌ Error dismissing checklist:', error);
+    }
+  }
+
+  /**
+   * Reset checklist dismissed state (for re-showing from Settings/Profile)
+   */
+  async resetChecklistDismissed(): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(CHECKLIST_DISMISSED_KEY);
+      console.log('📋 Onboarding checklist dismissed state reset.');
+    } catch (error) {
+      console.error('❌ Error resetting checklist dismissed state:', error);
+    }
+  }
+
+  /**
+   * Check if onboarding is fully completed (all milestones done)
+   */
+  async isOnboardingComplete(): Promise<boolean> {
+    const progress = await this.getMilestoneProgress();
+    // Account creation + 4 milestones = 5 total
+    // Account is always done, so check if all 4 trackable milestones are complete
+    return progress.totalCompleted >= progress.totalMilestones;
+  }
+
+  /**
    * Clear all milestones (for testing or account reset)
    */
   async clearMilestones(): Promise<void> {
     this.cachedMilestones = null;
     await AsyncStorage.removeItem(MILESTONES_KEY);
+    await AsyncStorage.removeItem(CHECKLIST_DISMISSED_KEY);
     console.log('🧹 Onboarding milestones cleared.');
   }
 

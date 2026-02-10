@@ -50,6 +50,7 @@ import RNFS, { rnfsWrapper } from '../utils/rnfsWrapper';
 import { VoiceInput } from '../components/common/VoiceInput';
 import Share from '../utils/shareWrapper';
 import { CelebrationModal } from '../components/common/CelebrationModal';
+import { OnboardingChecklist } from '../components/onboarding/OnboardingChecklist';
 import { onboardingMilestoneTracker } from '../services/onboardingMilestoneTracker';
 
 type HomeScreenNavigationProp = BottomTabNavigationProp<TabParamList, 'Home'>;
@@ -158,6 +159,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   // Track the previous streak to detect when it changes to 2+
   const previousStreakRef = useRef<number | null>(null);
 
+  // Onboarding checklist state (US-009)
+  const [showOnboardingChecklist, setShowOnboardingChecklist] = useState(false);
+  const [checklistKey, setChecklistKey] = useState(0); // Force re-render on milestone updates
+
   // Use the user's preferred grade level from their profile, or default to K-2
   const gradeLevel: GradeLevel =
     (userProfile?.preferred_grade_level as GradeLevel) || 'K-2';
@@ -198,6 +203,74 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
     checkFirstStreakAchievement();
   }, [userProfile?.current_streak]);
+
+  // Load onboarding checklist visibility state (US-009)
+  // Checklist shows if: not completed AND not dismissed
+  const onboardingCompleted = userProfile?.onboarding_completed;
+  const hasUserProfile = !!userProfile;
+
+  useEffect(() => {
+    const loadChecklistVisibility = async () => {
+      try {
+        // Check if user has completed onboarding (database field from US-007)
+        if (onboardingCompleted === true) {
+          // User has completed all onboarding tasks - auto-hide checklist
+          setShowOnboardingChecklist(false);
+          return;
+        }
+
+        // Check if user has dismissed the checklist this session
+        const isDismissed =
+          await onboardingMilestoneTracker.isChecklistDismissed();
+
+        // Show checklist if not completed AND not dismissed
+        setShowOnboardingChecklist(!isDismissed);
+      } catch (error) {
+        console.error('❌ Error loading checklist visibility:', error);
+        // Default to showing checklist on error (better UX for new users)
+        setShowOnboardingChecklist(true);
+      }
+    };
+
+    // Only check when we have user profile loaded
+    if (hasUserProfile) {
+      loadChecklistVisibility();
+    }
+  }, [onboardingCompleted, hasUserProfile]);
+
+  // Refresh checklist when milestones are completed (US-009)
+  // This ensures the checklist updates when user completes a task
+  useEffect(() => {
+    const refreshChecklistOnMilestone = async () => {
+      // Check if onboarding is now complete after a milestone
+      const isComplete =
+        await onboardingMilestoneTracker.isOnboardingComplete();
+
+      if (isComplete) {
+        // All milestones done - hide the checklist
+        setShowOnboardingChecklist(false);
+        console.log(
+          '📋 [US-009] All onboarding milestones complete, hiding checklist',
+        );
+      } else {
+        // Force re-render of checklist to show updated progress
+        setChecklistKey(prev => prev + 1);
+      }
+    };
+
+    // Trigger refresh when any celebration is shown (indicates milestone completed)
+    if (
+      showFirstStoryCelebration ||
+      showFirstImageCelebration ||
+      showFirstStreakCelebration
+    ) {
+      refreshChecklistOnMilestone();
+    }
+  }, [
+    showFirstStoryCelebration,
+    showFirstImageCelebration,
+    showFirstStreakCelebration,
+  ]);
 
   // Control header visibility based on game state
   useLayoutEffect(() => {
@@ -2887,6 +2960,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             Ready to create amazing stories?
           </Text>
         </View>
+
+        {/* Onboarding Checklist (US-009) */}
+        {showOnboardingChecklist && (
+          <OnboardingChecklist
+            key={checklistKey}
+            onDismiss={async () => {
+              await onboardingMilestoneTracker.dismissChecklist();
+              setShowOnboardingChecklist(false);
+              console.log('📋 [US-009] Onboarding checklist dismissed by user');
+            }}
+            initiallyCollapsed={false}
+          />
+        )}
 
         {/* Story Action Buttons */}
         <View style={styles.startSection}>
