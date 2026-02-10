@@ -449,7 +449,7 @@ Enhance the CreativeBridge onboarding experience to increase activation rates, i
   - Dark background (`theme.colors.text`) with white text for high contrast
   - Includes "Tap to dismiss" hint text
   - Full accessibility support with labels and hints
-- Component reused by US-013 (voice input tooltip), ready for US-014 and US-015
+- Component reused by US-013 (voice input tooltip), US-014 (image generation tooltip), and US-015 (XP/challenges tooltip)
 
 ---
 

@@ -69,6 +69,18 @@ interface AuthContextType {
     amount: number,
     reason: string,
   ) => Promise<{ success: boolean; error?: string; newBalance?: number }>;
+  awardOnboardingXP: (
+    milestoneType:
+      | 'first_story'
+      | 'first_image'
+      | 'first_voice'
+      | 'first_streak',
+  ) => Promise<{
+    success: boolean;
+    error?: string;
+    newBalance?: number;
+    xpAwarded: number;
+  }>;
   validateXPBalance: (requiredAmount: number) => boolean;
   getXPBalanceInfo: (requiredAmount: number) => {
     hasEnoughXP: boolean;
@@ -2108,6 +2120,108 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   /**
+   * Award XP for completing onboarding milestones (US-010)
+   * Each milestone can only award XP once per user.
+   *
+   * XP Rewards:
+   * - first_story: +50 XP
+   * - first_image: +25 XP
+   * - first_voice: +25 XP
+   * - first_streak: +50 XP
+   */
+  const awardOnboardingXP = async (
+    milestoneType:
+      | 'first_story'
+      | 'first_image'
+      | 'first_voice'
+      | 'first_streak',
+  ): Promise<{
+    success: boolean;
+    error?: string;
+    newBalance?: number;
+    xpAwarded: number;
+  }> => {
+    // Define XP amounts for each milestone
+    const XP_REWARDS: Record<typeof milestoneType, number> = {
+      first_story: 50,
+      first_image: 25,
+      first_voice: 25,
+      first_streak: 50,
+    };
+
+    const xpAmount = XP_REWARDS[milestoneType];
+
+    if (!user || !userProfile) {
+      console.error('❌ Onboarding XP award failed: No user logged in');
+      return {
+        success: false,
+        error: 'No user logged in',
+        xpAwarded: 0,
+      };
+    }
+
+    try {
+      console.log('🎁 Awarding onboarding XP:', {
+        userId: user.id,
+        milestoneType,
+        xpAmount,
+        currentBalance: userProfile.total_xp,
+      });
+
+      // Use positive amount to add XP with the add_user_xp function
+      const { error } = await supabase.rpc('add_user_xp', {
+        user_uuid: user.id,
+        xp_to_add: xpAmount,
+        words_added: 0,
+      });
+
+      if (error) {
+        console.error('❌ Database onboarding XP award failed:', error);
+        return {
+          success: false,
+          error: `Database error: ${error.message}`,
+          xpAwarded: 0,
+        };
+      }
+
+      // Update local state immediately for better UX
+      const newBalance = (userProfile.total_xp || 0) + xpAmount;
+      const updatedProfile = {
+        ...userProfile,
+        total_xp: newBalance,
+      };
+      setUserProfile(updatedProfile);
+
+      console.log('✅ Onboarding XP award successful:', {
+        milestoneType,
+        previousBalance: userProfile.total_xp,
+        awardedAmount: xpAmount,
+        newBalance,
+      });
+
+      // Track the XP award event
+      await trackXPEvent({
+        type: 'refund', // Using 'refund' type as it's a positive XP change
+        amount: xpAmount,
+        reason: `Onboarding milestone: ${milestoneType}`,
+      });
+
+      return {
+        success: true,
+        newBalance,
+        xpAwarded: xpAmount,
+      };
+    } catch (error) {
+      console.error('💥 Onboarding XP award exception:', error);
+      return {
+        success: false,
+        error: 'An unexpected error occurred during onboarding XP award',
+        xpAwarded: 0,
+      };
+    }
+  };
+
+  /**
    * Check if profile completion is needed for OAuth users
    * This checks if:
    * 1. User is an OAuth user (has Clerk user ID)
@@ -2867,6 +2981,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     resetPassword,
     deductXP,
     refundXP,
+    awardOnboardingXP,
     validateXPBalance,
     getXPBalanceInfo,
     canGenerateImage,

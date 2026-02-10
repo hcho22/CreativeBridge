@@ -89,6 +89,7 @@ The `Tasks/` directory contains Product Requirements Documents (PRDs) and implem
 
 **Active PRDs**:
 
+- [**Onboarding Enhancement**](./Tasks/prd-onboarding-enhancement.md) - Comprehensive onboarding CRO improvements including checklist, celebrations, feature discovery tooltips, and XP rewards
 - [**Image Generation Watercolor Style Fix**](./Tasks/prd-image-generation-watercolor-style-fix.md) - Critical bug fix to enforce grade-appropriate art styles across all grade levels (K-2, 3-5, 6-8, 9-12)
 - [**Image Generation Quality Improvement**](./Tasks/prd-image-generation-quality-improvement.md) - LLM-based prompt generation for better story-to-image relevance
 - [**Story Agent Diversity**](./Tasks/prd-story-agent-diversity.md) - Multi-personality AI agents for varied storytelling experiences
