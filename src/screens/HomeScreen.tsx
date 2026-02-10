@@ -50,6 +50,7 @@ import RNFS, { rnfsWrapper } from '../utils/rnfsWrapper';
 import { VoiceInput } from '../components/common/VoiceInput';
 import Share from '../utils/shareWrapper';
 import { CelebrationModal } from '../components/common/CelebrationModal';
+import { FeatureTooltip } from '../components/common/FeatureTooltip';
 import {
   OnboardingChecklist,
   FirstStoryGuidanceModal,
@@ -172,6 +173,16 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   // Store the pending action to execute after guidance is dismissed
   const pendingStoryActionRef = useRef<(() => void) | null>(null);
 
+  // Voice input feature tooltip state (US-013)
+  const [showVoiceInputTooltip, setShowVoiceInputTooltip] = useState(false);
+  const [voiceButtonLayout, setVoiceButtonLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const voiceButtonContainerRef = useRef<View>(null);
+
   // Use the user's preferred grade level from their profile, or default to K-2
   const gradeLevel: GradeLevel =
     (userProfile?.preferred_grade_level as GradeLevel) || 'K-2';
@@ -287,6 +298,60 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     showFirstImageCelebration,
     showFirstStreakCelebration,
   ]);
+
+  // Show voice input tooltip when game becomes active (US-013)
+  // Tooltip appears near voice input button on first game with voice input enabled
+  useEffect(() => {
+    const checkVoiceInputTooltip = async () => {
+      // Only check when game becomes active and voice input is enabled
+      if (!isGameActive || !voiceInputEnabled) {
+        setShowVoiceInputTooltip(false);
+        return;
+      }
+
+      try {
+        // Check if tooltip should be shown (first time seeing voice input)
+        const shouldShow =
+          await onboardingMilestoneTracker.shouldShowVoiceInputTooltip();
+
+        if (shouldShow) {
+          // Small delay to ensure the voice button is rendered and measurable
+          setTimeout(() => {
+            // Measure voice button position for tooltip placement
+            if (voiceButtonContainerRef.current) {
+              voiceButtonContainerRef.current.measureInWindow(
+                (x, y, width, height) => {
+                  setVoiceButtonLayout({ x, y, width, height });
+                  setShowVoiceInputTooltip(true);
+                  console.log('💡 [US-013] Showing voice input tooltip');
+                },
+              );
+            } else {
+              // Fallback: show tooltip without precise positioning
+              setShowVoiceInputTooltip(true);
+              console.log(
+                '💡 [US-013] Showing voice input tooltip (no ref available)',
+              );
+            }
+          }, 500); // Wait for layout to stabilize
+        }
+      } catch (error) {
+        console.error('❌ Error checking voice input tooltip:', error);
+      }
+    };
+
+    checkVoiceInputTooltip();
+  }, [isGameActive, voiceInputEnabled]);
+
+  // Handle voice input tooltip dismissal (US-013)
+  const handleVoiceInputTooltipDismiss = useCallback(async () => {
+    setShowVoiceInputTooltip(false);
+    try {
+      await onboardingMilestoneTracker.markVoiceInputTooltipShown();
+    } catch (error) {
+      console.error('❌ Error marking voice input tooltip as shown:', error);
+    }
+  }, []);
 
   // Control header visibility based on game state
   useLayoutEffect(() => {
@@ -2728,18 +2793,20 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                   );
                 })()}
 
-                {/* Voice Input Component */}
-                <VoiceInput
-                  onSpeechResult={handleVoiceResult}
-                  isEnabled={voiceInputEnabled && !loadingState.isGenerating}
-                  onError={handleVoiceError}
-                  buttonText={{
-                    idle: '🎤',
-                    listening: '🔴',
-                    processing: '⏳',
-                  }}
-                  style={styles.speakButton}
-                />
+                {/* Voice Input Component with Tooltip (US-013) */}
+                <View ref={voiceButtonContainerRef} collapsable={false}>
+                  <VoiceInput
+                    onSpeechResult={handleVoiceResult}
+                    isEnabled={voiceInputEnabled && !loadingState.isGenerating}
+                    onError={handleVoiceError}
+                    buttonText={{
+                      idle: '🎤',
+                      listening: '🔴',
+                      processing: '⏳',
+                    }}
+                    style={styles.speakButton}
+                  />
+                </View>
 
                 {/* Exit Button */}
                 <TouchableOpacity
@@ -2903,6 +2970,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           onProceed={handleFirstStoryGuidanceProceed}
           showDontShowAgain={true}
           onDontShowAgainChange={handleDontShowGuidanceAgainChange}
+        />
+
+        {/* Voice Input Feature Tooltip (US-013) */}
+        <FeatureTooltip
+          visible={showVoiceInputTooltip}
+          text="Tap to speak your story instead of typing"
+          icon="🎤"
+          position="top"
+          targetLayout={voiceButtonLayout || undefined}
+          onDismiss={handleVoiceInputTooltipDismiss}
+          autoHideDelay={5000}
         />
 
         {/* Story Completion Options Screen - Full Screen Overlay */}

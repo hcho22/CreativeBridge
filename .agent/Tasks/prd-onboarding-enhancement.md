@@ -332,12 +332,31 @@ Enhance the CreativeBridge onboarding experience to increase activation rates, i
 
 **Acceptance Criteria:**
 
-- [ ] Tooltip appears near voice input button on first encounter
-- [ ] Tooltip text: "Tap to speak your story instead of typing"
-- [ ] Tooltip has arrow pointing to the voice button
-- [ ] Tooltip dismisses on tap or after 5 seconds
-- [ ] Tooltip only appears once per user (tracked via flag)
-- [ ] Typecheck/lint passes
+- [x] Tooltip appears near voice input button on first encounter
+- [x] Tooltip text: "Tap to speak your story instead of typing"
+- [x] Tooltip has arrow pointing to the voice button
+- [x] Tooltip dismisses on tap or after 5 seconds
+- [x] Tooltip only appears once per user (tracked via flag)
+- [x] Typecheck/lint passes
+
+**Implementation Notes (Completed Feb 2026):**
+
+- Created `src/components/common/FeatureTooltip.tsx` as a reusable tooltip component (partial implementation of US-016):
+  - Positioned relative to target element using `measureInWindow()` for accurate placement
+  - Supports `top`, `bottom`, `left`, `right` positioning with arrow pointer
+  - Auto-dismiss after configurable delay (default 5 seconds)
+  - Animated entrance/exit with spring scale and opacity transitions
+  - Full accessibility support with labels and hints
+- Extended `src/services/onboardingMilestoneTracker.ts` with tooltip tracking:
+  - Added `FeatureTooltipsShown` interface for tracking voice/image/XP tooltips
+  - Added `shouldShowVoiceInputTooltip()` - Check if tooltip should display
+  - Added `markVoiceInputTooltipShown()` - Mark as shown after dismissal
+  - Also added methods for future US-014 and US-015 tooltips
+- Integrated into `src/screens/HomeScreen.tsx`:
+  - Voice button wrapped in `View` with `ref` for position measurement
+  - Tooltip shows when game becomes active AND voice input is enabled
+  - Uses `checkVoiceInputTooltip` useEffect to trigger on game activation
+  - Dismissal handler marks tooltip as shown in AsyncStorage
 
 ---
 
@@ -375,13 +394,26 @@ Enhance the CreativeBridge onboarding experience to increase activation rates, i
 
 **Acceptance Criteria:**
 
-- [ ] FeatureTooltip component created in `src/components/common/`
-- [ ] Component accepts props: `text`, `position` (top/bottom/left/right), `targetRef`, `onDismiss`
-- [ ] Tooltip has arrow pointing to target element
-- [ ] Tooltip auto-dismisses after configurable timeout
-- [ ] Tooltip can be manually dismissed by tapping
-- [ ] Styling matches app design system
-- [ ] Typecheck/lint passes
+- [x] FeatureTooltip component created in `src/components/common/`
+- [x] Component accepts props: `text`, `position` (top/bottom/left/right), `targetRef`, `onDismiss`
+- [x] Tooltip has arrow pointing to target element
+- [x] Tooltip auto-dismisses after configurable timeout
+- [x] Tooltip can be manually dismissed by tapping
+- [x] Styling matches app design system
+- [x] Typecheck/lint passes
+
+**Implementation Notes (Completed Feb 2026):**
+
+- Created `src/components/common/FeatureTooltip.tsx` following CelebrationModal patterns:
+  - Props: `visible`, `text`, `position`, `targetLayout`, `onDismiss`, `autoHideDelay`, `icon`
+  - Uses `targetLayout` object instead of ref for flexible positioning (measured via `measureInWindow()`)
+  - Arrow direction changes based on `position` prop (top/bottom/left/right)
+  - Auto-hide timer tracked and cleaned up on unmount (prevents memory leaks)
+  - Animated entrance with spring scale and opacity fade
+  - Dark background (`theme.colors.text`) with white text for high contrast
+  - Includes "Tap to dismiss" hint text
+  - Full accessibility support with labels and hints
+- Component reused by US-013 (voice input tooltip), ready for US-014 and US-015
 
 ---
 

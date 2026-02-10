@@ -18,6 +18,7 @@ const STORAGE_PREFIX = '@CreativeBridge:onboarding:';
 const MILESTONES_KEY = `${STORAGE_PREFIX}milestones`;
 const CHECKLIST_DISMISSED_KEY = `${STORAGE_PREFIX}checklistDismissed`;
 const FIRST_STORY_GUIDANCE_KEY = `${STORAGE_PREFIX}firstStoryGuidanceShown`;
+const FEATURE_TOOLTIPS_KEY = `${STORAGE_PREFIX}featureTooltipsShown`;
 
 export interface OnboardingMilestones {
   firstStoryCompletedAt?: string; // ISO timestamp
@@ -32,6 +33,16 @@ export interface OnboardingMilestones {
   };
 }
 
+/**
+ * Feature tooltips tracking for onboarding (US-013, US-014, US-015)
+ * Each tooltip should only be shown once per user.
+ */
+export interface FeatureTooltipsShown {
+  voiceInput: boolean; // US-013
+  imageGeneration: boolean; // US-014
+  xpChallenges: boolean; // US-015
+}
+
 const DEFAULT_MILESTONES: OnboardingMilestones = {
   celebrationsShown: {
     firstStory: false,
@@ -40,9 +51,16 @@ const DEFAULT_MILESTONES: OnboardingMilestones = {
   },
 };
 
+const DEFAULT_FEATURE_TOOLTIPS: FeatureTooltipsShown = {
+  voiceInput: false,
+  imageGeneration: false,
+  xpChallenges: false,
+};
+
 class OnboardingMilestoneTracker {
   private static instance: OnboardingMilestoneTracker;
   private cachedMilestones: OnboardingMilestones | null = null;
+  private cachedFeatureTooltips: FeatureTooltipsShown | null = null;
 
   public static getInstance(): OnboardingMilestoneTracker {
     if (!OnboardingMilestoneTracker.instance) {
@@ -363,9 +381,11 @@ class OnboardingMilestoneTracker {
    */
   async clearMilestones(): Promise<void> {
     this.cachedMilestones = null;
+    this.cachedFeatureTooltips = null;
     await AsyncStorage.removeItem(MILESTONES_KEY);
     await AsyncStorage.removeItem(CHECKLIST_DISMISSED_KEY);
     await AsyncStorage.removeItem(FIRST_STORY_GUIDANCE_KEY);
+    await AsyncStorage.removeItem(FEATURE_TOOLTIPS_KEY);
     console.log('🧹 Onboarding milestones cleared.');
   }
 
@@ -374,6 +394,108 @@ class OnboardingMilestoneTracker {
    */
   clearCache(): void {
     this.cachedMilestones = null;
+    this.cachedFeatureTooltips = null;
+  }
+
+  // ============================================================================
+  // Feature Tooltip Tracking (US-013, US-014, US-015)
+  // ============================================================================
+
+  /**
+   * Get current feature tooltips state from storage
+   */
+  async getFeatureTooltips(): Promise<FeatureTooltipsShown> {
+    try {
+      if (this.cachedFeatureTooltips) {
+        return this.cachedFeatureTooltips;
+      }
+
+      const data = await AsyncStorage.getItem(FEATURE_TOOLTIPS_KEY);
+      if (data) {
+        this.cachedFeatureTooltips = JSON.parse(data);
+        return this.cachedFeatureTooltips!;
+      }
+
+      this.cachedFeatureTooltips = { ...DEFAULT_FEATURE_TOOLTIPS };
+      return this.cachedFeatureTooltips;
+    } catch (error) {
+      console.error('❌ Error getting feature tooltips state:', error);
+      return { ...DEFAULT_FEATURE_TOOLTIPS };
+    }
+  }
+
+  /**
+   * Save feature tooltips state to storage
+   */
+  private async saveFeatureTooltips(
+    tooltips: FeatureTooltipsShown,
+  ): Promise<void> {
+    try {
+      this.cachedFeatureTooltips = tooltips;
+      await AsyncStorage.setItem(
+        FEATURE_TOOLTIPS_KEY,
+        JSON.stringify(tooltips),
+      );
+    } catch (error) {
+      console.error('❌ Error saving feature tooltips state:', error);
+    }
+  }
+
+  /**
+   * Check if voice input tooltip should be shown (US-013)
+   * Returns true if tooltip has NOT been shown yet
+   */
+  async shouldShowVoiceInputTooltip(): Promise<boolean> {
+    const tooltips = await this.getFeatureTooltips();
+    return !tooltips.voiceInput;
+  }
+
+  /**
+   * Mark voice input tooltip as shown (US-013)
+   */
+  async markVoiceInputTooltipShown(): Promise<void> {
+    const tooltips = await this.getFeatureTooltips();
+    tooltips.voiceInput = true;
+    await this.saveFeatureTooltips(tooltips);
+    console.log('💡 Voice input tooltip marked as shown.');
+  }
+
+  /**
+   * Check if image generation tooltip should be shown (US-014)
+   * Returns true if tooltip has NOT been shown yet
+   */
+  async shouldShowImageGenerationTooltip(): Promise<boolean> {
+    const tooltips = await this.getFeatureTooltips();
+    return !tooltips.imageGeneration;
+  }
+
+  /**
+   * Mark image generation tooltip as shown (US-014)
+   */
+  async markImageGenerationTooltipShown(): Promise<void> {
+    const tooltips = await this.getFeatureTooltips();
+    tooltips.imageGeneration = true;
+    await this.saveFeatureTooltips(tooltips);
+    console.log('💡 Image generation tooltip marked as shown.');
+  }
+
+  /**
+   * Check if XP/Challenges tooltip should be shown (US-015)
+   * Returns true if tooltip has NOT been shown yet
+   */
+  async shouldShowXpChallengesTooltip(): Promise<boolean> {
+    const tooltips = await this.getFeatureTooltips();
+    return !tooltips.xpChallenges;
+  }
+
+  /**
+   * Mark XP/Challenges tooltip as shown (US-015)
+   */
+  async markXpChallengesTooltipShown(): Promise<void> {
+    const tooltips = await this.getFeatureTooltips();
+    tooltips.xpChallenges = true;
+    await this.saveFeatureTooltips(tooltips);
+    console.log('💡 XP/Challenges tooltip marked as shown.');
   }
 }
 
