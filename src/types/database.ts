@@ -6,6 +6,26 @@ import { StoryDownloadHistoryRecord } from './storyDownload';
 // Grade level options
 export type GradeLevel = 'K-2' | '3-5' | '6-8' | '9-12';
 
+// Onboarding progress tracking (US-007)
+export interface OnboardingProgress {
+  create_account: boolean;
+  first_story: boolean;
+  first_image: boolean;
+  first_voice: boolean;
+  first_streak: boolean;
+}
+
+// Onboarding status returned by get_onboarding_status function (US-007)
+export interface OnboardingStatus {
+  onboarding_completed: boolean;
+  onboarding_progress: OnboardingProgress;
+  first_story_completed_at: string | null;
+  first_image_generated_at: string | null;
+  first_voice_input_at: string | null;
+  first_streak_achieved_at: string | null;
+  completion_percentage: number;
+}
+
 // User Profile interface - matches user_profiles table
 export interface UserProfile {
   id: string;
@@ -36,6 +56,14 @@ export interface UserProfile {
   // Profile Data (optional)
   avatar_url?: string;
   bio?: string;
+
+  // Onboarding Progress (US-007)
+  onboarding_completed: boolean;
+  onboarding_progress: OnboardingProgress;
+  first_story_completed_at?: string;
+  first_image_generated_at?: string;
+  first_voice_input_at?: string;
+  first_streak_achieved_at?: string;
 }
 
 // Story source types
@@ -279,6 +307,29 @@ export interface Database {
           p_offset?: number;
         };
         Returns: UserImageGenerationEvent[];
+      };
+      // Onboarding functions (US-007)
+      update_onboarding_progress_item: {
+        Args: {
+          p_user_id: string;
+          p_item_key: string;
+          p_completed?: boolean;
+        };
+        Returns: boolean;
+      };
+      record_onboarding_milestone: {
+        Args: {
+          p_user_id: string;
+          p_milestone_type: string;
+          p_xp_reward?: number;
+        };
+        Returns: boolean;
+      };
+      get_onboarding_status: {
+        Args: {
+          p_user_id: string;
+        };
+        Returns: OnboardingStatus[];
       };
     };
   };

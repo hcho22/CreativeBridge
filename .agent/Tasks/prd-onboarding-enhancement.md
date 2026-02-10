@@ -74,7 +74,7 @@ Enhance the CreativeBridge onboarding experience to increase activation rates, i
 - [x] Celebration only triggers once (tracked in database or local storage)
 - [x] Typecheck/lint passes
 
-**Implementation Notes (Completed Feb 2025):**
+**Implementation Notes (Completed Feb 2026):**
 
 - Created `src/services/onboardingMilestoneTracker.ts` for tracking first-time achievements
 - Uses AsyncStorage for milestone tracking (will migrate to database when US-007 is completed)
@@ -95,7 +95,7 @@ Enhance the CreativeBridge onboarding experience to increase activation rates, i
 - [x] Celebration only triggers once per user
 - [x] Typecheck/lint passes
 
-**Implementation Notes (Completed Feb 2025):**
+**Implementation Notes (Completed Feb 2026):**
 
 - Reused existing `onboardingMilestoneTracker` service (from US-004) which already had `markFirstImageGenerated()` and `markFirstImageCelebrationShown()` methods
 - Integrated `CelebrationModal` component into `HomeScreen.tsx` at the `handleImageGenerated` callback
@@ -117,7 +117,7 @@ Enhance the CreativeBridge onboarding experience to increase activation rates, i
 - [x] Celebration only triggers once (first streak achievement)
 - [x] Typecheck/lint passes
 
-**Implementation Notes (Completed Feb 2025):**
+**Implementation Notes (Completed Feb 2026):**
 
 - Reused existing `onboardingMilestoneTracker` service which already had `markFirstStreakAchieved()` and `markFirstStreakCelebrationShown()` methods
 - Added streak detection logic in `HomeScreen.tsx` using `useEffect` that watches `userProfile?.current_streak` changes
@@ -133,15 +133,29 @@ Enhance the CreativeBridge onboarding experience to increase activation rates, i
 
 **Acceptance Criteria:**
 
-- [ ] Add `onboarding_completed` boolean field to `user_profiles` table (default: false)
-- [ ] Add `onboarding_progress` JSONB field to store checklist item completion status
-- [ ] Add `first_story_completed_at` timestamp field (nullable)
-- [ ] Add `first_image_generated_at` timestamp field (nullable)
-- [ ] Add `first_streak_achieved_at` timestamp field (nullable)
-- [ ] Create database migration file
-- [ ] Migration runs successfully on development database
-- [ ] Update TypeScript types in `src/types/database.ts`
-- [ ] Typecheck/lint passes
+- [x] Add `onboarding_completed` boolean field to `user_profiles` table (default: false)
+- [x] Add `onboarding_progress` JSONB field to store checklist item completion status
+- [x] Add `first_story_completed_at` timestamp field (nullable)
+- [x] Add `first_image_generated_at` timestamp field (nullable)
+- [x] Add `first_streak_achieved_at` timestamp field (nullable)
+- [x] Create database migration file
+- [x] Migration runs successfully on development database
+- [x] Update TypeScript types in `src/types/database.ts`
+- [x] Typecheck/lint passes
+
+**Implementation Notes (Completed Feb 2026):**
+
+- Created migration file `sql/add_onboarding_progress_fields.sql` with:
+  - 6 new columns: `onboarding_completed`, `onboarding_progress`, `first_story_completed_at`, `first_image_generated_at`, `first_voice_input_at`, `first_streak_achieved_at`
+  - 3 helper functions: `update_onboarding_progress_item()`, `record_onboarding_milestone()`, `get_onboarding_status()`
+  - Performance indexes for onboarding queries
+  - Comprehensive documentation and rollback procedure
+- Updated TypeScript types in `src/types/database.ts`:
+  - Added `OnboardingProgress` interface for checklist state
+  - Added `OnboardingStatus` interface for complete status response
+  - Extended `UserProfile` with new onboarding fields
+  - Added new function signatures to `Database` interface
+- Updated `.agent/System/database_schema.md` with new schema documentation
 
 ---
 
