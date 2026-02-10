@@ -110,12 +110,20 @@ Enhance the CreativeBridge onboarding experience to increase activation rates, i
 
 **Acceptance Criteria:**
 
-- [ ] Celebration modal appears when user achieves 2-day streak for the first time
-- [ ] Modal displays: "🔥 You're on fire! 2-day streak!"
-- [ ] Modal encourages continuing the streak
-- [ ] Shows bonus XP earned for streak
-- [ ] Celebration only triggers once (first streak achievement)
-- [ ] Typecheck/lint passes
+- [x] Celebration modal appears when user achieves 2-day streak for the first time
+- [x] Modal displays: "🔥 You're on fire! 2-day streak!"
+- [x] Modal encourages continuing the streak
+- [x] Shows bonus XP earned for streak
+- [x] Celebration only triggers once (first streak achievement)
+- [x] Typecheck/lint passes
+
+**Implementation Notes (Completed Feb 2025):**
+
+- Reused existing `onboardingMilestoneTracker` service which already had `markFirstStreakAchieved()` and `markFirstStreakCelebrationShown()` methods
+- Added streak detection logic in `HomeScreen.tsx` using `useEffect` that watches `userProfile?.current_streak` changes
+- Detection triggers when streak transitions from <2 to >=2 (comparing with `previousStreakRef`)
+- Integrated `CelebrationModal` component into `HomeScreen.tsx` with 🔥 icon and "+50 Bonus XP for your streak!" message
+- Uses AsyncStorage for milestone tracking (will migrate to database when US-007 is completed)
 
 ---
 

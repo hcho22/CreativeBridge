@@ -74,7 +74,7 @@ interface GenerationError {
 }
 
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
-  const { userProfile, user } = useAuth();
+  const { userProfile, user, refreshProfile } = useAuth();
   const { clerkAuth } = useSafeClerkAuth();
   const route = useRoute<RouteProp<HomeStackParamList, 'Home'>>();
 
@@ -152,9 +152,52 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [showFirstImageCelebration, setShowFirstImageCelebration] =
     useState(false);
 
+  // First streak achievement celebration state (US-006)
+  const [showFirstStreakCelebration, setShowFirstStreakCelebration] =
+    useState(false);
+  // Track the previous streak to detect when it changes to 2+
+  const previousStreakRef = useRef<number | null>(null);
+
   // Use the user's preferred grade level from their profile, or default to K-2
   const gradeLevel: GradeLevel =
     (userProfile?.preferred_grade_level as GradeLevel) || 'K-2';
+
+  // Detect first streak achievement (US-006)
+  // When streak changes from <2 to >=2, check if we should show the celebration
+  useEffect(() => {
+    const checkFirstStreakAchievement = async () => {
+      const currentStreak = userProfile?.current_streak;
+      const previousStreak = previousStreakRef.current;
+
+      // Check if streak just changed from <2 to >=2 (first streak achieved)
+      if (
+        currentStreak !== undefined &&
+        currentStreak >= 2 &&
+        previousStreak !== null &&
+        previousStreak < 2
+      ) {
+        console.log(
+          `🔥 [US-006] Streak changed from ${previousStreak} to ${currentStreak}`,
+        );
+
+        // Check if this is truly the first streak and celebration should show
+        const { shouldShowCelebration } =
+          await onboardingMilestoneTracker.markFirstStreakAchieved();
+
+        if (shouldShowCelebration) {
+          console.log('🔥 [US-006] Showing first streak celebration!');
+          setShowFirstStreakCelebration(true);
+        }
+      }
+
+      // Update the ref for next comparison
+      if (currentStreak !== undefined) {
+        previousStreakRef.current = currentStreak;
+      }
+    };
+
+    checkFirstStreakAchievement();
+  }, [userProfile?.current_streak]);
 
   // Control header visibility based on game state
   useLayoutEffect(() => {
@@ -1535,6 +1578,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     setShowFirstImageCelebration(false);
   }, []);
 
+  // Handler for first streak achievement celebration modal (US-006)
+  const handleFirstStreakCelebrationClose = useCallback(async () => {
+    // Mark celebration as shown so it doesn't repeat
+    await onboardingMilestoneTracker.markFirstStreakCelebrationShown();
+    setShowFirstStreakCelebration(false);
+  }, []);
+
+  // CTA handler for first streak celebration
+  const handleFirstStreakCelebrationCta = useCallback(async () => {
+    await onboardingMilestoneTracker.markFirstStreakCelebrationShown();
+    setShowFirstStreakCelebration(false);
+  }, []);
+
   const handleImageGenerated = useCallback(
     async (imageUrl: string) => {
       console.log('✅ [DEBUG] handleImageGenerated called with URL:', imageUrl);
@@ -2647,6 +2703,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           ctaText="View My Illustration"
           onClose={handleFirstImageCelebrationClose}
           onCtaPress={handleFirstImageCelebrationCta}
+        />
+
+        {/* First Streak Achievement Celebration Modal (US-006) */}
+        <CelebrationModal
+          visible={showFirstStreakCelebration}
+          title="You're on fire! 2-day streak!"
+          message="You're building an amazing writing habit! Keep the streak going by writing stories every day. Consistency is the key to becoming a great storyteller!"
+          icon="🔥"
+          ctaText="Keep Going!"
+          onClose={handleFirstStreakCelebrationClose}
+          onCtaPress={handleFirstStreakCelebrationCta}
+          secondaryMessage="+50 Bonus XP for your streak!"
         />
 
         {/* Story Completion Options Screen - Full Screen Overlay */}
