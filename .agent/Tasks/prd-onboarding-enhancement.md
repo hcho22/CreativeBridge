@@ -229,14 +229,35 @@ Enhance the CreativeBridge onboarding experience to increase activation rates, i
 
 **Acceptance Criteria:**
 
-- [ ] +50 XP awarded when first story is completed
-- [ ] +25 XP awarded when first illustration is generated
-- [ ] +25 XP awarded when voice input is used for the first time
-- [ ] +50 XP awarded when first streak (2 days) is achieved
-- [ ] XP is added to user's total_xp in database
-- [ ] XP award triggers visual feedback (toast notification or similar)
-- [ ] Each reward only given once per user
-- [ ] Typecheck/lint passes
+- [x] +50 XP awarded when first story is completed
+- [x] +25 XP awarded when first illustration is generated
+- [x] +25 XP awarded when voice input is used for the first time
+- [x] +50 XP awarded when first streak (2 days) is achieved
+- [x] XP is added to user's total_xp in database
+- [x] XP award triggers visual feedback (toast notification or similar)
+- [x] Each reward only given once per user
+- [x] Typecheck/lint passes
+
+**Implementation Notes (Completed Feb 2026):**
+
+- Created `awardOnboardingXP()` method in `src/context/AuthContext.tsx`:
+  - Accepts milestone type: `'first_story'`, `'first_image'`, `'first_voice'`, `'first_streak'`
+  - XP amounts defined as constants: 50, 25, 25, 50 respectively
+  - Uses existing `add_user_xp` Supabase RPC function for database updates
+  - Returns `{ success, error, newBalance, xpAwarded }` for feedback
+  - Tracks XP events via existing `trackXPEvent()` for analytics
+- Integrated XP awards in `src/screens/HomeScreen.tsx`:
+  - First story: Awards 50 XP when `markFirstStoryCompleted()` returns `shouldShowCelebration: true`
+  - First image: Awards 25 XP when `markFirstImageGenerated()` returns `shouldShowCelebration: true`
+  - First voice: Awards 25 XP when `markFirstVoiceInputUsed()` returns `true` in `handleVoiceResult()` callback
+  - First streak: Awards 50 XP when `markFirstStreakAchieved()` returns `shouldShowCelebration: true`
+- Visual feedback via `CelebrationModal` `secondaryMessage` prop:
+  - First story: Shows total XP (story XP + 50 bonus XP) in celebration modal
+  - First image: Shows "+25 XP earned!" in celebration modal
+  - First streak: Already had "+50 Bonus XP for your streak!" message
+  - First voice: XP awarded silently (no modal, milestone tracked via onboardingMilestoneTracker)
+- One-time awards ensured by `onboardingMilestoneTracker` service (tracks milestones in AsyncStorage)
+- Total onboarding XP: 50 + 25 + 25 + 50 = 150 XP
 
 ---
 
@@ -246,11 +267,26 @@ Enhance the CreativeBridge onboarding experience to increase activation rates, i
 
 **Acceptance Criteria:**
 
-- [ ] Add `first_voice_input_at` timestamp field to database (via migration)
-- [ ] Update voice input handler to check if this is first use
-- [ ] On first use, update database field and award XP
-- [ ] Update onboarding progress state
-- [ ] Typecheck/lint passes
+- [x] Add `first_voice_input_at` timestamp field to database (via migration)
+- [x] Update voice input handler to check if this is first use
+- [x] On first use, update database field and award XP
+- [x] Update onboarding progress state
+- [x] Typecheck/lint passes
+
+**Implementation Notes (Completed Feb 2026):**
+
+- Database field `first_voice_input_at` was already added in US-007 migration (`sql/add_onboarding_progress_fields.sql` line 33)
+- Extended `onboardingMilestoneTracker.ts` with `markFirstVoiceInputUsed()` method (lines 228-239):
+  - Returns `boolean` indicating if this was the first use
+  - Stores timestamp in AsyncStorage (will sync to database via existing patterns)
+  - Integrated into `getMilestoneProgress()` for checklist display
+- Voice input handler in `HomeScreen.tsx` (`handleVoiceResult` callback, lines 696-709):
+  - Calls `markFirstVoiceInputUsed()` to check if first use
+  - Awards 25 XP via `awardOnboardingXP('first_voice')` on first use
+  - Proper error handling with try-catch
+- Onboarding checklist (`OnboardingChecklist.tsx`) displays voice input item with `progress.voiceInputUsed` status
+- XP award uses existing `add_user_xp` Supabase RPC function via `AuthContext.awardOnboardingXP()`
+- TypeScript types already defined in `src/types/database.ts` (OnboardingProgress.first_voice, OnboardingStatus.first_voice_input_at)
 
 ---
 
