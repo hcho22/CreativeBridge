@@ -586,10 +586,35 @@ Enhance the CreativeBridge onboarding experience to increase activation rates, i
 
 **Acceptance Criteria:**
 
-- [ ] `.agent/README.md` updated to reference this PRD
-- [ ] New onboarding components documented in project architecture if significant
-- [ ] Database schema changes reflected in `.agent/System/database_schema.md`
-- [ ] Any new services documented appropriately
+- [x] `.agent/README.md` updated to reference this PRD
+- [x] New onboarding components documented in project architecture if significant
+- [x] Database schema changes reflected in `.agent/System/database_schema.md`
+- [x] Any new services documented appropriately
+- [x] Typecheck/lint passes
+
+**Implementation Notes (Completed Feb 2026):**
+
+- Updated `.agent/README.md`:
+  - Added Onboarding System as system component #9 in Architecture Overview
+  - Enhanced Key Directories section to show onboarding components and services
+  - Marked Onboarding Enhancement PRD as COMPLETE (20/20 user stories)
+  - Added cross-reference to Project Architecture Section 9
+  - Updated version to 1.1 and date to February 2026
+- Updated `.agent/System/project_architecture.md`:
+  - Added comprehensive **Section 9: Onboarding System** documenting:
+    - Two-layer service architecture (OnboardingService + OnboardingMilestoneTracker)
+    - Onboarding milestones and XP rewards table (150 XP total)
+    - Component inventory (CelebrationModal, FeatureTooltip, OnboardingChecklist, etc.)
+    - Feature discovery tooltips (voice input, image generation, XP/challenges)
+    - Key service methods with code examples
+    - Database integration functions
+    - State flow diagram
+  - Updated version to 1.1 and date to February 2026
+- Verified `.agent/System/database_schema.md`:
+  - Already contained complete onboarding documentation from US-007
+  - Added cross-reference to Project Architecture Section 9
+  - Added link to Onboarding Enhancement PRD
+  - Updated version to 1.2, schema version to 1.4.0
 
 ---
 
@@ -747,7 +772,8 @@ first_streak_achieved_at TIMESTAMP WITH TIME ZONE
 
 ---
 
-**PRD Version:** 1.0
+**PRD Version:** 1.1
 **Created:** February 2025
-**Status:** Draft
+**Completed:** February 2026
+**Status:** ✅ Complete (20/20 User Stories Implemented)
 **Author:** Claude (Onboarding CRO Audit)

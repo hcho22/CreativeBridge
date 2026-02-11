@@ -667,12 +667,14 @@ Located in `/sql/` directory:
 ## Related Documentation
 
 - [Project Architecture](./project_architecture.md) - Overall system design and integration points
+  - See **Section 9: Onboarding System** for service architecture and component documentation
 - [API Integration Guide](./api_integration.md) - External service integration patterns
-- [Development SOPs](./SOPs/) - Database migration and maintenance procedures
+- [Development SOPs](../SOP/) - Database migration and maintenance procedures
+- [Onboarding Enhancement PRD](../Tasks/prd-onboarding-enhancement.md) - Complete feature specification with 20 user stories
 
 ---
 
-**Last Updated**: February 2025
-**Version**: 1.1
-**Schema Version**: 1.3.0
+**Last Updated**: February 2026
+**Version**: 1.2
+**Schema Version**: 1.4.0
 **Maintainer**: Development Team
