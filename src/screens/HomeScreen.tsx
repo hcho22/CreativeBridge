@@ -57,6 +57,7 @@ import {
   EnhancedEmptyState,
 } from '../components/onboarding';
 import { onboardingMilestoneTracker } from '../services/onboardingMilestoneTracker';
+import { onboardingService } from '../services/onboardingService';
 
 type HomeScreenNavigationProp = BottomTabNavigationProp<TabParamList, 'Home'>;
 
@@ -272,6 +273,41 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           return;
         }
 
+        // BUG FIX: Use database as source of truth for existing users
+        // total_stories_completed > 0 means user has completed stories (not new)
+        // This catches existing users who have stories but onboarding_completed = false
+        if (
+          userProfile?.total_stories_completed &&
+          userProfile.total_stories_completed > 0
+        ) {
+          setIsNewUser(false);
+          setShowOnboardingChecklist(false);
+          console.log(
+            '📋 [BugFix] Existing user detected via total_stories_completed:',
+            userProfile.total_stories_completed,
+          );
+
+          // Auto-fix database: set onboarding_completed = true for existing users
+          // Fire-and-forget pattern - don't block UI on database update
+          if (!onboardingCompleted && userProfile.id) {
+            onboardingService
+              .markOnboardingComplete(userProfile.id)
+              .then(result => {
+                if (result.error) {
+                  console.error(
+                    '❌ Failed to auto-fix onboarding status:',
+                    result.error,
+                  );
+                } else {
+                  console.log(
+                    '✅ Auto-fixed onboarding_completed for existing user',
+                  );
+                }
+              });
+          }
+          return;
+        }
+
         // Check if user has dismissed the checklist this session
         const isDismissed =
           await onboardingMilestoneTracker.isChecklistDismissed();
@@ -281,6 +317,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
         // US-017: Check if user is "new" (hasn't completed first story yet)
         // This determines whether to show the enhanced empty state
+        // Only check AsyncStorage for users with no completed stories in database
         const progress =
           await onboardingMilestoneTracker.getMilestoneProgress();
         setIsNewUser(!progress.storiesCompleted);
@@ -296,7 +333,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     if (hasUserProfile) {
       loadChecklistVisibility();
     }
-  }, [onboardingCompleted, hasUserProfile]);
+  }, [
+    onboardingCompleted,
+    hasUserProfile,
+    userProfile?.total_stories_completed,
+    userProfile?.id,
+  ]);
 
   // Refresh checklist when milestones are completed (US-009)
   // This ensures the checklist updates when user completes a task
