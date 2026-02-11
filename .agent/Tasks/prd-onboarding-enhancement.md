@@ -526,16 +526,57 @@ Enhance the CreativeBridge onboarding experience to increase activation rates, i
 
 **Acceptance Criteria:**
 
-- [ ] OnboardingService created in `src/services/`
-- [ ] Service handles:
+- [x] OnboardingService created in `src/services/`
+- [x] Service handles:
   - Fetching onboarding progress from database
   - Updating checklist item completion
   - Awarding XP for completed items
   - Checking if specific celebrations should trigger
   - Marking onboarding as complete
-- [ ] Service integrates with existing UserService and XP system
-- [ ] Service has proper error handling
-- [ ] Typecheck/lint passes
+- [x] Service integrates with existing UserService and XP system
+- [x] Service has proper error handling
+- [x] Typecheck/lint passes
+
+**Implementation Notes (Completed Feb 2026):**
+
+- Created `src/services/onboardingService.ts` as a centralized singleton service consolidating all onboarding logic
+- **Database Integration:**
+  - `getOnboardingStatus(userId)` - Fetches progress from database via `get_onboarding_status` RPC with 1-minute caching
+  - `updateChecklistItem(userId, itemKey, completed)` - Updates individual checklist items via `update_onboarding_progress_item` RPC
+  - `recordMilestone(userId, milestoneType, awardXp)` - Records achievements via `record_onboarding_milestone` RPC with optional XP
+  - `markOnboardingComplete(userId)` - Sets `onboarding_completed = true` in user profile
+  - `syncToDatabase(userId)` - Syncs AsyncStorage milestones to database for cross-device consistency
+  - `resetOnboarding(userId)` - Resets all onboarding data (for testing/account reset)
+- **Milestone Processing Methods:**
+  - `processFirstStoryCompletion(userId)` - Returns `{ isFirstTime, shouldShowCelebration, xpAwarded, celebrationConfig }`
+  - `processFirstImageGeneration(userId)` - Same pattern for first image milestone
+  - `processFirstVoiceInput(userId)` - Same pattern for first voice input milestone
+  - `processFirstStreakAchievement(userId)` - Same pattern for first streak milestone
+  - Each method delegates to `onboardingMilestoneTracker` for AsyncStorage and syncs to database
+- **XP System Integration:**
+  - Exported `ONBOARDING_XP_REWARDS` constants: first_story (50), first_image (25), first_voice (25), first_streak (50)
+  - `getXpReward(milestoneType)` - Get XP amount for a milestone
+  - `calculateEarnedXp(progress)` - Calculate total XP from completed milestones
+  - `getTotalOnboardingXp()` - Returns 150 (total possible XP)
+- **Celebration System:**
+  - Exported `CELEBRATION_CONFIGS` with title, message, emoji, and xpMessage for each milestone
+  - `getCelebrationConfig(milestoneType)` - Get celebration UI configuration
+  - `markCelebrationShown(milestoneType)` - Prevent re-showing celebrations
+- **Delegated Methods (via onboardingMilestoneTracker):**
+  - Checklist management: `isChecklistDismissed()`, `dismissChecklist()`, `resetChecklistDismissed()`
+  - Feature tooltips: `shouldShowTooltip(type)`, `markTooltipShown(type)`
+  - First story guidance: `shouldShowFirstStoryGuidance()`, `markFirstStoryGuidanceShown()`
+  - Completion checking: `isOnboardingComplete(userId)`, `getOnboardingProgress(userId)`
+- **Cache Management:**
+  - `invalidateCache()` - Clear onboarding status cache
+  - `clearAllCaches()` - Clear all caches (call on logout)
+  - 1-minute TTL for database status cache
+- **Error Handling:**
+  - All methods return `{ success, error? }` pattern
+  - Fallback to AsyncStorage if database calls fail
+  - Comprehensive try-catch with descriptive error logging
+- Exported singleton instance as `onboardingService` for clean imports
+- Re-exports `OnboardingMilestones` and `FeatureTooltipsShown` types for backward compatibility
 
 ---
 
