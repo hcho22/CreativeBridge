@@ -13,3 +13,6 @@ export type { FirstStoryGuidanceModalProps } from './FirstStoryGuidanceModal';
 
 export { EnhancedEmptyState } from './EnhancedEmptyState';
 export type { EnhancedEmptyStateProps } from './EnhancedEmptyState';
+
+export { OnboardingChecklistModal } from './OnboardingChecklistModal';
+export type { OnboardingChecklistModalProps } from './OnboardingChecklistModal';

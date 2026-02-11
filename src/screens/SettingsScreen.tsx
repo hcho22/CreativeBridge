@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,8 @@ import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useAuth } from '../context/AuthContext';
 import type { GradeLevel } from '../types/database';
 import { TabParamList } from '../navigation/AppNavigator';
+import { OnboardingChecklistModal } from '../components/onboarding/OnboardingChecklistModal';
+import { onboardingMilestoneTracker } from '../services/onboardingMilestoneTracker';
 
 type SettingsScreenNavigationProp = BottomTabNavigationProp<
   TabParamList,
@@ -32,6 +34,19 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [selectedGradeLevel, setSelectedGradeLevel] = useState<GradeLevel>(
     (userProfile?.preferred_grade_level as GradeLevel) || 'K-2',
   );
+
+  // Onboarding progress modal state (US-018)
+  const [showOnboardingModal, setShowOnboardingModal] = useState(false);
+  const [isOnboardingComplete, setIsOnboardingComplete] = useState(true);
+
+  // Check if onboarding is complete on mount
+  useEffect(() => {
+    const checkOnboardingStatus = async () => {
+      const complete = await onboardingMilestoneTracker.isOnboardingComplete();
+      setIsOnboardingComplete(complete);
+    };
+    checkOnboardingStatus();
+  }, []);
 
   const handleSpeechToggle = async (value: boolean) => {
     setSpeechEnabled(value);
@@ -184,6 +199,34 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </View>
         </View>
 
+        {/* Onboarding Progress Section (US-018) - Only show if not complete */}
+        {!isOnboardingComplete && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🚀 Getting Started</Text>
+
+            <TouchableOpacity
+              style={styles.onboardingButton}
+              onPress={() => setShowOnboardingModal(true)}
+              accessibilityRole="button"
+              accessibilityLabel="View onboarding progress"
+              accessibilityHint="Opens a modal showing your onboarding checklist progress"
+            >
+              <View style={styles.onboardingButtonContent}>
+                <Text style={styles.onboardingButtonIcon}>📋</Text>
+                <View style={styles.onboardingButtonText}>
+                  <Text style={styles.onboardingButtonTitle}>
+                    Onboarding Progress
+                  </Text>
+                  <Text style={styles.onboardingButtonDescription}>
+                    View your getting started checklist and earn XP
+                  </Text>
+                </View>
+                <Text style={styles.onboardingButtonArrow}>›</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* User Account Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>👤 Account</Text>
@@ -228,6 +271,18 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </View>
         </View>
       </View>
+
+      {/* Onboarding Checklist Modal (US-018) */}
+      <OnboardingChecklistModal
+        visible={showOnboardingModal}
+        onClose={() => {
+          setShowOnboardingModal(false);
+          // Recheck completion status after closing modal
+          onboardingMilestoneTracker
+            .isOnboardingComplete()
+            .then(setIsOnboardingComplete);
+        }}
+      />
     </ScrollView>
   );
 };
@@ -331,6 +386,42 @@ const styles = StyleSheet.create({
     color: '#666',
     lineHeight: 20,
     marginTop: 5,
+  },
+  // Onboarding button styles (US-018)
+  onboardingButton: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+    overflow: 'hidden',
+  },
+  onboardingButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+  },
+  onboardingButtonIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  onboardingButtonText: {
+    flex: 1,
+  },
+  onboardingButtonTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 2,
+  },
+  onboardingButtonDescription: {
+    fontSize: 13,
+    color: '#666',
+    lineHeight: 18,
+  },
+  onboardingButtonArrow: {
+    fontSize: 24,
+    color: '#4CAF50',
+    fontWeight: '300',
   },
 });
 

@@ -494,11 +494,29 @@ Enhance the CreativeBridge onboarding experience to increase activation rates, i
 
 **Acceptance Criteria:**
 
-- [ ] "Onboarding Progress" option appears in Settings or Profile screen
-- [ ] Option only visible if onboarding not yet completed
-- [ ] Tapping opens the onboarding checklist in a modal or navigates to it
-- [ ] Shows current completion status
-- [ ] Typecheck/lint passes
+- [x] "Onboarding Progress" option appears in Settings or Profile screen
+- [x] Option only visible if onboarding not yet completed
+- [x] Tapping opens the onboarding checklist in a modal or navigates to it
+- [x] Shows current completion status
+- [x] Typecheck/lint passes
+
+**Implementation Notes (Completed Feb 2026):**
+
+- Created `src/components/onboarding/OnboardingChecklistModal.tsx` wrapping the existing `OnboardingChecklist` component:
+  - Modal with animated entrance (spring scale + opacity fade)
+  - Header with 📋 icon and close button
+  - Dynamic subtitle showing completion status ("You've completed all onboarding tasks! 🎉" vs earning XP message)
+  - Reuses `OnboardingChecklist` component (from US-008) with `initiallyCollapsed={false}`
+  - Closes modal and resets dismissed state via `onboardingMilestoneTracker.resetChecklistDismissed()`
+- Integrated into `src/screens/SettingsScreen.tsx`:
+  - Added new "🚀 Getting Started" section between Accessibility and Account sections
+  - Section conditionally renders based on `isOnboardingComplete` state (only shows when incomplete)
+  - Uses `onboardingMilestoneTracker.isOnboardingComplete()` to check completion status on mount
+  - Styled button with green border, arrow indicator, and descriptive text
+  - Full accessibility support with role, label, and hint
+  - Modal visibility controlled via `showOnboardingModal` state
+  - Completion status rechecked when modal closes to update visibility
+- Exported `OnboardingChecklistModal` and `OnboardingChecklistModalProps` from `src/components/onboarding/index.ts`
 
 ---
 
