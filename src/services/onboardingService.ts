@@ -545,19 +545,9 @@ class OnboardingService {
     userId: string,
   ): Promise<OnboardingServiceResult> {
     try {
-      // Cast via unknown for update with onboarding fields not fully typed
-      const updateFn = supabase.from('user_profiles').update as unknown as (
-        values: Record<string, unknown>,
-      ) => {
-        eq: (
-          col: string,
-          val: string,
-        ) => Promise<{ error: { message: string } | null }>;
-      };
-      const { error } = await updateFn({ onboarding_completed: true }).eq(
-        'id',
-        userId,
-      );
+      const { error } = await (supabase.from('user_profiles') as any)
+        .update({ onboarding_completed: true })
+        .eq('id', userId);
 
       if (error) {
         console.error('❌ Error marking onboarding complete:', error);
@@ -743,29 +733,22 @@ class OnboardingService {
 
       // Clear database if user ID provided
       if (userId) {
-        // Cast via unknown for update with onboarding fields including null values
-        const updateFn = supabase.from('user_profiles').update as unknown as (
-          values: Record<string, unknown>,
-        ) => {
-          eq: (
-            col: string,
-            val: string,
-          ) => Promise<{ error: { message: string } | null }>;
-        };
-        const { error } = await updateFn({
-          onboarding_completed: false,
-          onboarding_progress: {
-            create_account: true,
-            first_story: false,
-            first_image: false,
-            first_voice: false,
-            first_streak: false,
-          },
-          first_story_completed_at: null,
-          first_image_generated_at: null,
-          first_voice_input_at: null,
-          first_streak_achieved_at: null,
-        }).eq('id', userId);
+        const { error } = await (supabase.from('user_profiles') as any)
+          .update({
+            onboarding_completed: false,
+            onboarding_progress: {
+              create_account: true,
+              first_story: false,
+              first_image: false,
+              first_voice: false,
+              first_streak: false,
+            },
+            first_story_completed_at: null,
+            first_image_generated_at: null,
+            first_voice_input_at: null,
+            first_streak_achieved_at: null,
+          })
+          .eq('id', userId);
 
         if (error) {
           console.error('❌ Error resetting onboarding in database:', error);
