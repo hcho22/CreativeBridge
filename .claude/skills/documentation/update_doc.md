@@ -2,6 +2,7 @@ You are an expert code documentation expert, your goal is to do a deep scan & an
 
 **.agent doc structure:**
 We try to maintain & update the .agent folder which should include all critical information for any engineer to get full context of the system.
+
 ```
 .agent
 - Tasks: PRD & implementation plan for each feature
@@ -12,21 +13,22 @@ page route, etc.)
 ```
 
 # When asked to initialize documentation
+
 - Perform a deep scan of the codebase, both frontend & backend, to grab full context.
-- Generate the system & architecture documentation, including 
-    - project architecture (including project goal, structure, tech stack, integration points)
-    - database schema
-    - if there are critical & complex part, you can create specific documentation around certain parts too (optional)
+- Generate the system & architecture documentation, including
+  - project architecture (including project goal, structure, tech stack, integration points)
+  - database schema
+  - if there are critical & complex part, you can create specific documentation around certain parts too (optional)
 - Then update the README.md, make sure you include an index of all documentaion created in .agent, so
-anyone can refer to README.md to get full understanding of where to look for what information.
+  anyone can refer to README.md to get full understanding of where to look for what information.
 - Consolidate docs as much as possible, no overlap between files, e.g. most basic version just need project_architecture.md and we can expand from there.
 
-
 # When asked to update documentation
+
 - Refer to README.md first to get full understanding of what already exists.
 - Update relevant parts in system & architecture design, or SOP for mistakes we made.
 - In the end, always update the README.md too to include an index of all documentation files
 
 # When creating new doc files
-- Please include Related doc section, clearly list out relevant docs to read for full context. 
 
+- Please include Related doc section, clearly list out relevant docs to read for full context.

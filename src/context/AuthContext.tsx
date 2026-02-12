@@ -28,6 +28,8 @@ import {
   hasClerkTokens,
   clerkTokenCache,
 } from '../utils/clerkTokenCache';
+import { decodeJWT } from '../services/clerkJWTVerification';
+import * as WebBrowser from 'expo-web-browser';
 
 // Verify supabase is properly imported
 if (!supabase) {
@@ -147,7 +149,8 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Get Clerk auth and user hooks
   // This component is only rendered when ClerkProvider is present, so hooks are safe
-  const { clerkAuth, clerkUser, clerkSSO } = useSafeClerkAuth();
+  const { clerkAuth, clerkUser, clerkSSO, clerkSignIn, clerkSignUp } =
+    useSafeClerkAuth();
 
   // Track if we're processing an OAuth flow
   const isProcessingOAuth = useRef(false);
@@ -588,14 +591,12 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
             }
           }
 
-          // Verify that Clerk session is fully cleared
-          if (clerkAuth.isSignedIn) {
-            console.warn(
-              '⚠️ Clerk still reports isSignedIn=true after signOut!',
-            );
-          } else {
-            console.log('✅ Verified Clerk isSignedIn is now false');
-          }
+          // Note: We cannot reliably check clerkAuth.isSignedIn here because
+          // it's a stale closure reference. The actual state update happens
+          // asynchronously and triggers a re-render. The auth state listener
+          // will receive the updated isSignedIn=false value.
+          // The token verification above is the reliable check.
+          console.log('✅ Clerk signOut completed and tokens verified cleared');
         } catch (clerkError: any) {
           // If the error is "already signed out", treat it as success
           const errorMessage = clerkError?.message || String(clerkError);
@@ -1248,14 +1249,116 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       // Mark that we're processing OAuth
       isProcessingOAuth.current = true;
 
-      // Use Clerk's useSSO hook to start OAuth flow
+      // CRITICAL FIX: Use custom OAuth flow with oidcPrompt to force account picker
+      // Clerk's startSSOFlow doesn't expose oidcPrompt, but signIn.create() does.
+      // Setting oidcPrompt: 'select_account' forces Google to show the account picker
+      // even if there's an active OS-level Google session.
       console.log(
-        '📋 [AuthContext] Calling Clerk startSSOFlow with strategy: oauth_google',
+        '📋 [AuthContext] Calling custom OAuth flow with oidcPrompt: select_account',
       );
-      const result = await clerkSSO.startSSOFlow({
+
+      // Ensure clerkSignIn is available
+      if (
+        !clerkSignIn?.signIn ||
+        !clerkSignIn?.setActive ||
+        !clerkSignIn?.isLoaded
+      ) {
+        console.error('❌ [AuthContext] Clerk signIn hook not ready');
+        isProcessingOAuth.current = false;
+        return { error: 'Authentication system not ready. Please try again.' };
+      }
+
+      if (!clerkSignUp?.signUp || !clerkSignUp?.isLoaded) {
+        console.error('❌ [AuthContext] Clerk signUp hook not ready');
+        isProcessingOAuth.current = false;
+        return { error: 'Authentication system not ready. Please try again.' };
+      }
+
+      const redirectUrl = 'creativebridge://auth/callback';
+
+      // Step 1: Create signIn with oidcPrompt to force account picker
+      console.log(
+        '📋 [AuthContext] Creating signIn with strategy: oauth_google, oidcPrompt: select_account',
+      );
+      await clerkSignIn.signIn.create({
         strategy: 'oauth_google',
-        redirectUrl: 'creativebridge://auth/callback',
+        redirectUrl,
+        oidcPrompt: 'select_account', // CRITICAL: Forces Google to show account picker
       });
+
+      // Step 2: Get the external verification redirect URL
+      const { externalVerificationRedirectURL } =
+        clerkSignIn.signIn.firstFactorVerification;
+
+      if (!externalVerificationRedirectURL) {
+        console.error(
+          '❌ [AuthContext] Missing external verification redirect URL',
+        );
+        isProcessingOAuth.current = false;
+        return { error: 'Failed to start Google authentication.' };
+      }
+
+      console.log(
+        '🌐 [AuthContext] Opening Google OAuth with forced account picker...',
+      );
+
+      // Step 3: Open the auth session
+      const authSessionResult = await WebBrowser.openAuthSessionAsync(
+        externalVerificationRedirectURL.toString(),
+        redirectUrl,
+      );
+
+      // Step 4: Handle the result
+      // Check for user cancellation first
+      if (
+        authSessionResult.type === 'cancel' ||
+        authSessionResult.type === 'dismiss'
+      ) {
+        console.log(
+          '📱 [AuthContext] OAuth session cancelled by user:',
+          authSessionResult.type,
+        );
+        isProcessingOAuth.current = false;
+        return {}; // Silent return for user cancellation
+      }
+
+      if (authSessionResult.type !== 'success' || !authSessionResult.url) {
+        console.log(
+          '📱 [AuthContext] OAuth session failed:',
+          authSessionResult.type,
+        );
+        isProcessingOAuth.current = false;
+        return { error: 'Google authentication was not completed.' };
+      }
+
+      // Step 5: Parse the result and reload signIn
+      const params = new URL(authSessionResult.url).searchParams;
+      const rotatingTokenNonce = params.get('rotating_token_nonce') ?? '';
+      await clerkSignIn.signIn.reload({ rotatingTokenNonce });
+
+      // Step 6: Check if user needs to be created (sign-up transfer)
+      const userNeedsToBeCreated =
+        clerkSignIn.signIn.firstFactorVerification.status === 'transferable';
+
+      if (userNeedsToBeCreated) {
+        console.log(
+          '📝 [AuthContext] User needs to be created, transferring to signUp',
+        );
+        await clerkSignUp.signUp.create({
+          transfer: true,
+        });
+      }
+
+      // Build result object matching startSSOFlow format
+      const result = {
+        createdSessionId:
+          clerkSignUp.signUp.createdSessionId ??
+          clerkSignIn.signIn.createdSessionId,
+        setActive: clerkSignIn.setActive,
+        signIn: clerkSignIn.signIn,
+        signUp: clerkSignUp.signUp,
+        authSessionResult,
+      };
 
       console.log('🔄 [AuthContext] OAuth flow result:', {
         createdSessionId: result.createdSessionId,
@@ -1266,15 +1369,8 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         signInIdentifier: result.signIn?.identifier,
       });
 
-      // Check if user cancelled the OAuth flow
-      if (
-        result.authSessionResult?.type === 'cancel' ||
-        result.authSessionResult?.type === 'dismiss'
-      ) {
-        isProcessingOAuth.current = false;
-        console.log('ℹ️ [AuthContext] Google sign-in was cancelled by user');
-        return {}; // Silent return for user cancellation
-      }
+      // Note: Cancel/dismiss already handled above in Step 4
+      // If we reach here, authSessionResult.type === 'success'
 
       // CRITICAL FIX #5: Validate OAuth result identity before calling setActive
       // The previous fixes cleared client-side tokens, but Clerk's server and OAuth providers
@@ -1465,59 +1561,142 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         await result.setActive({ session: result.createdSessionId });
         console.log('✅ [AuthContext] Session activated successfully');
 
-        // Clear the previous user tracking after successful different-user OAuth
-        if (previousUserId && oauthUserId !== previousUserId) {
+        // POST-ACTIVATION VERIFICATION: Double-check activated user
+        // CRITICAL FIX #7: Read previous user data BEFORE clearing it!
+        // For sign-in flows, oauthUserId is null so we must check the activated session
+        const previousUserIdForVerification = previousUserId; // Captured earlier in the function
+        const previousLogoutTimestampForVerification = previousLogoutTimestamp; // Captured earlier
+
+        // Wait a moment for Clerk's state to update after setActive
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Get the activated user ID from the session
+        // Note: clerkAuth.userId may still be stale due to React's async state updates
+        // We need to get the user ID from the session we just activated
+        const activatedSessionId = result.createdSessionId;
+        console.log(
+          '🔍 [AuthContext] Post-activation check - session ID:',
+          activatedSessionId,
+        );
+
+        // For sign-in flows where we couldn't validate pre-activation,
+        // we MUST verify the activated user isn't the previous user who just logged out
+        if (previousUserIdForVerification && isSignIn && !oauthUserId) {
           console.log(
-            '✅ [AuthContext] Different user signed in, clearing previous user tracking',
+            '🔍 [AuthContext] Sign-in flow post-activation verification...',
+          );
+          console.log(
+            '🔍 [AuthContext] Previous user ID to check against:',
+            previousUserIdForVerification,
+          );
+
+          // CRITICAL FIX: Get the fresh user ID from the JWT token, NOT from clerkAuth hook
+          // The clerkAuth hook value is captured at function invocation time (stale closure)
+          // and won't reflect the updated state after setActive(). The JWT always contains
+          // the correct user ID for the activated session.
+          let currentClerkUserId: string | null = null;
+          try {
+            const jwt = await clerkAuth.getToken();
+            if (jwt) {
+              const decoded = decodeJWT(jwt);
+              currentClerkUserId = decoded.payload?.sub || null;
+              console.log(
+                '🔍 [AuthContext] Extracted user ID from JWT:',
+                currentClerkUserId,
+              );
+            } else {
+              console.warn(
+                '⚠️ [AuthContext] Could not get JWT token after setActive',
+              );
+            }
+          } catch (jwtError) {
+            console.error(
+              '❌ [AuthContext] Error decoding JWT for verification:',
+              jwtError,
+            );
+          }
+          console.log(
+            '🔍 [AuthContext] Current Clerk user ID after activation:',
+            currentClerkUserId,
+          );
+
+          if (currentClerkUserId === previousUserIdForVerification) {
+            const timeSinceLogout =
+              Date.now() -
+              parseInt(previousLogoutTimestampForVerification || '0', 10);
+            const wasRecentLogout = timeSinceLogout < 60000;
+
+            console.log(
+              '🔍 [AuthContext] Same user detected, time since logout:',
+              timeSinceLogout,
+              'ms',
+            );
+
+            if (wasRecentLogout) {
+              console.error(
+                '🚨 [AuthContext] POST-ACTIVATION CRITICAL: Activated the SAME user who just logged out!',
+              );
+              console.error(
+                '🚨 [AuthContext] Previous user ID:',
+                previousUserIdForVerification,
+              );
+              console.error(
+                '🚨 [AuthContext] Activated user ID:',
+                currentClerkUserId,
+              );
+              console.error(
+                '🚨 [AuthContext] Time since logout:',
+                timeSinceLogout,
+                'ms (threshold: 60000ms)',
+              );
+              console.error('🚨 [AuthContext] Emergency rollback...');
+
+              // Emergency rollback
+              await clearAllClerkTokens();
+              try {
+                await clerkAuth.signOut();
+              } catch (e) {
+                console.warn(
+                  '⚠️ [AuthContext] signOut during rollback failed:',
+                  e,
+                );
+              }
+              await clearAllClerkTokens();
+              await AsyncStorage.removeItem('__previous_clerk_user_id');
+              await AsyncStorage.removeItem('__previous_logout_timestamp');
+
+              isProcessingOAuth.current = false;
+
+              // US-011: Return user-friendly error with showSessionHelp trigger
+              return {
+                error:
+                  'Cannot sign in - previous user session detected. Please log out from ' +
+                  'Google/Apple in device Settings and try again.',
+                showSessionHelp: true,
+                provider: 'google',
+              };
+            } else {
+              console.log(
+                'ℹ️ [AuthContext] Same user re-login after >60s - allowing (likely intentional)',
+              );
+            }
+          } else {
+            console.log(
+              '✅ [AuthContext] Different user signed in:',
+              currentClerkUserId,
+            );
+          }
+        }
+
+        // Clear the previous user tracking after successful verification
+        // Only clear if we have a DIFFERENT user (for sign-up flows where oauthUserId is known)
+        // OR after successful verification for sign-in flows
+        if (previousUserIdForVerification) {
+          console.log(
+            '✅ [AuthContext] Clearing previous user tracking after successful verification',
           );
           await AsyncStorage.removeItem('__previous_clerk_user_id');
           await AsyncStorage.removeItem('__previous_logout_timestamp');
-        }
-
-        // POST-ACTIVATION VERIFICATION: Double-check activated user
-        const activatedUserId = clerkAuth?.userId;
-        const previousUserIdAfterActivation = await AsyncStorage.getItem(
-          '__previous_clerk_user_id',
-        );
-
-        if (
-          activatedUserId &&
-          previousUserIdAfterActivation &&
-          activatedUserId === previousUserIdAfterActivation
-        ) {
-          const previousLogoutTimestampAfterActivation =
-            await AsyncStorage.getItem('__previous_logout_timestamp');
-          const timeSinceLogoutAfterActivation =
-            Date.now() -
-            parseInt(previousLogoutTimestampAfterActivation || '0', 10);
-
-          if (timeSinceLogoutAfterActivation < 60000) {
-            console.error(
-              '🚨 [AuthContext] POST-ACTIVATION CRITICAL: Activated the SAME user who just logged out!',
-            );
-            console.error(
-              '🚨 [AuthContext] This should have been caught in pre-activation validation!',
-            );
-            console.error('🚨 [AuthContext] Emergency rollback...');
-
-            // Emergency rollback
-            await clearAllClerkTokens();
-            await clerkAuth.signOut();
-            await clearAllClerkTokens();
-            await AsyncStorage.removeItem('__previous_clerk_user_id');
-            await AsyncStorage.removeItem('__previous_logout_timestamp');
-
-            isProcessingOAuth.current = false;
-
-            // US-011: Return user-friendly error with showSessionHelp trigger
-            return {
-              error:
-                'Cannot sign in - previous user session detected. Please log out from ' +
-                'Google/Apple in device Settings and try again.',
-              showSessionHelp: true,
-              provider: 'google',
-            };
-          }
         }
 
         console.log('✅ [AuthContext] Post-activation verification passed');
@@ -1908,59 +2087,138 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           '🍎 [AuthContext] Note: Apple may provide a private relay email - Clerk handles this automatically',
         );
 
-        // Clear the previous user tracking after successful different-user OAuth
-        if (previousUserId && oauthUserId !== previousUserId) {
+        // POST-ACTIVATION VERIFICATION: Double-check activated user
+        // CRITICAL FIX #7: Read previous user data BEFORE clearing it!
+        // For sign-in flows, oauthUserId is null so we must check the activated session
+        const previousUserIdForVerification = previousUserId; // Captured earlier in the function
+        const previousLogoutTimestampForVerification = previousLogoutTimestamp; // Captured earlier
+
+        // Wait a moment for Clerk's state to update after setActive
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Get the activated user ID from the session
+        const activatedSessionId = result.createdSessionId;
+        console.log(
+          '🔍 [AuthContext] Post-activation check - session ID:',
+          activatedSessionId,
+        );
+
+        // For sign-in flows where we couldn't validate pre-activation,
+        // we MUST verify the activated user isn't the previous user who just logged out
+        if (previousUserIdForVerification && isSignIn && !oauthUserId) {
           console.log(
-            '✅ [AuthContext] Different user signed in, clearing previous user tracking',
+            '🔍 [AuthContext] Sign-in flow post-activation verification...',
+          );
+          console.log(
+            '🔍 [AuthContext] Previous user ID to check against:',
+            previousUserIdForVerification,
+          );
+
+          // CRITICAL FIX: Get the fresh user ID from the JWT token, NOT from clerkAuth hook
+          // The clerkAuth hook value is captured at function invocation time (stale closure)
+          // and won't reflect the updated state after setActive(). The JWT always contains
+          // the correct user ID for the activated session.
+          let currentClerkUserId: string | null = null;
+          try {
+            const jwt = await clerkAuth.getToken();
+            if (jwt) {
+              const decoded = decodeJWT(jwt);
+              currentClerkUserId = decoded.payload?.sub || null;
+              console.log(
+                '🔍 [AuthContext] Extracted user ID from JWT:',
+                currentClerkUserId,
+              );
+            } else {
+              console.warn(
+                '⚠️ [AuthContext] Could not get JWT token after setActive',
+              );
+            }
+          } catch (jwtError) {
+            console.error(
+              '❌ [AuthContext] Error decoding JWT for verification:',
+              jwtError,
+            );
+          }
+          console.log(
+            '🔍 [AuthContext] Current Clerk user ID after activation:',
+            currentClerkUserId,
+          );
+
+          if (currentClerkUserId === previousUserIdForVerification) {
+            const timeSinceLogout =
+              Date.now() -
+              parseInt(previousLogoutTimestampForVerification || '0', 10);
+            const wasRecentLogout = timeSinceLogout < 60000;
+
+            console.log(
+              '🔍 [AuthContext] Same user detected, time since logout:',
+              timeSinceLogout,
+              'ms',
+            );
+
+            if (wasRecentLogout) {
+              console.error(
+                '🚨 [AuthContext] POST-ACTIVATION CRITICAL: Activated the SAME user who just logged out!',
+              );
+              console.error(
+                '🚨 [AuthContext] Previous user ID:',
+                previousUserIdForVerification,
+              );
+              console.error(
+                '🚨 [AuthContext] Activated user ID:',
+                currentClerkUserId,
+              );
+              console.error(
+                '🚨 [AuthContext] Time since logout:',
+                timeSinceLogout,
+                'ms (threshold: 60000ms)',
+              );
+              console.error('🚨 [AuthContext] Emergency rollback...');
+
+              // Emergency rollback
+              await clearAllClerkTokens();
+              try {
+                await clerkAuth.signOut();
+              } catch (e) {
+                console.warn(
+                  '⚠️ [AuthContext] signOut during rollback failed:',
+                  e,
+                );
+              }
+              await clearAllClerkTokens();
+              await AsyncStorage.removeItem('__previous_clerk_user_id');
+              await AsyncStorage.removeItem('__previous_logout_timestamp');
+
+              isProcessingOAuth.current = false;
+
+              // US-011: Return user-friendly error with showSessionHelp trigger
+              return {
+                error:
+                  'Cannot sign in - previous user session detected. Please log out from ' +
+                  'Google/Apple in device Settings and try again.',
+                showSessionHelp: true,
+                provider: 'apple',
+              };
+            } else {
+              console.log(
+                'ℹ️ [AuthContext] Same user re-login after >60s - allowing (likely intentional)',
+              );
+            }
+          } else {
+            console.log(
+              '✅ [AuthContext] Different user signed in:',
+              currentClerkUserId,
+            );
+          }
+        }
+
+        // Clear the previous user tracking after successful verification
+        if (previousUserIdForVerification) {
+          console.log(
+            '✅ [AuthContext] Clearing previous user tracking after successful verification',
           );
           await AsyncStorage.removeItem('__previous_clerk_user_id');
           await AsyncStorage.removeItem('__previous_logout_timestamp');
-        }
-
-        // POST-ACTIVATION VERIFICATION: Double-check activated user
-        const activatedUserId = clerkAuth?.userId;
-        const previousUserIdAfterActivation = await AsyncStorage.getItem(
-          '__previous_clerk_user_id',
-        );
-
-        if (
-          activatedUserId &&
-          previousUserIdAfterActivation &&
-          activatedUserId === previousUserIdAfterActivation
-        ) {
-          const previousLogoutTimestampAfterActivation =
-            await AsyncStorage.getItem('__previous_logout_timestamp');
-          const timeSinceLogoutAfterActivation =
-            Date.now() -
-            parseInt(previousLogoutTimestampAfterActivation || '0', 10);
-
-          if (timeSinceLogoutAfterActivation < 60000) {
-            console.error(
-              '🚨 [AuthContext] POST-ACTIVATION CRITICAL: Activated the SAME user who just logged out!',
-            );
-            console.error(
-              '🚨 [AuthContext] This should have been caught in pre-activation validation!',
-            );
-            console.error('🚨 [AuthContext] Emergency rollback...');
-
-            // Emergency rollback
-            await clearAllClerkTokens();
-            await clerkAuth.signOut();
-            await clearAllClerkTokens();
-            await AsyncStorage.removeItem('__previous_clerk_user_id');
-            await AsyncStorage.removeItem('__previous_logout_timestamp');
-
-            isProcessingOAuth.current = false;
-
-            // US-011: Return user-friendly error with showSessionHelp trigger
-            return {
-              error:
-                'Cannot sign in - previous user session detected. Please log out from ' +
-                'Google/Apple in device Settings and try again.',
-              showSessionHelp: true,
-              provider: 'apple',
-            };
-          }
         }
 
         console.log('✅ [AuthContext] Post-activation verification passed');
