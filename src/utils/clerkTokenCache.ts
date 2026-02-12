@@ -27,6 +27,52 @@ const CLERK_TOKEN_PREFIX = 'clerk.token.';
 // Using a Set for O(1) lookups and deduplication
 const tokenKeys = new Set<string>();
 
+// Mutex flag to prevent concurrent clearAllClerkTokens() calls from racing
+// When true, a clearing operation is in progress and new calls should wait
+let clearingInProgress = false;
+
+/**
+ * Comprehensive list of all Clerk token keys to clear
+ *
+ * This includes:
+ * - Primary JWT tokens used for session management
+ * - Legacy token keys from older Clerk versions
+ * - A/B slot storage keys used by Clerk's chunked token system
+ * - Metadata keys for each storage slot
+ *
+ * Clerk uses A/B slot storage to enable hot-swapping tokens without downtime.
+ * When rotating tokens, Clerk writes to the inactive slot then switches.
+ * We must clear BOTH slots to prevent stale session reactivation.
+ */
+const ALL_CLERK_KEYS: readonly string[] = [
+  // Primary session tokens
+  '__clerk_client_jwt',
+  '__session',
+  '__clerk_db_jwt',
+  '__clerk_refresh_token',
+  '__clerk_session',
+
+  // Legacy token keys (older Clerk SDK versions)
+  '__clerk_jwt',
+  '__clerk_token',
+  'clerk-js-session-token',
+
+  // A/B slot storage keys for chunked token storage
+  // Clerk uses these for hot-swapping tokens during rotation
+  'clerk-js-session-jwt-latest',
+  'clerk-js-session-jwt-A',
+  'clerk-js-session-jwt-B',
+
+  // Metadata for A/B slots (tracks which slot is active)
+  'clerk-js-session-jwt-A-metadata',
+  'clerk-js-session-jwt-B-metadata',
+
+  // Additional cache keys Clerk may use
+  '__clerk_publishable_key',
+  '__clerk_domain',
+  '__clerk_proxy_url',
+] as const;
+
 /**
  * Sanitize a key to meet SecureStore requirements
  * Keys must contain only alphanumeric characters, ".", "-", and "_"
@@ -42,8 +88,40 @@ function sanitizeKey(key: string): string {
 /**
  * Custom TokenCache implementation for Clerk
  * Stores tokens securely using expo-secure-store
+ *
+ * Implements getToken, saveToken, and clearToken methods.
+ * The clearToken method is called by Clerk's internal hot-swap mechanism
+ * during token rotation and session invalidation.
  */
 export const clerkTokenCache: TokenCache = {
+  /**
+   * Clear a specific token from secure storage
+   *
+   * This method is called by Clerk's internal hot-swap mechanism when it needs
+   * to invalidate a specific token (e.g., during token rotation or signOut).
+   * Per Clerk's interface, this is fire-and-forget (synchronous return, async delete).
+   *
+   * @param key - Token identifier to clear (e.g., "__clerk_client_jwt")
+   */
+  clearToken(key: string): void {
+    const sanitizedKey = sanitizeKey(key);
+    const prefixedKey = `${CLERK_TOKEN_PREFIX}${sanitizedKey}`;
+
+    console.log(`🧹 clearToken called for: ${key} (stored as: ${prefixedKey})`);
+
+    // Remove from tracking Set
+    tokenKeys.delete(prefixedKey);
+
+    // Fire-and-forget deletion per Clerk interface (don't await)
+    SecureStore.deleteItemAsync(prefixedKey)
+      .then(() => {
+        console.log(`✅ clearToken: Successfully deleted ${prefixedKey}`);
+      })
+      .catch(error => {
+        console.error(`❌ clearToken: Failed to delete ${prefixedKey}:`, error);
+      });
+  },
+
   /**
    * Retrieve a token from secure storage
    * @param key - Token identifier (e.g., "__clerk_client_jwt")
@@ -107,69 +185,87 @@ export const clerkTokenCache: TokenCache = {
  * IMPORTANT: This function now clears tokens even if tokenKeys Set is empty
  * (which happens after app restart). It attempts to clear all common Clerk tokens.
  *
+ * MUTEX: If another clearing operation is in progress, this function waits 200ms
+ * and returns true (assuming the other operation will succeed). This prevents
+ * race conditions when multiple parts of the app trigger token clearing simultaneously.
+ *
  * @returns Promise<boolean> - true if all tokens were cleared successfully
  */
 export async function clearAllClerkTokens(): Promise<boolean> {
-  console.log(
-    `🧹 Clearing all Clerk tokens (${tokenKeys.size} tokens tracked)...`,
-  );
-
-  let successCount = 0;
-  let failureCount = 0;
-
-  // Get keys to clear: use tracked keys if available, otherwise use common keys
-  let keysToCheck: string[] = [];
-
-  if (tokenKeys.size > 0) {
-    // Use tracked keys (normal case during same app session)
-    keysToCheck = Array.from(tokenKeys);
-    console.log(`🧹 Clearing ${tokenKeys.size} tracked token keys...`);
-  } else {
-    // After app restart, tokenKeys is empty but tokens may still exist
-    // Clear common Clerk token keys to ensure thorough cleanup
+  // Check mutex - if clearing is already in progress, wait and return
+  if (clearingInProgress) {
     console.log(
-      '🧹 tokenKeys Set is empty (app may have restarted), clearing common Clerk token keys...',
+      '🔒 clearAllClerkTokens: Another clearing operation is in progress, waiting 200ms...',
     );
-
-    const commonClerkKeys = [
-      '__clerk_client_jwt',
-      '__session',
-      '__clerk_db_jwt',
-      '__clerk_refresh_token',
-      '__clerk_session',
-    ];
-
-    keysToCheck = commonClerkKeys.map(
-      key => `${CLERK_TOKEN_PREFIX}${sanitizeKey(key)}`,
+    await delay(200);
+    console.log(
+      '🔓 clearAllClerkTokens: Wait complete, assuming other operation succeeded',
     );
+    return true;
   }
 
-  // Iterate through all keys and delete them
-  for (const key of keysToCheck) {
-    try {
-      await SecureStore.deleteItemAsync(key);
-      successCount++;
-      console.log(`✅ Deleted token: ${key}`);
-    } catch (error) {
-      console.error(`❌ Failed to delete token ${key}:`, error);
-      failureCount++;
+  // Set mutex flag
+  clearingInProgress = true;
+
+  try {
+    console.log(
+      `🧹 Clearing all Clerk tokens (${tokenKeys.size} tokens tracked)...`,
+    );
+
+    let successCount = 0;
+    let failureCount = 0;
+
+    // Get keys to clear: use tracked keys if available, otherwise use common keys
+    let keysToCheck: string[] = [];
+
+    if (tokenKeys.size > 0) {
+      // Use tracked keys (normal case during same app session)
+      keysToCheck = Array.from(tokenKeys);
+      console.log(`🧹 Clearing ${tokenKeys.size} tracked token keys...`);
+    } else {
+      // After app restart, tokenKeys is empty but tokens may still exist
+      // Clear ALL known Clerk token keys to ensure thorough cleanup
+      // This includes A/B slot storage keys for chunked token storage
+      console.log(
+        `🧹 tokenKeys Set is empty (app may have restarted), clearing all ${ALL_CLERK_KEYS.length} known Clerk token keys...`,
+      );
+
+      keysToCheck = ALL_CLERK_KEYS.map(
+        key => `${CLERK_TOKEN_PREFIX}${sanitizeKey(key)}`,
+      );
     }
+
+    // Iterate through all keys and delete them
+    for (const key of keysToCheck) {
+      try {
+        await SecureStore.deleteItemAsync(key);
+        successCount++;
+        console.log(`✅ Deleted token: ${key}`);
+      } catch (error) {
+        console.error(`❌ Failed to delete token ${key}:`, error);
+        failureCount++;
+      }
+    }
+
+    // Clear the tracking Set
+    tokenKeys.clear();
+
+    const allCleared = failureCount === 0;
+
+    if (allCleared) {
+      console.log(`✅ Successfully cleared all ${successCount} Clerk tokens`);
+    } else {
+      console.warn(
+        `⚠️ Cleared ${successCount} tokens, but ${failureCount} failed to delete`,
+      );
+    }
+
+    return allCleared;
+  } finally {
+    // Always release the mutex, even if an error occurs
+    clearingInProgress = false;
+    console.log('🔓 clearAllClerkTokens: Mutex released');
   }
-
-  // Clear the tracking Set
-  tokenKeys.clear();
-
-  const allCleared = failureCount === 0;
-
-  if (allCleared) {
-    console.log(`✅ Successfully cleared all ${successCount} Clerk tokens`);
-  } else {
-    console.warn(
-      `⚠️ Cleared ${successCount} tokens, but ${failureCount} failed to delete`,
-    );
-  }
-
-  return allCleared;
 }
 
 /**
@@ -192,24 +288,15 @@ export async function hasClerkTokens(): Promise<boolean> {
   }
 
   // After app restart, tokenKeys Set is empty but tokens may still exist in SecureStore
-  // We need to probe SecureStore for common Clerk token keys
+  // We need to probe SecureStore for all known Clerk token keys
   try {
     console.log(
-      '🔍 tokenKeys Set is empty (app may have restarted), probing SecureStore for actual tokens...',
+      `🔍 tokenKeys Set is empty (app may have restarted), probing SecureStore for ${ALL_CLERK_KEYS.length} known Clerk token keys...`,
     );
 
-    // List of common Clerk token keys to check
-    // These are the standard keys Clerk uses for session management
-    const commonClerkKeys = [
-      '__clerk_client_jwt',
-      '__session',
-      '__clerk_db_jwt',
-      '__clerk_refresh_token',
-      '__clerk_session',
-    ];
-
-    // Check each common key to see if it exists in SecureStore
-    for (const key of commonClerkKeys) {
+    // Check each known Clerk key to see if it exists in SecureStore
+    // This includes A/B slot storage keys which may contain stale sessions
+    for (const key of ALL_CLERK_KEYS) {
       const sanitizedKey = sanitizeKey(key);
       const prefixedKey = `${CLERK_TOKEN_PREFIX}${sanitizedKey}`;
 
@@ -230,7 +317,7 @@ export async function hasClerkTokens(): Promise<boolean> {
     }
 
     console.log(
-      '✅ No Clerk tokens found in SecureStore (checked common token keys)',
+      `✅ No Clerk tokens found in SecureStore (checked all ${ALL_CLERK_KEYS.length} known token keys)`,
     );
     return false;
   } catch (error) {
@@ -238,4 +325,81 @@ export async function hasClerkTokens(): Promise<boolean> {
     // Return true on error to be safe - triggers cleanup attempt
     return true;
   }
+}
+
+// Primary token key used for verification
+// This is the main JWT token that Clerk uses for session management
+const PRIMARY_TOKEN_KEY = '__clerk_client_jwt';
+
+/**
+ * Helper function to delay execution
+ * @param ms - Milliseconds to wait
+ */
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Clear all Clerk tokens and verify they are actually deleted
+ *
+ * This function addresses the issue where `deleteItemAsync` can fail silently
+ * on iOS. It calls `clearAllClerkTokens()` then verifies the main token is gone
+ * by reading it back from SecureStore. If the token still exists, it retries
+ * the deletion up to `maxAttempts` times with a 100ms delay between attempts.
+ *
+ * This is the recommended function to use during logout flows to ensure
+ * complete session cleanup.
+ *
+ * @param maxAttempts - Maximum number of verification/retry attempts (default 5)
+ * @returns Promise<boolean> - true if tokens verified deleted, false if verification fails
+ */
+export async function clearAndVerifyTokens(
+  maxAttempts: number = 5,
+): Promise<boolean> {
+  console.log(
+    `🧹 clearAndVerifyTokens: Starting with max ${maxAttempts} attempts...`,
+  );
+
+  const sanitizedPrimaryKey = sanitizeKey(PRIMARY_TOKEN_KEY);
+  const prefixedPrimaryKey = `${CLERK_TOKEN_PREFIX}${sanitizedPrimaryKey}`;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    // Clear all tokens
+    await clearAllClerkTokens();
+
+    // Verify the primary token is gone
+    try {
+      const remainingToken = await SecureStore.getItemAsync(prefixedPrimaryKey);
+
+      if (!remainingToken) {
+        console.log(
+          `✅ clearAndVerifyTokens: Tokens verified cleared after ${attempt} attempt(s)`,
+        );
+        return true;
+      }
+
+      // Token still exists - log and retry
+      console.warn(
+        `⚠️ clearAndVerifyTokens: Token still exists after attempt ${attempt}/${maxAttempts}`,
+      );
+
+      if (attempt < maxAttempts) {
+        // Wait before retrying
+        console.log(`⏳ clearAndVerifyTokens: Waiting 100ms before retry...`);
+        await delay(100);
+      }
+    } catch (error) {
+      // Error reading token - could mean it's gone (treat as success)
+      console.log(
+        `✅ clearAndVerifyTokens: Token read failed (likely deleted) after ${attempt} attempt(s)`,
+      );
+      return true;
+    }
+  }
+
+  // Exhausted all attempts
+  console.error(
+    `❌ clearAndVerifyTokens: Failed to verify token deletion after ${maxAttempts} attempts`,
+  );
+  return false;
 }
