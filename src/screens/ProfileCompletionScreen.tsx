@@ -36,10 +36,12 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
   const [displayName, setDisplayName] = useState('');
   const [gradeLevel, setGradeLevel] = useState<GradeLevel | ''>('');
   const [loading, setLoading] = useState(false);
+  const [isSkipping, setIsSkipping] = useState(false);
   const [usernameValidating, setUsernameValidating] = useState(false);
   const [usernameValidation, setUsernameValidation] =
     useState<UsernameValidationResult | null>(null);
   const [usernameTouched, setUsernameTouched] = useState(false);
+  const [displayNameTouched, setDisplayNameTouched] = useState(false);
 
   const gradeLevelOptions = [
     { value: 'K-2', label: 'Kindergarten - 2nd Grade' },
@@ -50,40 +52,54 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
 
   // Pre-fill username and display name from Clerk user object or user email
   useEffect(() => {
+    const clerkUserObj = clerkUser?.user;
+
     // Pre-fill username from email if available
     if (!username && !usernameTouched) {
       let emailToUse: string | undefined;
 
       // Try to get email from Clerk user first
-      if (clerkUser?.emailAddresses?.[0]?.emailAddress) {
-        emailToUse = clerkUser.emailAddresses[0].emailAddress;
+      if (clerkUserObj?.emailAddresses?.[0]?.emailAddress) {
+        emailToUse = clerkUserObj.emailAddresses[0].emailAddress;
       }
       // Fallback to user object email
       else if (user?.email) {
         emailToUse = user.email;
       }
 
-      // Extract username from email
+      // Extract username from email and sanitize for validation
       if (emailToUse) {
         const emailPrefix = emailToUse.split('@')[0];
-        setUsername(emailPrefix);
+        // Sanitize: lowercase, replace dots/special chars with underscores (same as skip flow)
+        const sanitizedUsername = emailPrefix
+          .toLowerCase()
+          .replace(/[^a-z0-9_-]/g, '_') // Replace invalid chars with underscore
+          .replace(/^[_-]+/, '') // Remove leading underscores/hyphens
+          .replace(/[_-]+$/, '') // Remove trailing underscores/hyphens
+          .replace(/[_-]{2,}/g, '_'); // Replace consecutive special chars with single underscore
+        setUsername(sanitizedUsername);
+        // Mark as touched so validation runs for auto-filled username
+        setUsernameTouched(true);
         console.log(
           '🔤 [ProfileCompletion] Auto-filled username from email:',
           emailPrefix,
+          '→ sanitized:',
+          sanitizedUsername,
         );
       }
     }
 
     // Pre-fill display name from Clerk user object
-    if (!displayName) {
-      const firstName = clerkUser?.firstName || '';
-      const lastName = clerkUser?.lastName || '';
+    // Only auto-fill if user hasn't touched the field yet (prevents overwriting user edits)
+    if (!displayName && !displayNameTouched) {
+      const firstName = clerkUserObj?.firstName || '';
+      const lastName = clerkUserObj?.lastName || '';
       if (firstName || lastName) {
         setDisplayName(`${firstName} ${lastName}`.trim());
-      } else if (clerkUser?.emailAddresses?.[0]?.emailAddress) {
+      } else if (clerkUserObj?.emailAddresses?.[0]?.emailAddress) {
         // Fallback to email prefix if no name available
         const emailPrefix =
-          clerkUser.emailAddresses[0].emailAddress.split('@')[0];
+          clerkUserObj.emailAddresses[0].emailAddress.split('@')[0];
         setDisplayName(
           emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1),
         );
@@ -95,7 +111,14 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
         );
       }
     }
-  }, [clerkUser, user, username, displayName, usernameTouched]);
+  }, [
+    clerkUser,
+    user,
+    username,
+    displayName,
+    usernameTouched,
+    displayNameTouched,
+  ]);
 
   // Real-time username validation
   useEffect(() => {
@@ -132,6 +155,13 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
     }
   };
 
+  const handleDisplayNameChange = (text: string) => {
+    setDisplayName(text);
+    if (!displayNameTouched) {
+      setDisplayNameTouched(true);
+    }
+  };
+
   const handleSubmit = async () => {
     // Validate form
     if (!username.trim()) {
@@ -160,7 +190,8 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
 
     try {
       // Get Clerk user ID
-      const clerkUserId = clerkUser?.id;
+      const clerkUserObj = clerkUser?.user;
+      const clerkUserId = clerkUserObj?.id;
       if (!clerkUserId) {
         Alert.alert(
           'Error',
@@ -224,44 +255,50 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
           return;
         }
       } else {
-        // Create new profile
-        // We need a Supabase user ID - if user is null, we'll need to create a profile
-        // with a generated UUID and link it to Clerk user ID
-        if (!user) {
-          Alert.alert(
-            'Error',
-            'Unable to create profile. Please try signing in again.',
-          );
-          setLoading(false);
-          return;
-        }
+        // Create new profile using RPC function (generates proper UUID)
+        // For OAuth users, user.id is the Clerk user ID which is not a valid UUID
+        // The RPC function handles UUID generation internally
+        const clerkEmail =
+          clerkUser?.user?.emailAddresses?.[0]?.emailAddress || null;
 
-        const newProfile = {
-          id: user.id,
+        console.log('📝 [ProfileCompletion] Creating new profile via RPC:', {
+          clerkUserId,
           username: username.trim(),
-          display_name: displayName.trim() || username.trim(),
-          clerk_user_id: clerkUserId,
-          total_xp: 0,
-          current_streak: 0,
-          longest_streak: 0,
-          last_activity_date: new Date().toISOString().split('T')[0],
-          total_games_played: 0,
-          total_stories_completed: 0,
-          total_words_written: 0,
-          best_score: 0,
-          preferred_grade_level: gradeLevel as GradeLevel,
-          speech_enabled: true,
-        };
+          displayName: displayName.trim() || username.trim(),
+          gradeLevel,
+        });
 
-        const { error: insertError } = await supabase
-          .from('user_profiles')
-          .insert(newProfile);
+        const { data: createdProfile, error: insertError } = await (
+          supabase as any
+        )
+          .rpc('create_oauth_user_profile', {
+            p_clerk_user_id: clerkUserId,
+            p_username: username.trim(),
+            p_display_name: displayName.trim() || username.trim(),
+            p_preferred_grade_level: gradeLevel as GradeLevel,
+            p_email: clerkEmail,
+            p_speech_enabled: true,
+          })
+          .single();
 
         if (insertError) {
-          console.error('Error creating profile:', insertError);
-          Alert.alert('Error', 'Failed to create profile. Please try again.');
-          setLoading(false);
-          return;
+          // Check if profile already exists (race condition)
+          if (insertError.message?.includes('already exists')) {
+            console.log(
+              '✅ [ProfileCompletion] Profile already exists, proceeding with update',
+            );
+            // Profile exists, we can proceed - it will be refreshed below
+          } else {
+            console.error('Error creating profile:', insertError);
+            Alert.alert('Error', 'Failed to create profile. Please try again.');
+            setLoading(false);
+            return;
+          }
+        } else {
+          console.log(
+            '✅ [ProfileCompletion] Profile created successfully:',
+            createdProfile,
+          );
         }
       }
 
@@ -301,9 +338,154 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
         },
         {
           text: 'Skip for Now',
-          onPress: () => {
-            if (onSkip) {
-              onSkip();
+          onPress: async () => {
+            setIsSkipping(true);
+            try {
+              // Get Clerk user object and ID - required for profile creation
+              const clerkUserObj = clerkUser?.user;
+              const clerkUserId = clerkUserObj?.id;
+              if (!clerkUserId) {
+                console.error(
+                  '❌ [ProfileCompletion] Cannot create minimal profile: No Clerk user ID',
+                );
+                // Still allow skip, user can fix in Settings later
+                if (onSkip) {
+                  onSkip();
+                }
+                return;
+              }
+
+              // Generate username from email or fallback to clerk user ID suffix
+              const generateUsername = (): string => {
+                // Try email prefix first
+                const email =
+                  clerkUserObj?.emailAddresses?.[0]?.emailAddress ||
+                  user?.email;
+                if (email) {
+                  const emailPrefix = email.split('@')[0];
+                  // Sanitize: lowercase, replace dots/special chars with underscores
+                  // Also handle edge cases like leading/trailing/consecutive underscores
+                  const sanitized = emailPrefix
+                    .toLowerCase()
+                    .replace(/[^a-z0-9_-]/g, '_') // Replace invalid chars with underscore
+                    .replace(/^[_-]+/, '') // Remove leading underscores/hyphens
+                    .replace(/[_-]+$/, '') // Remove trailing underscores/hyphens
+                    .replace(/[_-]{2,}/g, '_'); // Replace consecutive special chars
+                  // If sanitization resulted in empty string, use fallback
+                  if (sanitized.length >= 3) {
+                    return sanitized;
+                  }
+                }
+                // Fallback: use last 8 chars of clerk user ID
+                return `user_${clerkUserId.slice(-8)}`;
+              };
+
+              // Generate display name from Clerk firstName + lastName
+              const generateDisplayName = (): string => {
+                const firstName = clerkUserObj?.firstName || '';
+                const lastName = clerkUserObj?.lastName || '';
+                const fullName = `${firstName} ${lastName}`.trim();
+                if (fullName) {
+                  return fullName;
+                }
+                // Fallback to capitalized username
+                // For 'user_xxx' format (Apple hidden email), create friendlier display
+                const generatedUsername = generateUsername();
+                if (generatedUsername.startsWith('user_')) {
+                  // Transform 'user_abc12345' to 'User abc12345' for display
+                  return 'User ' + generatedUsername.slice(5);
+                }
+                // For email-derived usernames, capitalize first letter
+                return (
+                  generatedUsername.charAt(0).toUpperCase() +
+                  generatedUsername.slice(1)
+                );
+              };
+
+              const generatedUsername = generateUsername();
+              const generatedDisplayName = generateDisplayName();
+
+              // Log edge case detection for debugging
+              const hasEmail = !!(
+                clerkUserObj?.emailAddresses?.[0]?.emailAddress || user?.email
+              );
+              const hasName = !!(
+                clerkUserObj?.firstName || clerkUserObj?.lastName
+              );
+              if (!hasEmail) {
+                console.log(
+                  '🍎 [ProfileCompletion] Apple Sign In hidden email detected - using Clerk ID fallback for username',
+                );
+              }
+              if (!hasName) {
+                console.log(
+                  '🍎 [ProfileCompletion] No name available - using username-derived display name',
+                );
+              }
+
+              console.log(
+                '🔄 [ProfileCompletion] Creating minimal profile for skipped user...',
+                {
+                  username: generatedUsername,
+                  displayName: generatedDisplayName,
+                  hasEmail,
+                  hasName,
+                },
+              );
+
+              // Use RPC function to create profile (bypasses RLS)
+              const { data: createdProfile, error: createError } = await (
+                supabase as any
+              )
+                .rpc('create_oauth_user_profile', {
+                  p_clerk_user_id: clerkUserId,
+                  p_username: generatedUsername,
+                  p_display_name: generatedDisplayName,
+                  p_preferred_grade_level: 'K-2', // Default for skipped users
+                  p_email:
+                    clerkUserObj?.emailAddresses?.[0]?.emailAddress || null,
+                  p_speech_enabled: true,
+                })
+                .single();
+
+              if (createError) {
+                // Check if profile already exists (not an error, just skip creation)
+                if (createError.message?.includes('already exists')) {
+                  console.log(
+                    '✅ [ProfileCompletion] Profile already exists, skipping creation',
+                  );
+                } else {
+                  console.error(
+                    '❌ [ProfileCompletion] Error creating minimal profile:',
+                    createError,
+                  );
+                }
+                // Don't block navigation on error - user can fix in Settings
+              } else {
+                console.log(
+                  '✅ [ProfileCompletion] Minimal profile created successfully:',
+                  createdProfile,
+                );
+              }
+
+              // Refresh profile in AuthContext to load the new data
+              await refreshProfile();
+
+              // Call onSkip callback to proceed with navigation
+              if (onSkip) {
+                onSkip();
+              }
+            } catch (error) {
+              console.error(
+                '❌ [ProfileCompletion] Unexpected error during skip:',
+                error,
+              );
+              // Don't block navigation on error
+              if (onSkip) {
+                onSkip();
+              }
+            } finally {
+              setIsSkipping(false);
             }
           },
         },
@@ -398,7 +580,7 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
               <TextInput
                 style={styles.textInput}
                 value={displayName}
-                onChangeText={setDisplayName}
+                onChangeText={handleDisplayNameChange}
                 placeholder="How should we display your name?"
                 autoCorrect={false}
                 editable={!loading}
@@ -462,11 +644,25 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.skipButton}
+              style={[
+                styles.skipButton,
+                (loading || isSkipping) && styles.skipButtonDisabled,
+              ]}
               onPress={handleSkip}
-              disabled={loading}
+              disabled={loading || isSkipping}
             >
-              <Text style={styles.skipButtonText}>Skip for Now</Text>
+              {isSkipping ? (
+                <View style={styles.skipButtonContent}>
+                  <ActivityIndicator
+                    size="small"
+                    color="#666"
+                    style={styles.skipButtonSpinner}
+                  />
+                  <Text style={styles.skipButtonText}>Setting up...</Text>
+                </View>
+              ) : (
+                <Text style={styles.skipButtonText}>Skip for Now</Text>
+              )}
             </TouchableOpacity>
 
             <View style={styles.helpSection}>
@@ -636,6 +832,17 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: 'center',
     marginBottom: 20,
+  },
+  skipButtonDisabled: {
+    opacity: 0.6,
+  },
+  skipButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  skipButtonSpinner: {
+    marginRight: 8,
   },
   skipButtonText: {
     color: '#666',
