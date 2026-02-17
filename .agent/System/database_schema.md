@@ -36,7 +36,15 @@ CREATE TABLE user_profiles (
 
     -- Profile (Optional)
     avatar_url TEXT,
-    bio TEXT
+    bio TEXT,
+
+    -- Onboarding Progress (US-007)
+    onboarding_completed BOOLEAN DEFAULT false,
+    onboarding_progress JSONB DEFAULT '{"create_account": true, "first_story": false, "first_image": false, "first_voice": false, "first_streak": false}',
+    first_story_completed_at TIMESTAMP WITH TIME ZONE,
+    first_image_generated_at TIMESTAMP WITH TIME ZONE,
+    first_voice_input_at TIMESTAMP WITH TIME ZONE,
+    first_streak_achieved_at TIMESTAMP WITH TIME ZONE
 );
 ```
 
@@ -47,6 +55,7 @@ CREATE TABLE user_profiles (
 - Grade-level preferences for content appropriateness
 - Activity streak management
 - User customization options
+- Onboarding progress tracking with milestone timestamps
 
 ### 2. game_sessions
 
@@ -409,6 +418,51 @@ RETURNS BOOLEAN
 
 **Purpose**: Updates feature rollout percentages with logging.
 
+### Onboarding Functions (US-007)
+
+#### 9. update_onboarding_progress_item()
+
+```sql
+CREATE OR REPLACE FUNCTION update_onboarding_progress_item(
+    p_user_id UUID,
+    p_item_key TEXT,
+    p_completed BOOLEAN DEFAULT true
+)
+RETURNS BOOLEAN
+```
+
+**Purpose**: Updates a specific onboarding checklist item. Valid keys: `create_account`, `first_story`, `first_image`, `first_voice`, `first_streak`. Auto-marks `onboarding_completed` when all items are done.
+
+#### 10. record_onboarding_milestone()
+
+```sql
+CREATE OR REPLACE FUNCTION record_onboarding_milestone(
+    p_user_id UUID,
+    p_milestone_type TEXT,
+    p_xp_reward INTEGER DEFAULT 0
+)
+RETURNS BOOLEAN
+```
+
+**Purpose**: Records first-time milestone achievement with timestamp and optional XP award. Valid types: `first_story`, `first_image`, `first_voice`, `first_streak`. Idempotent - returns false if milestone already achieved.
+
+#### 11. get_onboarding_status()
+
+```sql
+CREATE OR REPLACE FUNCTION get_onboarding_status(p_user_id UUID)
+RETURNS TABLE(
+    onboarding_completed BOOLEAN,
+    onboarding_progress JSONB,
+    first_story_completed_at TIMESTAMP WITH TIME ZONE,
+    first_image_generated_at TIMESTAMP WITH TIME ZONE,
+    first_voice_input_at TIMESTAMP WITH TIME ZONE,
+    first_streak_achieved_at TIMESTAMP WITH TIME ZONE,
+    completion_percentage INTEGER
+)
+```
+
+**Purpose**: Returns complete onboarding status for a user, including progress percentage (0-100).
+
 ## Views and Analytics
 
 ### 1. leaderboard_xp
@@ -526,6 +580,10 @@ CREATE POLICY "beta_users_read_own" ON beta_users
 CREATE INDEX idx_user_profiles_last_activity ON user_profiles (last_activity_date DESC);
 CREATE INDEX idx_user_profiles_total_xp ON user_profiles (total_xp DESC);
 
+-- Onboarding progress tracking (US-007)
+CREATE INDEX idx_user_profiles_onboarding_completed ON user_profiles (onboarding_completed) WHERE onboarding_completed = false;
+CREATE INDEX idx_user_profiles_first_story_completed_at ON user_profiles (first_story_completed_at DESC) WHERE first_story_completed_at IS NOT NULL;
+
 -- Game session queries
 CREATE INDEX idx_game_sessions_user_completed ON game_sessions (user_id, completed_at DESC);
 CREATE INDEX idx_game_sessions_image_generation ON game_sessions (image_generation_timestamp DESC);
@@ -565,6 +623,7 @@ Located in `/sql/` directory:
 4. **create_image_generation_events_table.sql** - Comprehensive image tracking
 5. **fix_streak_function_ambiguity.sql** - User streak calculation fixes
 6. **create_story_diversity_tables.sql** - Story diversity tracking system (US-001)
+7. **add_onboarding_progress_fields.sql** - Onboarding progress tracking (US-007)
 
 ### Migration Best Practices
 
@@ -608,12 +667,14 @@ Located in `/sql/` directory:
 ## Related Documentation
 
 - [Project Architecture](./project_architecture.md) - Overall system design and integration points
+  - See **Section 9: Onboarding System** for service architecture and component documentation
 - [API Integration Guide](./api_integration.md) - External service integration patterns
-- [Development SOPs](./SOPs/) - Database migration and maintenance procedures
+- [Development SOPs](../SOP/) - Database migration and maintenance procedures
+- [Onboarding Enhancement PRD](../Tasks/prd-onboarding-enhancement.md) - Complete feature specification with 20 user stories
 
 ---
 
-**Last Updated**: November 2024  
-**Version**: 1.0  
-**Schema Version**: 1.2.0  
+**Last Updated**: February 2026
+**Version**: 1.2
+**Schema Version**: 1.4.0
 **Maintainer**: Development Team

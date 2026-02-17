@@ -28,6 +28,10 @@ import { AuthStackParamList } from '../navigation/AppNavigator';
 import { GradeLevel } from '../types/database';
 import { GoogleSignInButton } from '../components/auth/GoogleSignInButton';
 import { AppleSignInButton } from '../components/auth/AppleSignInButton';
+import {
+  OAuthSessionHelpModal,
+  OAuthProvider,
+} from '../components/common/OAuthSessionHelpModal';
 
 type AuthScreenNavigationProp = StackNavigationProp<AuthStackParamList, 'Auth'>;
 
@@ -72,18 +76,50 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
+  // US-010: OAuth Session Help Modal state
+  const [showSessionHelp, setShowSessionHelp] = useState(false);
+  const [helpProvider, setHelpProvider] = useState<OAuthProvider>('google');
 
-  // Show OAuth errors from AuthContext
+  // US-010: Helper function to detect stale session errors and determine provider
+  const isStaleSessionError = (errorMessage: string): OAuthProvider | null => {
+    // Check for the specific error message pattern from AuthContext
+    // that indicates a stale OS-level OAuth session
+    if (
+      errorMessage.includes(
+        'still logged into Google/Apple at the system level',
+      ) ||
+      errorMessage.includes('log out from Google/Apple')
+    ) {
+      // Determine provider from error message context
+      // Default to 'google' if we can't determine (safer fallback as it's more common)
+      // In the future (US-011), the OAuth functions will return provider directly
+      return 'google';
+    }
+    return null;
+  };
+
+  // Show OAuth errors from AuthContext - updated for US-010
+  // Detects stale session errors and shows the help modal instead of a generic alert
   useEffect(() => {
     if (oauthError) {
-      Alert.alert('Sign-In Error', oauthError, [
-        {
-          text: 'OK',
-          onPress: () => {
-            clearOAuthError();
+      const staleSessionProvider = isStaleSessionError(oauthError);
+
+      if (staleSessionProvider) {
+        // Show the OAuth Session Help Modal instead of a generic alert
+        setHelpProvider(staleSessionProvider);
+        setShowSessionHelp(true);
+        clearOAuthError();
+      } else {
+        // Show regular error alert for non-stale-session errors
+        Alert.alert('Sign-In Error', oauthError, [
+          {
+            text: 'OK',
+            onPress: () => {
+              clearOAuthError();
+            },
           },
-        },
-      ]);
+        ]);
+      }
     }
   }, [oauthError, clearOAuthError]);
 
@@ -692,6 +728,12 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
                 onSignInComplete={error => {
                   if (error) {
                     console.error('Google sign-in error:', error);
+                    // US-010: Check if this is a stale session error
+                    const staleProvider = isStaleSessionError(error);
+                    if (staleProvider) {
+                      setHelpProvider('google'); // We know it's Google from this button
+                      setShowSessionHelp(true);
+                    }
                   } else {
                     console.log('Google sign-in completed successfully');
                   }
@@ -707,6 +749,12 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
                 onSignInComplete={error => {
                   if (error) {
                     console.error('Apple sign-in error:', error);
+                    // US-010: Check if this is a stale session error
+                    const staleProvider = isStaleSessionError(error);
+                    if (staleProvider) {
+                      setHelpProvider('apple'); // We know it's Apple from this button
+                      setShowSessionHelp(true);
+                    }
                   } else {
                     console.log('Apple sign-in completed successfully');
                   }
@@ -973,6 +1021,10 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
                     </TouchableOpacity>
                   ))}
                 </View>
+                <Text style={styles.passwordHint}>
+                  Your grade level personalizes story language, illustration
+                  style, and challenge difficulty.
+                </Text>
               </View>
             )}
 
@@ -1070,6 +1122,13 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
           </View>
         </View>
       </ScrollView>
+
+      {/* US-010: OAuth Session Help Modal */}
+      <OAuthSessionHelpModal
+        visible={showSessionHelp}
+        onClose={() => setShowSessionHelp(false)}
+        provider={helpProvider}
+      />
     </KeyboardAvoidingView>
   );
 };

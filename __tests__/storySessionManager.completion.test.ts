@@ -1,7 +1,10 @@
 // Story Completion Tracking Tests
 // Tests for Task 3.1: Round tracking and auto-completion logic
 
-import { storySessionManager, StorySession } from '../src/services/storySessionManager';
+import {
+  storySessionManager,
+  StorySession,
+} from '../src/services/storySessionManager';
 import { supabase } from '../src/services/supabase';
 import { GradeLevel } from '../src/types';
 
@@ -76,7 +79,10 @@ describe('Story Completion Tracking - Task 3.1', () => {
         }),
       });
 
-      const session = await storySessionManager.createSession(mockUserId, mockGradeLevel);
+      const session = await storySessionManager.createSession(
+        mockUserId,
+        mockGradeLevel,
+      );
       expect(session.current_round).toBe(1);
 
       // Mock for user contribution (round should stay at 1)
@@ -102,7 +108,7 @@ describe('Story Completion Tracking - Task 3.1', () => {
         session.id,
         'user',
         'Once upon a time',
-        session
+        session,
       );
       expect(afterUser?.current_round).toBe(1);
 
@@ -131,7 +137,7 @@ describe('Story Completion Tracking - Task 3.1', () => {
         session.id,
         'ai',
         'there was a brave knight.',
-        afterUser!
+        afterUser!,
       );
 
       expect(afterAI?.current_round).toBe(2);
@@ -150,6 +156,7 @@ describe('Story Completion Tracking - Task 3.1', () => {
         challenges_completed: 0,
         xp_earned: 0,
         story_content: '',
+        story_source: 'New',
         isCompleted: false,
         contributions: [],
         sessionStats: {
@@ -199,7 +206,7 @@ describe('Story Completion Tracking - Task 3.1', () => {
           mockSession.id,
           'ai',
           `AI response ${round}`,
-          mockSession
+          mockSession,
         );
 
         expect(updated?.current_round).toBe(expectedRound);
@@ -226,6 +233,7 @@ describe('Story Completion Tracking - Task 3.1', () => {
         challenges_completed: 0,
         xp_earned: 0,
         story_content: 'A wonderful story so far...',
+        story_source: 'New',
         isCompleted: false,
         contributions: [],
         sessionStats: {
@@ -261,7 +269,7 @@ describe('Story Completion Tracking - Task 3.1', () => {
         mockSession.id,
         'ai',
         'And they lived happily ever after.',
-        mockSession
+        mockSession,
       );
 
       expect(completed?.current_round).toBe(5);
@@ -284,6 +292,7 @@ describe('Story Completion Tracking - Task 3.1', () => {
         challenges_completed: 0,
         xp_earned: 0,
         story_content: 'Almost done...',
+        story_source: 'New',
         isCompleted: false,
         contributions: [],
         sessionStats: {
@@ -318,7 +327,7 @@ describe('Story Completion Tracking - Task 3.1', () => {
         mockSession.id,
         'ai',
         'The end.',
-        mockSession
+        mockSession,
       );
 
       const afterCompletion = Date.now();
@@ -345,6 +354,7 @@ describe('Story Completion Tracking - Task 3.1', () => {
         challenges_completed: 0,
         xp_earned: 0,
         story_content: 'Complete story...',
+        story_source: 'New',
         isCompleted: true,
         completed_at: new Date().toISOString(),
         contributions: [],
@@ -379,7 +389,7 @@ describe('Story Completion Tracking - Task 3.1', () => {
         mockSession.id,
         'ai',
         'Extra content after completion.',
-        mockSession
+        mockSession,
       );
 
       expect(afterExtraContribution?.current_round).toBe(5); // Should not exceed 5
@@ -433,6 +443,7 @@ describe('Story Completion Tracking - Task 3.1', () => {
         challenges_completed: 0,
         xp_earned: 0,
         story_content: 'Story in progress...',
+        story_source: 'New',
         isCompleted: false,
         contributions: [],
         sessionStats: {
@@ -483,6 +494,7 @@ describe('Story Completion Tracking - Task 3.1', () => {
         challenges_completed: 0,
         xp_earned: 0,
         story_content: 'Story content...',
+        story_source: 'New',
         isCompleted: false,
         contributions: [],
         sessionStats: {
@@ -516,7 +528,7 @@ describe('Story Completion Tracking - Task 3.1', () => {
       expect(updateMock).toHaveBeenCalledWith(
         expect.objectContaining({
           current_round: 2,
-        })
+        }),
       );
     });
   });

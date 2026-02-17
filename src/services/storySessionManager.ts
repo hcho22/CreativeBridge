@@ -15,6 +15,7 @@ import {
   GameSession,
   GameSessionInsert,
   GameSessionUpdate,
+  StorySource,
 } from '../types';
 import { ChallengeService } from './challengeService';
 
@@ -39,6 +40,9 @@ export interface StorySession {
   challenges_completed: number;
   xp_earned: number;
   story_content?: string;
+
+  // Story source tracking (for progress indicator visibility)
+  story_source: StorySource;
 
   // Image generation fields
   generated_image_url?: string;
@@ -317,6 +321,7 @@ class StorySessionManager {
         challenges_completed: dbSession.challenges_completed || 0,
         xp_earned: dbSession.xp_earned || 0,
         story_content: dbSession.story_content || '',
+        story_source: dbSession.story_source || 'New',
         generated_image_url: dbSession.generated_image_url,
         image_generation_timestamp: dbSession.image_generation_timestamp,
         image_generation_cost: dbSession.image_generation_cost,
@@ -510,6 +515,8 @@ class StorySessionManager {
         challenges_completed: updatedDbSession.challenges_completed || 0,
         xp_earned: updatedDbSession.xp_earned || 0,
         story_content: updatedDbSession.story_content || '',
+        story_source:
+          updatedDbSession.story_source || session.story_source || 'New',
         generated_image_url: updatedDbSession.generated_image_url || undefined,
         image_generation_timestamp:
           updatedDbSession.image_generation_timestamp || undefined,

@@ -49,6 +49,15 @@ import { imageStorageService } from '../services/imageStorageService';
 import RNFS, { rnfsWrapper } from '../utils/rnfsWrapper';
 import { VoiceInput } from '../components/common/VoiceInput';
 import Share from '../utils/shareWrapper';
+import { CelebrationModal } from '../components/common/CelebrationModal';
+import { FeatureTooltip } from '../components/common/FeatureTooltip';
+import {
+  FirstStoryGuidanceModal,
+  EnhancedEmptyState,
+} from '../components/onboarding';
+import { onboardingMilestoneTracker } from '../services/onboardingMilestoneTracker';
+import { onboardingService } from '../services/onboardingService';
+import { supabase } from '../services/supabase';
 
 type HomeScreenNavigationProp = BottomTabNavigationProp<TabParamList, 'Home'>;
 
@@ -72,7 +81,7 @@ interface GenerationError {
 }
 
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
-  const { userProfile, user } = useAuth();
+  const { userProfile, user, refreshProfile, awardOnboardingXP } = useAuth();
   const { clerkAuth } = useSafeClerkAuth();
   const route = useRoute<RouteProp<HomeStackParamList, 'Home'>>();
 
@@ -141,9 +150,348 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   );
   const MAX_ROUNDS = 5;
 
+  // First story celebration state (US-004)
+  const [showFirstStoryCelebration, setShowFirstStoryCelebration] =
+    useState(false);
+  const [firstStoryXpEarned, setFirstStoryXpEarned] = useState(0);
+
+  // First image generation celebration state (US-005)
+  const [showFirstImageCelebration, setShowFirstImageCelebration] =
+    useState(false);
+
+  // First streak achievement celebration state (US-006)
+  const [showFirstStreakCelebration, setShowFirstStreakCelebration] =
+    useState(false);
+  // Track the previous streak to detect when it changes to 2+
+  const previousStreakRef = useRef<number | null>(null);
+
+  // First story guidance modal state (US-012)
+  const [showFirstStoryGuidance, setShowFirstStoryGuidance] = useState(false);
+  const [dontShowGuidanceAgain, setDontShowGuidanceAgain] = useState(false);
+  // Store the pending action to execute after guidance is dismissed
+  const pendingStoryActionRef = useRef<(() => void) | null>(null);
+
+  // Voice input feature tooltip state (US-013)
+  const [showVoiceInputTooltip, setShowVoiceInputTooltip] = useState(false);
+  const [voiceButtonLayout, setVoiceButtonLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const voiceButtonContainerRef = useRef<View>(null);
+
+  // Image generation feature tooltip state (US-014)
+  const [showImageGenerationTooltip, setShowImageGenerationTooltip] =
+    useState(false);
+  const [imageGenerationLayout, setImageGenerationLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const imageGenerationContainerRef = useRef<View>(null);
+
+  // XP/Challenges feature tooltip state (US-015)
+  const [showXpChallengesTooltip, setShowXpChallengesTooltip] = useState(false);
+  const [challengeDisplayLayout, setChallengeDisplayLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const challengeDisplayContainerRef = useRef<View>(null);
+
+  // Enhanced empty state for new users (US-017)
+  const [isNewUser, setIsNewUser] = useState(false);
+
   // Use the user's preferred grade level from their profile, or default to K-2
   const gradeLevel: GradeLevel =
     (userProfile?.preferred_grade_level as GradeLevel) || 'K-2';
+
+  // Detect first streak achievement (US-006)
+  // When streak changes from <2 to >=2, check if we should show the celebration
+  useEffect(() => {
+    const checkFirstStreakAchievement = async () => {
+      const currentStreak = userProfile?.current_streak;
+      const previousStreak = previousStreakRef.current;
+
+      // Check if streak just changed from <2 to >=2 (first streak achieved)
+      if (
+        currentStreak !== undefined &&
+        currentStreak >= 2 &&
+        previousStreak !== null &&
+        previousStreak < 2
+      ) {
+        console.log(
+          `🔥 [US-006] Streak changed from ${previousStreak} to ${currentStreak}`,
+        );
+
+        // Check if this is truly the first streak and celebration should show
+        const { shouldShowCelebration } =
+          await onboardingMilestoneTracker.markFirstStreakAchieved();
+
+        if (shouldShowCelebration) {
+          console.log('🔥 [US-006] Showing first streak celebration!');
+          // Award XP for first streak achievement (US-010)
+          const xpResult = await awardOnboardingXP('first_streak');
+          if (xpResult.success) {
+            console.log(
+              `🎁 [US-010] Awarded ${xpResult.xpAwarded} XP for first streak!`,
+            );
+          }
+          setShowFirstStreakCelebration(true);
+        }
+      }
+
+      // Update the ref for next comparison
+      if (currentStreak !== undefined) {
+        previousStreakRef.current = currentStreak;
+      }
+    };
+
+    checkFirstStreakAchievement();
+  }, [userProfile?.current_streak]);
+
+  // Determine if user is "new" (US-017) - controls enhanced empty state display
+  const onboardingCompleted = userProfile?.onboarding_completed;
+  const hasUserProfile = !!userProfile;
+
+  useEffect(() => {
+    const loadNewUserStatus = async () => {
+      try {
+        // Check if user has completed onboarding (database field from US-007)
+        if (onboardingCompleted === true) {
+          setIsNewUser(false);
+          return;
+        }
+
+        // Use database as source of truth for existing users
+        // total_stories_completed > 0 means user has completed stories (not new)
+        if (
+          userProfile?.total_stories_completed &&
+          userProfile.total_stories_completed > 0
+        ) {
+          setIsNewUser(false);
+          console.log(
+            '📋 [BugFix] Existing user detected via total_stories_completed:',
+            userProfile.total_stories_completed,
+          );
+
+          // Auto-fix database: set onboarding_completed = true for existing users
+          if (!onboardingCompleted && userProfile.id) {
+            onboardingService
+              .markOnboardingComplete(userProfile.id)
+              .then(result => {
+                if (result.error) {
+                  console.error(
+                    '❌ Failed to auto-fix onboarding status:',
+                    result.error,
+                  );
+                } else {
+                  console.log(
+                    '✅ Auto-fixed onboarding_completed for existing user',
+                  );
+                }
+              });
+          }
+          return;
+        }
+
+        // Check AsyncStorage for users with no completed stories in database
+        const progress =
+          await onboardingMilestoneTracker.getMilestoneProgress();
+        setIsNewUser(!progress.storiesCompleted);
+      } catch (error) {
+        console.error('❌ Error loading new user status:', error);
+        setIsNewUser(true); // Assume new user on error
+      }
+    };
+
+    if (hasUserProfile) {
+      loadNewUserStatus();
+    }
+  }, [
+    onboardingCompleted,
+    hasUserProfile,
+    userProfile?.total_stories_completed,
+    userProfile?.id,
+  ]);
+
+  // US-017: Update new user status when first story celebration shows
+  useEffect(() => {
+    if (showFirstStoryCelebration) {
+      setIsNewUser(false);
+      console.log(
+        '📚 [US-017] First story completed, hiding enhanced empty state',
+      );
+    }
+  }, [showFirstStoryCelebration]);
+
+  // Show voice input tooltip when game becomes active (US-013)
+  // Tooltip appears near voice input button on first game with voice input enabled
+  useEffect(() => {
+    const checkVoiceInputTooltip = async () => {
+      // Only check when game becomes active and voice input is enabled
+      if (!isGameActive || !voiceInputEnabled) {
+        setShowVoiceInputTooltip(false);
+        return;
+      }
+
+      try {
+        // Check if tooltip should be shown (first time seeing voice input)
+        const shouldShow =
+          await onboardingMilestoneTracker.shouldShowVoiceInputTooltip();
+
+        if (shouldShow) {
+          // Small delay to ensure the voice button is rendered and measurable
+          setTimeout(() => {
+            // Measure voice button position for tooltip placement
+            if (voiceButtonContainerRef.current) {
+              voiceButtonContainerRef.current.measureInWindow(
+                (x, y, width, height) => {
+                  setVoiceButtonLayout({ x, y, width, height });
+                  setShowVoiceInputTooltip(true);
+                  console.log('💡 [US-013] Showing voice input tooltip');
+                },
+              );
+            } else {
+              // Fallback: show tooltip without precise positioning
+              setShowVoiceInputTooltip(true);
+              console.log(
+                '💡 [US-013] Showing voice input tooltip (no ref available)',
+              );
+            }
+          }, 500); // Wait for layout to stabilize
+        }
+      } catch (error) {
+        console.error('❌ Error checking voice input tooltip:', error);
+      }
+    };
+
+    checkVoiceInputTooltip();
+  }, [isGameActive, voiceInputEnabled]);
+
+  // Handle voice input tooltip dismissal (US-013)
+  const handleVoiceInputTooltipDismiss = useCallback(async () => {
+    setShowVoiceInputTooltip(false);
+    try {
+      await onboardingMilestoneTracker.markVoiceInputTooltipShown();
+    } catch (error) {
+      console.error('❌ Error marking voice input tooltip as shown:', error);
+    }
+  }, []);
+
+  // Show image generation tooltip when image generation modal opens (US-014)
+  // Tooltip appears to inform new users that AI creates grade-level illustrations
+  useEffect(() => {
+    const checkImageGenerationTooltip = async () => {
+      // Only check when image generation modal is shown
+      if (!showImageGeneration) {
+        setShowImageGenerationTooltip(false);
+        return;
+      }
+
+      try {
+        // Check if tooltip should be shown (first time seeing image generation)
+        const shouldShow =
+          await onboardingMilestoneTracker.shouldShowImageGenerationTooltip();
+
+        if (shouldShow) {
+          // Small delay to ensure the image generation container is rendered and measurable
+          setTimeout(() => {
+            // Measure image generation container position for tooltip placement
+            if (imageGenerationContainerRef.current) {
+              imageGenerationContainerRef.current.measureInWindow(
+                (x, y, width, height) => {
+                  setImageGenerationLayout({ x, y, width, height });
+                  setShowImageGenerationTooltip(true);
+                  console.log('💡 [US-014] Showing image generation tooltip');
+                },
+              );
+            } else {
+              // Fallback: show tooltip without precise positioning
+              setShowImageGenerationTooltip(true);
+              console.log(
+                '💡 [US-014] Showing image generation tooltip (no ref available)',
+              );
+            }
+          }, 500); // Wait for layout to stabilize
+        }
+      } catch (error) {
+        console.error('❌ Error checking image generation tooltip:', error);
+      }
+    };
+
+    checkImageGenerationTooltip();
+  }, [showImageGeneration]);
+
+  // Handle image generation tooltip dismissal (US-014)
+  const handleImageGenerationTooltipDismiss = useCallback(async () => {
+    setShowImageGenerationTooltip(false);
+    try {
+      await onboardingMilestoneTracker.markImageGenerationTooltipShown();
+    } catch (error) {
+      console.error(
+        '❌ Error marking image generation tooltip as shown:',
+        error,
+      );
+    }
+  }, []);
+
+  // Show XP/Challenges tooltip when game becomes active with a challenge (US-015)
+  // Tooltip appears to inform new users about the XP and challenge system
+  useEffect(() => {
+    const checkXpChallengesTooltip = async () => {
+      // Only check when game is active and there's a current challenge displayed
+      if (!isGameActive || !currentChallenge) {
+        setShowXpChallengesTooltip(false);
+        return;
+      }
+
+      try {
+        // Check if tooltip should be shown (first time seeing challenges during a story)
+        const shouldShow =
+          await onboardingMilestoneTracker.shouldShowXpChallengesTooltip();
+
+        if (shouldShow) {
+          // Small delay to ensure the challenge display container is rendered and measurable
+          setTimeout(() => {
+            // Measure challenge display container position for tooltip placement
+            if (challengeDisplayContainerRef.current) {
+              challengeDisplayContainerRef.current.measureInWindow(
+                (x, y, width, height) => {
+                  setChallengeDisplayLayout({ x, y, width, height });
+                  setShowXpChallengesTooltip(true);
+                  console.log('💡 [US-015] Showing XP/Challenges tooltip');
+                },
+              );
+            } else {
+              // Fallback: show tooltip without precise positioning
+              setShowXpChallengesTooltip(true);
+              console.log(
+                '💡 [US-015] Showing XP/Challenges tooltip (no ref available)',
+              );
+            }
+          }, 500); // Wait for layout to stabilize
+        }
+      } catch (error) {
+        console.error('❌ Error checking XP/Challenges tooltip:', error);
+      }
+    };
+
+    checkXpChallengesTooltip();
+  }, [isGameActive, currentChallenge]);
+
+  // Handle XP/Challenges tooltip dismissal (US-015)
+  const handleXpChallengesTooltipDismiss = useCallback(async () => {
+    setShowXpChallengesTooltip(false);
+    try {
+      await onboardingMilestoneTracker.markXpChallengesTooltipShown();
+    } catch (error) {
+      console.error('❌ Error marking XP/Challenges tooltip as shown:', error);
+    }
+  }, []);
 
   // Control header visibility based on game state
   useLayoutEffect(() => {
@@ -540,27 +888,48 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   // IMPORTANT: Voice recognition libraries send CUMULATIVE partial results
   // (e.g., "The" → "The force" → "The force seemed"), NOT incremental changes.
   // We must REPLACE the text during an active voice session to avoid duplication.
-  const handleVoiceResult = useCallback((text: string) => {
-    console.log('🎤 handleVoiceResult called with text:', text);
-    // Handle empty transcriptions gracefully
-    if (!text || !text.trim()) {
-      console.log('⚠️ Empty transcription received, ignoring');
-      return;
-    }
+  const handleVoiceResult = useCallback(
+    async (text: string) => {
+      console.log('🎤 handleVoiceResult called with text:', text);
+      // Handle empty transcriptions gracefully
+      if (!text || !text.trim()) {
+        console.log('⚠️ Empty transcription received, ignoring');
+        return;
+      }
 
-    // Clean transcribed text: trim whitespace and normalize
-    const cleanedText = text.trim().replace(/\s+/g, ' '); // Normalize multiple spaces to single space
-    console.log('✅ Cleaned text:', cleanedText);
+      // Clean transcribed text: trim whitespace and normalize
+      const cleanedText = text.trim().replace(/\s+/g, ' '); // Normalize multiple spaces to single space
+      console.log('✅ Cleaned text:', cleanedText);
 
-    // REPLACE the text instead of appending
-    // Voice recognition sends cumulative results (the entire transcription so far),
-    // not just the new words. Appending would cause duplication like:
-    // "The" + " The force" + " The force seemed" = "The The force The force seemed"
-    //
-    // Instead, we simply replace the entire input with the latest transcription
-    console.log('✅ Setting voice text:', cleanedText);
-    setUserInput(cleanedText);
-  }, []);
+      // REPLACE the text instead of appending
+      // Voice recognition sends cumulative results (the entire transcription so far),
+      // not just the new words. Appending would cause duplication like:
+      // "The" + " The force" + " The force seemed" = "The The force The force seemed"
+      //
+      // Instead, we simply replace the entire input with the latest transcription
+      console.log('✅ Setting voice text:', cleanedText);
+      setUserInput(cleanedText);
+
+      // Track first voice input for onboarding milestone (US-010, US-011)
+      try {
+        const isFirst =
+          await onboardingMilestoneTracker.markFirstVoiceInputUsed();
+        if (isFirst) {
+          console.log('🎤 First voice input used! Awarding XP.');
+          // Award XP for first voice input (US-010)
+          const xpResult = await awardOnboardingXP('first_voice');
+          if (xpResult.success) {
+            console.log(
+              `🎁 [US-010] Awarded ${xpResult.xpAwarded} XP for first voice input!`,
+            );
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error tracking first voice input milestone:', error);
+      }
+    },
+    [awardOnboardingXP],
+  );
 
   // Voice input error handler
   const handleVoiceError = useCallback((error: string) => {
@@ -988,29 +1357,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     }
   };
 
-  const handleStartNewGame = async () => {
-    if (!isAuthenticated || !effectiveUserId) {
-      Alert.alert('Error', 'Please log in to start a story');
-      return;
-    }
-
-    // Check if effectiveUserId is a valid UUID for database operations
-    // Clerk user IDs start with "user_" and are not valid UUIDs for Supabase
-    const isClerkUserId = effectiveUserId.startsWith('user_');
-    if (isClerkUserId && !userProfile?.id) {
-      Alert.alert(
-        'Profile Setup Required',
-        'Please complete your profile setup before starting a story. This ensures your progress is properly saved.',
-        [
-          {
-            text: 'Complete Profile',
-            onPress: () => navigation.navigate('Profile'),
-          },
-        ],
-      );
-      return;
-    }
-
+  // Core story creation logic - extracted for reuse after guidance modal (US-012)
+  // overrideUserId allows passing a resolved profile ID when userProfile context isn't updated yet
+  const executeStartNewGame = async (overrideUserId?: string) => {
+    const userIdToUse = overrideUserId || effectiveUserId;
+    console.log('📖 executeStartNewGame: Starting new game flow', {
+      overrideUserId,
+      effectiveUserId,
+      userIdToUse,
+    });
     try {
       // Clear any previous errors and reset image state
       setGenerationError(null);
@@ -1027,23 +1382,34 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       startSpinAnimation();
       simulateProgress(4000);
 
-      // Create new session using effective user ID (prioritizes user profile ID for proper UUID)
+      // Create new session using the resolved user ID
+      if (!userIdToUse) {
+        throw new Error('No user ID available to create session');
+      }
+      console.log(
+        '📖 executeStartNewGame: Creating session for user:',
+        userIdToUse,
+      );
       const newSession = await storySessionManager.createSession(
-        effectiveUserId,
+        userIdToUse,
         gradeLevel,
         { difficulty: 1 },
       );
+      console.log('📖 executeStartNewGame: Session created:', newSession.id);
 
       // Generate dynamic story starter using AI with diversity tracking
       const starterResponse = await storyAgentService.generateStoryStarter({
         gradeLevel,
         theme: 'adventure',
         sessionId: newSession.id,
-        userId: effectiveUserId,
+        userId: userIdToUse,
         storyId: newSession.id, // Use session ID as story ID for the starter
       });
 
       if (starterResponse.success && starterResponse.story) {
+        console.log(
+          '📖 executeStartNewGame: Story starter generated successfully',
+        );
         // Add AI story starter to session
         const updatedSession = await storySessionManager.addContribution(
           newSession.id,
@@ -1051,8 +1417,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           starterResponse.story,
           newSession,
         );
+        console.log(
+          '📖 executeStartNewGame: addContribution result:',
+          updatedSession ? 'success' : 'null',
+        );
 
         if (updatedSession) {
+          console.log('📖 executeStartNewGame: Setting game active state');
           setCurrentSession({ ...updatedSession });
           setIsGameActive(true);
           startFadeAnimation();
@@ -1069,9 +1440,28 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           //     }
           //   }, 2000);
           // }
+        } else {
+          console.error(
+            '❌ Failed to add AI contribution to session - session returned null',
+          );
+          Alert.alert(
+            'Story Creation Failed',
+            'Unable to start your story. Please try again.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Retry',
+                onPress: () => setTimeout(executeStartNewGame, 1000),
+              },
+            ],
+          );
+          return;
         }
       } else {
         // Fallback to basic starter if AI fails
+        console.log(
+          '📖 executeStartNewGame: AI story starter failed, using fallback',
+        );
         const fallbackStarter = await generateFallbackStarter();
         const updatedSession = await storySessionManager.addContribution(
           newSession.id,
@@ -1079,8 +1469,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           fallbackStarter,
           newSession,
         );
+        console.log(
+          '📖 executeStartNewGame: Fallback addContribution result:',
+          updatedSession ? 'success' : 'null',
+        );
 
         if (updatedSession) {
+          console.log(
+            '📖 executeStartNewGame: Setting game active state (fallback path)',
+          );
           setCurrentSession({ ...updatedSession });
           setIsGameActive(true);
           startFadeAnimation();
@@ -1091,6 +1488,22 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           // Reset round counter for new game
           setCurrentRound(1);
           setIsGameCompleted(false);
+        } else {
+          console.error(
+            '❌ Failed to add fallback contribution to session - session returned null',
+          );
+          Alert.alert(
+            'Story Creation Failed',
+            'Unable to start your story. Please try again.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Retry',
+                onPress: () => setTimeout(executeStartNewGame, 1000),
+              },
+            ],
+          );
+          return;
         }
       }
     } catch (error) {
@@ -1101,7 +1514,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           { text: 'Cancel', style: 'cancel' },
           {
             text: 'Retry',
-            onPress: () => setTimeout(handleStartNewGame, 1000),
+            onPress: () => setTimeout(executeStartNewGame, 1000),
           },
         ]);
       } else {
@@ -1116,6 +1529,112 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         currentTask: '',
       }));
     }
+  };
+
+  // Wrapper function that shows first story guidance modal if needed (US-012)
+  const handleStartNewGame = async () => {
+    console.log('📖 handleStartNewGame: Starting...', {
+      isAuthenticated,
+      effectiveUserId,
+      userProfileId: userProfile?.id,
+      userId: user?.id,
+      clerkUserId: clerkAuth?.userId,
+    });
+
+    if (!isAuthenticated || !effectiveUserId) {
+      console.log(
+        '📖 handleStartNewGame: Not authenticated or no effectiveUserId',
+      );
+      Alert.alert('Error', 'Please log in to start a story');
+      return;
+    }
+
+    // Check if effectiveUserId is a valid UUID for database operations
+    // Clerk user IDs start with "user_" and are not valid UUIDs for Supabase
+    const isClerkUserId = effectiveUserId.startsWith('user_');
+    let resolvedProfileId = userProfile?.id;
+
+    if (isClerkUserId && !resolvedProfileId) {
+      console.log(
+        '📖 handleStartNewGame: Clerk user detected without profile ID, fetching from database...',
+      );
+
+      // Directly fetch the profile from database - it may have been created but not loaded into context yet
+      try {
+        const { data: profiles, error: fetchError } = await supabase
+          .from('user_profiles')
+          .select('id')
+          .eq('clerk_user_id', effectiveUserId)
+          .limit(1);
+
+        if (!fetchError && profiles && profiles.length > 0) {
+          resolvedProfileId = profiles[0].id;
+          console.log(
+            '📖 handleStartNewGame: Found profile in database:',
+            resolvedProfileId,
+          );
+
+          // Also trigger a background refresh to update the context
+          refreshProfile().catch(err =>
+            console.error(
+              '📖 handleStartNewGame: Background refresh failed:',
+              err,
+            ),
+          );
+        } else {
+          console.log(
+            '📖 handleStartNewGame: No profile found in database',
+            fetchError,
+          );
+        }
+      } catch (error) {
+        console.error('📖 handleStartNewGame: Error fetching profile:', error);
+      }
+
+      // If still no profile after database check, show the alert
+      if (!resolvedProfileId) {
+        console.log('📖 handleStartNewGame: No profile found, showing alert');
+        Alert.alert(
+          'Profile Setup Required',
+          'Please complete your profile setup before starting a story. This ensures your progress is properly saved.',
+          [
+            {
+              text: 'Complete Profile',
+              onPress: () => navigation.navigate('Profile'),
+            },
+          ],
+        );
+        return;
+      }
+    }
+
+    // Use resolvedProfileId if available, otherwise fall back to effectiveUserId
+    const userIdForSession = resolvedProfileId || effectiveUserId;
+    console.log(
+      '📖 handleStartNewGame: Using user ID for session:',
+      userIdForSession,
+    );
+
+    // Check if first story guidance should be shown (US-012)
+    try {
+      const shouldShowGuidance =
+        await onboardingMilestoneTracker.shouldShowFirstStoryGuidance();
+
+      if (shouldShowGuidance) {
+        // Store the action to execute after guidance is dismissed
+        // Capture the resolved user ID in a closure
+        pendingStoryActionRef.current = () =>
+          executeStartNewGame(userIdForSession);
+        setShowFirstStoryGuidance(true);
+        return;
+      }
+    } catch (error) {
+      console.error('❌ Error checking first story guidance:', error);
+      // Continue with story creation on error
+    }
+
+    // No guidance needed, proceed directly
+    executeStartNewGame(userIdForSession);
   };
 
   const generateFallbackStarter = async (): Promise<string> => {
@@ -1276,15 +1795,42 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           if (currentRound >= MAX_ROUNDS) {
             setIsGameCompleted(true);
 
-            // Show completion options screen after a brief delay
-            setTimeout(() => {
-              // Scroll to top to ensure modal is visible
-              storyScrollViewRef.current?.scrollTo({
-                y: 0,
-                animated: false, // Instant scroll to prevent modal being off-screen
-              });
-              setShowCompletionOptions(true);
-            }, 2000);
+            // Check if this is the user's first story completion (US-004)
+            const { shouldShowCelebration } =
+              await onboardingMilestoneTracker.markFirstStoryCompleted();
+
+            if (shouldShowCelebration) {
+              // Award XP for first story completion (US-010)
+              const xpResult = await awardOnboardingXP('first_story');
+              if (xpResult.success) {
+                console.log(
+                  `🎁 [US-010] Awarded ${xpResult.xpAwarded} XP for first story!`,
+                );
+              }
+              // Store XP earned for celebration modal (story XP + onboarding bonus)
+              const totalXpEarned =
+                (updatedSession.xp_earned || 0) + (xpResult.xpAwarded || 0);
+              setFirstStoryXpEarned(totalXpEarned);
+
+              // Show first story celebration before completion options
+              setTimeout(() => {
+                storyScrollViewRef.current?.scrollTo({
+                  y: 0,
+                  animated: false,
+                });
+                setShowFirstStoryCelebration(true);
+              }, 1500);
+            } else {
+              // Not first story - show completion options directly
+              setTimeout(() => {
+                // Scroll to top to ensure modal is visible
+                storyScrollViewRef.current?.scrollTo({
+                  y: 0,
+                  animated: false, // Instant scroll to prevent modal being off-screen
+                });
+                setShowCompletionOptions(true);
+              }, 2000);
+            }
           } else {
             // Only increment round counter if game is continuing
             const nextRound = currentRound + 1;
@@ -1470,6 +2016,84 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     // "Back to Options" button is available if they want to return to options
   }, []);
 
+  // Handler for first story celebration modal (US-004)
+  const handleFirstStoryCelebrationClose = useCallback(async () => {
+    // Mark celebration as shown so it doesn't repeat
+    await onboardingMilestoneTracker.markFirstStoryCelebrationShown();
+    setShowFirstStoryCelebration(false);
+
+    // Now show the regular completion options
+    setTimeout(() => {
+      setShowCompletionOptions(true);
+    }, 300);
+  }, []);
+
+  // CTA handler for first story celebration - view the story
+  const handleFirstStoryCelebrationCta = useCallback(async () => {
+    await onboardingMilestoneTracker.markFirstStoryCelebrationShown();
+    setShowFirstStoryCelebration(false);
+
+    // Show completion options so user can interact with the story
+    setTimeout(() => {
+      setShowCompletionOptions(true);
+    }, 300);
+  }, []);
+
+  // Handler for first image generation celebration modal (US-005)
+  const handleFirstImageCelebrationClose = useCallback(async () => {
+    // Mark celebration as shown so it doesn't repeat
+    await onboardingMilestoneTracker.markFirstImageCelebrationShown();
+    setShowFirstImageCelebration(false);
+  }, []);
+
+  // CTA handler for first image celebration - continue viewing
+  const handleFirstImageCelebrationCta = useCallback(async () => {
+    await onboardingMilestoneTracker.markFirstImageCelebrationShown();
+    setShowFirstImageCelebration(false);
+  }, []);
+
+  // Handler for first streak achievement celebration modal (US-006)
+  const handleFirstStreakCelebrationClose = useCallback(async () => {
+    // Mark celebration as shown so it doesn't repeat
+    await onboardingMilestoneTracker.markFirstStreakCelebrationShown();
+    setShowFirstStreakCelebration(false);
+  }, []);
+
+  // CTA handler for first streak celebration
+  const handleFirstStreakCelebrationCta = useCallback(async () => {
+    await onboardingMilestoneTracker.markFirstStreakCelebrationShown();
+    setShowFirstStreakCelebration(false);
+  }, []);
+
+  // Handler for first story guidance modal close (US-012)
+  const handleFirstStoryGuidanceClose = useCallback(async () => {
+    // If "don't show again" was checked, mark as permanently shown
+    if (dontShowGuidanceAgain) {
+      await onboardingMilestoneTracker.markFirstStoryGuidanceShown();
+    }
+    setShowFirstStoryGuidance(false);
+    pendingStoryActionRef.current = null;
+  }, [dontShowGuidanceAgain]);
+
+  // Handler for "Let's Go!" button in first story guidance modal (US-012)
+  const handleFirstStoryGuidanceProceed = useCallback(async () => {
+    // Always mark guidance as shown when user proceeds
+    await onboardingMilestoneTracker.markFirstStoryGuidanceShown();
+    setShowFirstStoryGuidance(false);
+
+    // Execute the pending story creation action
+    if (pendingStoryActionRef.current) {
+      const action = pendingStoryActionRef.current;
+      pendingStoryActionRef.current = null;
+      action();
+    }
+  }, []);
+
+  // Handler for "Don't show again" toggle change (US-012)
+  const handleDontShowGuidanceAgainChange = useCallback((value: boolean) => {
+    setDontShowGuidanceAgain(value);
+  }, []);
+
   const handleImageGenerated = useCallback(
     async (imageUrl: string) => {
       console.log('✅ [DEBUG] handleImageGenerated called with URL:', imageUrl);
@@ -1499,7 +2123,24 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         }
       }
 
-      // Image generated successfully - no popup needed, user will see the image directly
+      // Check if this is the user's first image generation (US-005)
+      try {
+        const { shouldShowCelebration } =
+          await onboardingMilestoneTracker.markFirstImageGenerated();
+        if (shouldShowCelebration) {
+          console.log('🎨 First image generated! Showing celebration modal.');
+          // Award XP for first image generation (US-010)
+          const xpResult = await awardOnboardingXP('first_image');
+          if (xpResult.success) {
+            console.log(
+              `🎁 [US-010] Awarded ${xpResult.xpAwarded} XP for first image!`,
+            );
+          }
+          setShowFirstImageCelebration(true);
+        }
+      } catch (error) {
+        console.error('❌ Error checking first image milestone:', error);
+      }
 
       // Auto-scroll to show the generated image after modal dismisses and image renders
       setTimeout(() => {
@@ -2051,13 +2692,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         {/* Fixed Top Section - Challenge Display */}
         {currentChallenge && !showCompletionOptions && (
           <View style={styles.challengeHeaderSection}>
-            <ChallengeDisplay
-              challenge={currentChallenge}
-              progress={challengeProgress.find(
-                p => p.challengeId === currentChallenge.id,
-              )}
-              compact={true}
-            />
+            <View ref={challengeDisplayContainerRef} collapsable={false}>
+              <ChallengeDisplay
+                challenge={currentChallenge}
+                progress={challengeProgress.find(
+                  p => p.challengeId === currentChallenge.id,
+                )}
+                compact={true}
+              />
+            </View>
           </View>
         )}
 
@@ -2077,9 +2720,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                   <View style={styles.storyTitleRow}>
                     <Text style={styles.storyBookTitle}>📖 Your Story</Text>
                     <Text style={styles.gradeLevel}>{gradeLevel}</Text>
-                    <Text style={styles.roundCounter}>
-                      Round {currentRound}/{MAX_ROUNDS}
-                    </Text>
+                    {currentSession?.story_source === 'New' && (
+                      <Text style={styles.roundCounter}>
+                        Round {currentRound}/{MAX_ROUNDS}
+                      </Text>
+                    )}
                   </View>
                   <TouchableOpacity
                     style={styles.copyButton}
@@ -2260,7 +2905,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           style={[
             styles.fixedInputSection,
             {
-              paddingBottom: Animated.add(keyboardHeight, 8),
+              paddingBottom: Animated.add(keyboardHeight, 4),
             },
           ]}
         >
@@ -2417,18 +3062,20 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                   );
                 })()}
 
-                {/* Voice Input Component */}
-                <VoiceInput
-                  onSpeechResult={handleVoiceResult}
-                  isEnabled={voiceInputEnabled && !loadingState.isGenerating}
-                  onError={handleVoiceError}
-                  buttonText={{
-                    idle: '🎤',
-                    listening: '🔴',
-                    processing: '⏳',
-                  }}
-                  style={styles.speakButton}
-                />
+                {/* Voice Input Component with Tooltip (US-013) */}
+                <View ref={voiceButtonContainerRef} collapsable={false}>
+                  <VoiceInput
+                    onSpeechResult={handleVoiceResult}
+                    isEnabled={voiceInputEnabled && !loadingState.isGenerating}
+                    onError={handleVoiceError}
+                    buttonText={{
+                      idle: '🎤',
+                      listening: '🔴',
+                      processing: '⏳',
+                    }}
+                    style={styles.speakButton}
+                  />
+                </View>
 
                 {/* Exit Button */}
                 <TouchableOpacity
@@ -2544,6 +3191,77 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             )}
           </View>
         </Animated.View>
+
+        {/* First Story Celebration Modal (US-004) */}
+        <CelebrationModal
+          visible={showFirstStoryCelebration}
+          title="You wrote your first story!"
+          message="Amazing work! You've completed your very first collaborative story with AI. This is just the beginning of your creative journey!"
+          icon="🎉"
+          ctaText="See My Story"
+          onClose={handleFirstStoryCelebrationClose}
+          onCtaPress={handleFirstStoryCelebrationCta}
+          secondaryMessage={
+            firstStoryXpEarned > 0
+              ? `+${firstStoryXpEarned} XP earned!`
+              : undefined
+          }
+        />
+
+        {/* First Image Generation Celebration Modal (US-005) */}
+        <CelebrationModal
+          visible={showFirstImageCelebration}
+          title="Your story came to life!"
+          message="Amazing! AI has created a unique illustration just for your story. The art style is tailored to match your grade level for the perfect look!"
+          icon="🎨"
+          ctaText="View My Illustration"
+          onClose={handleFirstImageCelebrationClose}
+          onCtaPress={handleFirstImageCelebrationCta}
+          secondaryMessage="+25 XP earned!"
+        />
+
+        {/* First Streak Achievement Celebration Modal (US-006) */}
+        <CelebrationModal
+          visible={showFirstStreakCelebration}
+          title="You're on fire! 2-day streak!"
+          message="You're building an amazing writing habit! Keep the streak going by writing stories every day. Consistency is the key to becoming a great storyteller!"
+          icon="🔥"
+          ctaText="Keep Going!"
+          onClose={handleFirstStreakCelebrationClose}
+          onCtaPress={handleFirstStreakCelebrationCta}
+          secondaryMessage="+50 Bonus XP for your streak!"
+        />
+
+        {/* First Story Guidance Modal (US-012) */}
+        <FirstStoryGuidanceModal
+          visible={showFirstStoryGuidance}
+          onClose={handleFirstStoryGuidanceClose}
+          onProceed={handleFirstStoryGuidanceProceed}
+          showDontShowAgain={true}
+          onDontShowAgainChange={handleDontShowGuidanceAgainChange}
+        />
+
+        {/* Voice Input Feature Tooltip (US-013) */}
+        <FeatureTooltip
+          visible={showVoiceInputTooltip}
+          text="Tap to speak your story instead of typing"
+          icon="🎤"
+          position="top"
+          targetLayout={voiceButtonLayout || undefined}
+          onDismiss={handleVoiceInputTooltipDismiss}
+          autoHideDelay={5000}
+        />
+
+        {/* XP/Challenges Feature Tooltip (US-015) */}
+        <FeatureTooltip
+          visible={showXpChallengesTooltip}
+          text="Complete challenges for bonus XP and level up!"
+          icon="🏆"
+          position="bottom"
+          targetLayout={challengeDisplayLayout || undefined}
+          onDismiss={handleXpChallengesTooltipDismiss}
+          autoHideDelay={5000}
+        />
 
         {/* Story Completion Options Screen - Full Screen Overlay */}
         {showCompletionOptions && (
@@ -2678,7 +3396,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 contentContainerStyle={styles.imageGenerationScrollContent}
                 showsVerticalScrollIndicator={false}
               >
-                <View style={styles.imageGenerationContainer}>
+                {/* Image Generation Container with ref for tooltip positioning (US-014) */}
+                <View
+                  ref={imageGenerationContainerRef}
+                  style={styles.imageGenerationContainer}
+                  collapsable={false}
+                >
                   <ImageGeneration
                     storyContent={currentSession.story_content || ''}
                     sessionId={currentSession.id}
@@ -2686,6 +3409,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                     wordCount={currentSession.sessionStats.userWords}
                     onImageGenerated={handleImageGenerated}
                     onError={handleImageGenerationError}
+                    onClose={() => setShowImageGeneration(false)}
                     disabled={!isGameCompleted}
                     isStoryCompleted={isGameCompleted}
                     currentRound={currentRound}
@@ -2696,9 +3420,26 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             </Pressable>
           </Pressable>
         )}
+
+        {/* Image Generation Feature Tooltip (US-014) */}
+        <FeatureTooltip
+          visible={showImageGenerationTooltip}
+          text="AI creates illustrations matching your grade level!"
+          icon="🎨"
+          position="bottom"
+          targetLayout={imageGenerationLayout || undefined}
+          onDismiss={handleImageGenerationTooltipDismiss}
+          autoHideDelay={5000}
+        />
       </SafeAreaView>
     );
   }
+
+  // Handler for "See how it works" button in EnhancedEmptyState (US-017)
+  const handleSeeHowItWorks = () => {
+    setShowFirstStoryGuidance(true);
+    console.log('📚 [US-017] Opening guidance modal from enhanced empty state');
+  };
 
   return (
     <ScrollView
@@ -2706,66 +3447,89 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       contentContainerStyle={styles.contentContainer}
     >
       <View style={styles.homeContainer}>
-        {/* Welcome Section */}
-        <View style={styles.welcomeSection}>
-          <Text style={styles.welcomeTitle}>
-            Welcome back, {userProfile?.display_name || 'Writer'}!
-          </Text>
-          <Text style={styles.welcomeSubtitle}>
-            Ready to create amazing stories?
-          </Text>
-        </View>
+        {/* US-017: Enhanced Empty State for new users */}
+        {isNewUser ? (
+          <>
+            <EnhancedEmptyState
+              userName={userProfile?.display_name}
+              onStartFirstStory={handleStartNewGame}
+              onSeeHowItWorks={handleSeeHowItWorks}
+              isLoading={loadingState.isGenerating}
+            />
+          </>
+        ) : (
+          <>
+            {/* Welcome Section - for returning users */}
+            <View style={styles.welcomeSection}>
+              <Text style={styles.welcomeTitle}>
+                Welcome back, {userProfile?.display_name || 'Writer'}!
+              </Text>
+              <Text style={styles.welcomeSubtitle}>
+                Ready to create amazing stories?
+              </Text>
+            </View>
 
-        {/* Story Action Buttons */}
-        <View style={styles.startSection}>
-          <TouchableOpacity
-            style={[
-              styles.startButton,
-              loadingState.isGenerating && styles.disabledButton,
-            ]}
-            onPress={handleStartNewGame}
-            disabled={loadingState.isGenerating}
-          >
-            {loadingState.isGenerating ? (
-              <View style={styles.loadingButtonContent}>
-                <Animated.View
-                  style={{
-                    transform: [
-                      {
-                        rotate: spinValue.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: ['0deg', '360deg'],
-                        }),
-                      },
-                    ],
-                  }}
-                >
-                  <Text style={styles.loadingSpinnerButton}>✨</Text>
-                </Animated.View>
-                <Text
-                  style={[styles.startButtonText, styles.loadingButtonText]}
-                >
-                  {loadingState.currentTask || 'Creating Story...'}
-                </Text>
-              </View>
-            ) : (
-              <Text style={styles.startButtonText}>🎮 Start New Story</Text>
-            )}
-          </TouchableOpacity>
+            {/* Story Action Buttons */}
+            <View style={styles.startSection}>
+              <TouchableOpacity
+                style={[
+                  styles.startButton,
+                  loadingState.isGenerating && styles.disabledButton,
+                ]}
+                onPress={handleStartNewGame}
+                disabled={loadingState.isGenerating}
+              >
+                {loadingState.isGenerating ? (
+                  <View style={styles.loadingButtonContent}>
+                    <Animated.View
+                      style={{
+                        transform: [
+                          {
+                            rotate: spinValue.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: ['0deg', '360deg'],
+                            }),
+                          },
+                        ],
+                      }}
+                    >
+                      <Text style={styles.loadingSpinnerButton}>✨</Text>
+                    </Animated.View>
+                    <Text
+                      style={[styles.startButtonText, styles.loadingButtonText]}
+                    >
+                      {loadingState.currentTask || 'Creating Story...'}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={styles.startButtonText}>🎮 Start New Story</Text>
+                )}
+              </TouchableOpacity>
 
-          {/* Continue Story Button */}
-          <TouchableOpacity
-            style={[
-              styles.continueButton,
-              loadingState.isGenerating && styles.disabledButton,
-            ]}
-            onPress={handleContinueStoryOption}
-            disabled={loadingState.isGenerating}
-          >
-            <Text style={styles.continueButtonText}>📖 Continue Story</Text>
-          </TouchableOpacity>
-        </View>
+              {/* Continue Story Button */}
+              <TouchableOpacity
+                style={[
+                  styles.continueButton,
+                  loadingState.isGenerating && styles.disabledButton,
+                ]}
+                onPress={handleContinueStoryOption}
+                disabled={loadingState.isGenerating}
+              >
+                <Text style={styles.continueButtonText}>📖 Continue Story</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
       </View>
+
+      {/* First Story Guidance Modal (US-012) - added here for non-game-active state */}
+      <FirstStoryGuidanceModal
+        visible={showFirstStoryGuidance}
+        onClose={handleFirstStoryGuidanceClose}
+        onProceed={handleFirstStoryGuidanceProceed}
+        showDontShowAgain={true}
+        onDontShowAgainChange={handleDontShowGuidanceAgainChange}
+      />
     </ScrollView>
   );
 };
@@ -2808,7 +3572,7 @@ const styles = StyleSheet.create({
   fixedInputSection: {
     backgroundColor: '#f0f2f5',
     paddingHorizontal: 8,
-    paddingBottom: 8,
+    paddingBottom: 4,
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
   },
@@ -3216,7 +3980,7 @@ const styles = StyleSheet.create({
   },
   // Game action buttons styles
   gameButtonsContainer: {
-    marginBottom: 8,
+    marginBottom: 0,
   },
   buttonRow: {
     flexDirection: 'row',

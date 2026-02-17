@@ -22,7 +22,13 @@ import type {
 } from '../types/database';
 import { RememberMeStorage } from '../utils/rememberMeStorage';
 import { xpEventTracker } from '../services/xpEventTracker';
-import { clearAllClerkTokens, hasClerkTokens } from '../utils/clerkTokenCache';
+import {
+  clearAllClerkTokens,
+  clearAndVerifyTokens,
+  hasClerkTokens,
+  clerkTokenCache,
+} from '../utils/clerkTokenCache';
+import * as WebBrowser from 'expo-web-browser';
 
 // Verify supabase is properly imported
 if (!supabase) {
@@ -69,6 +75,18 @@ interface AuthContextType {
     amount: number,
     reason: string,
   ) => Promise<{ success: boolean; error?: string; newBalance?: number }>;
+  awardOnboardingXP: (
+    milestoneType:
+      | 'first_story'
+      | 'first_image'
+      | 'first_voice'
+      | 'first_streak',
+  ) => Promise<{
+    success: boolean;
+    error?: string;
+    newBalance?: number;
+    xpAwarded: number;
+  }>;
   validateXPBalance: (requiredAmount: number) => boolean;
   getXPBalanceInfo: (requiredAmount: number) => {
     hasEnoughXP: boolean;
@@ -90,8 +108,16 @@ interface AuthContextType {
     storyWordCount?: number,
     storyCompleted?: boolean,
   ) => Promise<string | null>;
-  signInWithGoogle: () => Promise<{ error?: string }>;
-  signInWithApple: () => Promise<{ error?: string }>;
+  signInWithGoogle: () => Promise<{
+    error?: string;
+    showSessionHelp?: boolean;
+    provider?: 'google' | 'apple';
+  }>;
+  signInWithApple: () => Promise<{
+    error?: string;
+    showSessionHelp?: boolean;
+    provider?: 'google' | 'apple';
+  }>;
   checkProfileCompletion: () => Promise<void>;
   clearOAuthError: () => void;
 }
@@ -122,7 +148,8 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Get Clerk auth and user hooks
   // This component is only rendered when ClerkProvider is present, so hooks are safe
-  const { clerkAuth, clerkUser, clerkSSO } = useSafeClerkAuth();
+  const { clerkAuth, clerkUser, clerkSSO, clerkSignIn, clerkSignUp } =
+    useSafeClerkAuth();
 
   // Track if we're processing an OAuth flow
   const isProcessingOAuth = useRef(false);
@@ -488,6 +515,12 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       // Set signing out flag to prevent re-syncing during logout
       isSigningOut.current = true;
 
+      // US-007: Set atomic logout flag in AsyncStorage to survive app backgrounding
+      // If the app is backgrounded during logout, we can detect this on restart
+      // and complete the interrupted logout by clearing any remaining tokens
+      await AsyncStorage.setItem('__logout_in_progress', 'true');
+      console.log('🔒 Set __logout_in_progress flag in AsyncStorage');
+
       // Clear the last synced Clerk user ID
       lastSyncedClerkUserId.current = null;
 
@@ -527,44 +560,54 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
             );
           }
 
-          // CRITICAL: Clear tokens BEFORE calling signOut to prevent Clerk from writing them back
-          console.log('🧹 Pre-clearing Clerk tokens before signOut...');
-          const preCleared = await clearAllClerkTokens();
-          if (preCleared) {
-            console.log('✅ Tokens pre-cleared before Clerk signOut');
-          }
-
-          // Now call Clerk's signOut() - it should have nothing to write back
+          // CRITICAL FIX (US-005): Call signOut() FIRST, then clear tokens
+          // Clerk's __unstable__onAfterResponse callback writes tokens back AFTER
+          // the API call returns, so we must wait for it to complete before clearing.
           await clerkAuth.signOut();
           console.log('✅ Signed out from Clerk successfully');
 
-          // Double-check: clear any tokens that might have been written during signOut
-          console.log(
-            '🧹 Post-clearing any remaining Clerk tokens as fail-safe...',
-          );
-          const postCleared = await clearAllClerkTokens();
-          if (postCleared) {
-            console.log('✅ Post-signOut token clearing completed');
+          // Wait for Clerk's async callbacks to complete (onAfterResponse writes tokens)
+          console.log('⏳ Waiting for Clerk callbacks...');
+          await new Promise(resolve => setTimeout(resolve, 200));
+
+          // NOW clear and verify tokens are actually deleted
+          console.log('🧹 Clearing all Clerk tokens...');
+          const verified = await clearAndVerifyTokens();
+          if (verified) {
+            console.log('✅ Tokens verified cleared after signOut');
+          } else {
+            // If verification fails, try one more time
+            console.warn(
+              '⚠️ Token verification failed, attempting second clearing...',
+            );
+            const secondAttempt = await clearAndVerifyTokens();
+            if (secondAttempt) {
+              console.log('✅ Tokens verified cleared on second attempt');
+            } else {
+              console.error(
+                '❌ Failed to verify token deletion after multiple attempts',
+              );
+            }
           }
 
-          // Verify that Clerk session is fully cleared
-          if (clerkAuth.isSignedIn) {
-            console.warn(
-              '⚠️ Clerk still reports isSignedIn=true after signOut!',
-            );
-          } else {
-            console.log('✅ Verified Clerk isSignedIn is now false');
-          }
+          // Note: We cannot reliably check clerkAuth.isSignedIn here because
+          // it's a stale closure reference. The actual state update happens
+          // asynchronously and triggers a re-render. The auth state listener
+          // will receive the updated isSignedIn=false value.
+          // The token verification above is the reliable check.
+          console.log('✅ Clerk signOut completed and tokens verified cleared');
         } catch (clerkError: any) {
           // If the error is "already signed out", treat it as success
           const errorMessage = clerkError?.message || String(clerkError);
           if (errorMessage.includes('signed out')) {
             console.log(
-              'ℹ️ Clerk reports already signed out - clearing tokens as fail-safe',
+              'ℹ️ Clerk reports already signed out - clearing and verifying tokens as fail-safe',
             );
-            await clearAllClerkTokens();
+            await clearAndVerifyTokens();
           } else {
             console.error('❌ Error signing out from Clerk:', clerkError);
+            // Still try to clear tokens on error
+            await clearAndVerifyTokens();
           }
           // Continue with Supabase signout even if Clerk fails
         }
@@ -614,8 +657,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           await clerkAuth.signOut();
           console.log('✅ Force signed out from Clerk');
 
-          // Clear tokens as fail-safe after signOut
-          await clearAllClerkTokens();
+          // Wait for Clerk's async callbacks, then clear and verify tokens
+          await new Promise(resolve => setTimeout(resolve, 200));
+          await clearAndVerifyTokens();
         } catch (clerkForceError: any) {
           console.error(
             '❌ Force Clerk sign out also failed:',
@@ -626,8 +670,8 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
             '🆘 Force-clearing Clerk tokens despite signOut failure...',
           );
           try {
-            await clearAllClerkTokens();
-            console.log('✅ Clerk tokens force-cleared');
+            await clearAndVerifyTokens();
+            console.log('✅ Clerk tokens force-cleared and verified');
           } catch (tokenClearError) {
             console.error('❌ Failed to clear tokens:', tokenClearError);
           }
@@ -646,6 +690,18 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Clear signing out flag
       isSigningOut.current = false;
+    } finally {
+      // US-007: Always remove the atomic logout flag in finally block
+      // This ensures the flag is cleared even if an error occurs
+      try {
+        await AsyncStorage.removeItem('__logout_in_progress');
+        console.log('🔓 Removed __logout_in_progress flag from AsyncStorage');
+      } catch (flagError) {
+        console.warn(
+          '⚠️ Failed to remove __logout_in_progress flag:',
+          flagError,
+        );
+      }
     }
   };
 
@@ -1099,7 +1155,11 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const signInWithGoogle = async (): Promise<{ error?: string }> => {
+  const signInWithGoogle = async (): Promise<{
+    error?: string;
+    showSessionHelp?: boolean;
+    provider?: 'google' | 'apple';
+  }> => {
     try {
       console.log(
         '🔐 [AuthContext] Initiating Google OAuth sign-in via Clerk...',
@@ -1126,40 +1186,58 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         clerkIsSignedIn: clerkIsSignedIn,
       });
 
-      // If EITHER condition is true, we need to clear the session
+      // US-006: Enhanced Pre-OAuth Cleanup with Verification
+      // If EITHER condition is true, we need to perform deep cleanup
       if (hasTokens || clerkIsSignedIn) {
         console.warn(
-          '⚠️ [AuthContext] Stale session detected before Google OAuth!',
-        );
-        console.log(
-          '🧹 [AuthContext] Aggressively clearing ALL session data before Google OAuth...',
+          '⚠️ [AuthContext] Stale session detected before Google OAuth, performing deep cleanup...',
         );
 
-        // Step 1: Clear tokens from SecureStore FIRST
-        await clearAllClerkTokens();
-        console.log('✅ [AuthContext] Tokens cleared from SecureStore');
-
-        // Step 2: Sign out from Clerk if it thinks user is signed in
-        if (clerkIsSignedIn) {
-          try {
-            await clerkAuth.signOut();
-            console.log('✅ [AuthContext] Clerk signOut completed');
-          } catch (signOutError) {
-            console.warn(
-              '⚠️ [AuthContext] Clerk signOut failed (may already be signed out):',
-              signOutError,
-            );
-          }
+        // Step 1: Sign out from Clerk FIRST (per US-005 learnings)
+        // This is critical because Clerk's __unstable__onAfterResponse callback
+        // writes tokens back AFTER the API call returns
+        try {
+          await clerkAuth.signOut();
+          console.log('✅ [AuthContext] Clerk signOut completed');
+        } catch (signOutError) {
+          console.warn(
+            '⚠️ [AuthContext] Clerk signOut failed (may already be signed out):',
+            signOutError,
+          );
         }
 
-        // Step 3: Final token sweep to catch anything written during signOut
-        await clearAllClerkTokens();
-        console.log('✅ [AuthContext] Final token sweep completed');
+        // Step 2: Wait 300ms for Clerk's async callbacks to complete
+        console.log('⏳ [AuthContext] Waiting for async callbacks...');
+        await new Promise(resolve => setTimeout(resolve, 300));
 
-        // Step 4: Wait longer to ensure all async cleanup completes
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Step 3: Clear and verify tokens are actually deleted
+        console.log('🧹 [AuthContext] Clearing all Clerk tokens...');
+        const verified = await clearAndVerifyTokens();
+        if (verified) {
+          console.log('✅ [AuthContext] Tokens verified cleared');
+        } else {
+          console.warn(
+            '⚠️ [AuthContext] Token verification failed on first attempt',
+          );
+        }
+
+        // Step 4: Double-check with hasClerkTokens - if tokens reappeared, clear again
+        const tokensReappeared = await hasClerkTokens();
+        if (tokensReappeared) {
+          console.warn(
+            '⚠️ [AuthContext] Tokens reappeared after clearing! Performing second cleanup...',
+          );
+          await clearAndVerifyTokens();
+        }
+
+        // Step 5: Direct clearToken call for the primary JWT token as final safeguard
         console.log(
-          '✅ [AuthContext] Stale session fully cleared, proceeding with Google OAuth',
+          '🧹 [AuthContext] Final safeguard: directly clearing primary JWT token...',
+        );
+        clerkTokenCache.clearToken('__clerk_client_jwt');
+
+        console.log(
+          '✅ [AuthContext] Deep cleanup complete, proceeding with Google OAuth',
         );
       } else {
         console.log(
@@ -1170,14 +1248,116 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       // Mark that we're processing OAuth
       isProcessingOAuth.current = true;
 
-      // Use Clerk's useSSO hook to start OAuth flow
+      // CRITICAL FIX: Use custom OAuth flow with oidcPrompt to force account picker
+      // Clerk's startSSOFlow doesn't expose oidcPrompt, but signIn.create() does.
+      // Setting oidcPrompt: 'select_account' forces Google to show the account picker
+      // even if there's an active OS-level Google session.
       console.log(
-        '📋 [AuthContext] Calling Clerk startSSOFlow with strategy: oauth_google',
+        '📋 [AuthContext] Calling custom OAuth flow with oidcPrompt: select_account',
       );
-      const result = await clerkSSO.startSSOFlow({
+
+      // Ensure clerkSignIn is available
+      if (
+        !clerkSignIn?.signIn ||
+        !clerkSignIn?.setActive ||
+        !clerkSignIn?.isLoaded
+      ) {
+        console.error('❌ [AuthContext] Clerk signIn hook not ready');
+        isProcessingOAuth.current = false;
+        return { error: 'Authentication system not ready. Please try again.' };
+      }
+
+      if (!clerkSignUp?.signUp || !clerkSignUp?.isLoaded) {
+        console.error('❌ [AuthContext] Clerk signUp hook not ready');
+        isProcessingOAuth.current = false;
+        return { error: 'Authentication system not ready. Please try again.' };
+      }
+
+      const redirectUrl = 'creativebridge://auth/callback';
+
+      // Step 1: Create signIn with oidcPrompt to force account picker
+      console.log(
+        '📋 [AuthContext] Creating signIn with strategy: oauth_google, oidcPrompt: select_account',
+      );
+      await clerkSignIn.signIn.create({
         strategy: 'oauth_google',
-        redirectUrl: 'creativebridge://auth/callback',
+        redirectUrl,
+        oidcPrompt: 'select_account', // CRITICAL: Forces Google to show account picker
       });
+
+      // Step 2: Get the external verification redirect URL
+      const { externalVerificationRedirectURL } =
+        clerkSignIn.signIn.firstFactorVerification;
+
+      if (!externalVerificationRedirectURL) {
+        console.error(
+          '❌ [AuthContext] Missing external verification redirect URL',
+        );
+        isProcessingOAuth.current = false;
+        return { error: 'Failed to start Google authentication.' };
+      }
+
+      console.log(
+        '🌐 [AuthContext] Opening Google OAuth with forced account picker...',
+      );
+
+      // Step 3: Open the auth session
+      const authSessionResult = await WebBrowser.openAuthSessionAsync(
+        externalVerificationRedirectURL.toString(),
+        redirectUrl,
+      );
+
+      // Step 4: Handle the result
+      // Check for user cancellation first
+      if (
+        authSessionResult.type === 'cancel' ||
+        authSessionResult.type === 'dismiss'
+      ) {
+        console.log(
+          '📱 [AuthContext] OAuth session cancelled by user:',
+          authSessionResult.type,
+        );
+        isProcessingOAuth.current = false;
+        return {}; // Silent return for user cancellation
+      }
+
+      if (authSessionResult.type !== 'success' || !authSessionResult.url) {
+        console.log(
+          '📱 [AuthContext] OAuth session failed:',
+          authSessionResult.type,
+        );
+        isProcessingOAuth.current = false;
+        return { error: 'Google authentication was not completed.' };
+      }
+
+      // Step 5: Parse the result and reload signIn
+      const params = new URL(authSessionResult.url).searchParams;
+      const rotatingTokenNonce = params.get('rotating_token_nonce') ?? '';
+      await clerkSignIn.signIn.reload({ rotatingTokenNonce });
+
+      // Step 6: Check if user needs to be created (sign-up transfer)
+      const userNeedsToBeCreated =
+        clerkSignIn.signIn.firstFactorVerification.status === 'transferable';
+
+      if (userNeedsToBeCreated) {
+        console.log(
+          '📝 [AuthContext] User needs to be created, transferring to signUp',
+        );
+        await clerkSignUp.signUp.create({
+          transfer: true,
+        });
+      }
+
+      // Build result object matching startSSOFlow format
+      const result = {
+        createdSessionId:
+          clerkSignUp.signUp.createdSessionId ??
+          clerkSignIn.signIn.createdSessionId,
+        setActive: clerkSignIn.setActive,
+        signIn: clerkSignIn.signIn,
+        signUp: clerkSignUp.signUp,
+        authSessionResult,
+      };
 
       console.log('🔄 [AuthContext] OAuth flow result:', {
         createdSessionId: result.createdSessionId,
@@ -1188,15 +1368,8 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         signInIdentifier: result.signIn?.identifier,
       });
 
-      // Check if user cancelled the OAuth flow
-      if (
-        result.authSessionResult?.type === 'cancel' ||
-        result.authSessionResult?.type === 'dismiss'
-      ) {
-        isProcessingOAuth.current = false;
-        console.log('ℹ️ [AuthContext] Google sign-in was cancelled by user');
-        return {}; // Silent return for user cancellation
-      }
+      // Note: Cancel/dismiss already handled above in Step 4
+      // If we reach here, authSessionResult.type === 'success'
 
       // CRITICAL FIX #5: Validate OAuth result identity before calling setActive
       // The previous fixes cleared client-side tokens, but Clerk's server and OAuth providers
@@ -1270,11 +1443,13 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
             // Reset OAuth processing flag
             isProcessingOAuth.current = false;
 
-            // Return user-friendly error
+            // US-011: Return user-friendly error with showSessionHelp trigger
             return {
               error:
                 'The previous user is still logged into Google/Apple at the system level. ' +
                 'Please log out from Google/Apple in your device Settings, then try again.',
+              showSessionHelp: true,
+              provider: 'google',
             };
           } else {
             // More than 60 seconds ago - probably legitimate account linking
@@ -1339,11 +1514,13 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
               // Reset OAuth processing flag
               isProcessingOAuth.current = false;
 
-              // Return user-friendly error
+              // US-011: Return user-friendly error with showSessionHelp trigger
               return {
                 error:
                   'The previous user is still logged into Google/Apple at the system level. ' +
                   'Please log out from Google/Apple in your device Settings, then try again.',
+                showSessionHelp: true,
+                provider: 'google',
               };
             }
           }
@@ -1383,56 +1560,48 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         await result.setActive({ session: result.createdSessionId });
         console.log('✅ [AuthContext] Session activated successfully');
 
-        // Clear the previous user tracking after successful different-user OAuth
-        if (previousUserId && oauthUserId !== previousUserId) {
+        // POST-ACTIVATION VERIFICATION: Log for debugging
+        // Note: With oidcPrompt: 'select_account', the account picker is always shown,
+        // so we no longer need to verify the user isn't the same as the previous logout.
+        const previousUserIdForVerification = previousUserId; // Captured earlier in the function
+
+        // Wait a moment for Clerk's state to update after setActive
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        console.log(
+          '🔍 [AuthContext] Post-activation check - session activated successfully',
+        );
+
+        // NOTE: The post-activation same-user check has been REMOVED.
+        //
+        // RATIONALE: With oidcPrompt: 'select_account' in signInWithGoogle() (lines 1283-1287),
+        // Google ALWAYS shows the account picker. This means:
+        // 1. Users must EXPLICITLY choose an account - no silent reactivation
+        // 2. If a user chooses the same account they just logged out of, that's INTENTIONAL
+        // 3. The previous check was blocking legitimate re-logins of the same user
+        //
+        // The stale session problem is now solved at the OAuth level, making the
+        // client-side post-activation check unnecessary and overly aggressive.
+        if (previousUserIdForVerification && isSignIn && !oauthUserId) {
           console.log(
-            '✅ [AuthContext] Different user signed in, clearing previous user tracking',
+            '✅ [AuthContext] Sign-in flow - account picker was shown, allowing user choice',
+          );
+          console.log(
+            'ℹ️ [AuthContext] Previous user ID:',
+            previousUserIdForVerification,
+            '(user explicitly chose their account)',
+          );
+        }
+
+        // Clear the previous user tracking after successful verification
+        // Only clear if we have a DIFFERENT user (for sign-up flows where oauthUserId is known)
+        // OR after successful verification for sign-in flows
+        if (previousUserIdForVerification) {
+          console.log(
+            '✅ [AuthContext] Clearing previous user tracking after successful verification',
           );
           await AsyncStorage.removeItem('__previous_clerk_user_id');
           await AsyncStorage.removeItem('__previous_logout_timestamp');
-        }
-
-        // POST-ACTIVATION VERIFICATION: Double-check activated user
-        const activatedUserId = clerkAuth?.userId;
-        const previousUserIdAfterActivation = await AsyncStorage.getItem(
-          '__previous_clerk_user_id',
-        );
-
-        if (
-          activatedUserId &&
-          previousUserIdAfterActivation &&
-          activatedUserId === previousUserIdAfterActivation
-        ) {
-          const previousLogoutTimestampAfterActivation =
-            await AsyncStorage.getItem('__previous_logout_timestamp');
-          const timeSinceLogoutAfterActivation =
-            Date.now() -
-            parseInt(previousLogoutTimestampAfterActivation || '0', 10);
-
-          if (timeSinceLogoutAfterActivation < 60000) {
-            console.error(
-              '🚨 [AuthContext] POST-ACTIVATION CRITICAL: Activated the SAME user who just logged out!',
-            );
-            console.error(
-              '🚨 [AuthContext] This should have been caught in pre-activation validation!',
-            );
-            console.error('🚨 [AuthContext] Emergency rollback...');
-
-            // Emergency rollback
-            await clearAllClerkTokens();
-            await clerkAuth.signOut();
-            await clearAllClerkTokens();
-            await AsyncStorage.removeItem('__previous_clerk_user_id');
-            await AsyncStorage.removeItem('__previous_logout_timestamp');
-
-            isProcessingOAuth.current = false;
-
-            return {
-              error:
-                'Cannot sign in - previous user session detected. Please log out from ' +
-                'Google/Apple in device Settings and try again.',
-            };
-          }
         }
 
         console.log('✅ [AuthContext] Post-activation verification passed');
@@ -1506,7 +1675,11 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const signInWithApple = async (): Promise<{ error?: string }> => {
+  const signInWithApple = async (): Promise<{
+    error?: string;
+    showSessionHelp?: boolean;
+    provider?: 'google' | 'apple';
+  }> => {
     try {
       console.log(
         '🍎 [AuthContext] Initiating Apple OAuth sign-in via Clerk...',
@@ -1533,40 +1706,58 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         clerkIsSignedIn: clerkIsSignedIn,
       });
 
-      // If EITHER condition is true, we need to clear the session
+      // US-006: Enhanced Pre-OAuth Cleanup with Verification
+      // If EITHER condition is true, we need to perform deep cleanup
       if (hasTokens || clerkIsSignedIn) {
         console.warn(
-          '⚠️ [AuthContext] Stale session detected before Apple OAuth!',
-        );
-        console.log(
-          '🧹 [AuthContext] Aggressively clearing ALL session data before Apple OAuth...',
+          '⚠️ [AuthContext] Stale session detected before Apple OAuth, performing deep cleanup...',
         );
 
-        // Step 1: Clear tokens from SecureStore FIRST
-        await clearAllClerkTokens();
-        console.log('✅ [AuthContext] Tokens cleared from SecureStore');
-
-        // Step 2: Sign out from Clerk if it thinks user is signed in
-        if (clerkIsSignedIn) {
-          try {
-            await clerkAuth.signOut();
-            console.log('✅ [AuthContext] Clerk signOut completed');
-          } catch (signOutError) {
-            console.warn(
-              '⚠️ [AuthContext] Clerk signOut failed (may already be signed out):',
-              signOutError,
-            );
-          }
+        // Step 1: Sign out from Clerk FIRST (per US-005 learnings)
+        // This is critical because Clerk's __unstable__onAfterResponse callback
+        // writes tokens back AFTER the API call returns
+        try {
+          await clerkAuth.signOut();
+          console.log('✅ [AuthContext] Clerk signOut completed');
+        } catch (signOutError) {
+          console.warn(
+            '⚠️ [AuthContext] Clerk signOut failed (may already be signed out):',
+            signOutError,
+          );
         }
 
-        // Step 3: Final token sweep to catch anything written during signOut
-        await clearAllClerkTokens();
-        console.log('✅ [AuthContext] Final token sweep completed');
+        // Step 2: Wait 300ms for Clerk's async callbacks to complete
+        console.log('⏳ [AuthContext] Waiting for async callbacks...');
+        await new Promise(resolve => setTimeout(resolve, 300));
 
-        // Step 4: Wait longer to ensure all async cleanup completes
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Step 3: Clear and verify tokens are actually deleted
+        console.log('🧹 [AuthContext] Clearing all Clerk tokens...');
+        const verified = await clearAndVerifyTokens();
+        if (verified) {
+          console.log('✅ [AuthContext] Tokens verified cleared');
+        } else {
+          console.warn(
+            '⚠️ [AuthContext] Token verification failed on first attempt',
+          );
+        }
+
+        // Step 4: Double-check with hasClerkTokens - if tokens reappeared, clear again
+        const tokensReappeared = await hasClerkTokens();
+        if (tokensReappeared) {
+          console.warn(
+            '⚠️ [AuthContext] Tokens reappeared after clearing! Performing second cleanup...',
+          );
+          await clearAndVerifyTokens();
+        }
+
+        // Step 5: Direct clearToken call for the primary JWT token as final safeguard
         console.log(
-          '✅ [AuthContext] Stale session fully cleared, proceeding with Apple OAuth',
+          '🧹 [AuthContext] Final safeguard: directly clearing primary JWT token...',
+        );
+        clerkTokenCache.clearToken('__clerk_client_jwt');
+
+        console.log(
+          '✅ [AuthContext] Deep cleanup complete, proceeding with Apple OAuth',
         );
       } else {
         console.log(
@@ -1681,11 +1872,13 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
             // Reset OAuth processing flag
             isProcessingOAuth.current = false;
 
-            // Return user-friendly error
+            // US-011: Return user-friendly error with showSessionHelp trigger
             return {
               error:
                 'The previous user is still logged into Google/Apple at the system level. ' +
                 'Please log out from Google/Apple in your device Settings, then try again.',
+              showSessionHelp: true,
+              provider: 'apple',
             };
           } else {
             // More than 60 seconds ago - probably legitimate account linking
@@ -1750,11 +1943,13 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
               // Reset OAuth processing flag
               isProcessingOAuth.current = false;
 
-              // Return user-friendly error
+              // US-011: Return user-friendly error with showSessionHelp trigger
               return {
                 error:
                   'The previous user is still logged into Google/Apple at the system level. ' +
                   'Please log out from Google/Apple in your device Settings, then try again.',
+                showSessionHelp: true,
+                provider: 'apple',
               };
             }
           }
@@ -1797,59 +1992,47 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           '🍎 [AuthContext] Note: Apple may provide a private relay email - Clerk handles this automatically',
         );
 
-        // Clear the previous user tracking after successful different-user OAuth
-        if (previousUserId && oauthUserId !== previousUserId) {
+        // POST-ACTIVATION VERIFICATION: Log for debugging
+        // Note: Apple Sign In on iOS uses native authentication which requires
+        // explicit user interaction. The user must authenticate with Face ID/Touch ID.
+        // Therefore, we no longer need to verify the user isn't the same as the previous logout.
+        const previousUserIdForVerification = previousUserId; // Captured earlier in the function
+
+        // Wait a moment for Clerk's state to update after setActive
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        console.log(
+          '🔍 [AuthContext] Post-activation check - session activated successfully',
+        );
+
+        // NOTE: The post-activation same-user check has been REMOVED.
+        //
+        // RATIONALE: Apple Sign In on iOS requires explicit user authentication
+        // (Face ID, Touch ID, or passcode). This means:
+        // 1. Users must EXPLICITLY authenticate - no silent reactivation
+        // 2. If a user chooses the same Apple ID they just logged out of, that's INTENTIONAL
+        // 3. The previous check was blocking legitimate re-logins of the same user
+        if (previousUserIdForVerification && isSignIn && !oauthUserId) {
           console.log(
-            '✅ [AuthContext] Different user signed in, clearing previous user tracking',
+            '✅ [AuthContext] Sign-in flow - native Apple auth used, allowing user choice',
+          );
+          console.log(
+            'ℹ️ [AuthContext] Previous user ID:',
+            previousUserIdForVerification,
+            '(user explicitly authenticated)',
+          );
+        }
+
+        // Clear the previous user tracking after successful sign-in
+        if (previousUserIdForVerification) {
+          console.log(
+            '✅ [AuthContext] Clearing previous user tracking after successful sign-in',
           );
           await AsyncStorage.removeItem('__previous_clerk_user_id');
           await AsyncStorage.removeItem('__previous_logout_timestamp');
         }
 
-        // POST-ACTIVATION VERIFICATION: Double-check activated user
-        const activatedUserId = clerkAuth?.userId;
-        const previousUserIdAfterActivation = await AsyncStorage.getItem(
-          '__previous_clerk_user_id',
-        );
-
-        if (
-          activatedUserId &&
-          previousUserIdAfterActivation &&
-          activatedUserId === previousUserIdAfterActivation
-        ) {
-          const previousLogoutTimestampAfterActivation =
-            await AsyncStorage.getItem('__previous_logout_timestamp');
-          const timeSinceLogoutAfterActivation =
-            Date.now() -
-            parseInt(previousLogoutTimestampAfterActivation || '0', 10);
-
-          if (timeSinceLogoutAfterActivation < 60000) {
-            console.error(
-              '🚨 [AuthContext] POST-ACTIVATION CRITICAL: Activated the SAME user who just logged out!',
-            );
-            console.error(
-              '🚨 [AuthContext] This should have been caught in pre-activation validation!',
-            );
-            console.error('🚨 [AuthContext] Emergency rollback...');
-
-            // Emergency rollback
-            await clearAllClerkTokens();
-            await clerkAuth.signOut();
-            await clearAllClerkTokens();
-            await AsyncStorage.removeItem('__previous_clerk_user_id');
-            await AsyncStorage.removeItem('__previous_logout_timestamp');
-
-            isProcessingOAuth.current = false;
-
-            return {
-              error:
-                'Cannot sign in - previous user session detected. Please log out from ' +
-                'Google/Apple in device Settings and try again.',
-            };
-          }
-        }
-
-        console.log('✅ [AuthContext] Post-activation verification passed');
+        console.log('✅ [AuthContext] Post-activation completed');
       }
 
       // Sync with Supabase after successful OAuth
@@ -2108,6 +2291,112 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   /**
+   * Award XP for completing onboarding milestones (US-010)
+   * Each milestone can only award XP once per user.
+   *
+   * XP Rewards:
+   * - first_story: +50 XP
+   * - first_image: +25 XP
+   * - first_voice: +25 XP
+   * - first_streak: +50 XP
+   */
+  const awardOnboardingXP = async (
+    milestoneType:
+      | 'first_story'
+      | 'first_image'
+      | 'first_voice'
+      | 'first_streak',
+  ): Promise<{
+    success: boolean;
+    error?: string;
+    newBalance?: number;
+    xpAwarded: number;
+  }> => {
+    // Define XP amounts for each milestone
+    const XP_REWARDS: Record<typeof milestoneType, number> = {
+      first_story: 50,
+      first_image: 25,
+      first_voice: 25,
+      first_streak: 50,
+    };
+
+    const xpAmount = XP_REWARDS[milestoneType];
+
+    if (!user || !userProfile) {
+      console.error('❌ Onboarding XP award failed: No user logged in');
+      return {
+        success: false,
+        error: 'No user logged in',
+        xpAwarded: 0,
+      };
+    }
+
+    try {
+      console.log('🎁 Awarding onboarding XP:', {
+        supabaseUserId: userProfile.id,
+        clerkUserId: user.id,
+        milestoneType,
+        xpAmount,
+        currentBalance: userProfile.total_xp,
+      });
+
+      // Use positive amount to add XP with the add_user_xp function
+      // IMPORTANT: Use userProfile.id (Supabase UUID) instead of user.id
+      // For OAuth users, user.id contains the Clerk user ID (e.g., "user_xxxxx")
+      // which is not a valid UUID and will fail the database query
+      const { error } = await supabase.rpc('add_user_xp', {
+        user_uuid: userProfile.id,
+        xp_to_add: xpAmount,
+        words_added: 0,
+      });
+
+      if (error) {
+        console.error('❌ Database onboarding XP award failed:', error);
+        return {
+          success: false,
+          error: `Database error: ${error.message}`,
+          xpAwarded: 0,
+        };
+      }
+
+      // Update local state immediately for better UX
+      const newBalance = (userProfile.total_xp || 0) + xpAmount;
+      const updatedProfile = {
+        ...userProfile,
+        total_xp: newBalance,
+      };
+      setUserProfile(updatedProfile);
+
+      console.log('✅ Onboarding XP award successful:', {
+        milestoneType,
+        previousBalance: userProfile.total_xp,
+        awardedAmount: xpAmount,
+        newBalance,
+      });
+
+      // Track the XP award event
+      await trackXPEvent({
+        type: 'refund', // Using 'refund' type as it's a positive XP change
+        amount: xpAmount,
+        reason: `Onboarding milestone: ${milestoneType}`,
+      });
+
+      return {
+        success: true,
+        newBalance,
+        xpAwarded: xpAmount,
+      };
+    } catch (error) {
+      console.error('💥 Onboarding XP award exception:', error);
+      return {
+        success: false,
+        error: 'An unexpected error occurred during onboarding XP award',
+        xpAwarded: 0,
+      };
+    }
+  };
+
+  /**
    * Check if profile completion is needed for OAuth users
    * This checks if:
    * 1. User is an OAuth user (has Clerk user ID)
@@ -2116,7 +2405,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
   const checkProfileCompletion = useCallback(async (): Promise<void> => {
     try {
       // Only check for OAuth users (users with Clerk user ID)
-      if (!clerkUser?.id) {
+      // Note: clerkUser from useUser() returns { isLoaded, isSignedIn, user }
+      // The actual user object with id is in clerkUser.user
+      if (!clerkUser?.user?.id) {
         setNeedsProfileCompletion(false);
         return;
       }
@@ -2128,7 +2419,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         return;
       }
 
-      const clerkUserId = clerkUser.id;
+      const clerkUserId = clerkUser.user.id;
 
       // Check if profile exists and is complete
       if (userProfile) {
@@ -2213,7 +2504,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       // On error, assume profile needs completion to be safe
       setNeedsProfileCompletion(true);
     }
-  }, [clerkUser?.id, session, emailConfirmed, userProfile]);
+  }, [clerkUser?.user?.id, session, emailConfirmed, userProfile]);
 
   /**
    * Sync Clerk auth state with Supabase
@@ -2250,12 +2541,14 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       };
 
       // Convert Clerk user to the interface expected by oauthService
-      const clerkUserData: ClerkUser | null = clerkUser
+      // Note: clerkUser from useUser() returns { isLoaded, isSignedIn, user }
+      // The actual user object with id, emailAddresses etc. is in clerkUser.user
+      const clerkUserData: ClerkUser | null = clerkUser?.user
         ? {
-            id: clerkUser.id,
-            emailAddresses: clerkUser.emailAddresses || [],
-            firstName: clerkUser.firstName,
-            lastName: clerkUser.lastName,
+            id: clerkUser.user.id,
+            emailAddresses: clerkUser.user.emailAddresses || [],
+            firstName: clerkUser.user.firstName,
+            lastName: clerkUser.user.lastName,
           }
         : null;
 
@@ -2368,7 +2661,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           id: oauthUserId,
           email:
             oauthResult.userEmail ||
-            clerkUser?.emailAddresses?.[0]?.emailAddress ||
+            clerkUser?.user?.emailAddresses?.[0]?.emailAddress ||
             '',
           email_confirmed_at: new Date().toISOString(),
           created_at: new Date().toISOString(),
@@ -2377,9 +2670,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           user_metadata: {
             clerk_user_id: oauthUserId,
             full_name:
-              clerkUser?.firstName && clerkUser?.lastName
-                ? `${clerkUser.firstName} ${clerkUser.lastName}`
-                : clerkUser?.firstName || '',
+              clerkUser?.user?.firstName && clerkUser?.user?.lastName
+                ? `${clerkUser.user.firstName} ${clerkUser.user.lastName}`
+                : clerkUser?.user?.firstName || '',
           },
           aud: 'authenticated',
           role: 'authenticated',
@@ -2575,6 +2868,36 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         console.log('🔄 Starting auth initialization...');
 
+        // US-007: Check for interrupted logout (app was backgrounded during logout)
+        // If the __logout_in_progress flag exists, the previous logout didn't complete
+        // We need to finish the token cleanup before proceeding
+        const logoutInProgress = await AsyncStorage.getItem(
+          '__logout_in_progress',
+        );
+        if (logoutInProgress === 'true') {
+          console.warn(
+            '⚠️ [AuthContext] Detected interrupted logout - completing token cleanup...',
+          );
+          try {
+            // Complete the interrupted logout by clearing all Clerk tokens
+            await clearAndVerifyTokens();
+            console.log(
+              '✅ [AuthContext] Completed interrupted logout - tokens cleared',
+            );
+          } catch (cleanupError) {
+            console.error(
+              '❌ [AuthContext] Error completing interrupted logout:',
+              cleanupError,
+            );
+          } finally {
+            // Always remove the flag, even if cleanup fails
+            await AsyncStorage.removeItem('__logout_in_progress');
+            console.log(
+              '🔓 [AuthContext] Removed __logout_in_progress flag after completing interrupted logout',
+            );
+          }
+        }
+
         // Ensure supabase is initialized before use
         if (!supabase) {
           console.error('❌ Supabase client is not initialized');
@@ -2653,7 +2976,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           isSignedIn: clerkAuth?.isSignedIn,
           userId: clerkAuth?.userId,
           hasClerkUser: !!clerkUser,
-          clerkUserId: clerkUser?.id,
+          clerkUserId: clerkUser?.user?.id,
         });
 
         // Check if Clerk user is signed in but Supabase session is missing
@@ -2764,12 +3087,35 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
             return;
           }
 
-          // Skip processing auth changes during logout to prevent race conditions
+          // US-008: Skip processing auth changes during logout to prevent race conditions
+          // We check both the in-memory ref (for in-session logouts) and the persistent
+          // AsyncStorage flag (for interrupted logouts that may have restarted the app)
           if (isSigningOut.current) {
             console.log(
-              '⏭️ [AuthContext] Skipping auth state change - signing out in progress',
+              '⏭️ [AuthContext] Skipping auth state change - isSigningOut.current is true',
             );
             return;
+          }
+
+          // US-008: Also check AsyncStorage for __logout_in_progress flag
+          // This catches edge cases where the app restarted during logout but
+          // the auth state change fires before initializeAuth can complete cleanup
+          try {
+            const logoutInProgress = await AsyncStorage.getItem(
+              '__logout_in_progress',
+            );
+            if (logoutInProgress === 'true') {
+              console.log(
+                '⏭️ [AuthContext] Skipping auth state change - __logout_in_progress flag detected in AsyncStorage',
+              );
+              return;
+            }
+          } catch (flagCheckError) {
+            // If we can't check the flag, continue with caution (log but don't block)
+            console.warn(
+              '⚠️ [AuthContext] Failed to check __logout_in_progress flag:',
+              flagCheckError,
+            );
           }
 
           setSession(currentSession);
@@ -2792,7 +3138,8 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
             setUserProfile(profile);
 
             // Check profile completion after profile is loaded (for OAuth users)
-            if (isEmailConfirmed && clerkUser?.id) {
+            // Note: clerkUser from useUser() returns { isLoaded, isSignedIn, user }
+            if (isEmailConfirmed && clerkUser?.user?.id) {
               // Use setTimeout to ensure state is updated before checking
               setTimeout(async () => {
                 await checkProfileCompletion();
@@ -2830,16 +3177,17 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       // Check profile completion after refresh
       await checkProfileCompletion();
     } else if (
-      clerkUser &&
-      'id' in clerkUser &&
-      typeof clerkUser.id === 'string'
+      clerkUser?.user &&
+      'id' in clerkUser.user &&
+      typeof clerkUser.user.id === 'string'
     ) {
       // Fallback for OAuth users if user.id is not set yet
+      // Note: clerkUser from useUser() returns { isLoaded, isSignedIn, user }
       console.log(
         '🔄 [AuthContext] Refreshing profile using Clerk user ID:',
-        clerkUser.id,
+        clerkUser.user.id,
       );
-      const profile = await fetchUserProfile(clerkUser.id as string);
+      const profile = await fetchUserProfile(clerkUser.user.id);
       setUserProfile(profile);
       await checkProfileCompletion();
     }
@@ -2867,6 +3215,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     resetPassword,
     deductXP,
     refundXP,
+    awardOnboardingXP,
     validateXPBalance,
     getXPBalanceInfo,
     canGenerateImage,

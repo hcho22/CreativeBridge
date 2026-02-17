@@ -226,6 +226,101 @@ src/
 - **Enhanced Fallback Systems**: Multi-layered content generation with themed templates
 - **Educational Focus**: Curriculum-aligned content with positive theme integration
 
+### 9. Onboarding System
+
+**Location**: `src/services/onboardingService.ts`, `src/services/onboardingMilestoneTracker.ts`
+
+The onboarding system provides a comprehensive new user experience with guided feature discovery, celebratory moments, and XP rewards to drive activation and engagement.
+
+#### Architecture Overview
+
+**Two-Layer Service Architecture**:
+
+1. **OnboardingService** (`onboardingService.ts`) - Centralized singleton service:
+
+   - Database integration via Supabase RPC functions
+   - 1-minute cache TTL for onboarding status
+   - XP reward processing and tracking
+   - Celebration configuration management
+   - Cross-device state sync via database
+
+2. **OnboardingMilestoneTracker** (`onboardingMilestoneTracker.ts`) - Local tracking layer:
+   - AsyncStorage-based milestone persistence
+   - Feature tooltip visibility tracking
+   - Checklist dismissal state
+   - First story guidance modal state
+   - Fast local reads with database fallback
+
+#### Onboarding Milestones & XP Rewards
+
+| Milestone                      | XP Reward  | Celebration                 |
+| ------------------------------ | ---------- | --------------------------- |
+| First Story Completed          | +50 XP     | 🎉 Modal with confetti      |
+| First Image Generated          | +25 XP     | 🎨 Modal with animation     |
+| First Voice Input Used         | +25 XP     | Silent (XP only)            |
+| First Streak Achieved (2 days) | +50 XP     | 🔥 Modal with encouragement |
+| **Total Onboarding XP**        | **150 XP** |                             |
+
+#### Onboarding Components
+
+**Location**: `src/components/onboarding/`, `src/components/common/`
+
+| Component                  | Purpose                                              | Location      |
+| -------------------------- | ---------------------------------------------------- | ------------- |
+| `CelebrationModal`         | Celebratory overlay with animations for achievements | `common/`     |
+| `FeatureTooltip`           | Contextual tooltips for feature discovery            | `common/`     |
+| `OnboardingChecklist`      | Progress tracker with 5 items and XP rewards         | `onboarding/` |
+| `OnboardingChecklistModal` | Settings-accessible modal wrapper for checklist      | `onboarding/` |
+| `FirstStoryGuidanceModal`  | Explains collaborative AI storytelling for new users | `onboarding/` |
+| `EnhancedEmptyState`       | Engaging HomeScreen empty state for new users        | `onboarding/` |
+
+#### Feature Discovery Tooltips
+
+The system includes three contextual tooltips that appear once per user on first encounter:
+
+1. **Voice Input Tooltip** (US-013): "Tap to speak your story instead of typing"
+2. **Image Generation Tooltip** (US-014): "AI creates illustrations matching your grade level!"
+3. **XP/Challenges Tooltip** (US-015): "Complete challenges for bonus XP and level up!"
+
+#### Key Service Methods
+
+```typescript
+// Processing milestones with XP and celebrations
+await onboardingService.processFirstStoryCompletion(userId);
+await onboardingService.processFirstImageGeneration(userId);
+await onboardingService.processFirstVoiceInput(userId);
+await onboardingService.processFirstStreakAchievement(userId);
+
+// Progress tracking
+const progress = await onboardingService.getOnboardingProgress(userId);
+const isComplete = await onboardingService.isOnboardingComplete(userId);
+
+// Tooltip management
+const shouldShow = await onboardingService.shouldShowTooltip('voiceInput');
+await onboardingService.markTooltipShown('imageGeneration');
+
+// Database sync
+await onboardingService.syncToDatabase(userId);
+```
+
+#### Database Integration
+
+The onboarding system uses three database functions (see `database_schema.md`):
+
+- `update_onboarding_progress_item()` - Update individual checklist items
+- `record_onboarding_milestone()` - Record achievements with timestamps and XP
+- `get_onboarding_status()` - Retrieve complete onboarding status with completion percentage
+
+#### State Flow
+
+```
+User Action → MilestoneTracker (AsyncStorage) → OnboardingService → Database RPC
+                       ↓                                ↓
+              Local Cache Update              Supabase user_profiles
+                       ↓                                ↓
+              UI Component Update ← ← ← ← ← Cache Invalidation
+```
+
 ## Integration Points
 
 ### External Services
@@ -347,6 +442,6 @@ src/
 
 ---
 
-**Last Updated**: November 2024  
-**Version**: 1.0  
+**Last Updated**: February 2026
+**Version**: 1.1
 **Maintainer**: Development Team

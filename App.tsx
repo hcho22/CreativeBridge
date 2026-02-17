@@ -359,10 +359,15 @@ const MainApp: React.FC = () => {
           // when the profile is refreshed and found to be complete
           await refreshProfile();
         }}
-        onSkip={() => {
-          // Allow skipping - user can complete later
-          // AuthContext manages needsProfileCompletion state
-          // The user can complete their profile later from Settings
+        onSkip={async () => {
+          // Profile was created and refreshProfile() was called in ProfileCompletionScreen
+          // Now refresh the profile state in App to update needsProfileCompletion
+          console.log(
+            '✅ [App] Profile skip completed - refreshing profile state',
+          );
+          await refreshProfile();
+          // Re-check profile completion to update needsProfileCompletion state
+          // This ensures the app navigates to main content after skip
         }}
       />
     );

@@ -89,6 +89,7 @@ The `Tasks/` directory contains Product Requirements Documents (PRDs) and implem
 
 **Active PRDs**:
 
+- [**Onboarding Enhancement**](./Tasks/prd-onboarding-enhancement.md) - ✅ **COMPLETE** (20/20 user stories) - Comprehensive onboarding CRO improvements including checklist, celebrations, feature discovery tooltips, and XP rewards. See [Project Architecture](./System/project_architecture.md#9-onboarding-system) for technical documentation.
 - [**Image Generation Watercolor Style Fix**](./Tasks/prd-image-generation-watercolor-style-fix.md) - Critical bug fix to enforce grade-appropriate art styles across all grade levels (K-2, 3-5, 6-8, 9-12)
 - [**Image Generation Quality Improvement**](./Tasks/prd-image-generation-quality-improvement.md) - LLM-based prompt generation for better story-to-image relevance
 - [**Story Agent Diversity**](./Tasks/prd-story-agent-diversity.md) - Multi-personality AI agents for varied storytelling experiences
@@ -157,19 +158,28 @@ The `Tasks/` directory contains Product Requirements Documents (PRDs) and implem
 
 ```
 src/
-├── components/     # Reusable UI components (analytics, common, story)
+├── components/     # Reusable UI components
+│   ├── analytics/  # Analytics dashboard components
+│   ├── common/     # Shared components (modals, tooltips, displays)
+│   ├── onboarding/ # Onboarding components (checklist, guidance, empty state)
+│   └── story/      # Story-specific components
 ├── screens/        # Screen components for navigation
 ├── services/       # Business logic layer (30+ specialized services)
+│   ├── onboardingService.ts         # Centralized onboarding management
+│   ├── onboardingMilestoneTracker.ts # Local milestone tracking
+│   └── ...                          # Other services
 ├── types/          # TypeScript definitions and interfaces
 ├── context/        # React Context providers
 ├── navigation/     # App navigation configuration
 └── utils/          # Utility functions and helpers
 
 .agent/
-├── project_architecture.md    # Complete system overview
-├── database_schema.md        # Database structure and functions
-└── SOPs/
-    └── development_procedures.md  # Development best practices
+├── README.md                  # This documentation index
+├── System/
+│   ├── project_architecture.md # Complete system overview
+│   └── database_schema.md      # Database structure and functions
+├── Tasks/                      # PRDs and implementation plans
+└── SOP/                        # Standard operating procedures
 ```
 
 ### Essential Files for Development
@@ -192,6 +202,7 @@ src/
 6. **Data Layer**: PostgreSQL with real-time sync and comprehensive analytics
 7. **Security Layer**: RLS policies and input validation
 8. **Advanced AI Agents**: Multi-personality story partners with adaptive behavior
+9. **Onboarding System**: Guided new user experience with celebrations, tooltips, and XP rewards (150 XP total)
 
 ### Integration Points
 
@@ -318,9 +329,9 @@ src/
 
 ---
 
-**Documentation Version**: 1.0  
-**Last Updated**: November 2024  
-**Maintainer**: Development Team  
+**Documentation Version**: 1.1
+**Last Updated**: February 2026
+**Maintainer**: Development Team
 **Review Schedule**: Monthly updates, quarterly comprehensive review
 
 > 💡 **Pro Tip**: Bookmark this README and refer to it whenever you need to navigate the documentation. Each section builds upon the others to provide complete system understanding.
