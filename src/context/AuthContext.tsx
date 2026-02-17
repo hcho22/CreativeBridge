@@ -2333,15 +2333,19 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
     try {
       console.log('🎁 Awarding onboarding XP:', {
-        userId: user.id,
+        supabaseUserId: userProfile.id,
+        clerkUserId: user.id,
         milestoneType,
         xpAmount,
         currentBalance: userProfile.total_xp,
       });
 
       // Use positive amount to add XP with the add_user_xp function
+      // IMPORTANT: Use userProfile.id (Supabase UUID) instead of user.id
+      // For OAuth users, user.id contains the Clerk user ID (e.g., "user_xxxxx")
+      // which is not a valid UUID and will fail the database query
       const { error } = await supabase.rpc('add_user_xp', {
-        user_uuid: user.id,
+        user_uuid: userProfile.id,
         xp_to_add: xpAmount,
         words_added: 0,
       });
