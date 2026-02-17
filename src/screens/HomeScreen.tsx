@@ -3465,6 +3465,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                     wordCount={currentSession.sessionStats.userWords}
                     onImageGenerated={handleImageGenerated}
                     onError={handleImageGenerationError}
+                    onClose={() => setShowImageGeneration(false)}
                     disabled={!isGameCompleted}
                     isStoryCompleted={isGameCompleted}
                     currentRound={currentRound}

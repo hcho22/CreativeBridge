@@ -22,6 +22,7 @@ interface ImageGenerationProps {
   wordCount: number;
   onImageGenerated?: (imageUrl: string) => void;
   onError?: (error: string) => void;
+  onClose?: () => void;
   disabled?: boolean;
   // NEW: Story completion tracking props
   isStoryCompleted: boolean;
@@ -52,6 +53,7 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
   wordCount,
   onImageGenerated,
   onError,
+  onClose,
   disabled = false,
   // NEW: Story completion tracking
   isStoryCompleted,
@@ -321,7 +323,12 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
     } finally {
       setState(prev => ({ ...prev, isRetryingUpload: false }));
     }
-  }, [state.generatedImageUrl, sessionId, userProfile?.id, uploadToSupabaseStorage]);
+  }, [
+    state.generatedImageUrl,
+    sessionId,
+    userProfile?.id,
+    uploadToSupabaseStorage,
+  ]);
 
   // Progress simulation for better UX
   const simulateProgress = useCallback(() => {
@@ -594,7 +601,10 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
     // NEW: Include story completion check in disabled logic
     const isDisabledByCompletion = !isStoryCompleted;
     const isButtonDisabled =
-      disabled || !xpBalanceInfo.canGenerate || state.isGenerating || isDisabledByCompletion;
+      disabled ||
+      !xpBalanceInfo.canGenerate ||
+      state.isGenerating ||
+      isDisabledByCompletion;
 
     return (
       <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
@@ -660,7 +670,8 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
     // NEW: Check story completion first, then XP balance
     const isDisabledByCompletion = !isStoryCompleted;
 
-    if (xpBalanceInfo.canGenerate && !disabled && !isDisabledByCompletion) return null;
+    if (xpBalanceInfo.canGenerate && !disabled && !isDisabledByCompletion)
+      return null;
 
     // NEW: Prioritize story completion message over other disabled states
     if (isDisabledByCompletion) {
@@ -677,6 +688,11 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
           <Text style={styles.disabledHint}>
             💡 Keep writing to reach round {maxRounds}!
           </Text>
+          {onClose && (
+            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+              <Text style={styles.closeButtonText}>← Back to Story</Text>
+            </TouchableOpacity>
+          )}
         </View>
       );
     }
@@ -699,6 +715,11 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
           <Text style={styles.disabledHint}>
             💡 Complete more stories to earn XP!
           </Text>
+        )}
+        {onClose && (
+          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+            <Text style={styles.closeButtonText}>← Back to Story</Text>
+          </TouchableOpacity>
         )}
       </View>
     );
@@ -1031,6 +1052,20 @@ const styles = StyleSheet.create({
     color: '#856404',
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  closeButton: {
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: '#6c757d',
+    borderRadius: 8,
+    alignSelf: 'center',
+  },
+  closeButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 
   // Enhanced Error State
