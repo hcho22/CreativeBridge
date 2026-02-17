@@ -52,7 +52,6 @@ import Share from '../utils/shareWrapper';
 import { CelebrationModal } from '../components/common/CelebrationModal';
 import { FeatureTooltip } from '../components/common/FeatureTooltip';
 import {
-  OnboardingChecklist,
   FirstStoryGuidanceModal,
   EnhancedEmptyState,
 } from '../components/onboarding';
@@ -166,10 +165,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   // Track the previous streak to detect when it changes to 2+
   const previousStreakRef = useRef<number | null>(null);
 
-  // Onboarding checklist state (US-009)
-  const [showOnboardingChecklist, setShowOnboardingChecklist] = useState(false);
-  const [checklistKey, setChecklistKey] = useState(0); // Force re-render on milestone updates
-
   // First story guidance modal state (US-012)
   const [showFirstStoryGuidance, setShowFirstStoryGuidance] = useState(false);
   const [dontShowGuidanceAgain, setDontShowGuidanceAgain] = useState(false);
@@ -258,38 +253,32 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     checkFirstStreakAchievement();
   }, [userProfile?.current_streak]);
 
-  // Load onboarding checklist visibility state (US-009)
-  // Checklist shows if: not completed AND not dismissed
+  // Determine if user is "new" (US-017) - controls enhanced empty state display
   const onboardingCompleted = userProfile?.onboarding_completed;
   const hasUserProfile = !!userProfile;
 
   useEffect(() => {
-    const loadChecklistVisibility = async () => {
+    const loadNewUserStatus = async () => {
       try {
         // Check if user has completed onboarding (database field from US-007)
         if (onboardingCompleted === true) {
-          // User has completed all onboarding tasks - auto-hide checklist
-          setShowOnboardingChecklist(false);
-          setIsNewUser(false); // US-017: Not a new user if onboarding completed
+          setIsNewUser(false);
           return;
         }
 
-        // BUG FIX: Use database as source of truth for existing users
+        // Use database as source of truth for existing users
         // total_stories_completed > 0 means user has completed stories (not new)
-        // This catches existing users who have stories but onboarding_completed = false
         if (
           userProfile?.total_stories_completed &&
           userProfile.total_stories_completed > 0
         ) {
           setIsNewUser(false);
-          setShowOnboardingChecklist(false);
           console.log(
             '📋 [BugFix] Existing user detected via total_stories_completed:',
             userProfile.total_stories_completed,
           );
 
           // Auto-fix database: set onboarding_completed = true for existing users
-          // Fire-and-forget pattern - don't block UI on database update
           if (!onboardingCompleted && userProfile.id) {
             onboardingService
               .markOnboardingComplete(userProfile.id)
@@ -309,30 +298,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           return;
         }
 
-        // Check if user has dismissed the checklist this session
-        const isDismissed =
-          await onboardingMilestoneTracker.isChecklistDismissed();
-
-        // Show checklist if not completed AND not dismissed
-        setShowOnboardingChecklist(!isDismissed);
-
-        // US-017: Check if user is "new" (hasn't completed first story yet)
-        // This determines whether to show the enhanced empty state
-        // Only check AsyncStorage for users with no completed stories in database
+        // Check AsyncStorage for users with no completed stories in database
         const progress =
           await onboardingMilestoneTracker.getMilestoneProgress();
         setIsNewUser(!progress.storiesCompleted);
       } catch (error) {
-        console.error('❌ Error loading checklist visibility:', error);
-        // Default to showing checklist on error (better UX for new users)
-        setShowOnboardingChecklist(true);
+        console.error('❌ Error loading new user status:', error);
         setIsNewUser(true); // Assume new user on error
       }
     };
 
-    // Only check when we have user profile loaded
     if (hasUserProfile) {
-      loadChecklistVisibility();
+      loadNewUserStatus();
     }
   }, [
     onboardingCompleted,
@@ -341,48 +318,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     userProfile?.id,
   ]);
 
-  // Refresh checklist when milestones are completed (US-009)
-  // This ensures the checklist updates when user completes a task
+  // US-017: Update new user status when first story celebration shows
   useEffect(() => {
-    const refreshChecklistOnMilestone = async () => {
-      // Check if onboarding is now complete after a milestone
-      const isComplete =
-        await onboardingMilestoneTracker.isOnboardingComplete();
-
-      if (isComplete) {
-        // All milestones done - hide the checklist
-        setShowOnboardingChecklist(false);
-        setIsNewUser(false); // US-017: No longer a new user
-        console.log(
-          '📋 [US-009] All onboarding milestones complete, hiding checklist',
-        );
-      } else {
-        // Force re-render of checklist to show updated progress
-        setChecklistKey(prev => prev + 1);
-      }
-
-      // US-017: Update new user status when first story celebration shows
-      if (showFirstStoryCelebration) {
-        setIsNewUser(false);
-        console.log(
-          '📚 [US-017] First story completed, hiding enhanced empty state',
-        );
-      }
-    };
-
-    // Trigger refresh when any celebration is shown (indicates milestone completed)
-    if (
-      showFirstStoryCelebration ||
-      showFirstImageCelebration ||
-      showFirstStreakCelebration
-    ) {
-      refreshChecklistOnMilestone();
+    if (showFirstStoryCelebration) {
+      setIsNewUser(false);
+      console.log(
+        '📚 [US-017] First story completed, hiding enhanced empty state',
+      );
     }
-  }, [
-    showFirstStoryCelebration,
-    showFirstImageCelebration,
-    showFirstStreakCelebration,
-  ]);
+  }, [showFirstStoryCelebration]);
 
   // Show voice input tooltip when game becomes active (US-013)
   // Tooltip appears near voice input button on first game with voice input enabled
@@ -3512,23 +3456,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               onSeeHowItWorks={handleSeeHowItWorks}
               isLoading={loadingState.isGenerating}
             />
-
-            {/* Onboarding Checklist below empty state (US-009) */}
-            {showOnboardingChecklist && (
-              <View style={styles.checklistBelowEmptyState}>
-                <OnboardingChecklist
-                  key={checklistKey}
-                  onDismiss={async () => {
-                    await onboardingMilestoneTracker.dismissChecklist();
-                    setShowOnboardingChecklist(false);
-                    console.log(
-                      '📋 [US-009] Onboarding checklist dismissed by user',
-                    );
-                  }}
-                  initiallyCollapsed={true}
-                />
-              </View>
-            )}
           </>
         ) : (
           <>
@@ -3541,21 +3468,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 Ready to create amazing stories?
               </Text>
             </View>
-
-            {/* Onboarding Checklist (US-009) */}
-            {showOnboardingChecklist && (
-              <OnboardingChecklist
-                key={checklistKey}
-                onDismiss={async () => {
-                  await onboardingMilestoneTracker.dismissChecklist();
-                  setShowOnboardingChecklist(false);
-                  console.log(
-                    '📋 [US-009] Onboarding checklist dismissed by user',
-                  );
-                }}
-                initiallyCollapsed={false}
-              />
-            )}
 
             {/* Story Action Buttons */}
             <View style={styles.startSection}>
@@ -3670,12 +3582,6 @@ const styles = StyleSheet.create({
   welcomeSection: {
     marginBottom: 60,
     alignItems: 'center',
-  },
-  // US-017: Checklist container when shown below enhanced empty state
-  checklistBelowEmptyState: {
-    width: '100%',
-    marginTop: 8,
-    marginBottom: 24,
   },
   welcomeTitle: {
     fontSize: 24,
