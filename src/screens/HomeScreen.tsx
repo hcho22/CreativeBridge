@@ -58,6 +58,7 @@ import {
 } from '../components/onboarding';
 import { onboardingMilestoneTracker } from '../services/onboardingMilestoneTracker';
 import { onboardingService } from '../services/onboardingService';
+import { supabase } from '../services/supabase';
 
 type HomeScreenNavigationProp = BottomTabNavigationProp<TabParamList, 'Home'>;
 
@@ -1413,7 +1414,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   };
 
   // Core story creation logic - extracted for reuse after guidance modal (US-012)
-  const executeStartNewGame = async () => {
+  // overrideUserId allows passing a resolved profile ID when userProfile context isn't updated yet
+  const executeStartNewGame = async (overrideUserId?: string) => {
+    const userIdToUse = overrideUserId || effectiveUserId;
+    console.log('📖 executeStartNewGame: Starting new game flow', {
+      overrideUserId,
+      effectiveUserId,
+      userIdToUse,
+    });
     try {
       // Clear any previous errors and reset image state
       setGenerationError(null);
@@ -1430,23 +1438,34 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       startSpinAnimation();
       simulateProgress(4000);
 
-      // Create new session using effective user ID (prioritizes user profile ID for proper UUID)
+      // Create new session using the resolved user ID
+      if (!userIdToUse) {
+        throw new Error('No user ID available to create session');
+      }
+      console.log(
+        '📖 executeStartNewGame: Creating session for user:',
+        userIdToUse,
+      );
       const newSession = await storySessionManager.createSession(
-        effectiveUserId,
+        userIdToUse,
         gradeLevel,
         { difficulty: 1 },
       );
+      console.log('📖 executeStartNewGame: Session created:', newSession.id);
 
       // Generate dynamic story starter using AI with diversity tracking
       const starterResponse = await storyAgentService.generateStoryStarter({
         gradeLevel,
         theme: 'adventure',
         sessionId: newSession.id,
-        userId: effectiveUserId,
+        userId: userIdToUse,
         storyId: newSession.id, // Use session ID as story ID for the starter
       });
 
       if (starterResponse.success && starterResponse.story) {
+        console.log(
+          '📖 executeStartNewGame: Story starter generated successfully',
+        );
         // Add AI story starter to session
         const updatedSession = await storySessionManager.addContribution(
           newSession.id,
@@ -1454,8 +1473,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           starterResponse.story,
           newSession,
         );
+        console.log(
+          '📖 executeStartNewGame: addContribution result:',
+          updatedSession ? 'success' : 'null',
+        );
 
         if (updatedSession) {
+          console.log('📖 executeStartNewGame: Setting game active state');
           setCurrentSession({ ...updatedSession });
           setIsGameActive(true);
           startFadeAnimation();
@@ -1472,9 +1496,28 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           //     }
           //   }, 2000);
           // }
+        } else {
+          console.error(
+            '❌ Failed to add AI contribution to session - session returned null',
+          );
+          Alert.alert(
+            'Story Creation Failed',
+            'Unable to start your story. Please try again.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Retry',
+                onPress: () => setTimeout(executeStartNewGame, 1000),
+              },
+            ],
+          );
+          return;
         }
       } else {
         // Fallback to basic starter if AI fails
+        console.log(
+          '📖 executeStartNewGame: AI story starter failed, using fallback',
+        );
         const fallbackStarter = await generateFallbackStarter();
         const updatedSession = await storySessionManager.addContribution(
           newSession.id,
@@ -1482,8 +1525,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           fallbackStarter,
           newSession,
         );
+        console.log(
+          '📖 executeStartNewGame: Fallback addContribution result:',
+          updatedSession ? 'success' : 'null',
+        );
 
         if (updatedSession) {
+          console.log(
+            '📖 executeStartNewGame: Setting game active state (fallback path)',
+          );
           setCurrentSession({ ...updatedSession });
           setIsGameActive(true);
           startFadeAnimation();
@@ -1494,6 +1544,22 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           // Reset round counter for new game
           setCurrentRound(1);
           setIsGameCompleted(false);
+        } else {
+          console.error(
+            '❌ Failed to add fallback contribution to session - session returned null',
+          );
+          Alert.alert(
+            'Story Creation Failed',
+            'Unable to start your story. Please try again.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Retry',
+                onPress: () => setTimeout(executeStartNewGame, 1000),
+              },
+            ],
+          );
+          return;
         }
       }
     } catch (error) {
@@ -1523,7 +1589,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   // Wrapper function that shows first story guidance modal if needed (US-012)
   const handleStartNewGame = async () => {
+    console.log('📖 handleStartNewGame: Starting...', {
+      isAuthenticated,
+      effectiveUserId,
+      userProfileId: userProfile?.id,
+      userId: user?.id,
+      clerkUserId: clerkAuth?.userId,
+    });
+
     if (!isAuthenticated || !effectiveUserId) {
+      console.log(
+        '📖 handleStartNewGame: Not authenticated or no effectiveUserId',
+      );
       Alert.alert('Error', 'Please log in to start a story');
       return;
     }
@@ -1531,19 +1608,68 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     // Check if effectiveUserId is a valid UUID for database operations
     // Clerk user IDs start with "user_" and are not valid UUIDs for Supabase
     const isClerkUserId = effectiveUserId.startsWith('user_');
-    if (isClerkUserId && !userProfile?.id) {
-      Alert.alert(
-        'Profile Setup Required',
-        'Please complete your profile setup before starting a story. This ensures your progress is properly saved.',
-        [
-          {
-            text: 'Complete Profile',
-            onPress: () => navigation.navigate('Profile'),
-          },
-        ],
+    let resolvedProfileId = userProfile?.id;
+
+    if (isClerkUserId && !resolvedProfileId) {
+      console.log(
+        '📖 handleStartNewGame: Clerk user detected without profile ID, fetching from database...',
       );
-      return;
+
+      // Directly fetch the profile from database - it may have been created but not loaded into context yet
+      try {
+        const { data: profiles, error: fetchError } = await supabase
+          .from('user_profiles')
+          .select('id')
+          .eq('clerk_user_id', effectiveUserId)
+          .limit(1);
+
+        if (!fetchError && profiles && profiles.length > 0) {
+          resolvedProfileId = profiles[0].id;
+          console.log(
+            '📖 handleStartNewGame: Found profile in database:',
+            resolvedProfileId,
+          );
+
+          // Also trigger a background refresh to update the context
+          refreshProfile().catch(err =>
+            console.error(
+              '📖 handleStartNewGame: Background refresh failed:',
+              err,
+            ),
+          );
+        } else {
+          console.log(
+            '📖 handleStartNewGame: No profile found in database',
+            fetchError,
+          );
+        }
+      } catch (error) {
+        console.error('📖 handleStartNewGame: Error fetching profile:', error);
+      }
+
+      // If still no profile after database check, show the alert
+      if (!resolvedProfileId) {
+        console.log('📖 handleStartNewGame: No profile found, showing alert');
+        Alert.alert(
+          'Profile Setup Required',
+          'Please complete your profile setup before starting a story. This ensures your progress is properly saved.',
+          [
+            {
+              text: 'Complete Profile',
+              onPress: () => navigation.navigate('Profile'),
+            },
+          ],
+        );
+        return;
+      }
     }
+
+    // Use resolvedProfileId if available, otherwise fall back to effectiveUserId
+    const userIdForSession = resolvedProfileId || effectiveUserId;
+    console.log(
+      '📖 handleStartNewGame: Using user ID for session:',
+      userIdForSession,
+    );
 
     // Check if first story guidance should be shown (US-012)
     try {
@@ -1552,7 +1678,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
       if (shouldShowGuidance) {
         // Store the action to execute after guidance is dismissed
-        pendingStoryActionRef.current = executeStartNewGame;
+        // Capture the resolved user ID in a closure
+        pendingStoryActionRef.current = () =>
+          executeStartNewGame(userIdForSession);
         setShowFirstStoryGuidance(true);
         return;
       }
@@ -1562,7 +1690,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     }
 
     // No guidance needed, proceed directly
-    executeStartNewGame();
+    executeStartNewGame(userIdForSession);
   };
 
   const generateFallbackStarter = async (): Promise<string> => {
@@ -3480,6 +3608,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           </>
         )}
       </View>
+
+      {/* First Story Guidance Modal (US-012) - added here for non-game-active state */}
+      <FirstStoryGuidanceModal
+        visible={showFirstStoryGuidance}
+        onClose={handleFirstStoryGuidanceClose}
+        onProceed={handleFirstStoryGuidanceProceed}
+        showDontShowAgain={true}
+        onDontShowAgainChange={handleDontShowGuidanceAgainChange}
+      />
     </ScrollView>
   );
 };
