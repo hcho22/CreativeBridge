@@ -248,7 +248,7 @@ Migrate CreativeBridge's entire backend infrastructure from Supabase (PostgreSQL
 
 **Acceptance Criteria:**
 
-- [ ] Create `convex/userProfiles.ts` with:
+- [x] Create `convex/userProfiles.ts` with:
   - `createOAuthProfile` mutation - creates profile for new OAuth users
   - `getProfileByClerkId` query - fetches profile by Clerk user ID
   - `updateProfile` mutation - updates profile fields
@@ -256,9 +256,18 @@ Migrate CreativeBridge's entire backend infrastructure from Supabase (PostgreSQL
   - `deductUserXp` mutation - deducts XP (for image generation)
   - `refundUserXp` mutation - refunds XP on failed generation
   - `updateStreak` mutation - updates daily streak logic
-- [ ] All functions use `requireAuth()` for security
-- [ ] Functions match existing Supabase RPC behavior
-- [ ] Typecheck passes
+- [x] All functions use `requireAuth()` for security
+- [x] Functions match existing Supabase RPC behavior
+- [x] Typecheck passes
+
+**Additional functions implemented:**
+
+- `getMyProfile` query - convenience function using auth context
+- `incrementGamesPlayed` mutation - tracks games started
+- `incrementStoriesCompleted` mutation - tracks story completions with best score
+- `completeGameSession` mutation - atomic update of all stats on story completion
+- `getLeaderboard` query - returns top users sorted by XP
+- `validateXpBalance` query - pre-flight check for XP sufficiency
 
 ---
 
@@ -268,7 +277,7 @@ Migrate CreativeBridge's entire backend infrastructure from Supabase (PostgreSQL
 
 **Acceptance Criteria:**
 
-- [ ] Create `convex/gameSessions.ts` with:
+- [x] Create `convex/gameSessions.ts` with:
   - `createSession` mutation - creates new game session
   - `createStoryContinuationSession` mutation - creates session from imported story
   - `updateSession` mutation - updates session fields
@@ -278,9 +287,17 @@ Migrate CreativeBridge's entire backend infrastructure from Supabase (PostgreSQL
   - `searchUserStories` query - searches stories by content
   - `getUserStoriesWithImages` query - gets stories that have generated images
   - `getImportableStories` query - gets stories available for continuation
-- [ ] All functions use `requireAuth()` for security
-- [ ] Pagination implemented where appropriate
-- [ ] Typecheck passes
+- [x] All functions use `requireAuth()` for security
+- [x] Pagination implemented where appropriate
+- [x] Typecheck passes
+
+**Additional functions implemented:**
+
+- `getSession` query - gets a specific session by ID
+- `updateStoryGeneratedImage` mutation - updates image URL after generation
+- `updateImageUploadStatus` mutation - tracks image upload retry attempts
+- `validateStoryImport` mutation - pre-flight validation for story imports
+- `getStoryLibrary` query - comprehensive filtering/sorting for story library UI
 
 ---
 
@@ -290,14 +307,23 @@ Migrate CreativeBridge's entire backend infrastructure from Supabase (PostgreSQL
 
 **Acceptance Criteria:**
 
-- [ ] Create `convex/imageGeneration.ts` with:
+- [x] Create `convex/imageGeneration.ts` with:
   - `createImageGenerationEvent` mutation - creates new event (pending status)
   - `updateImageGenerationEvent` mutation - updates status, URL, error info
   - `getUserImageGenerationEvents` query - gets user's generation history
   - `getImageGenerationAnalytics` query - gets aggregated stats
-- [ ] XP deduction integrated into event creation
-- [ ] Refund logic handles failed generations
-- [ ] Typecheck passes
+- [x] XP deduction integrated into event creation
+- [x] Refund logic handles failed generations
+- [x] Typecheck passes
+
+**Additional functions implemented:**
+
+- `refundImageGenerationEvent` mutation - manual refund for edge cases
+- `getImageGenerationEvent` query - get single event by ID
+- `getSessionImageGenerationEvents` query - get events for a game session
+- `getDailyImageGenerationStats` query - daily statistics for trend monitoring
+- `checkXpForImageGeneration` query - pre-flight XP validation
+- `getRecentImageGenerationEvents` query - admin monitoring of recent events
 
 ---
 
@@ -307,13 +333,21 @@ Migrate CreativeBridge's entire backend infrastructure from Supabase (PostgreSQL
 
 **Acceptance Criteria:**
 
-- [ ] Create `convex/onboarding.ts` with:
+- [x] Create `convex/onboarding.ts` with:
   - `updateOnboardingProgressItem` mutation - marks onboarding item complete
   - `recordOnboardingMilestone` mutation - records milestone with XP reward
   - `getOnboardingStatus` query - gets full onboarding state
-- [ ] Functions calculate completion percentage
-- [ ] XP rewards integrated into milestone recording
-- [ ] Typecheck passes
+- [x] Functions calculate completion percentage
+- [x] XP rewards integrated into milestone recording
+- [x] Typecheck passes
+
+**Additional functions implemented:**
+
+- `recordMultipleMilestones` mutation - batch milestone recording
+- `resetOnboardingProgress` mutation - reset for testing
+- `getMyOnboardingStatus` query - uses auth context
+- `checkMilestoneAchieved` query - check single milestone
+- `getOnboardingAnalytics` query - aggregated stats for admin
 
 ---
 
