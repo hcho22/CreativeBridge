@@ -79,6 +79,9 @@ yarn-error.log
 .env.local
 .env.*.local
 
+# Convex generated files
+convex/_generated/
+
 # iOS Pods
 ios/Pods/
 # Note: Podfile.lock should be committed for reproducible builds

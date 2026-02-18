@@ -1,7 +1,37 @@
 import React, { useMemo } from 'react';
-import { ClerkProvider } from '@clerk/clerk-expo';
-import { isClerkConfigured, getClerkConfig } from '../../config/environment';
+import { ClerkProvider, useAuth } from '@clerk/clerk-expo';
+import { ConvexProviderWithClerk } from 'convex/react-clerk';
+import { ConvexReactClient } from 'convex/react';
+import {
+  isClerkConfigured,
+  getClerkConfig,
+  isConvexConfigured,
+  getConvexUrl,
+} from '../../config/environment';
 import { clerkTokenCache } from '../../utils/clerkTokenCache';
+
+// Create Convex client instance (singleton)
+// This is created once and reused across the app
+let convexClient: ConvexReactClient | null = null;
+
+const getConvexClient = (): ConvexReactClient | null => {
+  if (!isConvexConfigured()) {
+    return null;
+  }
+
+  if (!convexClient) {
+    try {
+      const convexUrl = getConvexUrl();
+      convexClient = new ConvexReactClient(convexUrl);
+      console.log('✅ Convex client initialized:', convexUrl);
+    } catch (error) {
+      console.warn('⚠️ Failed to initialize Convex client:', error);
+      return null;
+    }
+  }
+
+  return convexClient;
+};
 
 interface ConditionalClerkProviderProps {
   children: React.ReactNode;
@@ -62,6 +92,9 @@ export const ConditionalClerkProvider: React.FC<
     return null;
   }
 
+  // Get Convex client (may be null if not configured)
+  const convexClientInstance = useMemo(() => getConvexClient(), []);
+
   // Clerk is configured, wrap with ClerkProvider
   // This ensures ClerkProvider is present when Clerk hooks are called
   return (
@@ -69,7 +102,19 @@ export const ConditionalClerkProvider: React.FC<
       publishableKey={clerkConfig.publishableKey}
       tokenCache={clerkTokenCache}
     >
-      {children}
+      {convexClientInstance ? (
+        // Convex is configured - wrap with ConvexProviderWithClerk
+        // ConvexProviderWithClerk must be INSIDE ClerkProvider because it uses useAuth
+        <ConvexProviderWithClerk
+          client={convexClientInstance}
+          useAuth={useAuth}
+        >
+          {children}
+        </ConvexProviderWithClerk>
+      ) : (
+        // Convex not configured - render children without Convex
+        children
+      )}
     </ClerkProvider>
   );
 };

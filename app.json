@@ -4,7 +4,8 @@
   "extra": {
     "eas": {
       "projectId": "3212248a-37c8-4ca7-b054-bac5b7730c35"
-    }
+    },
+    "convexUrl": "${CONVEX_URL}"
   },
   "ios": {
     "bundleIdentifier": "org.name.CreativeBridge"

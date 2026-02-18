@@ -1,0 +1,815 @@
+# PRD: Supabase to Convex Database Migration
+
+## Introduction
+
+Migrate CreativeBridge's entire backend infrastructure from Supabase (PostgreSQL with RLS) to Convex. This migration encompasses database tables, authentication integration, file storage, RPC functions, and all client-side service code. The goal is to leverage Convex's native Clerk integration, automatic real-time capabilities, and TypeScript-first developer experience while ensuring zero data loss and minimal user disruption through a careful dual-write transition period.
+
+**Current State:**
+
+- 6+ Supabase tables with Row Level Security
+- 15+ RPC functions (stored procedures)
+- Clerk OAuth → Supabase JWT verification
+- Supabase Storage bucket for story images
+- ~20 service files with direct Supabase calls
+
+**Target State:**
+
+- Convex schema with equivalent tables
+- Convex mutations/queries replacing RPCs
+- Native Convex-Clerk integration
+- Convex Storage for images
+- Simplified service layer using Convex React hooks
+
+---
+
+## Goals
+
+- Migrate all 6+ database tables to Convex with equivalent functionality
+- Replace 15+ Supabase RPC functions with Convex mutations/queries
+- Integrate Clerk authentication natively with Convex (no manual JWT sync)
+- Migrate all images from Supabase Storage to Convex Storage
+- Migrate 100% of historical user data (profiles, sessions, XP, stories)
+- Maintain app functionality during dual-write transition period
+- Achieve automatic real-time updates for relevant data
+- Generate TypeScript types from Convex schema
+- Complete migration with zero data loss
+
+---
+
+## User Stories
+
+### Phase 1: Foundation Setup
+
+#### US-001: Initialize Convex Project
+
+**Description:** As a developer, I need to initialize Convex in the project so that I can start building the new backend.
+
+**Acceptance Criteria:**
+
+- [x] `npm install convex` completed successfully
+- [x] `npx convex init` creates `convex/` directory
+- [x] `convex.json` created with project configuration
+- [x] `CONVEX_URL` added to `.env` and `app.json`
+- [x] `npx convex dev` starts successfully and connects to Convex cloud
+- [x] Typecheck passes
+
+---
+
+#### US-002: Create Convex Directory Structure
+
+**Description:** As a developer, I need an organized directory structure for Convex functions so that the codebase is maintainable.
+
+**Acceptance Criteria:**
+
+- [x] Create `convex/schema.ts` (empty placeholder)
+- [x] Create `convex/auth.config.ts` (empty placeholder)
+- [x] Create `convex/auth.ts` (empty placeholder)
+- [x] Create `convex/userProfiles.ts` (empty placeholder)
+- [x] Create `convex/gameSessions.ts` (empty placeholder)
+- [x] Create `convex/imageGeneration.ts` (empty placeholder)
+- [x] Create `convex/onboarding.ts` (empty placeholder)
+- [x] Create `convex/storage.ts` (empty placeholder)
+- [x] Add `convex/_generated/` to `.gitignore`
+- [x] Typecheck passes
+
+---
+
+### Phase 2: Schema Design
+
+#### US-003: Define User Profiles Schema
+
+**Description:** As a developer, I need to define the userProfiles table in Convex schema so that user data can be stored.
+
+**Acceptance Criteria:**
+
+- [x] Define `userProfiles` table in `convex/schema.ts`
+- [x] Include all fields from Supabase `user_profiles` table:
+  - `clerkUserId` (string, indexed)
+  - `username` (string)
+  - `displayName` (string)
+  - `totalXp` (number)
+  - `currentStreak` (number)
+  - `longestStreak` (number)
+  - `lastActivityDate` (string)
+  - `bestScore` (number)
+  - `totalGamesPlayed` (number)
+  - `totalStoriesCompleted` (number)
+  - `totalWordsWritten` (number)
+  - `preferredGradeLevel` (string: 'K-2' | '3-5' | '6-8' | '9-12')
+  - `speechEnabled` (boolean)
+  - `avatarUrl` (optional string)
+  - `bio` (optional string)
+  - `onboardingCompleted` (boolean)
+  - `onboardingProgress` (object)
+  - `firstStoryCompletedAt` (optional string)
+  - `firstImageGeneratedAt` (optional string)
+  - `firstVoiceInputAt` (optional string)
+  - `firstStreakAchievedAt` (optional string)
+- [x] Add index: `by_clerk_user_id` on `clerkUserId`
+- [x] Add index: `by_total_xp` on `totalXp` (for leaderboard)
+- [x] Schema validates with `npx convex dev`
+- [x] Typecheck passes
+
+---
+
+#### US-004: Define Game Sessions Schema
+
+**Description:** As a developer, I need to define the gameSessions table so that story sessions can be stored.
+
+**Acceptance Criteria:**
+
+- [x] Define `gameSessions` table in `convex/schema.ts`
+- [x] Include all fields from Supabase `game_sessions` table:
+  - `userId` (ID reference to userProfiles)
+  - `clerkUserId` (string, for quick lookups)
+  - `completedAt` (optional string)
+  - `gradeLevel` (string)
+  - `finalScore` (number)
+  - `wordsWritten` (number)
+  - `sentencesCompleted` (number)
+  - `challengesCompleted` (number)
+  - `xpEarned` (number)
+  - `storyContent` (optional string)
+  - `importedStoryContent` (optional string)
+  - `storySource` (string: 'New' | 'CreativeBridge' | 'Story_Quest' | 'File')
+  - `originalCreationDate` (optional string)
+  - `storyMetadata` (any object)
+  - `generatedImageUrl` (optional string)
+  - `imageGenerationTimestamp` (optional string)
+  - `imageGenerationCost` (optional number)
+  - `currentRound` (number, 1-5)
+  - `storageId` (optional ID reference to \_storage)
+  - `imageUploadStatus` (optional string)
+  - `imageUploadAttempts` (optional number)
+  - `imageUploadError` (optional string)
+- [x] Add index: `by_user` on `userId`
+- [x] Add index: `by_clerk_user` on `clerkUserId`
+- [x] Schema validates with `npx convex dev`
+- [x] Typecheck passes
+
+---
+
+#### US-005: Define Image Generation Events Schema
+
+**Description:** As a developer, I need to define the imageGenerationEvents table for tracking image generation attempts.
+
+**Acceptance Criteria:**
+
+- [x] Define `imageGenerationEvents` table in `convex/schema.ts`
+- [x] Include all fields from Supabase `image_generation_events` table:
+  - `userId` (ID reference)
+  - `clerkUserId` (string)
+  - `sessionId` (optional ID reference to gameSessions)
+  - `xpCost` (number)
+  - `generationStatus` (string: 'pending' | 'success' | 'failed' | 'refunded' | 'timeout')
+  - `errorType` (optional string)
+  - `serviceUsed` (string)
+  - `apiResponseTime` (optional number)
+  - `imageUrl` (optional string)
+  - `storyGradeLevel` (optional string)
+  - `storyWordCount` (optional number)
+  - `promptUsed` (optional string)
+  - `metadata` (any object)
+  - `completedAt` (optional string)
+- [x] Add index: `by_user` on `userId`
+- [x] Add index: `by_session` on `sessionId`
+- [x] Schema validates with `npx convex dev`
+- [x] Typecheck passes
+
+---
+
+#### US-006: Define Supporting Tables Schema
+
+**Description:** As a developer, I need to define supporting tables for story diversity, feature flags, and download history.
+
+**Acceptance Criteria:**
+
+- [x] Define `storyElements` table (character names, settings, themes used)
+- [x] Define `storyDiversityScores` table (per-user diversity tracking)
+- [x] Define `featureFlags` table (key, enabled, metadata)
+- [x] Define `storyDownloadHistory` table (download tracking)
+- [x] All tables have appropriate indexes
+- [x] Schema validates with `npx convex dev`
+- [x] Typecheck passes
+
+---
+
+### Phase 3: Authentication Integration
+
+#### US-007: Configure Clerk with Convex
+
+**Description:** As a developer, I need to configure Clerk authentication with Convex so that users can authenticate.
+
+**Acceptance Criteria:**
+
+- [x] Create `convex/auth.config.ts` with Clerk provider configuration
+- [x] Add `CLERK_JWKS_URL` to Convex environment variables via dashboard
+- [x] Verify Clerk JWT verification works in Convex functions
+- [x] Typecheck passes
+
+---
+
+#### US-008: Create Auth Helper Functions
+
+**Description:** As a developer, I need auth helper functions to get the current user in Convex functions.
+
+**Acceptance Criteria:**
+
+- [x] Create `convex/auth.ts` with helper functions:
+  - `getCurrentUser(ctx)` - returns user identity or null
+  - `requireAuth(ctx)` - throws if not authenticated
+  - `getClerkUserId(ctx)` - extracts Clerk user ID from identity
+- [x] Helpers work correctly with Clerk tokens
+- [x] Typecheck passes
+
+---
+
+#### US-009: Update App.tsx with Convex Provider
+
+**Description:** As a developer, I need to wrap the app with ConvexProviderWithClerk so that Convex is available throughout the app.
+
+**Acceptance Criteria:**
+
+- [x] Install `convex` React dependencies if not already
+- [x] Import `ConvexProviderWithClerk` from `convex/react-clerk`
+- [x] Wrap app with `ConvexProviderWithClerk` inside `ClerkProvider`
+- [x] Pass Clerk's `useAuth` hook to the provider
+- [x] App loads without errors
+- [x] Typecheck passes
+- [ ] Verify in simulator that app still functions
+
+---
+
+### Phase 4: Core Mutations & Queries
+
+#### US-010: Create User Profile Functions
+
+**Description:** As a developer, I need Convex functions for user profile management to replace Supabase RPC calls.
+
+**Acceptance Criteria:**
+
+- [ ] Create `convex/userProfiles.ts` with:
+  - `createOAuthProfile` mutation - creates profile for new OAuth users
+  - `getProfileByClerkId` query - fetches profile by Clerk user ID
+  - `updateProfile` mutation - updates profile fields
+  - `addUserXp` mutation - adds XP and optionally words
+  - `deductUserXp` mutation - deducts XP (for image generation)
+  - `refundUserXp` mutation - refunds XP on failed generation
+  - `updateStreak` mutation - updates daily streak logic
+- [ ] All functions use `requireAuth()` for security
+- [ ] Functions match existing Supabase RPC behavior
+- [ ] Typecheck passes
+
+---
+
+#### US-011: Create Game Session Functions
+
+**Description:** As a developer, I need Convex functions for game session management.
+
+**Acceptance Criteria:**
+
+- [ ] Create `convex/gameSessions.ts` with:
+  - `createSession` mutation - creates new game session
+  - `createStoryContinuationSession` mutation - creates session from imported story
+  - `updateSession` mutation - updates session fields
+  - `completeSession` mutation - marks session complete with final stats
+  - `getActiveSession` query - gets user's active (incomplete) session
+  - `getUserSessions` query - gets user's session history (paginated)
+  - `searchUserStories` query - searches stories by content
+  - `getUserStoriesWithImages` query - gets stories that have generated images
+  - `getImportableStories` query - gets stories available for continuation
+- [ ] All functions use `requireAuth()` for security
+- [ ] Pagination implemented where appropriate
+- [ ] Typecheck passes
+
+---
+
+#### US-012: Create Image Generation Event Functions
+
+**Description:** As a developer, I need Convex functions for tracking image generation events.
+
+**Acceptance Criteria:**
+
+- [ ] Create `convex/imageGeneration.ts` with:
+  - `createImageGenerationEvent` mutation - creates new event (pending status)
+  - `updateImageGenerationEvent` mutation - updates status, URL, error info
+  - `getUserImageGenerationEvents` query - gets user's generation history
+  - `getImageGenerationAnalytics` query - gets aggregated stats
+- [ ] XP deduction integrated into event creation
+- [ ] Refund logic handles failed generations
+- [ ] Typecheck passes
+
+---
+
+#### US-013: Create Onboarding Functions
+
+**Description:** As a developer, I need Convex functions for onboarding progress tracking.
+
+**Acceptance Criteria:**
+
+- [ ] Create `convex/onboarding.ts` with:
+  - `updateOnboardingProgressItem` mutation - marks onboarding item complete
+  - `recordOnboardingMilestone` mutation - records milestone with XP reward
+  - `getOnboardingStatus` query - gets full onboarding state
+- [ ] Functions calculate completion percentage
+- [ ] XP rewards integrated into milestone recording
+- [ ] Typecheck passes
+
+---
+
+### Phase 5: Storage Migration
+
+#### US-014: Create Convex Storage Functions
+
+**Description:** As a developer, I need Convex storage functions for image uploads.
+
+**Acceptance Criteria:**
+
+- [ ] Create `convex/storage.ts` with:
+  - `generateUploadUrl` mutation - generates presigned upload URL
+  - `storeImageReference` mutation - saves storageId to game session
+  - `getImageUrl` query - gets URL from storageId
+  - `uploadFromUrl` action - server-side fetch and store from external URL
+- [ ] Uploads work from React Native client
+- [ ] Typecheck passes
+
+---
+
+#### US-015: Create Image Storage Service Adapter
+
+**Description:** As a developer, I need to update imageStorageService.ts to use Convex storage.
+
+**Acceptance Criteria:**
+
+- [ ] Update `src/services/imageStorageService.ts` to:
+  - Use Convex `generateUploadUrl` mutation
+  - Upload image data to presigned URL
+  - Store reference via `storeImageReference` mutation
+- [ ] Maintain existing retry logic and error handling
+- [ ] Existing image URLs continue to work (backward compatible)
+- [ ] Typecheck passes
+
+---
+
+### Phase 6: Client-Side Service Migration
+
+#### US-016: Create Convex Client Service
+
+**Description:** As a developer, I need a Convex client service file to replace supabase.ts.
+
+**Acceptance Criteria:**
+
+- [ ] Create `src/services/convex.ts` with:
+  - Convex client initialization
+  - Export `convex` client instance
+  - Export typed API from `convex/_generated/api`
+- [ ] Client connects successfully
+- [ ] Typecheck passes
+
+---
+
+#### US-017: Migrate AuthContext to Convex (Dual-Write)
+
+**Description:** As a developer, I need to update AuthContext to use Convex while maintaining Supabase writes during transition.
+
+**Acceptance Criteria:**
+
+- [ ] Update `src/context/AuthContext.tsx` to:
+  - Use Convex queries for reading user profile
+  - Use Convex mutations for writes
+  - **DUAL-WRITE:** Also write to Supabase for safety during transition
+  - Add feature flag to disable dual-write when ready
+- [ ] Profile loads correctly from Convex
+- [ ] XP operations work via Convex
+- [ ] Supabase receives duplicate writes
+- [ ] Typecheck passes
+- [ ] Verify in simulator: sign in, profile loads, XP updates work
+
+---
+
+#### US-018: Migrate StorySessionManager (Dual-Write)
+
+**Description:** As a developer, I need to update storySessionManager.ts to use Convex.
+
+**Acceptance Criteria:**
+
+- [ ] Update `src/services/storySessionManager.ts` to:
+  - Use Convex mutations for session CRUD
+  - **DUAL-WRITE:** Also write to Supabase during transition
+- [ ] Sessions create, update, and complete correctly
+- [ ] Typecheck passes
+- [ ] Verify in simulator: start story, write content, complete story
+
+---
+
+#### US-019: Migrate StoryManagementService (Dual-Write)
+
+**Description:** As a developer, I need to update storyManagementService.ts to use Convex.
+
+**Acceptance Criteria:**
+
+- [ ] Update `src/services/storyManagementService.ts` to:
+  - Use Convex queries for fetching stories
+  - Use Convex mutations for story operations
+  - **DUAL-WRITE:** Also write to Supabase during transition
+- [ ] Story library loads correctly
+- [ ] Story import/continuation works
+- [ ] Typecheck passes
+
+---
+
+#### US-020: Migrate XpEventTracker (Dual-Write)
+
+**Description:** As a developer, I need to update xpEventTracker.ts to use Convex.
+
+**Acceptance Criteria:**
+
+- [ ] Update `src/services/xpEventTracker.ts` to:
+  - Use Convex mutations for event tracking
+  - **DUAL-WRITE:** Also write to Supabase during transition
+- [ ] Image generation events tracked correctly
+- [ ] XP deduction and refund work
+- [ ] Typecheck passes
+
+---
+
+#### US-021: Migrate OnboardingService (Dual-Write)
+
+**Description:** As a developer, I need to update onboardingService.ts to use Convex.
+
+**Acceptance Criteria:**
+
+- [ ] Update `src/services/onboardingService.ts` to:
+  - Use Convex functions for onboarding operations
+  - **DUAL-WRITE:** Also write to Supabase during transition
+- [ ] Onboarding milestones track correctly
+- [ ] Progress updates work
+- [ ] Typecheck passes
+- [ ] Verify in simulator: complete first story, see milestone
+
+---
+
+### Phase 7: Data Migration
+
+#### US-022: Create Data Migration Script
+
+**Description:** As a developer, I need a migration script to copy all data from Supabase to Convex.
+
+**Acceptance Criteria:**
+
+- [ ] Create `convex/migration.ts` with:
+  - Export function from Supabase (all tables)
+  - Transform data (snake_case → camelCase, UUIDs → Convex IDs)
+  - Import to Convex tables
+  - Handle ID reference mapping (user_id → userId Convex ID)
+- [ ] Migration handles large datasets (pagination)
+- [ ] Script logs progress and errors
+- [ ] Typecheck passes
+
+---
+
+#### US-023: Migrate User Profile Data
+
+**Description:** As a developer, I need to migrate all user_profiles data to Convex.
+
+**Acceptance Criteria:**
+
+- [ ] Run migration for user_profiles → userProfiles
+- [ ] All users migrated with correct data
+- [ ] clerk_user_id → clerkUserId mapping correct
+- [ ] Verify record counts match
+- [ ] Spot-check 5 random users for data integrity
+
+---
+
+#### US-024: Migrate Game Session Data
+
+**Description:** As a developer, I need to migrate all game_sessions data to Convex.
+
+**Acceptance Criteria:**
+
+- [ ] Run migration for game_sessions → gameSessions
+- [ ] user_id correctly mapped to Convex userProfiles ID
+- [ ] All story content migrated
+- [ ] Image URLs preserved (still point to Supabase initially)
+- [ ] Verify record counts match
+- [ ] Spot-check 5 random sessions for data integrity
+
+---
+
+#### US-025: Migrate Image Generation Events
+
+**Description:** As a developer, I need to migrate image_generation_events data.
+
+**Acceptance Criteria:**
+
+- [ ] Run migration for image_generation_events → imageGenerationEvents
+- [ ] All events migrated with correct references
+- [ ] Verify record counts match
+
+---
+
+#### US-026: Migrate Supporting Table Data
+
+**Description:** As a developer, I need to migrate supporting tables (diversity scores, feature flags, etc.).
+
+**Acceptance Criteria:**
+
+- [ ] Run migration for story_elements
+- [ ] Run migration for story_diversity_scores
+- [ ] Run migration for feature_flags
+- [ ] Run migration for story_download_history
+- [ ] All data migrated correctly
+- [ ] Verify record counts match
+
+---
+
+#### US-027: Migrate Images to Convex Storage
+
+**Description:** As a developer, I need to migrate images from Supabase Storage to Convex Storage.
+
+**Acceptance Criteria:**
+
+- [ ] Create script to:
+  - List all images in Supabase 'story-images' bucket
+  - Download each image
+  - Upload to Convex Storage
+  - Update gameSessions with new storageId
+- [ ] All images successfully migrated
+- [ ] Old URLs can be redirected or app handles both
+- [ ] Verify 10 random images display correctly
+
+---
+
+### Phase 8: Testing & Verification
+
+#### US-028: Unit Test Convex Functions
+
+**Description:** As a developer, I need unit tests for all Convex functions.
+
+**Acceptance Criteria:**
+
+- [ ] Tests for userProfiles functions (create, get, update, XP operations)
+- [ ] Tests for gameSessions functions (CRUD, search, pagination)
+- [ ] Tests for imageGeneration functions (events, analytics)
+- [ ] Tests for onboarding functions (progress, milestones)
+- [ ] Tests for storage functions (upload, retrieve)
+- [ ] All tests pass
+- [ ] Typecheck passes
+
+---
+
+#### US-029: Integration Test Full Flows
+
+**Description:** As a developer, I need integration tests for complete user flows.
+
+**Acceptance Criteria:**
+
+- [ ] Test: New user sign up → profile created → onboarding starts
+- [ ] Test: Start story → write content → complete → XP awarded
+- [ ] Test: Generate image → XP deducted → event tracked
+- [ ] Test: Daily login → streak updated
+- [ ] Test: Story search → results correct
+- [ ] All tests pass
+
+---
+
+#### US-030: Verify Dual-Write Data Consistency
+
+**Description:** As a developer, I need to verify Supabase and Convex data match during dual-write period.
+
+**Acceptance Criteria:**
+
+- [ ] Create comparison script that:
+  - Fetches data from both databases
+  - Compares record counts
+  - Compares field values for sample records
+- [ ] Run comparison daily during dual-write
+- [ ] Document and resolve any inconsistencies
+
+---
+
+### Phase 9: Cutover & Cleanup
+
+#### US-031: Disable Dual-Write
+
+**Description:** As a developer, I need to disable Supabase writes once Convex is verified stable.
+
+**Acceptance Criteria:**
+
+- [ ] Set dual-write feature flag to false
+- [ ] Remove all Supabase write calls from:
+  - AuthContext.tsx
+  - storySessionManager.ts
+  - storyManagementService.ts
+  - xpEventTracker.ts
+  - onboardingService.ts
+- [ ] App functions correctly with Convex only
+- [ ] Typecheck passes
+- [ ] Verify in simulator: all flows work
+
+---
+
+#### US-032: Remove Supabase Dependencies
+
+**Description:** As a developer, I need to remove Supabase code and dependencies.
+
+**Acceptance Criteria:**
+
+- [ ] Delete `src/services/supabase.ts`
+- [ ] Delete `src/services/clerkSupabaseSync.ts`
+- [ ] Remove `@supabase/supabase-js` from package.json
+- [ ] Remove Supabase environment variables from `.env`
+- [ ] Remove Supabase config from `app.json`
+- [ ] Archive `sql/` directory (don't delete, keep for reference)
+- [ ] Update `src/types/database.ts` to use Convex generated types (or delete if redundant)
+- [ ] npm install succeeds
+- [ ] Typecheck passes
+- [ ] App runs without Supabase
+
+---
+
+#### US-033: Update Documentation
+
+**Description:** As a developer, I need to update documentation to reflect Convex architecture.
+
+**Acceptance Criteria:**
+
+- [ ] Update `.agent/README.md` with Convex info
+- [ ] Update `.agent/System/` docs with new architecture
+- [ ] Update `CLAUDE.md` with new commands and patterns
+- [ ] Create `convex/README.md` documenting functions
+- [ ] Remove outdated Supabase references
+
+---
+
+## Functional Requirements
+
+- **FR-1:** All 6+ Supabase tables must have equivalent Convex tables with same data capacity
+- **FR-2:** All 15+ Supabase RPC functions must have equivalent Convex mutations/queries
+- **FR-3:** Clerk authentication must work natively with Convex without manual JWT syncing
+- **FR-4:** All user data must be migrated with zero data loss
+- **FR-5:** All story images must be migrated to Convex Storage
+- **FR-6:** Dual-write period must maintain data consistency between Supabase and Convex
+- **FR-7:** Real-time updates must work for profile changes and session updates
+- **FR-8:** Leaderboard queries must remain performant with proper indexing
+- **FR-9:** XP operations (add, deduct, refund) must be atomic
+- **FR-10:** Onboarding milestone tracking must trigger XP rewards correctly
+
+---
+
+## Non-Goals (Out of Scope)
+
+- **No new features** - This is a backend migration only, no UI changes
+- **No schema redesign** - Convex schema mirrors Supabase structure (camelCase only)
+- **No performance optimization** - Maintain existing performance, don't optimize yet
+- **No real-time UI updates** - Keep current polling/refresh patterns, add real-time later
+- **No Supabase Edge Functions migration** - None currently in use
+- **No mobile push notifications** - Not part of database layer
+- **No analytics migration** - Keep existing analytics service unchanged
+- **No multi-tenancy** - Single-tenant architecture remains
+
+---
+
+## Technical Considerations
+
+### Convex Specifics
+
+- Convex uses `_id` (auto-generated) and `_creationTime` (auto-managed)
+- No UUIDs - Convex uses its own ID format
+- JSONB equivalent is `v.any()` for flexible objects
+- File storage uses `v.id("_storage")` references
+- Functions are mutations (writes), queries (reads), or actions (side effects)
+
+### Migration Challenges
+
+- **ID Mapping:** Supabase UUIDs must be mapped to Convex IDs during migration
+- **Foreign Keys:** user_id references become Convex ID references
+- **Timestamps:** Supabase `created_at` becomes Convex `_creationTime`
+- **Image URLs:** Old Supabase Storage URLs need handling (redirect or migrate)
+
+### Rollback Plan
+
+If critical issues occur after cutover:
+
+1. Re-enable Supabase writes
+2. Switch reads back to Supabase
+3. Sync any Convex-only data back to Supabase
+4. Debug issues with Convex in parallel
+
+### Existing Code Patterns
+
+- Services use singleton class pattern - maintain this
+- AuthContext manages session state - continue this pattern
+- Error handling with descriptive messages - maintain this
+- Path aliases (`@/*`) - continue using
+
+---
+
+## Design Considerations
+
+- **No UI changes required** - Backend-only migration
+- **Maintain existing UX** - Users should not notice the migration
+- **Loading states** - Keep existing loading indicators during data fetches
+
+---
+
+## Success Metrics
+
+- **Zero data loss** - All user profiles, sessions, XP, and stories migrated
+- **Zero user disruption** - App continues functioning during migration
+- **Auth works** - 100% of OAuth sign-ins succeed post-migration
+- **XP accurate** - XP balances match pre-migration values exactly
+- **Images load** - 100% of story images display correctly
+- **Performance maintained** - API response times within 20% of current
+- **Tests pass** - All existing tests pass with Convex backend
+- **Dual-write consistent** - <0.1% data inconsistency during transition
+
+---
+
+## Open Questions
+
+1. **Supabase data retention:** How long should we keep Supabase data after cutover? (Recommend 30 days)
+2. **Image URL strategy:** Should we redirect old Supabase Storage URLs or update all references?
+3. **Real-time scope:** Which data should get real-time updates first? (Profile XP? Leaderboard?)
+4. **Convex pricing:** Have we reviewed Convex pricing for our expected usage?
+5. **Staging environment:** Should we do a full migration rehearsal on a staging Convex project first?
+
+---
+
+## Timeline Estimate (Quality-Focused)
+
+| Phase     | Duration | Deliverables               |
+| --------- | -------- | -------------------------- |
+| Phase 1-2 | Week 1   | Foundation + Schema        |
+| Phase 3-4 | Week 2   | Auth + Core Functions      |
+| Phase 5-6 | Week 3   | Storage + Client Migration |
+| Phase 7   | Week 4   | Data Migration             |
+| Phase 8   | Week 5   | Testing                    |
+| Phase 9   | Week 6   | Cutover + Cleanup          |
+
+**Total:** ~6 weeks for quality-focused migration with dual-write safety
+
+---
+
+## Appendix: Function Migration Reference
+
+| Supabase RPC                        | Convex Function                                | Type     |
+| ----------------------------------- | ---------------------------------------------- | -------- |
+| `create_oauth_user_profile`         | `userProfiles.createOAuthProfile`              | mutation |
+| `add_user_xp`                       | `userProfiles.addUserXp`                       | mutation |
+| `update_user_streak`                | `userProfiles.updateStreak`                    | mutation |
+| `create_story_continuation_session` | `gameSessions.createStoryContinuationSession`  | mutation |
+| `search_user_stories`               | `gameSessions.searchUserStories`               | query    |
+| `get_user_stories_with_images`      | `gameSessions.getUserStoriesWithImages`        | query    |
+| `get_user_importable_stories`       | `gameSessions.getImportableStories`            | query    |
+| `validate_story_import`             | `gameSessions.validateStoryImport`             | query    |
+| `update_story_generated_image`      | `gameSessions.updateStoryGeneratedImage`       | mutation |
+| `create_image_generation_event`     | `imageGeneration.createImageGenerationEvent`   | mutation |
+| `update_image_generation_event`     | `imageGeneration.updateImageGenerationEvent`   | mutation |
+| `get_image_generation_analytics`    | `imageGeneration.getImageGenerationAnalytics`  | query    |
+| `get_user_image_generation_events`  | `imageGeneration.getUserImageGenerationEvents` | query    |
+| `update_onboarding_progress_item`   | `onboarding.updateOnboardingProgressItem`      | mutation |
+| `record_onboarding_milestone`       | `onboarding.recordOnboardingMilestone`         | mutation |
+| `get_onboarding_status`             | `onboarding.getOnboardingStatus`               | query    |
+
+---
+
+## Appendix: File Changes Summary
+
+### New Files
+
+| Path                        | Purpose                        |
+| --------------------------- | ------------------------------ |
+| `convex/schema.ts`          | Database schema definition     |
+| `convex/auth.config.ts`     | Clerk authentication config    |
+| `convex/auth.ts`            | Auth helper functions          |
+| `convex/userProfiles.ts`    | User profile mutations/queries |
+| `convex/gameSessions.ts`    | Game session mutations/queries |
+| `convex/imageGeneration.ts` | Image generation tracking      |
+| `convex/onboarding.ts`      | Onboarding functions           |
+| `convex/storage.ts`         | File storage functions         |
+| `convex/migration.ts`       | One-time data migration script |
+| `src/services/convex.ts`    | Convex client initialization   |
+
+### Modified Files
+
+| Path                                     | Changes                                         |
+| ---------------------------------------- | ----------------------------------------------- |
+| `App.tsx`                                | Add ConvexProviderWithClerk wrapper             |
+| `src/context/AuthContext.tsx`            | Replace Supabase with Convex (dual-write first) |
+| `src/services/storySessionManager.ts`    | Use Convex mutations/queries                    |
+| `src/services/storyManagementService.ts` | Use Convex mutations/queries                    |
+| `src/services/xpEventTracker.ts`         | Use Convex mutations                            |
+| `src/services/imageStorageService.ts`    | Use Convex storage                              |
+| `src/services/onboardingService.ts`      | Use Convex functions                            |
+| `package.json`                           | Add convex, remove @supabase/supabase-js        |
+| `.env`                                   | Add CONVEX_URL, remove Supabase vars            |
+| `app.json`                               | Add CONVEX_URL to extra                         |
+
+### Deleted Files (After Cutover)
+
+| Path                                | Reason                |
+| ----------------------------------- | --------------------- |
+| `src/services/supabase.ts`          | Replaced by convex.ts |
+| `src/services/clerkSupabaseSync.ts` | No longer needed      |
