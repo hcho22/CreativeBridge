@@ -29,6 +29,10 @@ import {
   clerkTokenCache,
 } from '../utils/clerkTokenCache';
 import * as WebBrowser from 'expo-web-browser';
+// Convex imports for database migration (US-017)
+import { useQuery, useMutation, useConvex } from 'convex/react';
+import { api } from '../services/convex';
+import type { Doc } from '../../convex/_generated/dataModel';
 
 // Verify supabase is properly imported
 if (!supabase) {
@@ -36,6 +40,51 @@ if (!supabase) {
     '❌ CRITICAL: Supabase client is not initialized at module load time',
   );
 }
+
+/**
+ * Dual-Write Configuration (US-017)
+ *
+ * During the Supabase to Convex migration, we write to both databases:
+ * - Convex: PRIMARY - Used for reads, source of truth going forward
+ * - Supabase: SECONDARY - Written to for safety during transition
+ *
+ * Set ENABLE_DUAL_WRITE to false to disable Supabase writes once
+ * Convex migration is verified stable.
+ */
+const ENABLE_DUAL_WRITE = true;
+
+/**
+ * Helper to convert Convex userProfile to legacy UserProfile type
+ * This ensures backward compatibility during the migration period.
+ */
+const convertConvexProfileToLegacy = (
+  convexProfile: Doc<'userProfiles'>,
+): UserProfile => ({
+  id: convexProfile._id,
+  clerk_user_id: convexProfile.clerkUserId,
+  username: convexProfile.username,
+  display_name: convexProfile.displayName,
+  total_xp: convexProfile.totalXp,
+  current_streak: convexProfile.currentStreak,
+  longest_streak: convexProfile.longestStreak,
+  last_activity_date: convexProfile.lastActivityDate,
+  best_score: convexProfile.bestScore,
+  total_games_played: convexProfile.totalGamesPlayed,
+  total_stories_completed: convexProfile.totalStoriesCompleted,
+  total_words_written: convexProfile.totalWordsWritten,
+  preferred_grade_level: convexProfile.preferredGradeLevel as GradeLevel,
+  speech_enabled: convexProfile.speechEnabled,
+  avatar_url: convexProfile.avatarUrl,
+  bio: convexProfile.bio,
+  onboarding_completed: convexProfile.onboardingCompleted,
+  onboarding_progress: convexProfile.onboardingProgress,
+  first_story_completed_at: convexProfile.firstStoryCompletedAt,
+  first_image_generated_at: convexProfile.firstImageGeneratedAt,
+  first_voice_input_at: convexProfile.firstVoiceInputAt,
+  first_streak_achieved_at: convexProfile.firstStreakAchievedAt,
+  created_at: new Date(convexProfile._creationTime).toISOString(),
+  updated_at: new Date().toISOString(),
+});
 
 interface SignUpData {
   username: string;
@@ -159,6 +208,44 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Track the last Clerk user ID we synced to prevent infinite sync loops
   const lastSyncedClerkUserId = useRef<string | null>(null);
+
+  // ============================================================================
+  // CONVEX INTEGRATION (US-017)
+  // ============================================================================
+
+  // Get Convex client for direct mutations
+  const convex = useConvex();
+
+  // Convex mutations for user profile operations
+  const convexCreateProfile = useMutation(api.userProfiles.createOAuthProfile);
+  const convexUpdateProfile = useMutation(api.userProfiles.updateProfile);
+  const convexAddXp = useMutation(api.userProfiles.addUserXp);
+  const convexDeductXp = useMutation(api.userProfiles.deductUserXp);
+  const convexRefundXp = useMutation(api.userProfiles.refundUserXp);
+
+  // Convex reactive query for current user's profile
+  // This will automatically update when the profile changes in the database
+  const clerkUserId = clerkAuth?.userId;
+  const convexProfile = useQuery(
+    api.userProfiles.getProfileByClerkId,
+    clerkUserId ? { clerkUserId } : 'skip',
+  );
+
+  // Effect to sync Convex profile to local state
+  // This replaces the manual fetchUserProfile for OAuth users
+  useEffect(() => {
+    if (convexProfile && clerkUserId) {
+      console.log('🔄 [Convex] Profile updated from reactive query:', {
+        clerkUserId,
+        username: convexProfile.username,
+        totalXp: convexProfile.totalXp,
+      });
+
+      // Convert Convex profile to legacy format and update state
+      const legacyProfile = convertConvexProfileToLegacy(convexProfile);
+      setUserProfile(legacyProfile);
+    }
+  }, [convexProfile, clerkUserId]);
 
   const fetchUserProfile = async (
     userId: string,
@@ -747,45 +834,92 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
             : null;
 
         // Profile exists - update it
+        // US-017: Dual-write - Convex PRIMARY, Supabase SECONDARY
         if (existingProfile) {
           console.log(
             '✅ [AuthContext] Found existing profile, updating it:',
             existingProfile.id,
           );
 
-          // For OAuth users, we need to update and then fetch separately
-          // because RLS policies might block SELECT in the same query
-          const { error: updateError } = await supabase
-            .from('user_profiles')
-            .update(profile as any)
-            .eq('clerk_user_id', clerkUserId);
+          // Build update object for Convex (camelCase)
+          const convexUpdates: {
+            username?: string;
+            displayName?: string;
+            preferredGradeLevel?: 'K-2' | '3-5' | '6-8' | '9-12';
+            speechEnabled?: boolean;
+            avatarUrl?: string;
+            bio?: string;
+          } = {};
 
-          if (updateError) {
-            console.error(
-              '❌ [AuthContext] Failed to update profile:',
-              updateError,
+          if (profile.username !== undefined)
+            convexUpdates.username = profile.username;
+          if (profile.display_name !== undefined)
+            convexUpdates.displayName = profile.display_name;
+          if (profile.preferred_grade_level !== undefined)
+            convexUpdates.preferredGradeLevel = profile.preferred_grade_level;
+          if (profile.speech_enabled !== undefined)
+            convexUpdates.speechEnabled = profile.speech_enabled;
+          if (profile.avatar_url !== undefined)
+            convexUpdates.avatarUrl = profile.avatar_url;
+          if (profile.bio !== undefined) convexUpdates.bio = profile.bio;
+
+          // PRIMARY: Update in Convex
+          console.log('📝 [Convex] Updating profile for:', clerkUserId);
+          try {
+            await convexUpdateProfile({
+              clerkUserId,
+              updates: convexUpdates,
+            });
+            console.log('✅ [Convex] Profile updated successfully');
+
+            // Fetch updated profile from Convex
+            const updatedConvexProfile = await convex.query(
+              api.userProfiles.getProfileByClerkId,
+              { clerkUserId },
             );
-            return { error: updateError.message };
+
+            if (updatedConvexProfile) {
+              const legacyProfile =
+                convertConvexProfileToLegacy(updatedConvexProfile);
+              setUserProfile(legacyProfile);
+            }
+          } catch (convexError) {
+            console.error('❌ [Convex] Failed to update profile:', convexError);
+            return {
+              error:
+                convexError instanceof Error
+                  ? convexError.message
+                  : 'Failed to update profile',
+            };
           }
 
-          // Fetch the updated profile using clerk_user_id (which passes RLS)
-          const { data: updatedProfiles, error: fetchError } = await supabase
-            .from('user_profiles')
-            .select('*')
-            .eq('clerk_user_id', clerkUserId)
-            .limit(1);
+          // SECONDARY: Dual-write to Supabase for safety during migration
+          if (ENABLE_DUAL_WRITE) {
+            console.log('📝 [Supabase] Dual-write: Updating profile');
+            try {
+              const { error: updateError } = await supabase
+                .from('user_profiles')
+                .update(profile as any)
+                .eq('clerk_user_id', clerkUserId);
 
-          if (fetchError || !updatedProfiles || updatedProfiles.length === 0) {
-            console.error(
-              '❌ [AuthContext] Failed to fetch updated profile:',
-              fetchError,
-            );
-            return { error: 'Failed to fetch updated profile' };
+              if (updateError) {
+                // Log but don't fail - Convex is primary
+                console.warn(
+                  '⚠️ [Supabase] Dual-write update failed (non-fatal):',
+                  updateError,
+                );
+              } else {
+                console.log('✅ [Supabase] Dual-write profile updated');
+              }
+            } catch (supabaseError) {
+              // Log but don't fail - Convex is primary
+              console.warn(
+                '⚠️ [Supabase] Dual-write exception (non-fatal):',
+                supabaseError,
+              );
+            }
           }
 
-          const updatedProfile = updatedProfiles[0];
-          console.log('✅ [AuthContext] Profile updated successfully');
-          setUserProfile(updatedProfile);
           return {};
         }
 
@@ -852,48 +986,102 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           return `User ${uniqueSuffix}`;
         };
 
-        // Use RPC function to create profile (bypasses RLS)
-        const { data: createdProfile, error: createError } = await (
-          supabase as any
-        )
-          .rpc('create_oauth_user_profile', {
-            p_clerk_user_id: clerkUserId,
-            p_username: generateUniqueUsername(),
-            p_display_name: generateDisplayName(),
-            p_preferred_grade_level: profile.preferred_grade_level || 'K-2',
-            p_email: user.email || null,
-            p_speech_enabled: profile.speech_enabled ?? true,
-          })
-          .single();
+        // US-017: Dual-write - Convex PRIMARY, Supabase SECONDARY
+        const username = generateUniqueUsername();
+        const displayName = generateDisplayName();
+        const preferredGradeLevel = (profile.preferred_grade_level ||
+          'K-2') as GradeLevel;
+        const speechEnabled = profile.speech_enabled ?? true;
 
-        if (createError) {
-          console.error(
-            '❌ [AuthContext] Failed to create profile:',
-            createError,
-          );
-          return { error: createError.message };
-        }
-
+        // PRIMARY: Create profile in Convex
         console.log(
-          '✅ [AuthContext] Profile created successfully:',
-          createdProfile?.id,
+          '📝 [Convex] Creating profile for OAuth user:',
+          clerkUserId,
         );
-
-        // Update the synthetic user's ID to match the generated profile ID
-        // This ensures that future operations that check user.id === profile.id will work
-        if (createdProfile && user.id !== createdProfile.id) {
-          console.log(
-            '🔗 [AuthContext] Updating synthetic user ID to match profile ID:',
-            createdProfile.id,
-          );
-          setUser({
-            ...user,
-            id: createdProfile.id,
+        try {
+          const convexProfileId = await convexCreateProfile({
+            clerkUserId,
+            username,
+            displayName,
+            preferredGradeLevel,
+            speechEnabled,
           });
+
+          console.log(
+            '✅ [Convex] Profile created successfully:',
+            convexProfileId,
+          );
+
+          // Fetch the created profile to get full data
+          const createdConvexProfile = await convex.query(
+            api.userProfiles.getProfileByClerkId,
+            { clerkUserId },
+          );
+
+          if (createdConvexProfile) {
+            const legacyProfile =
+              convertConvexProfileToLegacy(createdConvexProfile);
+            setUserProfile(legacyProfile);
+            setNeedsProfileCompletion(false);
+
+            // Update the synthetic user's ID to match the generated profile ID
+            if (user.id !== legacyProfile.id) {
+              console.log(
+                '🔗 [AuthContext] Updating synthetic user ID to match profile ID:',
+                legacyProfile.id,
+              );
+              setUser({
+                ...user,
+                id: legacyProfile.id,
+              });
+            }
+          }
+        } catch (convexError) {
+          console.error('❌ [Convex] Failed to create profile:', convexError);
+          return {
+            error:
+              convexError instanceof Error
+                ? convexError.message
+                : 'Failed to create profile',
+          };
         }
 
-        setUserProfile(createdProfile as any);
-        setNeedsProfileCompletion(false);
+        // SECONDARY: Dual-write to Supabase for safety during migration
+        if (ENABLE_DUAL_WRITE) {
+          console.log(
+            '📝 [Supabase] Dual-write: Creating profile for OAuth user:',
+            clerkUserId,
+          );
+          try {
+            const { error: createError } = await (supabase as any)
+              .rpc('create_oauth_user_profile', {
+                p_clerk_user_id: clerkUserId,
+                p_username: username,
+                p_display_name: displayName,
+                p_preferred_grade_level: preferredGradeLevel,
+                p_email: user.email || null,
+                p_speech_enabled: speechEnabled,
+              })
+              .single();
+
+            if (createError) {
+              // Log but don't fail - Convex is primary
+              console.warn(
+                '⚠️ [Supabase] Dual-write failed (non-fatal):',
+                createError,
+              );
+            } else {
+              console.log('✅ [Supabase] Dual-write profile created');
+            }
+          } catch (supabaseError) {
+            // Log but don't fail - Convex is primary
+            console.warn(
+              '⚠️ [Supabase] Dual-write exception (non-fatal):',
+              supabaseError,
+            );
+          }
+        }
+
         return {};
       }
 
@@ -2152,23 +2340,69 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         currentBalance: userProfile.total_xp,
       });
 
-      // Use negative amount for deduction with the add_user_xp function
-      const { error } = await supabase.rpc('add_user_xp', {
-        user_uuid: user.id,
-        xp_to_add: -amount,
-        words_added: 0,
-      });
+      // Get Clerk user ID for Convex operations
+      const clerkUserIdForXp = userProfile.clerk_user_id || clerkAuth?.userId;
 
-      if (error) {
-        console.error('❌ Database XP deduction failed:', error);
+      if (!clerkUserIdForXp) {
+        console.error('❌ XP deduction failed: No Clerk user ID');
         return {
           success: false,
-          error: `Database error: ${error.message}`,
+          error: 'No Clerk user ID available',
         };
       }
 
+      let newBalance = (userProfile.total_xp || 0) - amount;
+
+      // US-017: Dual-write - Convex PRIMARY, Supabase SECONDARY
+      // PRIMARY: Deduct XP via Convex
+      console.log('💸 [Convex] Deducting XP:', { clerkUserIdForXp, amount });
+      try {
+        const convexResult = await convexDeductXp({
+          clerkUserId: clerkUserIdForXp,
+          xpToDeduct: amount,
+        });
+        newBalance = convexResult.newBalance;
+        console.log('✅ [Convex] XP deducted successfully:', convexResult);
+      } catch (convexError) {
+        console.error('❌ [Convex] XP deduction failed:', convexError);
+        return {
+          success: false,
+          error:
+            convexError instanceof Error
+              ? convexError.message
+              : 'XP deduction failed',
+        };
+      }
+
+      // SECONDARY: Dual-write to Supabase for safety during migration
+      if (ENABLE_DUAL_WRITE) {
+        console.log('💸 [Supabase] Dual-write: Deducting XP');
+        try {
+          const { error } = await supabase.rpc('add_user_xp', {
+            user_uuid: user.id,
+            xp_to_add: -amount,
+            words_added: 0,
+          });
+
+          if (error) {
+            // Log but don't fail - Convex is primary
+            console.warn(
+              '⚠️ [Supabase] Dual-write XP deduction failed (non-fatal):',
+              error,
+            );
+          } else {
+            console.log('✅ [Supabase] Dual-write XP deducted');
+          }
+        } catch (supabaseError) {
+          // Log but don't fail - Convex is primary
+          console.warn(
+            '⚠️ [Supabase] Dual-write exception (non-fatal):',
+            supabaseError,
+          );
+        }
+      }
+
       // Update local state immediately for better UX
-      const newBalance = (userProfile.total_xp || 0) - amount;
       const updatedProfile = {
         ...userProfile,
         total_xp: newBalance,
@@ -2240,23 +2474,74 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         currentBalance: userProfile.total_xp,
       });
 
-      // Use positive amount for refund with the add_user_xp function
-      const { error } = await supabase.rpc('add_user_xp', {
-        user_uuid: user.id,
-        xp_to_add: amount,
-        words_added: 0,
-      });
+      // Get Clerk user ID for Convex operations
+      const clerkUserIdForXp = userProfile.clerk_user_id || clerkAuth?.userId;
 
-      if (error) {
-        console.error('❌ Database XP refund failed:', error);
+      if (!clerkUserIdForXp) {
+        console.error('❌ XP refund failed: No Clerk user ID');
         return {
           success: false,
-          error: `Database error: ${error.message}`,
+          error: 'No Clerk user ID available',
         };
       }
 
+      let newBalance = (userProfile.total_xp || 0) + amount;
+
+      // US-017: Dual-write - Convex PRIMARY, Supabase SECONDARY
+      // PRIMARY: Refund XP via Convex
+      console.log('💰 [Convex] Refunding XP:', {
+        clerkUserIdForXp,
+        amount,
+        reason: reason.trim(),
+      });
+      try {
+        const convexResult = await convexRefundXp({
+          clerkUserId: clerkUserIdForXp,
+          xpToRefund: amount,
+          reason: reason.trim(),
+        });
+        newBalance = convexResult.newBalance;
+        console.log('✅ [Convex] XP refunded successfully:', convexResult);
+      } catch (convexError) {
+        console.error('❌ [Convex] XP refund failed:', convexError);
+        return {
+          success: false,
+          error:
+            convexError instanceof Error
+              ? convexError.message
+              : 'XP refund failed',
+        };
+      }
+
+      // SECONDARY: Dual-write to Supabase for safety during migration
+      if (ENABLE_DUAL_WRITE) {
+        console.log('💰 [Supabase] Dual-write: Refunding XP');
+        try {
+          const { error } = await supabase.rpc('add_user_xp', {
+            user_uuid: user.id,
+            xp_to_add: amount,
+            words_added: 0,
+          });
+
+          if (error) {
+            // Log but don't fail - Convex is primary
+            console.warn(
+              '⚠️ [Supabase] Dual-write XP refund failed (non-fatal):',
+              error,
+            );
+          } else {
+            console.log('✅ [Supabase] Dual-write XP refunded');
+          }
+        } catch (supabaseError) {
+          // Log but don't fail - Convex is primary
+          console.warn(
+            '⚠️ [Supabase] Dual-write exception (non-fatal):',
+            supabaseError,
+          );
+        }
+      }
+
       // Update local state immediately for better UX
-      const newBalance = (userProfile.total_xp || 0) + amount;
       const updatedProfile = {
         ...userProfile,
         total_xp: newBalance,

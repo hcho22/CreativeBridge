@@ -1,37 +1,9 @@
 import React, { useMemo } from 'react';
 import { ClerkProvider, useAuth } from '@clerk/clerk-expo';
 import { ConvexProviderWithClerk } from 'convex/react-clerk';
-import { ConvexReactClient } from 'convex/react';
-import {
-  isClerkConfigured,
-  getClerkConfig,
-  isConvexConfigured,
-  getConvexUrl,
-} from '../../config/environment';
+import { isClerkConfigured, getClerkConfig } from '../../config/environment';
 import { clerkTokenCache } from '../../utils/clerkTokenCache';
-
-// Create Convex client instance (singleton)
-// This is created once and reused across the app
-let convexClient: ConvexReactClient | null = null;
-
-const getConvexClient = (): ConvexReactClient | null => {
-  if (!isConvexConfigured()) {
-    return null;
-  }
-
-  if (!convexClient) {
-    try {
-      const convexUrl = getConvexUrl();
-      convexClient = new ConvexReactClient(convexUrl);
-      console.log('✅ Convex client initialized:', convexUrl);
-    } catch (error) {
-      console.warn('⚠️ Failed to initialize Convex client:', error);
-      return null;
-    }
-  }
-
-  return convexClient;
-};
+import { getConvexClient } from '../../services/convex';
 
 interface ConditionalClerkProviderProps {
   children: React.ReactNode;
