@@ -1608,11 +1608,38 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       }
     }
 
-    // Use resolvedProfileId if available, otherwise fall back to effectiveUserId
-    const userIdForSession = resolvedProfileId || effectiveUserId;
+    // Determine the user ID for session creation
+    // For OAuth users (Clerk): use clerk_user_id for Convex operations
+    // For email/password users (Supabase-only): use Supabase UUID, which falls back to Supabase storage
+    const clerkUserIdForSession =
+      userProfile?.clerk_user_id || clerkAuth?.userId;
+    const supabaseUserId = userProfile?.id || user?.id;
+
+    // Use Clerk user ID if available (OAuth users), otherwise use Supabase UUID (email/password users)
+    const userIdForSession = clerkUserIdForSession || supabaseUserId;
+
+    if (!userIdForSession) {
+      console.log('📖 handleStartNewGame: No user ID available for session');
+      Alert.alert(
+        'Profile Setup Required',
+        'Please complete your profile setup before starting a story. This ensures your progress is properly saved.',
+        [
+          {
+            text: 'Complete Profile',
+            onPress: () => navigation.navigate('Profile'),
+          },
+        ],
+      );
+      return;
+    }
+
+    const isEmailPasswordUser = !clerkUserIdForSession && !!supabaseUserId;
     console.log(
       '📖 handleStartNewGame: Using user ID for session:',
       userIdForSession,
+      isEmailPasswordUser
+        ? '(email/password user - Supabase fallback)'
+        : '(OAuth user - Convex)',
     );
 
     // Check if first story guidance should be shown (US-012)
@@ -1622,7 +1649,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
       if (shouldShowGuidance) {
         // Store the action to execute after guidance is dismissed
-        // Capture the resolved user ID in a closure
+        // Capture the user ID in a closure (works for both OAuth and email/password users)
         pendingStoryActionRef.current = () =>
           executeStartNewGame(userIdForSession);
         setShowFirstStoryGuidance(true);

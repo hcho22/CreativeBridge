@@ -31,6 +31,21 @@ import type { Doc, Id } from '../../convex/_generated/dataModel';
 const ENABLE_DUAL_WRITE = true;
 
 /**
+ * Detect if an ID is a Supabase UUID or a Convex ID.
+ * Supabase UUIDs follow pattern: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+ * Convex IDs are alphanumeric strings without dashes.
+ * Email/password users have Supabase UUIDs, OAuth users have Clerk IDs (user_xxx).
+ */
+const isSupabaseUUID = (id: string): boolean =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+/**
+ * Detect if a user ID is a Clerk user ID (OAuth users) vs Supabase UUID (email/password users).
+ * Clerk user IDs start with "user_".
+ */
+const isClerkUserId = (userId: string): boolean => userId.startsWith('user_');
+
+/**
  * Convert Convex game session to legacy StorySession format.
  * Maps camelCase Convex fields to snake_case legacy format.
  */
@@ -155,15 +170,19 @@ class StorySessionManager {
       let sessionId: string;
       let createdAt: string;
 
-      // PRIMARY: Create session in Convex (US-018)
-      if (isConvexReady()) {
+      // Check if this is a Clerk user ID (OAuth users) or Supabase UUID (email/password users)
+      // Clerk user IDs start with "user_", Supabase UUIDs are standard UUIDs
+      const isClerkUserId = userId.startsWith('user_');
+
+      // PRIMARY: Create session in Convex (US-018) - only for OAuth/Clerk users
+      if (isConvexReady() && isClerkUserId) {
         const convexClient = getConvexClient();
         if (convexClient) {
-          console.log('📝 Creating session in Convex (PRIMARY)');
+          console.log('📝 Creating session in Convex (PRIMARY) for Clerk user');
           const convexSessionId = await convexClient.mutation(
             api.gameSessions.createSession,
             {
-              clerkUserId: userId, // Note: userId is Clerk user ID
+              clerkUserId: userId, // Clerk user ID for OAuth users
               gradeLevel: gradeLevel,
               storyMetadata: metadata || {},
             },
@@ -175,8 +194,12 @@ class StorySessionManager {
           throw new Error('Convex client not available');
         }
       } else {
-        // Fallback to Supabase if Convex not ready
-        console.log('⚠️ Convex not ready, falling back to Supabase');
+        // Fallback to Supabase for email/password users or if Convex not ready
+        console.log(
+          isClerkUserId
+            ? '⚠️ Convex not ready, falling back to Supabase'
+            : '📝 Email/password user detected, using Supabase directly',
+        );
         const { data: gameSession, error } = await supabase
           .from('game_sessions')
           .insert({
@@ -199,8 +222,9 @@ class StorySessionManager {
         createdAt = (gameSession as any).created_at;
       }
 
-      // SECONDARY: Dual-write to Supabase (non-blocking)
-      if (ENABLE_DUAL_WRITE && isConvexReady()) {
+      // SECONDARY: Dual-write to Supabase (non-blocking) - only for Clerk/OAuth users
+      // Email/password users already write directly to Supabase, so no dual-write needed
+      if (ENABLE_DUAL_WRITE && isConvexReady() && isClerkUserId) {
         try {
           console.log(
             '📝 Dual-write: Creating session in Supabase (SECONDARY)',
@@ -383,8 +407,11 @@ class StorySessionManager {
 
       let session: StorySession | null = null;
 
-      // PRIMARY: Try Convex first (US-018)
-      if (isConvexReady()) {
+      // Detect if this is a Supabase UUID (email/password users) or Convex ID (OAuth users)
+      const isSessionSupabaseUUID = isSupabaseUUID(sessionId);
+
+      // PRIMARY: Try Convex first (US-018) - only for Convex session IDs (OAuth users)
+      if (isConvexReady() && !isSessionSupabaseUUID) {
         const convexClient = getConvexClient();
         if (convexClient) {
           try {
@@ -552,8 +579,11 @@ class StorySessionManager {
     try {
       console.log('Fetching user sessions for user:', userId);
 
-      // PRIMARY: Try Convex first (US-018)
-      if (isConvexReady()) {
+      // Detect if this is a Clerk user ID (OAuth) or Supabase UUID (email/password)
+      const isUserClerkId = isClerkUserId(userId);
+
+      // PRIMARY: Try Convex first (US-018) - only for Clerk/OAuth users
+      if (isConvexReady() && isUserClerkId) {
         const convexClient = getConvexClient();
         if (convexClient) {
           try {
@@ -687,8 +717,11 @@ class StorySessionManager {
 
       let updateSucceeded = false;
 
-      // PRIMARY: Update in Convex (US-018)
-      if (isConvexReady()) {
+      // Detect if this is a Supabase UUID (email/password users) or Convex ID (OAuth users)
+      const isSessionSupabaseUUID = isSupabaseUUID(session.id);
+
+      // PRIMARY: Update in Convex (US-018) - only for Convex session IDs (OAuth users)
+      if (isConvexReady() && !isSessionSupabaseUUID) {
         const convexClient = getConvexClient();
         if (convexClient) {
           try {
@@ -704,10 +737,14 @@ class StorySessionManager {
             // Fall through to Supabase
           }
         }
+      } else if (isSessionSupabaseUUID) {
+        console.log(
+          '📝 Supabase UUID detected, skipping Convex update (email/password user)',
+        );
       }
 
-      // SECONDARY: Dual-write to Supabase (or primary fallback if Convex failed)
-      if (ENABLE_DUAL_WRITE || !updateSucceeded) {
+      // SECONDARY: Dual-write to Supabase (or primary for Supabase UUIDs / fallback if Convex failed)
+      if (ENABLE_DUAL_WRITE || !updateSucceeded || isSessionSupabaseUUID) {
         const logPrefix = updateSucceeded ? '📝 Dual-write:' : '📝 Fallback:';
         console.log(`${logPrefix} Updating session in Supabase`);
 
@@ -821,8 +858,11 @@ class StorySessionManager {
       localPath,
     });
 
-    // PRIMARY: Update image in Convex using dedicated mutation (US-018)
-    if (isConvexReady()) {
+    // Detect if this is a Supabase UUID (email/password users) or Convex ID (OAuth users)
+    const isSessionSupabaseUUID = isSupabaseUUID(sessionId);
+
+    // PRIMARY: Update image in Convex using dedicated mutation (US-018) - only for OAuth users
+    if (isConvexReady() && !isSessionSupabaseUUID) {
       const convexClient = getConvexClient();
       if (convexClient) {
         try {
@@ -894,8 +934,11 @@ class StorySessionManager {
       hasError: !!error,
     });
 
-    // PRIMARY: Update upload status in Convex (US-018)
-    if (isConvexReady()) {
+    // Detect if this is a Supabase UUID (email/password users) or Convex ID (OAuth users)
+    const isSessionSupabaseUUID = isSupabaseUUID(sessionId);
+
+    // PRIMARY: Update upload status in Convex (US-018) - only for OAuth users
+    if (isConvexReady() && !isSessionSupabaseUUID) {
       const convexClient = getConvexClient();
       if (convexClient) {
         try {
