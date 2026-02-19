@@ -447,7 +447,7 @@ Migrate CreativeBridge's entire backend infrastructure from Supabase (PostgreSQL
 - [x] XP operations work via Convex
 - [x] Supabase receives duplicate writes
 - [x] Typecheck passes (no new errors introduced - 25 pre-existing errors remain)
-- [ ] Verify in simulator: sign in, profile loads, XP updates work
+- [x] Verify in simulator: sign in, profile loads, XP updates work
 
 **Implementation Notes:**
 

@@ -2,8 +2,8 @@
 
 **Feature:** XP Earned and Total XP display on story completion modal
 **User Story:** US-003 - Handle Edge Cases Gracefully
-**Test Date:** ******\_******
-**Tester:** ******\_******
+**Test Date:** **\*\***\_**\*\***
+**Tester:** **\*\***\_**\*\***
 **Platform:** ☐ iOS ☐ Android ☐ Both
 
 ---
@@ -294,8 +294,8 @@ Test combinations to ensure robustness:
 - [ ] Icons render properly on both iOS and Android
 - [ ] XP bonuses work across all grade levels (K-2, 3-5, 6-8, 9-12)
 
-**Tester Signature:** ******\_\_\_******
-**Date:** ******\_\_\_******
+**Tester Signature:** **\*\***\_\_\_**\*\***
+**Date:** **\*\***\_\_\_**\*\***
 **Status:** ☐ PASS ☐ FAIL (see notes below)
 
 ---

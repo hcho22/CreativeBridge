@@ -1,7 +1,7 @@
 # Voice Input Duplication Fix - Test Results (US-003)
 
-**Test Date**: ******\_\_\_****** (YYYY-MM-DD)
-**Tester**: ******\_\_\_******
+**Test Date**: **\*\***\_\_\_**\*\*** (YYYY-MM-DD)
+**Tester**: **\*\***\_\_\_**\*\***
 **PRD Reference**: [prd-voice-input-duplication-fix.md](./prd-voice-input-duplication-fix.md) (US-003)
 **Test Plan**: [voice-input-validation-test-plan.md](./voice-input-validation-test-plan.md)
 
@@ -29,13 +29,13 @@
 
 - **Device Model**: \_iphone13pro\_\_ (e.g., iPhone 14 Pro)
 - **iOS Version**: \__iOS 26.0_ (e.g., iOS 17.2)
-- **App Build**: ******\_\_\_****** (version/build number)
+- **App Build**: **\*\***\_\_\_**\*\*** (version/build number)
 - **Test Location**: **Office** (Quiet room / Office / Home)
 
 ### Simulator Testing
 
 - **Simulator Used**: ⬜ Yes | x No
-- **Simulator Model**: ******\_\_\_****** (if applicable)
+- **Simulator Model**: **\*\***\_\_\_**\*\*** (if applicable)
 - **Simulator Result**: ⬜ PASS | ⬜ FAIL | ⬜ Limited (speech not supported)
 
 ---
@@ -48,7 +48,7 @@
 **Expected**: "Testing 123"
 **Old Buggy Behavior**: "Test Testing Testing one Testing 12 Testing 123 Testing 123"
 
-**Actual Result**: **\_**PASS****************\_\_\_****************
+**Actual Result**: **\_**PASS******\*\*\*\*******\_\_\_******\*\*\*\*******
 
 **Status**: ⬜ ✅ PASS (Bug Fixed) | ⬜ ❌ FAIL (Bug Still Exists)
 
@@ -58,7 +58,7 @@
 [Paste relevant logs here]
 ```
 
-**Notes**: **********************\_\_\_**********************
+**Notes**: **********\*\***********\_\_\_**********\*\***********
 
 ---
 
@@ -67,40 +67,40 @@
 ### Test 1: Short Phrase - "Hello world"
 
 - **Expected**: "Hello world"
-- **Actual**: ******\_\_\_******
+- **Actual**: **\*\***\_\_\_**\*\***
 - **Result**: X PASS | ⬜ FAIL
-- **Notes**: ******\_\_\_******
+- **Notes**: **\*\***\_\_\_**\*\***
 
 ### Test 2: Speech with Pause - "Tell me a story... about dragons"
 
 - **Expected**: "Tell me a story about dragons"
-- **Actual**: ******\_\_\_******
+- **Actual**: **\*\***\_\_\_**\*\***
 - **Result**: X PASS | ⬜ FAIL
-- **Notes**: ******\_\_\_******
+- **Notes**: **\*\***\_\_\_**\*\***
 
 ### Test 3: Long Sentence
 
 - **Input**: "I want to create a story about a brave knight who saves the kingdom"
 - **Expected**: Complete sentence, no duplicates
-- **Actual**: ******\_\_\_******
+- **Actual**: **\*\***\_\_\_**\*\***
 - **Result**: X PASS | ⬜ FAIL
-- **Notes**: ******\_\_\_******
+- **Notes**: **\*\***\_\_\_**\*\***
 
 ### Test 4: Multiple Sentences in One Session
 
 - **Input**: "Once upon a time... there was a dragon"
 - **Expected**: Both sentences concatenated
-- **Actual**: ******\_\_\_******
+- **Actual**: **\*\***\_\_\_**\*\***
 - **Result**: X PASS | ⬜ FAIL
-- **Notes**: ******\_\_\_******
+- **Notes**: **\*\***\_\_\_**\*\***
 
 ### Test 5: Visual Feedback
 
 - **Observation**: Progressive partial results during "The quick brown fox"
 - **Expected**: See "The" → "The quick" → "The quick brown" → "The quick brown fox"
-- **Actual**: ******\_\_\_******
+- **Actual**: **\*\***\_\_\_**\*\***
 - **Result**: X PASS | ⬜ FAIL
-- **Notes**: ******\_\_\_******
+- **Notes**: **\*\***\_\_\_**\*\***
 
 **Quick Test Summary**: 5 / 5 passed
 
@@ -113,20 +113,20 @@
 #### TC-1.1: Short Single Word - "Hello"
 
 - **Result**: X PASS | ⬜ FAIL | ⬜ Not Tested
-- **Actual Output**: ******\_\_\_******
-- **Notes**: ******\_\_\_******
+- **Actual Output**: **\*\***\_\_\_**\*\***
+- **Notes**: **\*\***\_\_\_**\*\***
 
 #### TC-1.2: Short Phrase - "Testing 123"
 
 - **Result**: X PASS | ⬜ FAIL | ⬜ Not Tested
-- **Actual Output**: ******\_\_\_******
-- **Notes**: ******\_\_\_******
+- **Actual Output**: **\*\***\_\_\_**\*\***
+- **Notes**: **\*\***\_\_\_**\*\***
 
 #### TC-1.3: Medium Phrase - "The quick brown fox jumps"
 
 - **Result**: X PASS | ⬜ FAIL | ⬜ Not Tested
-- **Actual Output**: ******\_\_\_******
-- **Notes**: ******\_\_\_******
+- **Actual Output**: **\*\***\_\_\_**\*\***
+- **Notes**: **\*\***\_\_\_**\*\***
 
 **Suite 1 Summary**: _3_ / 3 passed
 
@@ -138,15 +138,15 @@
 
 - **Input**: "I would like to create a story about a brave knight who saves the kingdom from a dragon"
 - **Result**: X PASS | ⬜ FAIL | ⬜ Not Tested
-- **Actual Output**: ******\_\_\_******
-- **Notes**: ******\_\_\_******
+- **Actual Output**: **\*\***\_\_\_**\*\***
+- **Notes**: **\*\***\_\_\_**\*\***
 
 #### TC-2.2: Long Sentence - Slow Pace
 
 - **Input**: "Once upon a time there was a magical forest filled with friendly creatures" (spoken slowly)
 - **Result**: X PASS | ⬜ FAIL | ⬜ Not Tested
-- **Actual Output**: ******\_\_\_******
-- **Notes**: ******\_\_\_******
+- **Actual Output**: **\*\***\_\_\_**\*\***
+- **Notes**: **\*\***\_\_\_**\*\***
 
 **Suite 2 Summary**: _2_ / 2 passed
 
@@ -157,23 +157,23 @@
 #### TC-3.1: Mid-Sentence Pause (Short) - "Hello world... how are you today"
 
 - **Result**: X PASS | ⬜ FAIL | ⬜ Not Tested
-- **Actual Output**: ******\_\_\_******
+- **Actual Output**: **\*\***\_\_\_**\*\***
 - **Duplication at Pause?**: ⬜ Yes | ⬜ No
-- **Notes**: ******\_\_\_******
+- **Notes**: **\*\***\_\_\_**\*\***
 
 #### TC-3.2: Mid-Sentence Pause (Long) - "Tell me a story about... (3-4s pause) ...a princess and a unicorn"
 
 - **Result**: X PASS | ⬜ FAIL | ⬜ Not Tested
-- **Actual Output**: ******\_\_\_******
+- **Actual Output**: **\*\***\_\_\_**\*\***
 - **Session Behavior**: ⬜ Continued through pause | ⬜ Ended at pause
-- **Notes**: ******\_\_\_******
+- **Notes**: **\*\***\_\_\_**\*\***
 
 #### TC-3.3: Multiple Short Pauses - "A story about... a robot... who learns... to feel emotions"
 
 - **Result**: X PASS | ⬜ FAIL | ⬜ Not Tested
-- **Actual Output**: ******\_\_\_******
+- **Actual Output**: **\*\***\_\_\_**\*\***
 - **Duplicates at Pauses?**: ⬜ Yes | ⬜ No
-- **Notes**: ******\_\_\_******
+- **Notes**: **\*\***\_\_\_**\*\***
 
 **Suite 3 Summary**: **3** / 3 passed
 
@@ -184,16 +184,16 @@
 #### TC-4.1: Two Separate Sentences - "Hello world. How are you today."
 
 - **Result**: X PASS | ⬜ FAIL | ⬜ Not Tested
-- **Actual Output**: ******\_\_\_******
+- **Actual Output**: **\*\***\_\_\_**\*\***
 - **Both Sentences Captured?**: ⬜ Yes | ⬜ No
-- **Notes**: ******\_\_\_******
+- **Notes**: **\*\***\_\_\_**\*\***
 
 #### TC-4.2: Three Short Phrases - "Once upon a time. In a faraway land. Lived a dragon."
 
 - **Result**: X PASS | ⬜ FAIL | ⬜ Not Tested
-- **Actual Output**: ******\_\_\_******
+- **Actual Output**: **\*\***\_\_\_**\*\***
 - **All Phrases Captured?**: ⬜ Yes | ⬜ No
-- **Notes**: ******\_\_\_******
+- **Notes**: **\*\***\_\_\_**\*\***
 
 **Suite 4 Summary**: **2** / 2 passed
 
@@ -204,23 +204,23 @@
 #### TC-5.1: Rapid Speech - "The quick brown fox jumps over the lazy dog" (fast)
 
 - **Result**: X PASS | ⬜ FAIL | ⬜ Not Tested
-- **Actual Output**: ******\_\_\_******
+- **Actual Output**: **\*\***\_\_\_**\*\***
 - **Duplicates?**: ⬜ Yes | ⬜ No
 - **Transcription Accurate?**: ⬜ Yes | ⬜ Partial | ⬜ No
-- **Notes**: ******\_\_\_******
+- **Notes**: **\*\***\_\_\_**\*\***
 
 #### TC-5.2: Very Slow Speech - "O-n-c-e... u-p-o-n... a... t-i-m-e"
 
 - **Result**: X PASS | ⬜ FAIL | ⬜ Not Tested
-- **Actual Output**: ******\_\_\_******
+- **Actual Output**: **\*\***\_\_\_**\*\***
 - **Duplicates?**: ⬜ Yes | ⬜ No
-- **Notes**: ******\_\_\_******
+- **Notes**: **\*\***\_\_\_**\*\***
 
 #### TC-5.3: Variable Speed - "Hello world" (fast) + "how are you" (slow) + "today" (fast)
 
 - **Result**: X PASS | ⬜ FAIL | ⬜ Not Tested
-- **Actual Output**: ******\_\_\_******
-- **Notes**: ******\_\_\_******
+- **Actual Output**: **\*\***\_\_\_**\*\***
+- **Notes**: **\*\***\_\_\_**\*\***
 
 **Suite 5 Summary**: **3** / 3 passed
 
@@ -231,23 +231,23 @@
 #### TC-6.1: Background Music - "Testing 123" with soft music
 
 - **Result**: X PASS | ⬜ FAIL | ⬜ Not Tested
-- **Actual Output**: ******\_\_\_******
-- **Environment**: ******\_\_\_******
-- **Notes**: ******\_\_\_******
+- **Actual Output**: **\*\***\_\_\_**\*\***
+- **Environment**: **\*\***\_\_\_**\*\***
+- **Notes**: **\*\***\_\_\_**\*\***
 
 #### TC-6.2: Background Conversation - "Tell me a story" with TV/conversation
 
 - **Result**: X PASS | ⬜ FAIL | ⬜ Not Tested
-- **Actual Output**: ******\_\_\_******
+- **Actual Output**: **\*\***\_\_\_**\*\***
 - **Background Interference?**: ⬜ Yes | ⬜ No
-- **Notes**: ******\_\_\_******
+- **Notes**: **\*\***\_\_\_**\*\***
 
 #### TC-6.3: High Noise Environment - "Hello world" in noisy setting
 
 - **Result**: ⬜ PASS | ⬜ FAIL | ⬜ Not Tested
-- **Actual Output**: ******\_\_\_******
-- **Environment**: ******\_\_\_******
-- **Notes**: ******\_\_\_******
+- **Actual Output**: **\*\***\_\_\_**\*\***
+- **Environment**: **\*\***\_\_\_**\*\***
+- **Notes**: **\*\***\_\_\_**\*\***
 
 **Suite 6 Summary**: **\_** / 3 passed
 
@@ -258,31 +258,31 @@
 #### TC-7.1: Silent Recording - No speech for 5+ seconds
 
 - **Result**: ⬜ PASS | ⬜ FAIL | ⬜ Not Tested
-- **Behavior**: ******\_\_\_******
+- **Behavior**: **\*\***\_\_\_**\*\***
 - **App Crashed?**: ⬜ Yes | ⬜ No
-- **Notes**: ******\_\_\_******
+- **Notes**: **\*\***\_\_\_**\*\***
 
 #### TC-7.2: Cancel Mid-Recording - Start, speak "Testing", immediately cancel
 
 - **Result**: ⬜ PASS | ⬜ FAIL | ⬜ Not Tested
-- **Actual Output**: ******\_\_\_******
-- **Notes**: ******\_\_\_******
+- **Actual Output**: **\*\***\_\_\_**\*\***
+- **Notes**: **\*\***\_\_\_**\*\***
 
 #### TC-7.3: Rapid Start/Stop Cycles - "Hello" → stop → "World" → stop
 
 - **Result**: ⬜ PASS | ⬜ FAIL | ⬜ Not Tested
-- **Session 1 Output**: ******\_\_\_******
-- **Session 2 Output**: ******\_\_\_******
+- **Session 1 Output**: **\*\***\_\_\_**\*\***
+- **Session 2 Output**: **\*\***\_\_\_**\*\***
 - **Cross-contamination?**: ⬜ Yes | ⬜ No
-- **Notes**: ******\_\_\_******
+- **Notes**: **\*\***\_\_\_**\*\***
 
 #### TC-7.4: Very Long Recording - 60+ seconds continuous
 
 - **Result**: ⬜ PASS | ⬜ FAIL | ⬜ Not Tested
-- **Recording Length**: ******\_\_\_******
+- **Recording Length**: **\*\***\_\_\_**\*\***
 - **Duplicates?**: ⬜ Yes | ⬜ No
 - **App Performance**: ⬜ Good | ⬜ Degraded | ⬜ Crashed
-- **Notes**: ******\_\_\_******
+- **Notes**: **\*\***\_\_\_**\*\***
 
 **Suite 7 Summary**: **\_** / 4 passed
 
@@ -295,7 +295,7 @@
 - **Result**: ⬜ PASS | ⬜ FAIL | ⬜ Not Tested
 - **Partial Results Visible?**: ⬜ Yes | ⬜ No
 - **Progressive Updates?**: ⬜ Smooth | ⬜ Glitchy | ⬜ None
-- **Notes**: ******\_\_\_******
+- **Notes**: **\*\***\_\_\_**\*\***
 
 #### TC-8.2: Visual State Transitions - Button states during recording
 
@@ -303,7 +303,7 @@
 - **Idle State Clear?**: ⬜ Yes | ⬜ No
 - **Recording State Clear?**: ⬜ Yes | ⬜ No
 - **Processing State Clear?**: ⬜ Yes | ⬜ No
-- **Notes**: ******\_\_\_******
+- **Notes**: **\*\***\_\_\_**\*\***
 
 **Suite 8 Summary**: **\_** / 2 passed
 
@@ -385,7 +385,7 @@
 - **Memory Usage**: ⬜ Stable | ⬜ Increasing | ⬜ Leaks detected
 - **CPU Usage**: ⬜ Low | ⬜ Moderate | ⬜ High
 
-**Notes**: **********************\_\_\_**********************
+**Notes**: **********\*\***********\_\_\_**********\*\***********
 
 ---
 
@@ -439,7 +439,7 @@ Based on test results:
 
 **Selected**: ⬜ APPROVE | ⬜ APPROVE WITH CONDITIONS | ⬜ REJECT
 
-**Justification**: **********************\_\_\_**********************
+**Justification**: **********\*\***********\_\_\_**********\*\***********
 
 ---
 
@@ -472,11 +472,11 @@ Based on test results:
 
 ## Tester Sign-Off
 
-**Tester Name**: ******\_\_\_******
-**Test Completion Date**: ******\_\_\_******
-**Time Spent**: ******\_\_\_****** (hours/minutes)
+**Tester Name**: **\*\***\_\_\_**\*\***
+**Test Completion Date**: **\*\***\_\_\_**\*\***
+**Time Spent**: **\*\***\_\_\_**\*\*** (hours/minutes)
 
-**Signature/Confirmation**: ******\_\_\_******
+**Signature/Confirmation**: **\*\***\_\_\_**\*\***
 
 ---
 
