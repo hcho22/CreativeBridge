@@ -8,6 +8,20 @@
  */
 
 import { supabase } from './supabase';
+
+/**
+ * Checks if an ID is a valid UUID format (Supabase format).
+ * Convex uses a different ID format (alphanumeric strings like 'j978rdkax3fcmqc4tf283zvv5x81f9bh')
+ * which will fail Supabase UUID validation.
+ *
+ * @param id - The ID to check
+ * @returns true if the ID is a valid UUID, false otherwise
+ */
+function isValidUUID(id: string): boolean {
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(id);
+}
 import { diversityScoreService } from './diversityScoreService';
 import { recentElementsService } from './recentElementsService';
 import type { DiversityScore } from './diversityScoreService';
@@ -87,6 +101,23 @@ class DiversityScoreStorageService {
     const startTime = Date.now();
     const errors: string[] = [];
     const { storyId, sessionId, extractedElements } = options;
+
+    // Skip Supabase storage for Convex IDs (non-UUID format)
+    // During migration, Convex sessions won't have Supabase history anyway
+    if (!isValidUUID(storyId) || !isValidUUID(sessionId)) {
+      console.log(
+        '⚠️ Convex IDs detected, skipping Supabase diversity score storage:',
+        {
+          storyId: storyId.substring(0, 12),
+          sessionId: sessionId.substring(0, 12),
+        },
+      );
+      return {
+        success: true, // Not a failure, just skipping legacy storage
+        errors: [],
+        duration: Date.now() - startTime,
+      };
+    }
 
     try {
       console.log(`📊 Calculating diversity score for story ${storyId}`);
@@ -275,6 +306,15 @@ class DiversityScoreStorageService {
   async getDiversityScore(
     storyId: string,
   ): Promise<DiversityScoreRecord | null> {
+    // Skip Supabase query for Convex story IDs (non-UUID format)
+    if (!isValidUUID(storyId)) {
+      console.log(
+        '⚠️ Convex story ID detected, returning null (not yet migrated):',
+        { storyId: storyId.substring(0, 12) },
+      );
+      return null;
+    }
+
     try {
       const { data, error } = await supabase
         .from('story_diversity_scores')
@@ -313,6 +353,15 @@ class DiversityScoreStorageService {
     storyCount: number;
     lowDiversityCount: number; // Count of stories with score < 0.4
   }> {
+    // Skip Supabase query for Convex session IDs (non-UUID format)
+    if (!isValidUUID(sessionId)) {
+      console.log(
+        '⚠️ Convex session ID detected, returning empty stats (not yet migrated):',
+        { sessionId: sessionId.substring(0, 12) },
+      );
+      return { averageScore: 0, storyCount: 0, lowDiversityCount: 0 };
+    }
+
     try {
       // Get all story IDs for this session
       const { data: elements } = await supabase

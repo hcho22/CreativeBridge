@@ -15,6 +15,10 @@ import { ConvexReactClient } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { Id } from '../../convex/_generated/dataModel';
 import { ImageUploadStatus } from '../types/database';
+import {
+  getConvexClient as getCentralizedConvexClient,
+  isConvexReady,
+} from './convex';
 
 // Upload result interface
 export interface UploadImageResult {
@@ -47,31 +51,28 @@ const CONFIG = {
   ALLOWED_MIME_TYPES: ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'],
 } as const;
 
-// Convex client singleton - will be set by the hook or provider
-let convexClient: ConvexReactClient | null = null;
-
 /**
- * Set the Convex client for the image storage service.
- * This must be called before using any upload functions.
- *
- * @param client - The ConvexReactClient instance from the provider
+ * @deprecated Use the centralized client from convex.ts instead.
+ * This function is kept for backward compatibility but is a no-op.
  */
-export function setConvexClient(client: ConvexReactClient): void {
-  convexClient = client;
-  console.log('✅ ImageStorageService: Convex client set');
+export function setConvexClient(_client: ConvexReactClient): void {
+  console.log(
+    '⚠️ ImageStorageService.setConvexClient is deprecated - using centralized client from convex.ts',
+  );
 }
 
 /**
- * Get the current Convex client.
+ * Get the Convex client from the centralized service.
  * Throws if not initialized.
  */
 function getConvexClient(): ConvexReactClient {
-  if (!convexClient) {
+  const client = getCentralizedConvexClient();
+  if (!client) {
     throw new Error(
-      'Convex client not initialized. Call setConvexClient() first.',
+      'Convex client not initialized. Ensure ConvexProviderWithClerk is mounted.',
     );
   }
-  return convexClient;
+  return client;
 }
 
 /**
@@ -104,6 +105,22 @@ export class ImageStorageService {
     console.log('📤 Starting image upload to Convex Storage');
     console.log(`  Replicate URL: ${replicateUrl.substring(0, 60)}...`);
     console.log(`  Session ID: ${sessionId}`);
+
+    // Check if Convex is available (OAuth users only - email/password users don't have Convex)
+    if (!isConvexReady()) {
+      console.log(
+        '⚠️ Convex not available (likely email/password user) - skipping upload to Convex Storage',
+      );
+      console.log(
+        '   Image will remain available via Replicate URL (temporary)',
+      );
+      return {
+        success: false,
+        error: 'Convex not available for email/password users',
+        attempts: 0,
+        status: 'pending', // Keep as pending - Replicate URL is still valid
+      };
+    }
 
     const client = getConvexClient();
 
@@ -259,6 +276,17 @@ export class ImageStorageService {
     try {
       console.log('🔄 Manual retry initiated by user for session:', sessionId);
 
+      // Check if Convex is available (OAuth users only)
+      if (!isConvexReady()) {
+        console.log(
+          '⚠️ Convex not available (likely email/password user) - retry not possible',
+        );
+        return {
+          success: false,
+          error: 'Image upload retry not available for email/password users',
+        };
+      }
+
       const client = getConvexClient();
 
       // First, get the session to check if there's an image URL to retry
@@ -389,6 +417,14 @@ export class ImageStorageService {
    * Useful for health checks and diagnostics
    */
   async checkStorageHealth(): Promise<{ healthy: boolean; error?: string }> {
+    // Check if Convex is available first
+    if (!isConvexReady()) {
+      return {
+        healthy: false,
+        error: 'Convex not available (email/password user)',
+      };
+    }
+
     try {
       const client = getConvexClient();
       const result = await client.query(api.storage.checkStorageHealth);
@@ -406,6 +442,14 @@ export class ImageStorageService {
    * @returns The image URL or null
    */
   async getSessionImageUrl(sessionId: string): Promise<string | null> {
+    // Check if Convex is available first
+    if (!isConvexReady()) {
+      console.log(
+        '⚠️ Convex not available - cannot retrieve session image URL from Convex',
+      );
+      return null;
+    }
+
     try {
       const client = getConvexClient();
       const result = await client.query(api.storage.getSessionImageUrl, {
@@ -428,6 +472,14 @@ export class ImageStorageService {
   async deleteImage(
     sessionId: string,
   ): Promise<{ success: boolean; error?: string }> {
+    // Check if Convex is available first
+    if (!isConvexReady()) {
+      return {
+        success: false,
+        error: 'Convex not available (email/password user)',
+      };
+    }
+
     try {
       const client = getConvexClient();
       await client.mutation(api.storage.deleteImage, {

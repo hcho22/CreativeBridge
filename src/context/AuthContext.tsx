@@ -247,6 +247,236 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, [convexProfile, clerkUserId]);
 
+  // Track if we've already attempted Supabase fallback for this session
+  const supabaseFallbackAttemptedRef = useRef<string | null>(null);
+
+  // Fallback effect: Load profile from Supabase when Convex query fails/unavailable
+  // This handles the case where the Convex JWT template is not configured in Clerk
+  // or when Convex auth is otherwise unavailable.
+  useEffect(() => {
+    const loadSupabaseFallback = async () => {
+      // Skip if:
+      // - No Clerk user ID (not logged in)
+      // - Convex profile exists (no fallback needed)
+      // - userProfile already loaded (no fallback needed)
+      // - Already attempted fallback for this user
+      // - convexProfile is undefined (still loading - wait for it to resolve)
+      if (
+        !clerkUserId ||
+        convexProfile !== null ||
+        userProfile !== null ||
+        supabaseFallbackAttemptedRef.current === clerkUserId
+      ) {
+        return;
+      }
+
+      // Check if convexProfile query has settled (null = not found, undefined = loading)
+      // We need a timeout to detect when Convex auth is failing and never resolving
+      // After 3 seconds, if still undefined and no userProfile, try Supabase fallback
+      if (convexProfile === undefined) {
+        // Set up a delayed fallback check
+        const timeoutId = setTimeout(async () => {
+          // Double-check conditions after timeout
+          if (
+            clerkUserId &&
+            convexProfile === undefined &&
+            userProfile === null &&
+            supabaseFallbackAttemptedRef.current !== clerkUserId
+          ) {
+            console.log(
+              '⚠️ [AuthContext] Convex query stuck (auth token issue?), attempting Supabase fallback...',
+            );
+            supabaseFallbackAttemptedRef.current = clerkUserId;
+
+            try {
+              const { data: profiles, error } = await supabase
+                .from('user_profiles')
+                .select('*')
+                .eq('clerk_user_id', clerkUserId)
+                .limit(1);
+
+              if (error) {
+                console.error(
+                  '❌ [AuthContext] Supabase fallback query error:',
+                  error,
+                );
+                return;
+              }
+
+              const profile =
+                profiles && profiles.length > 0 ? profiles[0] : null;
+
+              if (profile) {
+                console.log(
+                  '✅ [AuthContext] Loaded profile from Supabase fallback:',
+                  {
+                    username: profile.username,
+                    clerkUserId: profile.clerk_user_id,
+                  },
+                );
+                setUserProfile(profile);
+              } else {
+                console.log(
+                  '📋 [AuthContext] No Supabase profile found for Clerk user (new user)',
+                );
+              }
+            } catch (fallbackError) {
+              console.error(
+                '❌ [AuthContext] Supabase fallback failed:',
+                fallbackError,
+              );
+            }
+          }
+        }, 3000); // Wait 3 seconds before fallback
+
+        return () => clearTimeout(timeoutId);
+      }
+
+      // convexProfile is null (query completed, profile not found)
+      // The migration effect will handle creating the Convex profile if Supabase has one
+      // But we should also load the Supabase profile into context for immediate use
+      if (convexProfile === null) {
+        supabaseFallbackAttemptedRef.current = clerkUserId;
+        console.log(
+          '🔍 [AuthContext] Convex profile is null, loading Supabase profile into context...',
+        );
+
+        try {
+          const { data: profiles, error } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('clerk_user_id', clerkUserId)
+            .limit(1);
+
+          if (error) {
+            console.error(
+              '❌ [AuthContext] Supabase profile query error:',
+              error,
+            );
+            return;
+          }
+
+          const profile = profiles && profiles.length > 0 ? profiles[0] : null;
+
+          if (profile && !userProfile) {
+            console.log(
+              '✅ [AuthContext] Loaded Supabase profile while waiting for Convex migration:',
+              {
+                username: profile.username,
+                clerkUserId: profile.clerk_user_id,
+              },
+            );
+            setUserProfile(profile);
+          }
+        } catch (queryError) {
+          console.error(
+            '❌ [AuthContext] Failed to load Supabase profile:',
+            queryError,
+          );
+        }
+      }
+    };
+
+    loadSupabaseFallback();
+  }, [clerkUserId, convexProfile, userProfile]);
+
+  // Track if we've already attempted migration for this session
+  const migrationAttemptedRef = useRef<string | null>(null);
+
+  // Effect to migrate Supabase profile to Convex if needed
+  // This handles existing users who have a Supabase profile but no Convex profile
+  useEffect(() => {
+    const migrateProfileIfNeeded = async () => {
+      // Skip if:
+      // - No clerk user ID (not logged in)
+      // - convexProfile is undefined (still loading - not null)
+      // - convexProfile exists (no migration needed)
+      // - Already attempted migration for this user
+      // - Currently signing out
+      if (
+        !clerkUserId ||
+        convexProfile === undefined ||
+        convexProfile !== null ||
+        migrationAttemptedRef.current === clerkUserId ||
+        isSigningOut.current
+      ) {
+        return;
+      }
+
+      // Mark that we've attempted migration for this user
+      migrationAttemptedRef.current = clerkUserId;
+
+      console.log(
+        '🔍 [Convex Migration] Convex profile is null, checking for Supabase profile to migrate...',
+      );
+
+      try {
+        // Check if there's a Supabase profile for this Clerk user
+        const { data: supabaseProfiles, error } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('clerk_user_id', clerkUserId)
+          .limit(1);
+
+        if (error) {
+          console.error(
+            '❌ [Convex Migration] Error checking Supabase profile:',
+            error,
+          );
+          return;
+        }
+
+        const supabaseProfile =
+          supabaseProfiles && supabaseProfiles.length > 0
+            ? supabaseProfiles[0]
+            : null;
+
+        if (!supabaseProfile) {
+          console.log(
+            '📋 [Convex Migration] No Supabase profile found - user needs to complete profile setup',
+          );
+          return;
+        }
+
+        console.log(
+          '📦 [Convex Migration] Found Supabase profile to migrate:',
+          {
+            clerkUserId: supabaseProfile.clerk_user_id,
+            username: supabaseProfile.username,
+            displayName: supabaseProfile.display_name,
+            totalXp: supabaseProfile.total_xp,
+          },
+        );
+
+        // Create Convex profile from Supabase profile data
+        const convexProfileId = await convexCreateProfile({
+          clerkUserId,
+          username: supabaseProfile.username,
+          displayName: supabaseProfile.display_name,
+          preferredGradeLevel: (supabaseProfile.preferred_grade_level ||
+            'K-2') as GradeLevel,
+          speechEnabled: supabaseProfile.speech_enabled ?? true,
+        });
+
+        console.log(
+          '✅ [Convex Migration] Convex profile created from Supabase migration:',
+          convexProfileId,
+        );
+
+        // The convexProfile reactive query will automatically pick up the new profile
+      } catch (migrationError) {
+        console.error(
+          '❌ [Convex Migration] Failed to migrate profile:',
+          migrationError,
+        );
+        // Reset migration attempt so user can retry
+        migrationAttemptedRef.current = null;
+      }
+    };
+
+    migrateProfileIfNeeded();
+  }, [clerkUserId, convexProfile, convexCreateProfile]);
+
   const fetchUserProfile = async (
     userId: string,
   ): Promise<UserProfile | null> => {
@@ -3039,6 +3269,56 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
             profile.username,
           );
           setUserProfile(profile);
+
+          // US-017 Migration: Ensure Convex profile exists for existing Supabase users
+          // Check if Convex profile exists - if not, migrate the Supabase profile
+          try {
+            const existingConvexProfile = await convex.query(
+              api.userProfiles.getProfileByClerkId,
+              { clerkUserId: oauthResult.clerkUserId! },
+            );
+
+            if (!existingConvexProfile) {
+              console.log(
+                '📦 [AuthContext] No Convex profile found - migrating from Supabase...',
+              );
+              console.log('📦 [AuthContext] Supabase profile to migrate:', {
+                clerkUserId: profile.clerk_user_id,
+                username: profile.username,
+                displayName: profile.display_name,
+                totalXp: profile.total_xp,
+              });
+
+              // Create Convex profile from Supabase profile data
+              const convexProfileId = await convexCreateProfile({
+                clerkUserId: oauthResult.clerkUserId!,
+                username: profile.username,
+                displayName: profile.display_name,
+                preferredGradeLevel: (profile.preferred_grade_level ||
+                  'K-2') as GradeLevel,
+                speechEnabled: profile.speech_enabled ?? true,
+              });
+
+              console.log(
+                '✅ [AuthContext] Convex profile created from Supabase migration:',
+                convexProfileId,
+              );
+
+              // Note: XP and other stats will be synced via the convexProfile reactive query
+              // The full profile with XP is already in Supabase; Convex starts fresh but
+              // the reactive query will load the authoritative data
+            } else {
+              console.log(
+                '✅ [AuthContext] Convex profile already exists - no migration needed',
+              );
+            }
+          } catch (convexMigrationError) {
+            // Log but don't fail - the user can still use the app with Supabase
+            console.warn(
+              '⚠️ [AuthContext] Convex profile migration failed (non-fatal):',
+              convexMigrationError,
+            );
+          }
         } else {
           // Profile will be created during profile completion (Task 5.1)
           console.log(

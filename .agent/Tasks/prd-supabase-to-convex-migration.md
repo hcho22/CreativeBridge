@@ -602,14 +602,37 @@ Migrate CreativeBridge's entire backend infrastructure from Supabase (PostgreSQL
 
 **Acceptance Criteria:**
 
-- [ ] Create `convex/migration.ts` with:
+- [x] Create `convex/migration.ts` with:
   - Export function from Supabase (all tables)
   - Transform data (snake_case → camelCase, UUIDs → Convex IDs)
   - Import to Convex tables
   - Handle ID reference mapping (user_id → userId Convex ID)
-- [ ] Migration handles large datasets (pagination)
-- [ ] Script logs progress and errors
-- [ ] Typecheck passes
+- [x] Migration handles large datasets (pagination)
+- [x] Script logs progress and errors
+- [x] Typecheck passes
+
+**Implementation Notes:**
+
+- Created `convex/migration.ts` with comprehensive migration infrastructure
+- Migration actions for each table (run in order):
+  1. `migrateUserProfiles` - Must run first (creates ID mappings)
+  2. `migrateGameSessions` - Requires user profiles (uses clerkUserId for mapping)
+  3. `migrateImageGenerationEvents` - Requires users and sessions
+  4. `migrateStoryElements` - Requires session ID mapping (placeholder)
+  5. `migrateStoryDiversityScores` - Requires session ID mapping (placeholder)
+  6. `migrateStoryDownloadHistory` - Requires users
+- Features implemented:
+  - Batch processing with configurable `BATCH_SIZE` (default 500 records)
+  - Dry-run mode for validation without data insertion
+  - Progress logging with timestamps
+  - Error tracking with `MAX_ERRORS` threshold (default 50)
+  - Idempotent inserts (skips existing records)
+  - ID mapping via clerkUserId lookups in userProfiles table
+- Utility functions:
+  - `getMigrationStatus` query - Get record counts in Convex tables
+  - `verifyMigrationIntegrity` query - Spot-check referential integrity
+  - `clearMigratedTable` mutation - Clear table for re-migration (testing only)
+- Usage: `npx convex run migration:migrateUserProfiles --args '{"supabaseUrl":"...","supabaseKey":"..."}'`
 
 ---
 
