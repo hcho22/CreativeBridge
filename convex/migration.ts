@@ -876,6 +876,9 @@ export const migrateGameSessions = action({
  * Migrate image generation events from Supabase to Convex.
  *
  * Requires: User profiles and game sessions migrations must be complete.
+ *
+ * Note: The image_generation_events table has no FK relationship to user_profiles,
+ * so we fetch user profiles separately and build a user_id → clerk_user_id mapping.
  */
 export const migrateImageGenerationEvents = action({
   args: {
@@ -903,21 +906,68 @@ export const migrateImageGenerationEvents = action({
     };
 
     try {
-      // Get user ID mappings
-      console.log('[Migration] Loading user ID mappings...');
+      // Get Convex user ID mappings (clerkUserId → Convex ID)
+      console.log('[Migration] Loading Convex user ID mappings...');
 
-      const userMappings = (await ctx.runQuery(
+      const convexUserMappings = (await ctx.runQuery(
         'migration:getAllUserIdMappings' as any,
         {},
       )) as Record<string, Id<'userProfiles'>>;
 
-      // Fetch events from Supabase with user info
+      console.log(
+        `[Migration] Loaded ${
+          Object.keys(convexUserMappings).length
+        } Convex user mappings`,
+      );
+
+      // Fetch Supabase user profiles to build user_id → clerk_user_id mapping
+      console.log('[Migration] Fetching Supabase user profiles for mapping...');
+
+      const userProfilesResponse = await fetch(
+        `${args.supabaseUrl}/rest/v1/user_profiles?select=id,clerk_user_id`,
+        {
+          headers: {
+            apikey: args.supabaseKey,
+            Authorization: `Bearer ${args.supabaseKey}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      if (!userProfilesResponse.ok) {
+        throw new Error(
+          `Supabase user_profiles fetch failed: ${userProfilesResponse.status} ${userProfilesResponse.statusText}`,
+        );
+      }
+
+      interface SupabaseUserIdMapping {
+        id: string;
+        clerk_user_id: string | null;
+      }
+
+      const supabaseUsers =
+        (await userProfilesResponse.json()) as SupabaseUserIdMapping[];
+      const supabaseUserIdToClerkId: Record<string, string> = {};
+
+      for (const user of supabaseUsers) {
+        if (user.clerk_user_id) {
+          supabaseUserIdToClerkId[user.id] = user.clerk_user_id;
+        }
+      }
+
+      console.log(
+        `[Migration] Built mapping for ${
+          Object.keys(supabaseUserIdToClerkId).length
+        } Supabase users with Clerk IDs`,
+      );
+
+      // Fetch events from Supabase (without join - no FK relationship exists)
       console.log(
         `[Migration] Fetching image_generation_events (offset: ${offset}, limit: ${limit})`,
       );
 
       const response = await fetch(
-        `${args.supabaseUrl}/rest/v1/image_generation_events?select=*,user_profiles!inner(clerk_user_id)&order=created_at.asc&offset=${offset}&limit=${limit}`,
+        `${args.supabaseUrl}/rest/v1/image_generation_events?select=*&order=created_at.asc&offset=${offset}&limit=${limit}`,
         {
           headers: {
             apikey: args.supabaseKey,
@@ -933,11 +983,7 @@ export const migrateImageGenerationEvents = action({
         );
       }
 
-      interface EventWithUser extends SupabaseImageGenerationEvent {
-        user_profiles: { clerk_user_id: string };
-      }
-
-      const events = (await response.json()) as EventWithUser[];
+      const events = (await response.json()) as SupabaseImageGenerationEvent[];
       result.totalRecords = events.length;
 
       console.log(
@@ -947,21 +993,30 @@ export const migrateImageGenerationEvents = action({
       // Process each event
       for (const event of events) {
         try {
-          const clerkUserId = event.user_profiles?.clerk_user_id;
+          // Look up clerk_user_id from Supabase user_id
+          const clerkUserId = supabaseUserIdToClerkId[event.user_id];
 
           if (!clerkUserId) {
             result.skippedRecords++;
+            console.log(
+              `[Migration] Skipping event ${event.id}: User ${event.user_id} has no Clerk ID`,
+            );
             continue;
           }
 
-          const userId = userMappings[clerkUserId];
+          // Look up Convex user ID from clerk_user_id
+          const userId = convexUserMappings[clerkUserId];
 
           if (!userId) {
             result.skippedRecords++;
+            console.log(
+              `[Migration] Skipping event ${event.id}: Clerk user ${clerkUserId} not found in Convex`,
+            );
             continue;
           }
 
           if (dryRun) {
+            console.log(`[DryRun] Would migrate event: ${event.id}`);
             result.migratedRecords++;
             continue;
           }
@@ -989,6 +1044,7 @@ export const migrateImageGenerationEvents = action({
           );
 
           result.migratedRecords++;
+          console.log(`[Migration] Migrated event: ${event.id}`);
         } catch (error) {
           result.errorCount++;
           const errorMsg =
@@ -1011,6 +1067,7 @@ export const migrateImageGenerationEvents = action({
 
     console.log(`[Migration] Image generation events migration completed:`, {
       success: result.success,
+      total: result.totalRecords,
       migrated: result.migratedRecords,
       skipped: result.skippedRecords,
       errors: result.errorCount,
