@@ -671,12 +671,32 @@ Migrate CreativeBridge's entire backend infrastructure from Supabase (PostgreSQL
 
 **Acceptance Criteria:**
 
-- [ ] Run migration for game_sessions → gameSessions
-- [ ] user_id correctly mapped to Convex userProfiles ID
-- [ ] All story content migrated
-- [ ] Image URLs preserved (still point to Supabase initially)
-- [ ] Verify record counts match
-- [ ] Spot-check 5 random sessions for data integrity
+- [x] Run migration for game_sessions → gameSessions
+- [x] user_id correctly mapped to Convex userProfiles ID
+- [x] All story content migrated
+- [x] Image URLs preserved (still point to Supabase initially)
+- [x] Verify record counts match
+- [x] Spot-check 5 random sessions for data integrity
+
+**Implementation Notes:**
+
+- Migration completed on 2026-02-20
+- **Supabase records:** 331 total game sessions
+  - 5 belonging to Clerk users (OAuth users) - all migrated
+  - 326 belonging to legacy email/password users - skipped as expected (no Clerk ID)
+- **Convex records:** 8 game sessions total
+  - 5 newly migrated from Supabase
+  - 3 created during dual-write period (after service migration)
+- **Data integrity verified for all 5 migrated sessions:**
+  - Session 1: user_36zOAvSUtiOHt5ybrIRubZoEXGH, K-2, Words=0, Score=0, Round=1 ✅
+  - Session 2: user_36zOAvSUtiOHt5ybrIRubZoEXGH, K-2, Words=260, Score=0, Round=5, Completed ✅
+  - Session 3: user_36zOAvSUtiOHt5ybrIRubZoEXGH, K-2, Words=0, Score=0, Round=1 ✅
+  - Session 4: user_37r8UZdxAwuuvVuECaIZ1jOMuSq, K-2, Words=0, Score=0, Round=1 ✅
+  - Session 5: user_37r8UZdxAwuuvVuECaIZ1jOMuSq, 6-8, Words=208, Score=241, XP=184, Round=5, Completed ✅
+- All critical fields match: gradeLevel, wordsWritten, finalScore, xpEarned, currentRound, completedAt, storySource, storyContent
+- User ID mapping via clerkUserId lookups working correctly
+- Migration command: `npx convex run migration:migrateGameSessions`
+- Idempotent: Safe to re-run (new sessions will be inserted, no duplicates)
 
 ---
 
