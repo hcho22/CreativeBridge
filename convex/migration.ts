@@ -186,6 +186,9 @@ interface SupabaseStoryDownloadHistory {
   created_at: string;
 }
 
+// Note: SupabaseFeatureFlag interface is defined inline in migrateFeatureFlags action
+// to avoid unused variable warnings when the migration hasn't been run yet.
+
 /**
  * Migration result tracking.
  */
@@ -472,6 +475,33 @@ export const insertMigratedStoryDownloadHistory = internalMutation({
   },
 });
 
+/**
+ * Insert a migrated feature flag.
+ */
+export const insertMigratedFeatureFlag = internalMutation({
+  args: {
+    featureName: v.string(),
+    enabled: v.boolean(),
+    config: v.any(),
+    description: v.optional(v.string()),
+    updatedBy: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Check if feature flag already exists
+    const existing = await ctx.db
+      .query('featureFlags')
+      .withIndex('by_name', q => q.eq('featureName', args.featureName))
+      .first();
+
+    if (existing) {
+      return { success: true, action: 'skipped', id: existing._id };
+    }
+
+    const id = await ctx.db.insert('featureFlags', args);
+    return { success: true, action: 'inserted', id };
+  },
+});
+
 // ============================================================================
 // Internal Queries - ID Mapping Lookups
 // ============================================================================
@@ -528,6 +558,26 @@ export const getSessionIdMapping = internalQuery({
       convexId: s._id,
       creationTime: s._creationTime,
       completedAt: s.completedAt,
+    }));
+  },
+});
+
+/**
+ * Get all game sessions for building session ID mapping.
+ * Returns minimal data needed for matching Supabase sessions.
+ */
+export const getAllGameSessionsForMapping = internalQuery({
+  args: {},
+  handler: async ctx => {
+    const sessions = await ctx.db.query('gameSessions').collect();
+    return sessions.map(s => ({
+      convexId: s._id,
+      clerkUserId: s.clerkUserId,
+      creationTime: s._creationTime,
+      completedAt: s.completedAt,
+      wordsWritten: s.wordsWritten,
+      gradeLevel: s.gradeLevel,
+      storyContent: s.storyContent?.substring(0, 100), // First 100 chars for matching
     }));
   },
 });
@@ -1080,6 +1130,13 @@ export const migrateImageGenerationEvents = action({
 
 /**
  * Migrate story elements (story diversity tracking data).
+ *
+ * Requires: Game sessions migration must be complete (for story_id mapping).
+ *
+ * This migration:
+ * 1. Fetches story_elements from Supabase with their associated game_session data
+ * 2. Maps Supabase story_id (game_sessions.id UUID) to Convex gameSessions._id
+ * 3. Inserts elements with proper Convex references
  */
 export const migrateStoryElements = action({
   args: {
@@ -1089,12 +1146,11 @@ export const migrateStoryElements = action({
     offset: v.optional(v.number()),
     limit: v.optional(v.number()),
   },
-  handler: async (_ctx, args): Promise<MigrationResult> => {
+  handler: async (ctx, args): Promise<MigrationResult> => {
     const startTime = Date.now();
     const limit = args.limit ?? BATCH_SIZE;
     const offset = args.offset ?? 0;
-    // Note: dryRun support to be implemented when session ID mapping is available
-    const _dryRun = args.dryRun ?? false;
+    const dryRun = args.dryRun ?? false;
 
     const result: MigrationResult = {
       success: true,
@@ -1108,13 +1164,33 @@ export const migrateStoryElements = action({
     };
 
     try {
-      // This table may not exist yet - try to fetch and handle gracefully
+      // Get Convex game sessions for building mapping
+      console.log('[Migration] Loading Convex game sessions for mapping...');
+
+      const convexSessions = (await ctx.runQuery(
+        'migration:getAllGameSessionsForMapping' as any,
+        {},
+      )) as Array<{
+        convexId: Id<'gameSessions'>;
+        clerkUserId: string;
+        creationTime: number;
+        completedAt?: string;
+        wordsWritten: number;
+        gradeLevel: string;
+        storyContent?: string;
+      }>;
+
+      console.log(
+        `[Migration] Loaded ${convexSessions.length} Convex sessions for mapping`,
+      );
+
+      // Fetch story_elements with their associated game_sessions to get clerk_user_id
       console.log(
         `[Migration] Fetching story_elements (offset: ${offset}, limit: ${limit})`,
       );
 
       const response = await fetch(
-        `${args.supabaseUrl}/rest/v1/story_elements?select=*&order=created_at.asc&offset=${offset}&limit=${limit}`,
+        `${args.supabaseUrl}/rest/v1/story_elements?select=*,game_sessions!inner(id,user_profiles!inner(clerk_user_id))&order=created_at.asc&offset=${offset}&limit=${limit}`,
         {
           headers: {
             apikey: args.supabaseKey,
@@ -1125,7 +1201,12 @@ export const migrateStoryElements = action({
       );
 
       if (!response.ok) {
-        if (response.status === 404) {
+        // Check if table doesn't exist (empty response is also valid)
+        const responseText = await response.text();
+        if (
+          response.status === 404 ||
+          responseText.includes('does not exist')
+        ) {
           console.log(
             '[Migration] story_elements table does not exist, skipping',
           );
@@ -1133,33 +1214,150 @@ export const migrateStoryElements = action({
           return result;
         }
         throw new Error(
-          `Supabase fetch failed: ${response.status} ${response.statusText}`,
+          `Supabase fetch failed: ${response.status} ${response.statusText} - ${responseText}`,
         );
       }
 
-      const elements = (await response.json()) as SupabaseStoryElement[];
+      interface ElementWithSession extends SupabaseStoryElement {
+        game_sessions: {
+          id: string;
+          user_profiles: { clerk_user_id: string };
+        };
+      }
+
+      const elements = (await response.json()) as ElementWithSession[];
       result.totalRecords = elements.length;
+
+      if (elements.length === 0) {
+        console.log('[Migration] No story elements found in Supabase');
+        return result;
+      }
 
       console.log(`[Migration] Retrieved ${elements.length} story elements`);
 
-      // Story elements require session ID mapping
-      // For now, log as skipped (requires session migration table)
-      result.skippedRecords = elements.length;
-      result.errors.push(
-        'Story elements migration requires session ID mapping - implement as needed',
-      );
+      // Build Supabase session UUID → Convex ID mapping using clerk_user_id
+      // We match sessions by: clerkUserId + approximate creation time
+      const sessionMapping: Record<string, Id<'gameSessions'>> = {};
+
+      // Group Convex sessions by clerkUserId for efficient lookup
+      const sessionsByClerk: Record<string, typeof convexSessions> = {};
+      for (const session of convexSessions) {
+        if (!sessionsByClerk[session.clerkUserId]) {
+          sessionsByClerk[session.clerkUserId] = [];
+        }
+        sessionsByClerk[session.clerkUserId].push(session);
+      }
+
+      // Process each element
+      for (const element of elements) {
+        try {
+          const clerkUserId =
+            element.game_sessions?.user_profiles?.clerk_user_id;
+          const supabaseStoryId = element.story_id;
+
+          if (!clerkUserId) {
+            result.skippedRecords++;
+            console.log(
+              `[Migration] Skipping element ${element.id}: No Clerk user ID on associated session`,
+            );
+            continue;
+          }
+
+          // Find matching Convex session
+          let convexSessionId = sessionMapping[supabaseStoryId];
+
+          if (!convexSessionId) {
+            // Try to find matching session by clerk user
+            const userSessions = sessionsByClerk[clerkUserId] || [];
+
+            if (userSessions.length === 0) {
+              result.skippedRecords++;
+              console.log(
+                `[Migration] Skipping element ${element.id}: No Convex sessions for user ${clerkUserId}`,
+              );
+              continue;
+            }
+
+            // If only one session, use it; otherwise match by creation time proximity
+            if (userSessions.length === 1) {
+              convexSessionId = userSessions[0].convexId;
+            } else {
+              // Match by element creation time (elements are tied to sessions)
+              const elementCreatedAt = new Date(element.created_at).getTime();
+
+              // Find session with closest creation time before the element
+              const matchingSession = userSessions
+                .filter(s => s.creationTime <= elementCreatedAt)
+                .sort((a, b) => b.creationTime - a.creationTime)[0];
+
+              convexSessionId =
+                matchingSession?.convexId || userSessions[0].convexId;
+            }
+
+            sessionMapping[supabaseStoryId] = convexSessionId;
+          }
+
+          if (dryRun) {
+            console.log(
+              `[DryRun] Would migrate element: ${element.id} → session ${convexSessionId}`,
+            );
+            result.migratedRecords++;
+            continue;
+          }
+
+          // Insert the element
+          await ctx.runMutation('migration:insertMigratedStoryElement' as any, {
+            storyId: convexSessionId,
+            sessionId: element.session_id, // Original user session UUID (for diversity scoping)
+            elementType: element.element_type,
+            elementText: element.element_text,
+            embeddingVector: element.embedding_vector || undefined,
+          });
+
+          result.migratedRecords++;
+          console.log(`[Migration] Migrated element: ${element.id}`);
+        } catch (error) {
+          result.errorCount++;
+          const errorMsg =
+            error instanceof Error ? error.message : String(error);
+          result.errors.push(`Element ${element.id}: ${errorMsg}`);
+
+          if (result.errorCount >= MAX_ERRORS) {
+            result.success = false;
+            result.errors.push('Max errors reached, aborting migration');
+            break;
+          }
+        }
+      }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       result.errors.push(`Warning: ${errorMsg}`);
     }
 
     result.duration = Date.now() - startTime;
+
+    console.log(`[Migration] Story elements migration completed:`, {
+      success: result.success,
+      total: result.totalRecords,
+      migrated: result.migratedRecords,
+      skipped: result.skippedRecords,
+      errors: result.errorCount,
+      duration: `${result.duration}ms`,
+    });
+
     return result;
   },
 });
 
 /**
  * Migrate story diversity scores.
+ *
+ * Requires: Game sessions migration must be complete (for story_id mapping).
+ *
+ * This migration:
+ * 1. Fetches story_diversity_scores from Supabase with their associated game_session data
+ * 2. Maps Supabase story_id (game_sessions.id UUID) to Convex gameSessions._id
+ * 3. Inserts scores with proper Convex references
  */
 export const migrateStoryDiversityScores = action({
   args: {
@@ -1169,10 +1367,11 @@ export const migrateStoryDiversityScores = action({
     offset: v.optional(v.number()),
     limit: v.optional(v.number()),
   },
-  handler: async (_ctx, args): Promise<MigrationResult> => {
+  handler: async (ctx, args): Promise<MigrationResult> => {
     const startTime = Date.now();
     const limit = args.limit ?? BATCH_SIZE;
     const offset = args.offset ?? 0;
+    const dryRun = args.dryRun ?? false;
 
     const result: MigrationResult = {
       success: true,
@@ -1186,12 +1385,33 @@ export const migrateStoryDiversityScores = action({
     };
 
     try {
+      // Get Convex game sessions for building mapping
+      console.log('[Migration] Loading Convex game sessions for mapping...');
+
+      const convexSessions = (await ctx.runQuery(
+        'migration:getAllGameSessionsForMapping' as any,
+        {},
+      )) as Array<{
+        convexId: Id<'gameSessions'>;
+        clerkUserId: string;
+        creationTime: number;
+        completedAt?: string;
+        wordsWritten: number;
+        gradeLevel: string;
+        storyContent?: string;
+      }>;
+
+      console.log(
+        `[Migration] Loaded ${convexSessions.length} Convex sessions for mapping`,
+      );
+
+      // Fetch story_diversity_scores with their associated game_sessions to get clerk_user_id
       console.log(
         `[Migration] Fetching story_diversity_scores (offset: ${offset}, limit: ${limit})`,
       );
 
       const response = await fetch(
-        `${args.supabaseUrl}/rest/v1/story_diversity_scores?select=*&order=created_at.asc&offset=${offset}&limit=${limit}`,
+        `${args.supabaseUrl}/rest/v1/story_diversity_scores?select=*,game_sessions!inner(id,user_profiles!inner(clerk_user_id))&order=created_at.asc&offset=${offset}&limit=${limit}`,
         {
           headers: {
             apikey: args.supabaseKey,
@@ -1202,7 +1422,11 @@ export const migrateStoryDiversityScores = action({
       );
 
       if (!response.ok) {
-        if (response.status === 404) {
+        const responseText = await response.text();
+        if (
+          response.status === 404 ||
+          responseText.includes('does not exist')
+        ) {
           console.log(
             '[Migration] story_diversity_scores table does not exist, skipping',
           );
@@ -1210,26 +1434,132 @@ export const migrateStoryDiversityScores = action({
           return result;
         }
         throw new Error(
-          `Supabase fetch failed: ${response.status} ${response.statusText}`,
+          `Supabase fetch failed: ${response.status} ${response.statusText} - ${responseText}`,
         );
       }
 
-      const scores = (await response.json()) as SupabaseStoryDiversityScore[];
+      interface ScoreWithSession extends SupabaseStoryDiversityScore {
+        game_sessions: {
+          id: string;
+          user_profiles: { clerk_user_id: string };
+        };
+      }
+
+      const scores = (await response.json()) as ScoreWithSession[];
       result.totalRecords = scores.length;
+
+      if (scores.length === 0) {
+        console.log('[Migration] No diversity scores found in Supabase');
+        return result;
+      }
 
       console.log(`[Migration] Retrieved ${scores.length} diversity scores`);
 
-      // Diversity scores require session ID mapping
-      result.skippedRecords = scores.length;
-      result.errors.push(
-        'Diversity scores migration requires session ID mapping - implement as needed',
-      );
+      // Build Supabase session UUID → Convex ID mapping
+      const sessionMapping: Record<string, Id<'gameSessions'>> = {};
+
+      // Group Convex sessions by clerkUserId for efficient lookup
+      const sessionsByClerk: Record<string, typeof convexSessions> = {};
+      for (const session of convexSessions) {
+        if (!sessionsByClerk[session.clerkUserId]) {
+          sessionsByClerk[session.clerkUserId] = [];
+        }
+        sessionsByClerk[session.clerkUserId].push(session);
+      }
+
+      // Process each score
+      for (const score of scores) {
+        try {
+          const clerkUserId = score.game_sessions?.user_profiles?.clerk_user_id;
+          const supabaseStoryId = score.story_id;
+
+          if (!clerkUserId) {
+            result.skippedRecords++;
+            console.log(
+              `[Migration] Skipping score ${score.id}: No Clerk user ID on associated session`,
+            );
+            continue;
+          }
+
+          // Find matching Convex session
+          let convexSessionId = sessionMapping[supabaseStoryId];
+
+          if (!convexSessionId) {
+            const userSessions = sessionsByClerk[clerkUserId] || [];
+
+            if (userSessions.length === 0) {
+              result.skippedRecords++;
+              console.log(
+                `[Migration] Skipping score ${score.id}: No Convex sessions for user ${clerkUserId}`,
+              );
+              continue;
+            }
+
+            // Match by creation time proximity
+            if (userSessions.length === 1) {
+              convexSessionId = userSessions[0].convexId;
+            } else {
+              const scoreCreatedAt = new Date(score.created_at).getTime();
+              const matchingSession = userSessions
+                .filter(s => s.creationTime <= scoreCreatedAt)
+                .sort((a, b) => b.creationTime - a.creationTime)[0];
+              convexSessionId =
+                matchingSession?.convexId || userSessions[0].convexId;
+            }
+
+            sessionMapping[supabaseStoryId] = convexSessionId;
+          }
+
+          if (dryRun) {
+            console.log(
+              `[DryRun] Would migrate score: ${score.id} → session ${convexSessionId}`,
+            );
+            result.migratedRecords++;
+            continue;
+          }
+
+          // Insert the diversity score
+          await ctx.runMutation(
+            'migration:insertMigratedStoryDiversityScore' as any,
+            {
+              storyId: convexSessionId,
+              diversityScore: Number(score.diversity_score),
+              novelElementCount: score.novel_element_count,
+              metadata: score.metadata || undefined,
+            },
+          );
+
+          result.migratedRecords++;
+          console.log(`[Migration] Migrated score: ${score.id}`);
+        } catch (error) {
+          result.errorCount++;
+          const errorMsg =
+            error instanceof Error ? error.message : String(error);
+          result.errors.push(`Score ${score.id}: ${errorMsg}`);
+
+          if (result.errorCount >= MAX_ERRORS) {
+            result.success = false;
+            result.errors.push('Max errors reached, aborting migration');
+            break;
+          }
+        }
+      }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       result.errors.push(`Warning: ${errorMsg}`);
     }
 
     result.duration = Date.now() - startTime;
+
+    console.log(`[Migration] Diversity scores migration completed:`, {
+      success: result.success,
+      total: result.totalRecords,
+      migrated: result.migratedRecords,
+      skipped: result.skippedRecords,
+      errors: result.errorCount,
+      duration: `${result.duration}ms`,
+    });
+
     return result;
   },
 });
@@ -1373,6 +1703,152 @@ export const migrateStoryDownloadHistory = action({
   },
 });
 
+/**
+ * Migrate feature flags from Supabase to Convex.
+ *
+ * Feature flags are application configuration records, not user data.
+ * Migration is straightforward - no user ID mapping needed.
+ */
+export const migrateFeatureFlags = action({
+  args: {
+    supabaseUrl: v.string(),
+    supabaseKey: v.string(),
+    dryRun: v.optional(v.boolean()),
+    offset: v.optional(v.number()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<MigrationResult> => {
+    const startTime = Date.now();
+    const limit = args.limit ?? BATCH_SIZE;
+    const offset = args.offset ?? 0;
+    const dryRun = args.dryRun ?? false;
+
+    const result: MigrationResult = {
+      success: true,
+      tableName: 'feature_flags',
+      totalRecords: 0,
+      migratedRecords: 0,
+      skippedRecords: 0,
+      errorCount: 0,
+      errors: [],
+      duration: 0,
+    };
+
+    try {
+      console.log(
+        `[Migration] Fetching feature_flags (offset: ${offset}, limit: ${limit})`,
+      );
+
+      const response = await fetch(
+        `${args.supabaseUrl}/rest/v1/feature_flags?select=*&order=created_at.asc&offset=${offset}&limit=${limit}`,
+        {
+          headers: {
+            apikey: args.supabaseKey,
+            Authorization: `Bearer ${args.supabaseKey}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      if (!response.ok) {
+        const responseText = await response.text();
+        if (
+          response.status === 404 ||
+          responseText.includes('does not exist')
+        ) {
+          console.log(
+            '[Migration] feature_flags table does not exist, skipping',
+          );
+          result.errors.push('Table does not exist in Supabase');
+          return result;
+        }
+        throw new Error(
+          `Supabase fetch failed: ${response.status} ${response.statusText} - ${responseText}`,
+        );
+      }
+
+      interface SupabaseFeatureFlagRecord {
+        id: string;
+        feature_name: string;
+        config: Record<string, unknown>;
+        enabled: boolean;
+        created_at: string;
+        updated_at: string;
+        updated_by?: string;
+        description?: string;
+      }
+
+      const flags = (await response.json()) as SupabaseFeatureFlagRecord[];
+      result.totalRecords = flags.length;
+
+      if (flags.length === 0) {
+        console.log('[Migration] No feature flags found in Supabase');
+        return result;
+      }
+
+      console.log(`[Migration] Retrieved ${flags.length} feature flags`);
+
+      for (const flag of flags) {
+        try {
+          if (dryRun) {
+            console.log(`[DryRun] Would migrate flag: ${flag.feature_name}`);
+            result.migratedRecords++;
+            continue;
+          }
+
+          const insertResult = await ctx.runMutation(
+            'migration:insertMigratedFeatureFlag' as any,
+            {
+              featureName: flag.feature_name,
+              enabled: flag.enabled,
+              config: flag.config || {},
+              description: flag.description || undefined,
+              updatedBy: flag.updated_by || undefined,
+            },
+          );
+
+          if ((insertResult as { action?: string }).action === 'skipped') {
+            result.skippedRecords++;
+            console.log(
+              `[Migration] Feature flag already exists: ${flag.feature_name}`,
+            );
+          } else {
+            result.migratedRecords++;
+            console.log(`[Migration] Migrated flag: ${flag.feature_name}`);
+          }
+        } catch (error) {
+          result.errorCount++;
+          const errorMsg =
+            error instanceof Error ? error.message : String(error);
+          result.errors.push(`Flag ${flag.feature_name}: ${errorMsg}`);
+
+          if (result.errorCount >= MAX_ERRORS) {
+            result.success = false;
+            result.errors.push('Max errors reached, aborting migration');
+            break;
+          }
+        }
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      result.errors.push(`Warning: ${errorMsg}`);
+    }
+
+    result.duration = Date.now() - startTime;
+
+    console.log(`[Migration] Feature flags migration completed:`, {
+      success: result.success,
+      total: result.totalRecords,
+      migrated: result.migratedRecords,
+      skipped: result.skippedRecords,
+      errors: result.errorCount,
+      duration: `${result.duration}ms`,
+    });
+
+    return result;
+  },
+});
+
 // ============================================================================
 // Migration Status and Utilities
 // ============================================================================
@@ -1395,6 +1871,7 @@ export const getMigrationStatus = query({
     const storyDownloadHistory = await ctx.db
       .query('storyDownloadHistory')
       .collect();
+    const featureFlags = await ctx.db.query('featureFlags').collect();
 
     return {
       convexRecordCounts: {
@@ -1404,6 +1881,7 @@ export const getMigrationStatus = query({
         storyElements: storyElements.length,
         storyDiversityScores: storyDiversityScores.length,
         storyDownloadHistory: storyDownloadHistory.length,
+        featureFlags: featureFlags.length,
       },
       timestamp: new Date().toISOString(),
     };
@@ -1489,6 +1967,7 @@ export const clearMigratedTable = mutation({
       v.literal('storyElements'),
       v.literal('storyDiversityScores'),
       v.literal('storyDownloadHistory'),
+      v.literal('featureFlags'),
     ),
     confirmDeletion: v.boolean(),
   },
@@ -1542,6 +2021,14 @@ export const clearMigratedTable = mutation({
       }
       case 'storyDownloadHistory': {
         const records = await ctx.db.query('storyDownloadHistory').collect();
+        for (const record of records) {
+          await ctx.db.delete(record._id);
+          deletedCount++;
+        }
+        break;
+      }
+      case 'featureFlags': {
+        const records = await ctx.db.query('featureFlags').collect();
         for (const record of records) {
           await ctx.db.delete(record._id);
           deletedCount++;
