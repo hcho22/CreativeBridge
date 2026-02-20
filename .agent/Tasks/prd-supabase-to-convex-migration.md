@@ -566,13 +566,31 @@ Migrate CreativeBridge's entire backend infrastructure from Supabase (PostgreSQL
 
 **Acceptance Criteria:**
 
-- [ ] Update `src/services/onboardingService.ts` to:
+- [x] Update `src/services/onboardingService.ts` to:
   - Use Convex functions for onboarding operations
   - **DUAL-WRITE:** Also write to Supabase during transition
-- [ ] Onboarding milestones track correctly
-- [ ] Progress updates work
-- [ ] Typecheck passes
+- [x] Onboarding milestones track correctly
+- [x] Progress updates work
+- [x] Typecheck passes (no new errors introduced - pre-existing test file errors remain)
 - [ ] Verify in simulator: complete first story, see milestone
+
+**Implementation Notes:**
+
+- Added Convex imports: `getConvexClient`, `api`, `isConvexReady` from `./convex`
+- Added `ENABLE_DUAL_WRITE` constant for feature flag control
+- Added `isClerkUserId()` helper to detect OAuth vs email/password users
+- Methods migrated to Convex PRIMARY with Supabase SECONDARY:
+  - `getOnboardingStatus()` - uses `api.onboarding.getOnboardingStatus`
+  - `updateChecklistItem()` - uses `api.onboarding.updateOnboardingProgressItem`
+  - `recordMilestone()` - uses `api.onboarding.recordOnboardingMilestone`
+  - `getOnboardingProgress()` - uses `getOnboardingStatus` internally (already Convex-enabled)
+  - `markOnboardingComplete()` - uses `api.onboarding.recordMultipleMilestones`
+  - `syncToDatabase()` - uses `api.onboarding.recordMultipleMilestones` for batch efficiency
+  - `resetOnboarding()` - uses `api.onboarding.resetOnboardingProgress`
+- Added `syncMilestonesToSupabase()` private helper for non-blocking secondary writes
+- Response format conversion: Convex camelCase fields mapped to legacy snake_case `OnboardingStatus` type
+- Dual-write pattern: Convex is PRIMARY (failures block), Supabase is SECONDARY (failures logged but don't block)
+- AsyncStorage-based methods (tooltips, checklist dismissed, etc.) remain unchanged (local storage only)
 
 ---
 
