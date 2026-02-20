@@ -845,19 +845,46 @@ Migrate CreativeBridge's entire backend infrastructure from Supabase (PostgreSQL
 
 ### Phase 8: Testing & Verification
 
-#### US-028: Unit Test Convex Functions
+#### US-028: Unit Test Convex Functions ✅
 
 **Description:** As a developer, I need unit tests for all Convex functions.
 
 **Acceptance Criteria:**
 
-- [ ] Tests for userProfiles functions (create, get, update, XP operations)
-- [ ] Tests for gameSessions functions (CRUD, search, pagination)
-- [ ] Tests for imageGeneration functions (events, analytics)
-- [ ] Tests for onboarding functions (progress, milestones)
-- [ ] Tests for storage functions (upload, retrieve)
-- [ ] All tests pass
-- [ ] Typecheck passes
+- [x] Tests for userProfiles functions (create, get, update, XP operations)
+- [x] Tests for gameSessions functions (CRUD, search, pagination)
+- [x] Tests for imageGeneration functions (events, analytics)
+- [x] Tests for onboarding functions (progress, milestones)
+- [x] Tests for storage functions (upload, retrieve)
+- [x] All tests pass
+- [x] Typecheck passes
+
+**Implementation Notes:**
+
+- Tests completed on 2026-02-20
+- **Test files created:**
+  - `src/__tests__/mocks/convexMock.ts` - Mock Convex context utilities
+  - `src/__tests__/convex/userProfiles.test.ts` - 36 tests
+  - `src/__tests__/convex/gameSessions.test.ts` - 63 tests
+  - `src/__tests__/convex/imageGeneration.test.ts` - 43 tests
+  - `src/__tests__/convex/onboarding.test.ts` - 27 tests
+  - `src/__tests__/convex/storage.test.ts` - 14 tests
+- **Total:** 183 tests, all passing
+- **Mock infrastructure features:**
+  - `createMockConvexContext()` - Creates mock ctx with db, auth, storage
+  - `createMockDatabase()` - In-memory table simulation with query builder
+  - `createMockStorage()` - Mock storage operations (store, getUrl, delete)
+  - `createMockAuth()` - Mock authentication with test user identity
+  - `createMockClerkIdentity()` - Creates Clerk-compatible UserIdentity
+  - Helper functions for creating test data (profiles, sessions, events)
+- **Test coverage includes:**
+  - CRUD operations for all tables
+  - Authentication and authorization checks
+  - XP operations (add, deduct, refund, validate)
+  - Streak calculations
+  - Pagination and filtering
+  - Error handling and edge cases
+  - Analytics and aggregations
 
 ---
 
