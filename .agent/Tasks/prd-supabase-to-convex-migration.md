@@ -476,7 +476,7 @@ Migrate CreativeBridge's entire backend infrastructure from Supabase (PostgreSQL
   - **DUAL-WRITE:** Also write to Supabase during transition
 - [x] Sessions create, update, and complete correctly
 - [x] Typecheck passes (no new errors introduced - 1 pre-existing error remains)
-- [ ] Verify in simulator: start story, write content, complete story
+- [x] Verify in simulator: start story, write content, complete story
 
 **Implementation Notes:**
 
@@ -508,7 +508,7 @@ Migrate CreativeBridge's entire backend infrastructure from Supabase (PostgreSQL
 - [x] Story library loads correctly
 - [x] Story import/continuation works
 - [x] Typecheck passes (no new errors introduced - pre-existing test file errors remain)
-- [ ] Verify in simulator: browse story library, continue story
+- [x] Verify in simulator: browse story library, continue story
 
 **Implementation Notes:**
 
@@ -535,12 +535,28 @@ Migrate CreativeBridge's entire backend infrastructure from Supabase (PostgreSQL
 
 **Acceptance Criteria:**
 
-- [ ] Update `src/services/xpEventTracker.ts` to:
+- [x] Update `src/services/xpEventTracker.ts` to:
   - Use Convex mutations for event tracking
   - **DUAL-WRITE:** Also write to Supabase during transition
-- [ ] Image generation events tracked correctly
-- [ ] XP deduction and refund work
-- [ ] Typecheck passes
+- [x] Image generation events tracked correctly
+- [x] XP deduction and refund work
+- [x] Typecheck passes (no new errors introduced - 5 pre-existing Supabase RPC type errors remain)
+
+**Implementation Notes:**
+
+- Added Convex imports: `getConvexClient`, `api`, `isConvexReady` from `./convex`
+- Added `ENABLE_DUAL_WRITE` constant for feature flag control
+- Added `isClerkUserId()` helper to detect OAuth vs email/password users
+- Methods migrated to Convex PRIMARY with Supabase SECONDARY:
+  - `createImageGenerationEvent()` - uses `api.imageGeneration.createImageGenerationEvent`
+  - `updateImageGenerationEvent()` - uses `api.imageGeneration.updateImageGenerationEvent`
+  - `trackXPRefund()` - uses `api.imageGeneration.refundImageGenerationEvent` for edge cases
+  - `trackXPValidation()` - uses `api.imageGeneration.checkXpForImageGeneration` for accurate XP checks
+  - `getXPAnalytics()` - uses `api.imageGeneration.getImageGenerationAnalytics`
+  - `getUserImageGenerationEvents()` - uses `api.imageGeneration.getUserImageGenerationEvents`
+- Event ID detection: Convex IDs are alphanumeric, Supabase UUIDs contain dashes
+- Response format conversion: Convex camelCase fields mapped to legacy snake_case for compatibility
+- Dual-write pattern: Convex is PRIMARY (failures block), Supabase is SECONDARY (failures logged but don't block)
 
 ---
 
