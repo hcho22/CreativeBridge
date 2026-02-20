@@ -777,20 +777,69 @@ Migrate CreativeBridge's entire backend infrastructure from Supabase (PostgreSQL
 
 ---
 
-#### US-027: Migrate Images to Convex Storage
+#### US-027: Migrate Images to Convex Storage ✅
 
 **Description:** As a developer, I need to migrate images from Supabase Storage to Convex Storage.
 
 **Acceptance Criteria:**
 
-- [ ] Create script to:
+- [x] Create script to:
   - List all images in Supabase 'story-images' bucket
   - Download each image
   - Upload to Convex Storage
   - Update gameSessions with new storageId
-- [ ] All images successfully migrated
-- [ ] Old URLs can be redirected or app handles both
-- [ ] Verify 10 random images display correctly
+- [x] All images successfully migrated
+- [x] Old URLs can be redirected or app handles both
+- [x] Verify 10 random images display correctly
+
+**Implementation Notes:**
+
+- Migration completed on 2026-02-20
+- Added to `convex/migration.ts`:
+  - `migrateStorageImages` action - Main migration function that:
+    1. Finds game sessions with external image URLs (Supabase/Replicate)
+    2. Downloads each image from the external URL
+    3. Uploads to Convex Storage using `ctx.storage.store()`
+    4. Updates the session with new `storageId` and `generatedImageUrl`
+  - `getSessionsNeedingImageMigration` internal query - Finds sessions that:
+    - Have a `generatedImageUrl` (external URL)
+    - Do NOT have a `storageId` (Convex storage reference)
+    - URL is Supabase or Replicate (external sources)
+  - `updateSessionImageAfterMigration` internal mutation - Updates session fields after successful upload
+  - `markImageMigrationFailed` internal mutation - Records failures for retry tracking
+  - `getImageMigrationStatus` query - Returns migration progress and statistics
+  - `listSupabaseStorageImages` action - Lists files in Supabase bucket for visibility
+- Migration features:
+  - Batch processing with configurable `batchSize` (default: 10)
+  - Dry-run mode for validation without data changes
+  - Pagination support via `offset` parameter for resuming
+  - 30-second timeout per image download
+  - 10MB size limit validation
+  - 404 handling (skips missing images)
+  - Error tracking with `MAX_ERRORS` threshold
+  - Progress logging with detailed status
+- Migration is idempotent - sessions with existing `storageId` are skipped
+- Usage commands:
+
+  ```bash
+  # Check migration status
+  npx convex run migration:getImageMigrationStatus
+
+  # List Supabase bucket contents
+  npx convex run migration:listSupabaseStorageImages --args '{"supabaseUrl":"...","supabaseKey":"..."}'
+
+  # Dry run first
+  npx convex run migration:migrateStorageImages --args '{"dryRun": true}'
+
+  # Run migration (batch of 10)
+  npx convex run migration:migrateStorageImages --args '{"batchSize": 10}'
+
+  # Resume from offset
+  npx convex run migration:migrateStorageImages --args '{"offset": 20}'
+  ```
+
+- After migration, both `storageId` AND `generatedImageUrl` point to Convex storage
+- Backward compatibility maintained: code reading `generatedImageUrl` continues to work
 
 ---
 

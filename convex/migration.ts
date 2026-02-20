@@ -1850,6 +1850,587 @@ export const migrateFeatureFlags = action({
 });
 
 // ============================================================================
+// Image Storage Migration
+// ============================================================================
+
+/**
+ * Result tracking for image migration.
+ */
+interface ImageMigrationResult {
+  success: boolean;
+  totalImages: number;
+  migratedImages: number;
+  skippedImages: number;
+  failedImages: number;
+  errors: string[];
+  duration: number;
+}
+
+/**
+ * Internal query to get game sessions that have images needing migration.
+ *
+ * A session needs image migration if:
+ * 1. It has a generatedImageUrl (external URL)
+ * 2. It does NOT have a storageId (Convex storage reference)
+ * 3. The URL is a Supabase storage URL
+ *
+ * @internal
+ */
+export const getSessionsNeedingImageMigration = internalQuery({
+  args: {
+    limit: v.optional(v.number()),
+    offset: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit ?? 100;
+    const offset = args.offset ?? 0;
+
+    // Get all sessions with images
+    const allSessions = await ctx.db.query('gameSessions').collect();
+
+    // Filter to sessions that need migration
+    const sessionsNeedingMigration = allSessions.filter(session => {
+      // Must have an image URL
+      if (!session.generatedImageUrl) return false;
+
+      // Must NOT already have a Convex storage ID
+      if (session.storageId) return false;
+
+      // Check if it's a Supabase URL (or any external URL we want to migrate)
+      const url = session.generatedImageUrl;
+      const isSupabaseUrl = url.includes('supabase.co/storage');
+      const isReplicateUrl = url.includes('replicate.delivery');
+
+      // Migrate both Supabase and Replicate URLs
+      return isSupabaseUrl || isReplicateUrl;
+    });
+
+    // Apply pagination
+    const paginatedSessions = sessionsNeedingMigration.slice(
+      offset,
+      offset + limit,
+    );
+
+    return {
+      sessions: paginatedSessions.map(s => ({
+        sessionId: s._id,
+        clerkUserId: s.clerkUserId,
+        imageUrl: s.generatedImageUrl,
+        createdAt: s._creationTime,
+      })),
+      totalCount: sessionsNeedingMigration.length,
+      hasMore: offset + limit < sessionsNeedingMigration.length,
+    };
+  },
+});
+
+/**
+ * Internal mutation to update a session after image migration.
+ * Used by the migration action since actions can't directly access ctx.db.
+ *
+ * @internal
+ */
+export const updateSessionImageAfterMigration = internalMutation({
+  args: {
+    sessionId: v.id('gameSessions'),
+    storageId: v.id('_storage'),
+    newImageUrl: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const session = await ctx.db.get(args.sessionId);
+    if (!session) {
+      throw new Error(`Session ${args.sessionId} not found`);
+    }
+
+    await ctx.db.patch(args.sessionId, {
+      storageId: args.storageId,
+      imageUploadStatus: 'uploaded',
+      imageUploadAttempts: 1,
+      imageUploadError: undefined,
+      // Update URL to point to Convex storage
+      generatedImageUrl: args.newImageUrl,
+      imageGenerationTimestamp: new Date().toISOString(),
+    });
+
+    return { success: true };
+  },
+});
+
+/**
+ * Internal mutation to mark an image migration as failed.
+ *
+ * @internal
+ */
+export const markImageMigrationFailed = internalMutation({
+  args: {
+    sessionId: v.id('gameSessions'),
+    error: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const session = await ctx.db.get(args.sessionId);
+    if (!session) {
+      return { success: false };
+    }
+
+    await ctx.db.patch(args.sessionId, {
+      imageUploadStatus: 'failed',
+      imageUploadAttempts: (session.imageUploadAttempts ?? 0) + 1,
+      imageUploadError: args.error,
+    });
+
+    return { success: true };
+  },
+});
+
+/**
+ * Migrate images from Supabase Storage to Convex Storage.
+ *
+ * This action:
+ * 1. Finds game sessions with external image URLs (Supabase/Replicate)
+ * 2. Downloads each image from the external URL
+ * 3. Uploads to Convex Storage
+ * 4. Updates the session with the new storageId
+ *
+ * The migration is idempotent - sessions that already have storageId are skipped.
+ *
+ * @param batchSize - Number of images to process per batch (default: 10)
+ * @param dryRun - If true, only report what would be migrated
+ * @param offset - Starting offset for pagination (for resuming)
+ *
+ * @example
+ * ```bash
+ * # Run migration
+ * npx convex run migration:migrateStorageImages --args '{"batchSize": 10}'
+ *
+ * # Dry run first
+ * npx convex run migration:migrateStorageImages --args '{"dryRun": true}'
+ *
+ * # Resume from offset
+ * npx convex run migration:migrateStorageImages --args '{"offset": 20}'
+ * ```
+ */
+export const migrateStorageImages = action({
+  args: {
+    batchSize: v.optional(v.number()),
+    dryRun: v.optional(v.boolean()),
+    offset: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<ImageMigrationResult> => {
+    const startTime = Date.now();
+    const batchSize = args.batchSize ?? 10;
+    const dryRun = args.dryRun ?? false;
+    const offset = args.offset ?? 0;
+
+    const result: ImageMigrationResult = {
+      success: true,
+      totalImages: 0,
+      migratedImages: 0,
+      skippedImages: 0,
+      failedImages: 0,
+      errors: [],
+      duration: 0,
+    };
+
+    let hasMoreImages = false;
+
+    try {
+      console.log(`[ImageMigration] Starting image migration...`);
+      console.log(`  Batch size: ${batchSize}`);
+      console.log(`  Dry run: ${dryRun}`);
+      console.log(`  Offset: ${offset}`);
+
+      // Get sessions that need image migration
+      const sessionsData = await ctx.runQuery(
+        'migration:getSessionsNeedingImageMigration' as any,
+        { limit: batchSize, offset },
+      );
+
+      const sessions = sessionsData.sessions as Array<{
+        sessionId: Id<'gameSessions'>;
+        clerkUserId: string;
+        imageUrl: string;
+        createdAt: number;
+      }>;
+
+      result.totalImages = sessionsData.totalCount;
+      hasMoreImages = sessionsData.hasMore;
+
+      console.log(
+        `[ImageMigration] Found ${result.totalImages} images needing migration`,
+      );
+      console.log(
+        `[ImageMigration] Processing batch of ${sessions.length} images`,
+      );
+
+      if (sessions.length === 0) {
+        console.log('[ImageMigration] No images to migrate in this batch');
+        result.duration = Date.now() - startTime;
+        return result;
+      }
+
+      // Process each session
+      for (const session of sessions) {
+        try {
+          console.log(
+            `\n[ImageMigration] Processing session ${session.sessionId}`,
+          );
+          console.log(`  Source URL: ${session.imageUrl.substring(0, 80)}...`);
+
+          if (dryRun) {
+            console.log(`  [DryRun] Would migrate this image`);
+            result.migratedImages++;
+            continue;
+          }
+
+          // Step 1: Download the image
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+          let imageData: ArrayBuffer;
+          let contentType: string;
+
+          try {
+            const fetchOptions: RequestInit = {
+              headers: {
+                Accept: 'image/png,image/jpeg,image/webp,image/*',
+              },
+            };
+            (fetchOptions as Record<string, unknown>).signal =
+              controller.signal;
+
+            const response = await fetch(session.imageUrl, fetchOptions);
+
+            if (!response.ok) {
+              // Skip 404 errors (image no longer exists)
+              if (response.status === 404) {
+                console.log(`  ⚠️ Image not found (404), skipping`);
+                result.skippedImages++;
+                continue;
+              }
+              throw new Error(
+                `HTTP ${response.status}: ${response.statusText}`,
+              );
+            }
+
+            contentType = response.headers.get('content-type') || 'image/png';
+            imageData = await response.arrayBuffer();
+
+            if (!imageData || imageData.byteLength === 0) {
+              console.log(`  ⚠️ Empty image data, skipping`);
+              result.skippedImages++;
+              continue;
+            }
+
+            // Check size limit (10MB)
+            if (imageData.byteLength > 10 * 1024 * 1024) {
+              console.log(
+                `  ⚠️ Image too large (${(
+                  imageData.byteLength /
+                  1024 /
+                  1024
+                ).toFixed(2)}MB), skipping`,
+              );
+              result.skippedImages++;
+              continue;
+            }
+
+            console.log(
+              `  ✓ Downloaded (${(imageData.byteLength / 1024).toFixed(2)} KB)`,
+            );
+          } catch (error: unknown) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              throw new Error('Download timeout after 30s');
+            }
+            throw error;
+          } finally {
+            clearTimeout(timeoutId);
+          }
+
+          // Step 2: Upload to Convex storage
+          const storageId = await ctx.storage.store(
+            new Blob([imageData], { type: contentType }),
+          );
+          console.log(`  ✓ Uploaded to Convex: ${storageId}`);
+
+          // Step 3: Get the new URL
+          const newImageUrl = await ctx.storage.getUrl(storageId);
+          if (!newImageUrl) {
+            throw new Error('Failed to get URL for uploaded image');
+          }
+
+          // Step 4: Update the session
+          await ctx.runMutation(
+            'migration:updateSessionImageAfterMigration' as any,
+            {
+              sessionId: session.sessionId,
+              storageId,
+              newImageUrl,
+            },
+          );
+
+          console.log(`  ✅ Migration complete`);
+          result.migratedImages++;
+        } catch (error) {
+          result.failedImages++;
+          const errorMsg =
+            error instanceof Error ? error.message : String(error);
+          const errorRecord = `Session ${session.sessionId}: ${errorMsg}`;
+          result.errors.push(errorRecord);
+          console.log(`  ❌ Error: ${errorMsg}`);
+
+          // Record the failure in the database
+          try {
+            await ctx.runMutation('migration:markImageMigrationFailed' as any, {
+              sessionId: session.sessionId,
+              error: errorMsg,
+            });
+          } catch {
+            // Ignore errors in error recording
+          }
+
+          // Stop if too many errors
+          if (result.failedImages >= MAX_ERRORS) {
+            result.success = false;
+            result.errors.push('Max errors reached, aborting migration');
+            break;
+          }
+        }
+      }
+    } catch (error) {
+      result.success = false;
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      result.errors.push(`Fatal error: ${errorMsg}`);
+    }
+
+    result.duration = Date.now() - startTime;
+
+    console.log(`\n[ImageMigration] Migration batch completed:`);
+    console.log(`  Success: ${result.success}`);
+    console.log(`  Total images: ${result.totalImages}`);
+    console.log(`  Migrated: ${result.migratedImages}`);
+    console.log(`  Skipped: ${result.skippedImages}`);
+    console.log(`  Failed: ${result.failedImages}`);
+    console.log(`  Duration: ${result.duration}ms`);
+
+    if (hasMoreImages) {
+      console.log(
+        `\n[ImageMigration] More images remaining. Run with offset=${
+          offset + batchSize
+        } to continue.`,
+      );
+    }
+
+    return result;
+  },
+});
+
+/**
+ * Get the current status of image migration.
+ *
+ * Returns counts of:
+ * - Sessions with images that need migration (external URLs without storageId)
+ * - Sessions with successfully migrated images (have storageId)
+ * - Sessions with failed migrations
+ */
+export const getImageMigrationStatus = query({
+  args: {},
+  handler: async ctx => {
+    const allSessions = await ctx.db.query('gameSessions').collect();
+
+    // Count different states
+    let needsMigration = 0;
+    let migrated = 0;
+    let failed = 0;
+    let noImage = 0;
+
+    const supabaseUrls: string[] = [];
+    const replicateUrls: string[] = [];
+
+    for (const session of allSessions) {
+      if (!session.generatedImageUrl) {
+        noImage++;
+        continue;
+      }
+
+      if (session.storageId) {
+        // Already migrated to Convex storage
+        migrated++;
+      } else if (session.imageUploadStatus === 'failed') {
+        // Migration was attempted but failed
+        failed++;
+      } else {
+        // Needs migration
+        needsMigration++;
+
+        // Track URL types
+        const url = session.generatedImageUrl;
+        if (url.includes('supabase.co/storage')) {
+          supabaseUrls.push(url);
+        } else if (url.includes('replicate.delivery')) {
+          replicateUrls.push(url);
+        }
+      }
+    }
+
+    return {
+      totalSessions: allSessions.length,
+      sessionsWithImages: migrated + failed + needsMigration,
+      sessionsWithoutImages: noImage,
+      imageStats: {
+        needsMigration,
+        migrated,
+        failed,
+      },
+      urlTypes: {
+        supabase: supabaseUrls.length,
+        replicate: replicateUrls.length,
+        other: needsMigration - supabaseUrls.length - replicateUrls.length,
+      },
+      migrationComplete: needsMigration === 0 && failed === 0,
+      timestamp: new Date().toISOString(),
+    };
+  },
+});
+
+/**
+ * List all Supabase Storage images from the bucket.
+ *
+ * This action fetches the list of files from Supabase Storage
+ * to provide visibility into what images exist in the bucket.
+ *
+ * @param supabaseUrl - Supabase project URL
+ * @param supabaseKey - Supabase service role key
+ * @param bucketName - Storage bucket name (default: 'story-images')
+ */
+export const listSupabaseStorageImages = action({
+  args: {
+    supabaseUrl: v.string(),
+    supabaseKey: v.string(),
+    bucketName: v.optional(v.string()),
+  },
+  handler: async (_ctx, args) => {
+    const bucketName = args.bucketName ?? 'story-images';
+
+    console.log(
+      `[ImageMigration] Listing files in Supabase bucket: ${bucketName}`,
+    );
+
+    try {
+      // List files in the bucket root
+      const response = await fetch(
+        `${args.supabaseUrl}/storage/v1/object/list/${bucketName}`,
+        {
+          method: 'POST',
+          headers: {
+            apikey: args.supabaseKey,
+            Authorization: `Bearer ${args.supabaseKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            prefix: '',
+            limit: 1000,
+            offset: 0,
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Supabase Storage API error: ${response.status} - ${errorText}`,
+        );
+      }
+
+      interface StorageObject {
+        name: string;
+        id: string;
+        created_at: string;
+        updated_at: string;
+        metadata: Record<string, unknown>;
+      }
+
+      const files = (await response.json()) as StorageObject[];
+
+      console.log(
+        `[ImageMigration] Found ${files.length} files/folders in bucket`,
+      );
+
+      // For user folders, we need to list recursively
+      const allImages: Array<{
+        path: string;
+        name: string;
+        createdAt: string;
+        publicUrl: string;
+      }> = [];
+
+      for (const item of files) {
+        // If it's a folder (user ID), list its contents
+        if (!item.name.includes('.')) {
+          const folderResponse = await fetch(
+            `${args.supabaseUrl}/storage/v1/object/list/${bucketName}`,
+            {
+              method: 'POST',
+              headers: {
+                apikey: args.supabaseKey,
+                Authorization: `Bearer ${args.supabaseKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                prefix: item.name + '/',
+                limit: 1000,
+                offset: 0,
+              }),
+            },
+          );
+
+          if (folderResponse.ok) {
+            const folderFiles =
+              (await folderResponse.json()) as StorageObject[];
+            for (const file of folderFiles) {
+              if (file.name.includes('.')) {
+                allImages.push({
+                  path: `${item.name}/${file.name}`,
+                  name: file.name,
+                  createdAt: file.created_at,
+                  publicUrl: `${args.supabaseUrl}/storage/v1/object/public/${bucketName}/${item.name}/${file.name}`,
+                });
+              }
+            }
+          }
+        } else {
+          // Direct file in bucket root
+          allImages.push({
+            path: item.name,
+            name: item.name,
+            createdAt: item.created_at,
+            publicUrl: `${args.supabaseUrl}/storage/v1/object/public/${bucketName}/${item.name}`,
+          });
+        }
+      }
+
+      console.log(`[ImageMigration] Total images found: ${allImages.length}`);
+
+      return {
+        success: true,
+        bucketName,
+        totalImages: allImages.length,
+        images: allImages,
+      };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.log(`[ImageMigration] Error listing images: ${errorMsg}`);
+      return {
+        success: false,
+        error: errorMsg,
+        bucketName,
+        totalImages: 0,
+        images: [],
+      };
+    }
+  },
+});
+
+// ============================================================================
 // Migration Status and Utilities
 // ============================================================================
 
