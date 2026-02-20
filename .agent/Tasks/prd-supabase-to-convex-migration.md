@@ -642,11 +642,26 @@ Migrate CreativeBridge's entire backend infrastructure from Supabase (PostgreSQL
 
 **Acceptance Criteria:**
 
-- [ ] Run migration for user_profiles → userProfiles
-- [ ] All users migrated with correct data
-- [ ] clerk_user_id → clerkUserId mapping correct
-- [ ] Verify record counts match
-- [ ] Spot-check 5 random users for data integrity
+- [x] Run migration for user_profiles → userProfiles
+- [x] All users migrated with correct data
+- [x] clerk_user_id → clerkUserId mapping correct
+- [x] Verify record counts match
+- [x] Spot-check 5 random users for data integrity
+
+**Implementation Notes:**
+
+- Migration completed on 2026-02-20
+- **Supabase records:** 4 total user profiles
+  - 3 with Clerk user IDs (OAuth users) - all migrated
+  - 1 without Clerk user ID (legacy email/password) - skipped as expected
+- **Convex records:** 3 user profiles (100% of eligible records)
+- Data integrity verified:
+  - XP values match exactly (184, 0, 0)
+  - Streak values match (1, 0, 0)
+  - Display names match (Chotog_apple, Chotog, Eric)
+  - Usernames match (7kcftnkjk2, user, mandu_cho)
+- Migration command: `npx convex run migration:migrateUserProfiles`
+- Idempotent: Safe to re-run (skips existing records)
 
 ---
 
