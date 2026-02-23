@@ -22,11 +22,11 @@ import { getConvexClient, api, isConvexReady } from './convex';
 import type { Id } from '../../convex/_generated/dataModel';
 
 // ============================================================================
-// DUAL-WRITE CONFIGURATION (US-020)
+// DUAL-WRITE CONFIGURATION (US-031: DISABLED)
 // ============================================================================
-// During migration: Convex is PRIMARY, Supabase is SECONDARY (for safety)
-// Set to false to disable dual-write after migration is verified stable
-const ENABLE_DUAL_WRITE = true;
+// Migration complete: Convex is now the ONLY data store
+// Dual-write has been disabled per US-031
+const ENABLE_DUAL_WRITE = false;
 
 /**
  * Detect if a user ID is a Clerk user ID (OAuth users) vs Supabase UUID (email/password users).
@@ -132,10 +132,9 @@ class XPEventTracker {
         }
       }
 
-      // SECONDARY: Dual-write to Supabase (or primary if Convex not available/failed)
-      if (ENABLE_DUAL_WRITE || !convexSucceeded) {
-        const logPrefix = convexSucceeded ? '📝 Dual-write:' : '📝 Fallback:';
-        console.log(`${logPrefix} Creating event in Supabase`);
+      // Fallback to Supabase when Convex fails
+      if (!convexSucceeded) {
+        console.log('📝 Fallback: Creating event in Supabase');
 
         const { data: supabaseEventId, error } = await supabase.rpc(
           'create_image_generation_event',
@@ -158,17 +157,9 @@ class XPEventTracker {
             );
             return { success: false, error: error.message };
           }
-          // Convex succeeded but Supabase failed (acceptable during migration)
-          console.warn(
-            '⚠️ Supabase dual-write failed (non-blocking):',
-            error.message,
-          );
         } else {
           console.log('✅ Supabase event created:', { supabaseEventId });
-          // Use Supabase ID only if Convex didn't succeed
-          if (!convexSucceeded) {
-            eventId = supabaseEventId;
-          }
+          eventId = supabaseEventId;
         }
       }
 
@@ -249,9 +240,11 @@ class XPEventTracker {
         }
       }
 
-      // SECONDARY: Dual-write to Supabase (or primary for Supabase UUIDs / fallback)
-      if (ENABLE_DUAL_WRITE || !convexSucceeded || !isConvexEventId) {
-        const logPrefix = convexSucceeded ? '📝 Dual-write:' : '📝 Fallback:';
+      // Fallback to Supabase for Supabase event IDs or when Convex fails
+      if (!convexSucceeded || !isConvexEventId) {
+        const logPrefix = !isConvexEventId
+          ? '📝 Primary (UUID):'
+          : '📝 Fallback:';
         console.log(`${logPrefix} Updating event in Supabase`);
 
         const { error } = await supabase.rpc('update_image_generation_event', {
@@ -270,11 +263,6 @@ class XPEventTracker {
             console.error('❌ Both Convex and Supabase failed:', error);
             return { success: false, error: error.message };
           }
-          // Convex succeeded but Supabase failed (acceptable during migration)
-          console.warn(
-            '⚠️ Supabase dual-write failed (non-blocking):',
-            error.message,
-          );
         } else {
           console.log('✅ Supabase event updated');
         }

@@ -21,11 +21,11 @@ import { getConvexClient, api, isConvexReady } from './convex';
 import type { Doc, Id } from '../../convex/_generated/dataModel';
 
 // ============================================================================
-// DUAL-WRITE CONFIGURATION (US-019)
+// DUAL-WRITE CONFIGURATION (US-031: DISABLED)
 // ============================================================================
-// During migration: Convex is PRIMARY, Supabase is SECONDARY (for safety)
-// Set to false to disable dual-write after migration is verified stable
-const ENABLE_DUAL_WRITE = true;
+// Migration complete: Convex is now the ONLY data store
+// Dual-write has been disabled per US-031
+const ENABLE_DUAL_WRITE = false;
 
 /**
  * Convert Convex game session to legacy GameSession format.
@@ -257,16 +257,6 @@ export class StoryManagementService {
               }
             }
 
-            // SECONDARY: Dual-write to Supabase (non-blocking)
-            if (ENABLE_DUAL_WRITE) {
-              this.dualWriteToSupabase(request, wordCount).catch(err => {
-                console.warn(
-                  '⚠️ Supabase dual-write failed (non-blocking):',
-                  err,
-                );
-              });
-            }
-
             return {
               success: true,
               story: createdStory,
@@ -380,49 +370,6 @@ export class StoryManagementService {
   }
 
   /**
-   * Helper for dual-write to Supabase (non-blocking)
-   * @private
-   */
-  private static async dualWriteToSupabase(
-    request: SaveStoryRequest,
-    wordCount: number,
-  ): Promise<void> {
-    try {
-      console.log('📝 Dual-write: Creating session in Supabase (SECONDARY)');
-
-      if (request.source !== 'New' && request.importedContent) {
-        await (supabase.rpc as any)('create_story_continuation_session', {
-          p_user_id: request.userId,
-          p_grade_level: request.gradeLevel,
-          p_story_source: request.source,
-          p_imported_content: request.importedContent,
-          p_original_date: request.originalDate,
-          p_metadata: request.metadata || {},
-        });
-      } else {
-        await (supabase.from('game_sessions') as any).insert({
-          user_id: request.userId,
-          grade_level: request.gradeLevel,
-          story_content: request.content,
-          words_written: wordCount,
-          story_source: request.source || 'New',
-          story_metadata: request.metadata || {},
-          current_round: 1,
-          final_score: 0,
-          sentences_completed: 0,
-          challenges_completed: 0,
-          xp_earned: 0,
-        });
-      }
-
-      console.log('✅ Supabase dual-write successful');
-    } catch (error) {
-      // Log but don't throw - Convex is the source of truth
-      console.warn('⚠️ Supabase dual-write failed:', error);
-    }
-  }
-
-  /**
    * Update an existing story with conflict resolution
    * US-019: Convex PRIMARY, Supabase SECONDARY (dual-write)
    */
@@ -491,21 +438,6 @@ export class StoryManagementService {
             );
 
             console.log('✅ Convex story update successful');
-
-            // SECONDARY: Dual-write to Supabase (non-blocking)
-            if (ENABLE_DUAL_WRITE) {
-              (supabase.from('game_sessions') as any)
-                .update(finalUpdates)
-                .eq('id', request.sessionId)
-                .eq('user_id', request.userId)
-                .then(() => console.log('✅ Supabase dual-write successful'))
-                .catch((err: Error) =>
-                  console.warn(
-                    '⚠️ Supabase dual-write failed (non-blocking):',
-                    err,
-                  ),
-                );
-            }
 
             if (updatedSession) {
               return {

@@ -17,11 +17,11 @@
  *
  * ## Convex Migration (US-021)
  * This service now uses Convex as PRIMARY data store with Supabase as SECONDARY
- * for dual-write during the migration period.
+ * with Supabase fallback for email/password users.
  *
  * Pattern: Convex PRIMARY, Supabase SECONDARY (non-blocking)
  * - All writes go to Convex first (source of truth)
- * - Dual-writes to Supabase for safety during transition
+ * - Supabase used as fallback for email/password users
  * - Reads from Convex with Supabase fallback
  *
  * @see prd-supabase-to-convex-migration.md (US-021)
@@ -35,11 +35,10 @@ import type { OnboardingProgress, OnboardingStatus } from '../types/database';
 import { getConvexClient, api, isConvexReady } from './convex';
 
 // ============================================================================
-// DUAL-WRITE CONFIGURATION (US-021)
+// MIGRATION COMPLETE (US-031)
 // ============================================================================
-// During migration: Convex is PRIMARY, Supabase is SECONDARY (for safety)
-// Set to false to disable dual-write after migration is verified stable
-const ENABLE_DUAL_WRITE = true;
+// Convex is now the PRIMARY data store for OAuth users
+// Supabase remains as FALLBACK for email/password users (UUID-based)
 
 /**
  * Detect if a user ID is a Clerk user ID (OAuth users) vs Supabase UUID (email/password users).
@@ -285,7 +284,7 @@ class OnboardingService {
    *
    * Convex Migration (US-021):
    * - PRIMARY: Updates in Convex for OAuth/Clerk users
-   * - SECONDARY: Dual-writes to Supabase for safety during transition
+   * - FALLBACK: Supabase for email/password users (UUID-based)
    */
   async updateChecklistItem(
     userId: string,
@@ -332,8 +331,8 @@ class OnboardingService {
         }
       }
 
-      // SECONDARY: Dual-write to Supabase (non-blocking) (US-021)
-      if (ENABLE_DUAL_WRITE || !convexSucceeded) {
+      // FALLBACK: Use Supabase for email/password users (UUID-based)
+      if (!convexSucceeded) {
         try {
           const { error } = await callRpc<boolean>(
             'update_onboarding_progress_item',
@@ -345,40 +344,23 @@ class OnboardingService {
           );
 
           if (error) {
-            if (convexSucceeded) {
-              // Convex succeeded, log Supabase error but don't fail
-              console.warn(
-                `⚠️ Supabase dual-write failed for checklist item '${itemKey}' (Convex succeeded):`,
-                error,
-              );
-            } else {
-              // Neither succeeded, return error
-              console.error(
-                `❌ Error updating checklist item ${itemKey}:`,
-                error,
-              );
-              return { success: false, error: error.message };
-            }
-          } else if (!convexSucceeded) {
-            // Only Supabase succeeded (email/password user)
-            console.log(
-              `✅ Checklist item '${itemKey}' updated in Supabase to ${completed}`,
+            console.error(
+              `❌ Error updating checklist item ${itemKey}:`,
+              error,
             );
+            return { success: false, error: error.message };
           }
-        } catch (supabaseError) {
-          if (!convexSucceeded) {
-            const errorMessage =
-              supabaseError instanceof Error
-                ? supabaseError.message
-                : 'Unknown error';
-            console.error(`❌ Error in updateChecklistItem:`, supabaseError);
-            return { success: false, error: errorMessage };
-          }
-          // Convex succeeded, log Supabase error but don't fail
-          console.warn(
-            `⚠️ Supabase dual-write exception for checklist item '${itemKey}':`,
-            supabaseError,
+
+          console.log(
+            `✅ Checklist item '${itemKey}' updated in Supabase to ${completed}`,
           );
+        } catch (supabaseError) {
+          const errorMessage =
+            supabaseError instanceof Error
+              ? supabaseError.message
+              : 'Unknown error';
+          console.error(`❌ Error in updateChecklistItem:`, supabaseError);
+          return { success: false, error: errorMessage };
         }
       }
 
@@ -399,7 +381,7 @@ class OnboardingService {
    *
    * Convex Migration (US-021):
    * - PRIMARY: Records milestone in Convex for OAuth/Clerk users
-   * - SECONDARY: Dual-writes to Supabase for safety during transition
+   * - FALLBACK: Supabase for email/password users (UUID-based)
    */
   async recordMilestone(
     userId: string,
@@ -454,8 +436,8 @@ class OnboardingService {
         }
       }
 
-      // SECONDARY: Dual-write to Supabase (non-blocking) (US-021)
-      if (ENABLE_DUAL_WRITE || !convexSucceeded) {
+      // FALLBACK: Use Supabase for email/password users (UUID-based)
+      if (!convexSucceeded) {
         try {
           const { error } = await callRpc<boolean>(
             'record_onboarding_milestone',
@@ -467,40 +449,23 @@ class OnboardingService {
           );
 
           if (error) {
-            if (convexSucceeded) {
-              // Convex succeeded, log Supabase error but don't fail
-              console.warn(
-                `⚠️ Supabase dual-write failed for milestone '${milestoneType}' (Convex succeeded):`,
-                error,
-              );
-            } else {
-              // Neither succeeded, return error
-              console.error(
-                `❌ Error recording milestone ${milestoneType}:`,
-                error,
-              );
-              return { success: false, error: error.message };
-            }
-          } else if (!convexSucceeded) {
-            // Only Supabase succeeded (email/password user)
-            console.log(
-              `🏆 Milestone '${milestoneType}' recorded in Supabase with ${xpReward} XP`,
+            console.error(
+              `❌ Error recording milestone ${milestoneType}:`,
+              error,
             );
+            return { success: false, error: error.message };
           }
-        } catch (supabaseError) {
-          if (!convexSucceeded) {
-            const errorMessage =
-              supabaseError instanceof Error
-                ? supabaseError.message
-                : 'Unknown error';
-            console.error(`❌ Error in recordMilestone:`, supabaseError);
-            return { success: false, error: errorMessage };
-          }
-          // Convex succeeded, log Supabase error but don't fail
-          console.warn(
-            `⚠️ Supabase dual-write exception for milestone '${milestoneType}':`,
-            supabaseError,
+
+          console.log(
+            `🏆 Milestone '${milestoneType}' recorded in Supabase with ${xpReward} XP`,
           );
+        } catch (supabaseError) {
+          const errorMessage =
+            supabaseError instanceof Error
+              ? supabaseError.message
+              : 'Unknown error';
+          console.error(`❌ Error in recordMilestone:`, supabaseError);
+          return { success: false, error: errorMessage };
         }
       }
 
@@ -780,7 +745,7 @@ class OnboardingService {
    *
    * Convex Migration (US-021):
    * - PRIMARY: Updates in Convex for OAuth/Clerk users
-   * - SECONDARY: Dual-writes to Supabase for safety during transition
+   * - FALLBACK: Supabase for email/password users (UUID-based)
    *
    * Note: For Convex, we use updateOnboardingProgressItem to set all items as complete,
    * which automatically updates onboardingCompleted via the isOnboardingComplete helper.
@@ -835,43 +800,42 @@ class OnboardingService {
         }
       }
 
-      // SECONDARY: Dual-write to Supabase (non-blocking) (US-021)
-      if (ENABLE_DUAL_WRITE || !convexSucceeded) {
+      // FALLBACK: Use Supabase for email/password users (UUID-based)
+      if (!convexSucceeded) {
         try {
+          // Determine the correct field to query based on user ID type:
+          // - Clerk user IDs (start with "user_") should query by clerk_user_id
+          // - Supabase UUIDs (email/password users) should query by id
+          const isSupabaseUuid =
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+              userId,
+            );
+          const queryField = isSupabaseUuid ? 'id' : 'clerk_user_id';
+
+          console.log(
+            `📝 Supabase fallback: querying by ${queryField} for userId: ${userId.substring(
+              0,
+              20,
+            )}...`,
+          );
+
           const { error } = await (supabase.from('user_profiles') as any)
             .update({ onboarding_completed: true })
-            .eq('id', userId);
+            .eq(queryField, userId);
 
           if (error) {
-            if (convexSucceeded) {
-              // Convex succeeded, log Supabase error but don't fail
-              console.warn(
-                '⚠️ Supabase dual-write failed for markOnboardingComplete (Convex succeeded):',
-                error,
-              );
-            } else {
-              // Neither succeeded, return error
-              console.error('❌ Error marking onboarding complete:', error);
-              return { success: false, error: error.message };
-            }
-          } else if (!convexSucceeded) {
-            // Only Supabase succeeded (email/password user)
-            console.log('✅ Onboarding marked as complete in Supabase');
+            console.error('❌ Error marking onboarding complete:', error);
+            return { success: false, error: error.message };
           }
+
+          console.log('✅ Onboarding marked as complete in Supabase');
         } catch (supabaseError) {
-          if (!convexSucceeded) {
-            const errorMessage =
-              supabaseError instanceof Error
-                ? supabaseError.message
-                : 'Unknown error';
-            console.error('❌ Error in markOnboardingComplete:', supabaseError);
-            return { success: false, error: errorMessage };
-          }
-          // Convex succeeded, log Supabase error but don't fail
-          console.warn(
-            '⚠️ Supabase dual-write exception for markOnboardingComplete:',
-            supabaseError,
-          );
+          const errorMessage =
+            supabaseError instanceof Error
+              ? supabaseError.message
+              : 'Unknown error';
+          console.error('❌ Error in markOnboardingComplete:', supabaseError);
+          return { success: false, error: errorMessage };
         }
       }
 
@@ -1036,11 +1000,6 @@ class OnboardingService {
               `✅ Batch synced ${synced.length} milestones to Convex`,
             );
 
-            // SECONDARY: Also sync to Supabase for dual-write
-            if (ENABLE_DUAL_WRITE) {
-              this.syncMilestonesToSupabase(userId, milestonesToSync);
-            }
-
             return {
               success: true,
               synced: synced.length > 0,
@@ -1074,31 +1033,6 @@ class OnboardingService {
     }
   }
 
-  /**
-   * Helper to sync milestones to Supabase (non-blocking)
-   * Used during dual-write period for batch Convex syncs
-   * @private
-   */
-  private async syncMilestonesToSupabase(
-    userId: string,
-    milestones: OnboardingMilestoneType[],
-  ): Promise<void> {
-    for (const milestone of milestones) {
-      try {
-        await callRpc<boolean>('record_onboarding_milestone', {
-          p_user_id: userId,
-          p_milestone_type: milestone,
-          p_xp_reward: 0, // Don't award XP during sync
-        });
-      } catch (error) {
-        console.warn(
-          `⚠️ Supabase dual-write failed for milestone '${milestone}':`,
-          error,
-        );
-      }
-    }
-  }
-
   // ============================================================================
   // Cache Management
   // ============================================================================
@@ -1124,7 +1058,7 @@ class OnboardingService {
    *
    * Convex Migration (US-021):
    * - PRIMARY: Resets in Convex for OAuth/Clerk users
-   * - SECONDARY: Dual-writes to Supabase for safety during transition
+   * - FALLBACK: Supabase for email/password users (UUID-based)
    */
   async resetOnboarding(userId?: string): Promise<OnboardingServiceResult> {
     try {
@@ -1164,8 +1098,8 @@ class OnboardingService {
           }
         }
 
-        // SECONDARY: Dual-write to Supabase (non-blocking) (US-021)
-        if (ENABLE_DUAL_WRITE || !convexSucceeded) {
+        // FALLBACK: Use Supabase for email/password users (UUID-based)
+        if (!convexSucceeded) {
           try {
             const { error } = await (supabase.from('user_profiles') as any)
               .update({
@@ -1185,38 +1119,21 @@ class OnboardingService {
               .eq('id', userId);
 
             if (error) {
-              if (convexSucceeded) {
-                // Convex succeeded, log Supabase error but don't fail
-                console.warn(
-                  '⚠️ Supabase dual-write failed for resetOnboarding (Convex succeeded):',
-                  error,
-                );
-              } else {
-                // Neither succeeded, return error
-                console.error(
-                  '❌ Error resetting onboarding in database:',
-                  error,
-                );
-                return { success: false, error: error.message };
-              }
-            } else if (!convexSucceeded) {
-              // Only Supabase succeeded (email/password user)
-              console.log('✅ Onboarding reset in Supabase');
+              console.error(
+                '❌ Error resetting onboarding in database:',
+                error,
+              );
+              return { success: false, error: error.message };
             }
+
+            console.log('✅ Onboarding reset in Supabase');
           } catch (supabaseError) {
-            if (!convexSucceeded) {
-              const errorMessage =
-                supabaseError instanceof Error
-                  ? supabaseError.message
-                  : 'Unknown error';
-              console.error('❌ Error resetting onboarding:', supabaseError);
-              return { success: false, error: errorMessage };
-            }
-            // Convex succeeded, log Supabase error but don't fail
-            console.warn(
-              '⚠️ Supabase dual-write exception for resetOnboarding:',
-              supabaseError,
-            );
+            const errorMessage =
+              supabaseError instanceof Error
+                ? supabaseError.message
+                : 'Unknown error';
+            console.error('❌ Error resetting onboarding:', supabaseError);
+            return { success: false, error: errorMessage };
           }
         }
       }

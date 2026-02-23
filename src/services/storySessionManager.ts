@@ -24,11 +24,11 @@ import { getConvexClient, api, isConvexReady } from './convex';
 import type { Doc, Id } from '../../convex/_generated/dataModel';
 
 // ============================================================================
-// DUAL-WRITE CONFIGURATION (US-018)
+// DUAL-WRITE CONFIGURATION (US-031: DISABLED)
 // ============================================================================
-// During migration: Convex is PRIMARY, Supabase is SECONDARY (for safety)
-// Set to false to disable dual-write after migration is verified stable
-const ENABLE_DUAL_WRITE = true;
+// Migration complete: Convex is now the ONLY data store
+// Dual-write has been disabled per US-031
+const ENABLE_DUAL_WRITE = false;
 
 /**
  * Detect if an ID is a Supabase UUID or a Convex ID.
@@ -220,33 +220,6 @@ class StorySessionManager {
         }
         sessionId = (gameSession as any).id;
         createdAt = (gameSession as any).created_at;
-      }
-
-      // SECONDARY: Dual-write to Supabase (non-blocking) - only for Clerk/OAuth users
-      // Email/password users already write directly to Supabase, so no dual-write needed
-      if (ENABLE_DUAL_WRITE && isConvexReady() && isClerkUserId) {
-        try {
-          console.log(
-            '📝 Dual-write: Creating session in Supabase (SECONDARY)',
-          );
-          await supabase.from('game_sessions').insert({
-            user_id: userId,
-            grade_level: gradeLevel,
-            final_score: 0,
-            words_written: 0,
-            sentences_completed: 0,
-            challenges_completed: 0,
-            xp_earned: 0,
-            story_content: '',
-          } as any);
-          console.log('✅ Supabase dual-write successful');
-        } catch (dualWriteError) {
-          // Log but don't fail - Convex is the source of truth
-          console.warn(
-            '⚠️ Supabase dual-write failed (non-blocking):',
-            dualWriteError,
-          );
-        }
       }
 
       // Convert to enhanced StorySession format
@@ -743,9 +716,11 @@ class StorySessionManager {
         );
       }
 
-      // SECONDARY: Dual-write to Supabase (or primary for Supabase UUIDs / fallback if Convex failed)
-      if (ENABLE_DUAL_WRITE || !updateSucceeded || isSessionSupabaseUUID) {
-        const logPrefix = updateSucceeded ? '📝 Dual-write:' : '📝 Fallback:';
+      // Fallback to Supabase for email/password users (Supabase UUIDs) or when Convex fails
+      if (!updateSucceeded || isSessionSupabaseUUID) {
+        const logPrefix = isSessionSupabaseUUID
+          ? '📝 Primary (UUID):'
+          : '📝 Fallback:';
         console.log(`${logPrefix} Updating session in Supabase`);
 
         const { data: updatedSession, error } = await supabase
@@ -1278,7 +1253,7 @@ class StorySessionManager {
 
   /**
    * Update user statistics when a story is completed
-   * Calls the Supabase RPC function to update XP, games played, words written, etc.
+   * Uses Convex for OAuth users (Clerk IDs) and Supabase RPC for email/password users (UUIDs)
    */
   private async updateUserStatisticsOnCompletion(
     session: StorySession,
@@ -1292,21 +1267,54 @@ class StorySessionManager {
         finalScore: session.final_score,
       });
 
-      // Call the database function to update all statistics atomically
-      // IMPORTANT: Database expects INTEGER types, so we must floor all values
-      const { error } = await (supabase.rpc as any)('complete_game_session', {
-        user_uuid: session.user_id,
-        xp_earned: Math.floor(session.xp_earned || 0),
-        words_written: Math.floor(session.words_written || 0),
-        final_score: Math.floor(session.final_score || 0),
-      });
+      // Check if this is a Clerk user ID (OAuth) or Supabase UUID (email/password)
+      const isUserClerkId = isClerkUserId(session.user_id);
 
-      if (error) {
-        console.error('❌ Failed to update user statistics:', error);
-        // Don't throw - we don't want to block story completion if stats update fails
-        // The session is still marked as complete, stats can be fixed later
+      // PRIMARY: Use Convex for OAuth/Clerk users (US-018)
+      if (isConvexReady() && isUserClerkId) {
+        const convexClient = getConvexClient();
+        if (convexClient) {
+          try {
+            console.log('📊 Updating user statistics via Convex (PRIMARY)');
+            const result = await convexClient.mutation(
+              api.userProfiles.completeGameSession,
+              {
+                clerkUserId: session.user_id,
+                xpEarned: Math.floor(session.xp_earned || 0),
+                wordsWritten: Math.floor(session.words_written || 0),
+                finalScore: Math.floor(session.final_score || 0),
+              },
+            );
+            console.log('✅ Convex user statistics updated:', result);
+            return;
+          } catch (convexError) {
+            console.error('❌ Convex stats update failed:', convexError);
+            // Fall through to try Supabase (will likely fail for Clerk IDs too)
+          }
+        }
+      }
+
+      // FALLBACK: Use Supabase RPC for email/password users (UUID format)
+      // This only works for users with Supabase UUIDs, not Clerk IDs
+      if (!isUserClerkId) {
+        console.log('📊 Updating user statistics via Supabase RPC (FALLBACK)');
+        const { error } = await (supabase.rpc as any)('complete_game_session', {
+          user_uuid: session.user_id,
+          xp_earned: Math.floor(session.xp_earned || 0),
+          words_written: Math.floor(session.words_written || 0),
+          final_score: Math.floor(session.final_score || 0),
+        });
+
+        if (error) {
+          console.error('❌ Failed to update user statistics:', error);
+          // Don't throw - we don't want to block story completion if stats update fails
+        } else {
+          console.log('✅ Supabase user statistics updated successfully');
+        }
       } else {
-        console.log('✅ User statistics updated successfully');
+        console.warn(
+          '⚠️ Cannot update user statistics: Convex unavailable and Clerk ID not compatible with Supabase UUID',
+        );
       }
     } catch (error) {
       console.error('💥 Exception updating user statistics:', error);
