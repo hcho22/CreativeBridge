@@ -2533,6 +2533,893 @@ export const verifyMigrationIntegrity = query({
   },
 });
 
+// ============================================================================
+// Dual-Write Data Consistency Verification (US-030)
+// ============================================================================
+
+/**
+ * Field difference for a single record.
+ */
+interface FieldDiff {
+  field: string;
+  supabaseValue: unknown;
+  convexValue: unknown;
+}
+
+/**
+ * Record comparison result.
+ */
+interface RecordComparison {
+  recordId: string;
+  clerkUserId: string;
+  isMatch: boolean;
+  differences: FieldDiff[];
+  supabaseOnly: boolean;
+  convexOnly: boolean;
+}
+
+/**
+ * Table comparison summary.
+ */
+interface TableComparisonResult {
+  tableName: string;
+  supabaseCount: number;
+  convexCount: number;
+  matchingRecords: number;
+  mismatchedRecords: number;
+  supabaseOnlyRecords: number;
+  convexOnlyRecords: number;
+  sampleComparisons: RecordComparison[];
+  criticalDifferences: RecordComparison[];
+  isHealthy: boolean;
+  healthScore: number; // 0.0 to 1.0
+}
+
+/**
+ * Overall dual-write consistency report.
+ */
+interface DualWriteConsistencyReport {
+  timestamp: string;
+  duration: number;
+  overallHealthy: boolean;
+  overallHealthScore: number;
+  tables: TableComparisonResult[];
+  summary: {
+    totalSupabaseRecords: number;
+    totalConvexRecords: number;
+    totalMatches: number;
+    totalMismatches: number;
+    consistencyPercentage: number;
+  };
+  recommendations: string[];
+}
+
+/**
+ * Compare user profiles between Supabase and Convex.
+ *
+ * This action fetches data from both databases and performs field-by-field comparison.
+ *
+ * @param supabaseUrl - Supabase project URL
+ * @param supabaseKey - Supabase service role key
+ * @param sampleSize - Number of records to compare in detail (default: 10)
+ *
+ * @implements US-030: Verify Dual-Write Data Consistency
+ */
+export const compareUserProfiles = action({
+  args: {
+    supabaseUrl: v.string(),
+    supabaseKey: v.string(),
+    sampleSize: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<TableComparisonResult> => {
+    const sampleSize = args.sampleSize ?? 10;
+
+    // Fetch Supabase user profiles
+    const supabaseResponse = await fetch(
+      `${args.supabaseUrl}/rest/v1/user_profiles?select=*&order=created_at.asc`,
+      {
+        headers: {
+          apikey: args.supabaseKey,
+          Authorization: `Bearer ${args.supabaseKey}`,
+          'Content-Type': 'application/json',
+        },
+      },
+    );
+
+    if (!supabaseResponse.ok) {
+      throw new Error(
+        `Supabase fetch failed: ${supabaseResponse.status} ${supabaseResponse.statusText}`,
+      );
+    }
+
+    const supabaseProfiles =
+      (await supabaseResponse.json()) as SupabaseUserProfile[];
+
+    // Filter to only Clerk-authenticated users (same as migration criteria)
+    const eligibleSupabaseProfiles = supabaseProfiles.filter(
+      p => p.clerk_user_id && p.clerk_user_id.startsWith('user_'),
+    );
+
+    // Fetch all Convex user profiles
+    const convexProfiles = (await ctx.runQuery(
+      'migration:getAllUserProfilesForComparison' as any,
+      {},
+    )) as Array<{
+      _id: string;
+      clerkUserId: string;
+      username: string;
+      displayName: string;
+      totalXp: number;
+      currentStreak: number;
+      longestStreak: number;
+      bestScore: number;
+      totalGamesPlayed: number;
+      totalStoriesCompleted: number;
+      totalWordsWritten: number;
+      onboardingCompleted: boolean;
+    }>;
+
+    // Build lookup maps
+    const supabaseByClerkId = new Map(
+      eligibleSupabaseProfiles.map(p => [p.clerk_user_id, p]),
+    );
+    const convexByClerkId = new Map(
+      convexProfiles.map(p => [p.clerkUserId, p]),
+    );
+
+    // Calculate counts
+    const supabaseOnlyIds = [...supabaseByClerkId.keys()].filter(
+      id => !convexByClerkId.has(id),
+    );
+    const convexOnlyIds = [...convexByClerkId.keys()].filter(
+      id => !supabaseByClerkId.has(id),
+    );
+    const commonIds = [...supabaseByClerkId.keys()].filter(id =>
+      convexByClerkId.has(id),
+    );
+
+    // Compare common records
+    const sampleComparisons: RecordComparison[] = [];
+    const criticalDifferences: RecordComparison[] = [];
+    let matchCount = 0;
+
+    for (const clerkUserId of commonIds) {
+      const supabase = supabaseByClerkId.get(clerkUserId)!;
+      const convex = convexByClerkId.get(clerkUserId)!;
+
+      const differences: FieldDiff[] = [];
+
+      // Critical fields that must match
+      const criticalFields: Array<{
+        name: string;
+        supabaseKey: keyof SupabaseUserProfile;
+        convexKey: keyof typeof convex;
+      }> = [
+        { name: 'totalXp', supabaseKey: 'total_xp', convexKey: 'totalXp' },
+        {
+          name: 'currentStreak',
+          supabaseKey: 'current_streak',
+          convexKey: 'currentStreak',
+        },
+        {
+          name: 'longestStreak',
+          supabaseKey: 'longest_streak',
+          convexKey: 'longestStreak',
+        },
+        {
+          name: 'bestScore',
+          supabaseKey: 'best_score',
+          convexKey: 'bestScore',
+        },
+        {
+          name: 'totalGamesPlayed',
+          supabaseKey: 'total_games_played',
+          convexKey: 'totalGamesPlayed',
+        },
+        {
+          name: 'totalStoriesCompleted',
+          supabaseKey: 'total_stories_completed',
+          convexKey: 'totalStoriesCompleted',
+        },
+        {
+          name: 'totalWordsWritten',
+          supabaseKey: 'total_words_written',
+          convexKey: 'totalWordsWritten',
+        },
+      ];
+
+      for (const field of criticalFields) {
+        const supabaseVal = supabase[field.supabaseKey];
+        const convexVal = convex[field.convexKey];
+
+        if (supabaseVal !== convexVal) {
+          differences.push({
+            field: field.name,
+            supabaseValue: supabaseVal,
+            convexValue: convexVal,
+          });
+        }
+      }
+
+      const isMatch = differences.length === 0;
+
+      if (isMatch) {
+        matchCount++;
+      }
+
+      const comparison: RecordComparison = {
+        recordId: supabase.id,
+        clerkUserId,
+        isMatch,
+        differences,
+        supabaseOnly: false,
+        convexOnly: false,
+      };
+
+      // Add to samples if within sample size
+      if (sampleComparisons.length < sampleSize) {
+        sampleComparisons.push(comparison);
+      }
+
+      // Track critical differences (always add mismatches)
+      if (!isMatch) {
+        criticalDifferences.push(comparison);
+      }
+    }
+
+    // Add Supabase-only records to samples
+    for (const clerkUserId of supabaseOnlyIds.slice(
+      0,
+      Math.min(3, sampleSize),
+    )) {
+      const supabase = supabaseByClerkId.get(clerkUserId)!;
+      sampleComparisons.push({
+        recordId: supabase.id,
+        clerkUserId,
+        isMatch: false,
+        differences: [],
+        supabaseOnly: true,
+        convexOnly: false,
+      });
+    }
+
+    // Add Convex-only records to samples
+    for (const clerkUserId of convexOnlyIds.slice(0, Math.min(3, sampleSize))) {
+      const convex = convexByClerkId.get(clerkUserId)!;
+      sampleComparisons.push({
+        recordId: convex._id,
+        clerkUserId,
+        isMatch: false,
+        differences: [],
+        supabaseOnly: false,
+        convexOnly: true,
+      });
+    }
+
+    const healthScore =
+      commonIds.length > 0 ? matchCount / commonIds.length : 1.0;
+
+    return {
+      tableName: 'userProfiles',
+      supabaseCount: eligibleSupabaseProfiles.length,
+      convexCount: convexProfiles.length,
+      matchingRecords: matchCount,
+      mismatchedRecords: commonIds.length - matchCount,
+      supabaseOnlyRecords: supabaseOnlyIds.length,
+      convexOnlyRecords: convexOnlyIds.length,
+      sampleComparisons,
+      criticalDifferences: criticalDifferences.slice(0, 10),
+      isHealthy: healthScore >= 0.99,
+      healthScore,
+    };
+  },
+});
+
+/**
+ * Compare game sessions between Supabase and Convex.
+ *
+ * Uses clerkUserId + wordsWritten + gradeLevel as composite key for matching.
+ *
+ * @implements US-030: Verify Dual-Write Data Consistency
+ */
+export const compareGameSessions = action({
+  args: {
+    supabaseUrl: v.string(),
+    supabaseKey: v.string(),
+    sampleSize: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<TableComparisonResult> => {
+    const sampleSize = args.sampleSize ?? 10;
+
+    // Fetch Supabase game sessions with user info
+    const supabaseResponse = await fetch(
+      `${args.supabaseUrl}/rest/v1/game_sessions?select=*,user_profiles!inner(clerk_user_id)&order=created_at.asc`,
+      {
+        headers: {
+          apikey: args.supabaseKey,
+          Authorization: `Bearer ${args.supabaseKey}`,
+          'Content-Type': 'application/json',
+        },
+      },
+    );
+
+    if (!supabaseResponse.ok) {
+      throw new Error(
+        `Supabase fetch failed: ${supabaseResponse.status} ${supabaseResponse.statusText}`,
+      );
+    }
+
+    interface SupabaseSessionWithUser extends SupabaseGameSession {
+      user_profiles: { clerk_user_id: string };
+    }
+
+    const supabaseSessions =
+      (await supabaseResponse.json()) as SupabaseSessionWithUser[];
+
+    // Filter to only Clerk-authenticated users
+    const eligibleSupabaseSessions = supabaseSessions.filter(
+      s =>
+        s.user_profiles?.clerk_user_id &&
+        s.user_profiles.clerk_user_id.startsWith('user_'),
+    );
+
+    // Fetch all Convex game sessions
+    const convexSessions = (await ctx.runQuery(
+      'migration:getAllGameSessionsForComparison' as any,
+      {},
+    )) as Array<{
+      _id: string;
+      clerkUserId: string;
+      gradeLevel: string;
+      finalScore: number;
+      wordsWritten: number;
+      xpEarned: number;
+      currentRound: number;
+      completedAt?: string;
+      storyContent?: string;
+    }>;
+
+    // Build composite keys for matching
+    // Key format: clerkUserId|wordsWritten|gradeLevel|round
+    const buildKey = (
+      clerkUserId: string,
+      wordsWritten: number,
+      gradeLevel: string,
+      round: number,
+    ) => `${clerkUserId}|${wordsWritten}|${gradeLevel}|${round}`;
+
+    const supabaseByKey = new Map<string, SupabaseSessionWithUser>();
+    for (const s of eligibleSupabaseSessions) {
+      const key = buildKey(
+        s.user_profiles.clerk_user_id,
+        s.words_written ?? 0,
+        s.grade_level || 'K-2',
+        s.current_round ?? 1,
+      );
+      supabaseByKey.set(key, s);
+    }
+
+    const convexByKey = new Map<string, (typeof convexSessions)[0]>();
+    for (const s of convexSessions) {
+      const key = buildKey(
+        s.clerkUserId,
+        s.wordsWritten,
+        s.gradeLevel,
+        s.currentRound,
+      );
+      convexByKey.set(key, s);
+    }
+
+    // Calculate counts
+    const supabaseOnlyKeys = [...supabaseByKey.keys()].filter(
+      k => !convexByKey.has(k),
+    );
+    const convexOnlyKeys = [...convexByKey.keys()].filter(
+      k => !supabaseByKey.has(k),
+    );
+    const commonKeys = [...supabaseByKey.keys()].filter(k =>
+      convexByKey.has(k),
+    );
+
+    // Compare common records
+    const sampleComparisons: RecordComparison[] = [];
+    const criticalDifferences: RecordComparison[] = [];
+    let matchCount = 0;
+
+    for (const key of commonKeys) {
+      const supabase = supabaseByKey.get(key)!;
+      const convex = convexByKey.get(key)!;
+
+      const differences: FieldDiff[] = [];
+
+      // Critical fields
+      if ((supabase.final_score ?? 0) !== convex.finalScore) {
+        differences.push({
+          field: 'finalScore',
+          supabaseValue: supabase.final_score,
+          convexValue: convex.finalScore,
+        });
+      }
+
+      if ((supabase.xp_earned ?? 0) !== convex.xpEarned) {
+        differences.push({
+          field: 'xpEarned',
+          supabaseValue: supabase.xp_earned,
+          convexValue: convex.xpEarned,
+        });
+      }
+
+      // Check completion status
+      const supabaseCompleted = !!supabase.completed_at;
+      const convexCompleted = !!convex.completedAt;
+      if (supabaseCompleted !== convexCompleted) {
+        differences.push({
+          field: 'completionStatus',
+          supabaseValue: supabaseCompleted,
+          convexValue: convexCompleted,
+        });
+      }
+
+      const isMatch = differences.length === 0;
+
+      if (isMatch) {
+        matchCount++;
+      }
+
+      const comparison: RecordComparison = {
+        recordId: supabase.id,
+        clerkUserId: supabase.user_profiles.clerk_user_id,
+        isMatch,
+        differences,
+        supabaseOnly: false,
+        convexOnly: false,
+      };
+
+      if (sampleComparisons.length < sampleSize) {
+        sampleComparisons.push(comparison);
+      }
+
+      if (!isMatch) {
+        criticalDifferences.push(comparison);
+      }
+    }
+
+    const healthScore =
+      commonKeys.length > 0 ? matchCount / commonKeys.length : 1.0;
+
+    return {
+      tableName: 'gameSessions',
+      supabaseCount: eligibleSupabaseSessions.length,
+      convexCount: convexSessions.length,
+      matchingRecords: matchCount,
+      mismatchedRecords: commonKeys.length - matchCount,
+      supabaseOnlyRecords: supabaseOnlyKeys.length,
+      convexOnlyRecords: convexOnlyKeys.length,
+      sampleComparisons,
+      criticalDifferences: criticalDifferences.slice(0, 10),
+      isHealthy: healthScore >= 0.99,
+      healthScore,
+    };
+  },
+});
+
+/**
+ * Compare image generation events between Supabase and Convex.
+ *
+ * Uses clerkUserId + xpCost + generationStatus as composite key.
+ *
+ * @implements US-030: Verify Dual-Write Data Consistency
+ */
+export const compareImageGenerationEvents = action({
+  args: {
+    supabaseUrl: v.string(),
+    supabaseKey: v.string(),
+    sampleSize: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<TableComparisonResult> => {
+    const sampleSize = args.sampleSize ?? 10;
+
+    // Fetch Supabase user profiles for mapping
+    const userProfilesResponse = await fetch(
+      `${args.supabaseUrl}/rest/v1/user_profiles?select=id,clerk_user_id`,
+      {
+        headers: {
+          apikey: args.supabaseKey,
+          Authorization: `Bearer ${args.supabaseKey}`,
+          'Content-Type': 'application/json',
+        },
+      },
+    );
+
+    if (!userProfilesResponse.ok) {
+      throw new Error(
+        `Supabase user_profiles fetch failed: ${userProfilesResponse.status}`,
+      );
+    }
+
+    interface UserIdMapping {
+      id: string;
+      clerk_user_id: string | null;
+    }
+
+    const supabaseUsers =
+      (await userProfilesResponse.json()) as UserIdMapping[];
+    const userIdToClerkId = new Map(
+      supabaseUsers
+        .filter(u => u.clerk_user_id)
+        .map(u => [u.id, u.clerk_user_id!]),
+    );
+
+    // Fetch Supabase image generation events
+    const eventsResponse = await fetch(
+      `${args.supabaseUrl}/rest/v1/image_generation_events?select=*&order=created_at.asc`,
+      {
+        headers: {
+          apikey: args.supabaseKey,
+          Authorization: `Bearer ${args.supabaseKey}`,
+          'Content-Type': 'application/json',
+        },
+      },
+    );
+
+    if (!eventsResponse.ok) {
+      throw new Error(
+        `Supabase fetch failed: ${eventsResponse.status} ${eventsResponse.statusText}`,
+      );
+    }
+
+    const supabaseEvents =
+      (await eventsResponse.json()) as SupabaseImageGenerationEvent[];
+
+    // Filter to only Clerk-authenticated users
+    const eligibleSupabaseEvents = supabaseEvents.filter(e => {
+      const clerkId = userIdToClerkId.get(e.user_id);
+      return clerkId && clerkId.startsWith('user_');
+    });
+
+    // Fetch all Convex image generation events
+    const convexEvents = (await ctx.runQuery(
+      'migration:getAllImageGenerationEventsForComparison' as any,
+      {},
+    )) as Array<{
+      _id: string;
+      clerkUserId: string;
+      xpCost: number;
+      generationStatus: string;
+      serviceUsed: string;
+      imageUrl?: string;
+    }>;
+
+    // Build composite keys for matching
+    const buildKey = (clerkUserId: string, xpCost: number, status: string) =>
+      `${clerkUserId}|${xpCost}|${status}`;
+
+    const supabaseByKey = new Map<string, SupabaseImageGenerationEvent>();
+    for (const e of eligibleSupabaseEvents) {
+      const clerkId = userIdToClerkId.get(e.user_id);
+      if (clerkId) {
+        const key = buildKey(clerkId, e.xp_cost, e.generation_status);
+        supabaseByKey.set(key, e);
+      }
+    }
+
+    const convexByKey = new Map<string, (typeof convexEvents)[0]>();
+    for (const e of convexEvents) {
+      const key = buildKey(e.clerkUserId, e.xpCost, e.generationStatus);
+      convexByKey.set(key, e);
+    }
+
+    // Calculate counts
+    const supabaseOnlyKeys = [...supabaseByKey.keys()].filter(
+      k => !convexByKey.has(k),
+    );
+    const convexOnlyKeys = [...convexByKey.keys()].filter(
+      k => !supabaseByKey.has(k),
+    );
+    const commonKeys = [...supabaseByKey.keys()].filter(k =>
+      convexByKey.has(k),
+    );
+
+    // Compare common records
+    const sampleComparisons: RecordComparison[] = [];
+    const criticalDifferences: RecordComparison[] = [];
+    let matchCount = 0;
+
+    for (const key of commonKeys) {
+      const supabase = supabaseByKey.get(key)!;
+      const convex = convexByKey.get(key)!;
+
+      const differences: FieldDiff[] = [];
+
+      // Check service used
+      if (supabase.service_used !== convex.serviceUsed) {
+        differences.push({
+          field: 'serviceUsed',
+          supabaseValue: supabase.service_used,
+          convexValue: convex.serviceUsed,
+        });
+      }
+
+      // Check if both have or don't have an image URL
+      const supabaseHasImage = !!supabase.image_url;
+      const convexHasImage = !!convex.imageUrl;
+      if (supabaseHasImage !== convexHasImage) {
+        differences.push({
+          field: 'hasImageUrl',
+          supabaseValue: supabaseHasImage,
+          convexValue: convexHasImage,
+        });
+      }
+
+      const isMatch = differences.length === 0;
+
+      if (isMatch) {
+        matchCount++;
+      }
+
+      const clerkUserId = userIdToClerkId.get(supabase.user_id) ?? 'unknown';
+
+      const comparison: RecordComparison = {
+        recordId: supabase.id,
+        clerkUserId,
+        isMatch,
+        differences,
+        supabaseOnly: false,
+        convexOnly: false,
+      };
+
+      if (sampleComparisons.length < sampleSize) {
+        sampleComparisons.push(comparison);
+      }
+
+      if (!isMatch) {
+        criticalDifferences.push(comparison);
+      }
+    }
+
+    const healthScore =
+      commonKeys.length > 0 ? matchCount / commonKeys.length : 1.0;
+
+    return {
+      tableName: 'imageGenerationEvents',
+      supabaseCount: eligibleSupabaseEvents.length,
+      convexCount: convexEvents.length,
+      matchingRecords: matchCount,
+      mismatchedRecords: commonKeys.length - matchCount,
+      supabaseOnlyRecords: supabaseOnlyKeys.length,
+      convexOnlyRecords: convexOnlyKeys.length,
+      sampleComparisons,
+      criticalDifferences: criticalDifferences.slice(0, 10),
+      isHealthy: healthScore >= 0.99,
+      healthScore,
+    };
+  },
+});
+
+/**
+ * Run a complete dual-write consistency verification across all tables.
+ *
+ * This is the main entry point for daily consistency checks during the dual-write period.
+ *
+ * Usage:
+ * ```bash
+ * npx convex run migration:verifyDualWriteConsistency \
+ *   --args '{"supabaseUrl":"https://xxx.supabase.co","supabaseKey":"xxx"}'
+ * ```
+ *
+ * @implements US-030: Verify Dual-Write Data Consistency
+ */
+export const verifyDualWriteConsistency = action({
+  args: {
+    supabaseUrl: v.string(),
+    supabaseKey: v.string(),
+    sampleSize: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<DualWriteConsistencyReport> => {
+    const startTime = Date.now();
+    const sampleSize = args.sampleSize ?? 10;
+
+    console.log('[DualWriteVerification] Starting consistency check...');
+
+    const tables: TableComparisonResult[] = [];
+    const recommendations: string[] = [];
+
+    // Compare user profiles
+    console.log('[DualWriteVerification] Comparing user profiles...');
+    const userProfilesResult = (await ctx.runAction(
+      'migration:compareUserProfiles' as any,
+      {
+        supabaseUrl: args.supabaseUrl,
+        supabaseKey: args.supabaseKey,
+        sampleSize,
+      },
+    )) as TableComparisonResult;
+    tables.push(userProfilesResult);
+
+    if (!userProfilesResult.isHealthy) {
+      recommendations.push(
+        `User profiles have ${userProfilesResult.mismatchedRecords} mismatches. Review critical differences.`,
+      );
+    }
+
+    if (userProfilesResult.supabaseOnlyRecords > 0) {
+      recommendations.push(
+        `${userProfilesResult.supabaseOnlyRecords} user profiles exist only in Supabase. Run migration.`,
+      );
+    }
+
+    // Compare game sessions
+    console.log('[DualWriteVerification] Comparing game sessions...');
+    const gameSessionsResult = (await ctx.runAction(
+      'migration:compareGameSessions' as any,
+      {
+        supabaseUrl: args.supabaseUrl,
+        supabaseKey: args.supabaseKey,
+        sampleSize,
+      },
+    )) as TableComparisonResult;
+    tables.push(gameSessionsResult);
+
+    if (!gameSessionsResult.isHealthy) {
+      recommendations.push(
+        `Game sessions have ${gameSessionsResult.mismatchedRecords} mismatches. Check XP/score discrepancies.`,
+      );
+    }
+
+    // Compare image generation events
+    console.log('[DualWriteVerification] Comparing image generation events...');
+    const imageEventsResult = (await ctx.runAction(
+      'migration:compareImageGenerationEvents' as any,
+      {
+        supabaseUrl: args.supabaseUrl,
+        supabaseKey: args.supabaseKey,
+        sampleSize,
+      },
+    )) as TableComparisonResult;
+    tables.push(imageEventsResult);
+
+    if (
+      imageEventsResult.convexOnlyRecords >
+      imageEventsResult.supabaseOnlyRecords
+    ) {
+      recommendations.push(
+        'More events in Convex than Supabase - dual-write to Supabase may be failing.',
+      );
+    }
+
+    // Calculate summary
+    const totalSupabaseRecords = tables.reduce(
+      (sum, t) => sum + t.supabaseCount,
+      0,
+    );
+    const totalConvexRecords = tables.reduce(
+      (sum, t) => sum + t.convexCount,
+      0,
+    );
+    const totalMatches = tables.reduce((sum, t) => sum + t.matchingRecords, 0);
+    const totalMismatches = tables.reduce(
+      (sum, t) => sum + t.mismatchedRecords,
+      0,
+    );
+
+    const consistencyPercentage =
+      totalMatches + totalMismatches > 0
+        ? (totalMatches / (totalMatches + totalMismatches)) * 100
+        : 100;
+
+    const overallHealthScore =
+      tables.length > 0
+        ? tables.reduce((sum, t) => sum + t.healthScore, 0) / tables.length
+        : 1.0;
+
+    const overallHealthy = tables.every(t => t.isHealthy);
+
+    if (consistencyPercentage < 99) {
+      recommendations.push(
+        `Overall consistency is ${consistencyPercentage.toFixed(
+          2,
+        )}%. Target is 99%+.`,
+      );
+    }
+
+    if (recommendations.length === 0) {
+      recommendations.push('All systems healthy. No action required.');
+    }
+
+    const duration = Date.now() - startTime;
+
+    console.log('[DualWriteVerification] Consistency check complete:', {
+      overallHealthy,
+      overallHealthScore: overallHealthScore.toFixed(3),
+      consistencyPercentage: consistencyPercentage.toFixed(2) + '%',
+      duration: `${duration}ms`,
+    });
+
+    return {
+      timestamp: new Date().toISOString(),
+      duration,
+      overallHealthy,
+      overallHealthScore,
+      tables,
+      summary: {
+        totalSupabaseRecords,
+        totalConvexRecords,
+        totalMatches,
+        totalMismatches,
+        consistencyPercentage,
+      },
+      recommendations,
+    };
+  },
+});
+
+/**
+ * Get all user profiles for comparison (internal query for comparison actions).
+ */
+export const getAllUserProfilesForComparison = internalQuery({
+  args: {},
+  handler: async ctx => {
+    const profiles = await ctx.db.query('userProfiles').collect();
+    return profiles.map(p => ({
+      _id: p._id,
+      clerkUserId: p.clerkUserId,
+      username: p.username,
+      displayName: p.displayName,
+      totalXp: p.totalXp,
+      currentStreak: p.currentStreak,
+      longestStreak: p.longestStreak,
+      bestScore: p.bestScore,
+      totalGamesPlayed: p.totalGamesPlayed,
+      totalStoriesCompleted: p.totalStoriesCompleted,
+      totalWordsWritten: p.totalWordsWritten,
+      onboardingCompleted: p.onboardingCompleted,
+    }));
+  },
+});
+
+/**
+ * Get all game sessions for comparison (internal query for comparison actions).
+ */
+export const getAllGameSessionsForComparison = internalQuery({
+  args: {},
+  handler: async ctx => {
+    const sessions = await ctx.db.query('gameSessions').collect();
+    return sessions.map(s => ({
+      _id: s._id,
+      clerkUserId: s.clerkUserId,
+      gradeLevel: s.gradeLevel,
+      finalScore: s.finalScore,
+      wordsWritten: s.wordsWritten,
+      xpEarned: s.xpEarned,
+      currentRound: s.currentRound,
+      completedAt: s.completedAt,
+      storyContent: s.storyContent?.substring(0, 100),
+    }));
+  },
+});
+
+/**
+ * Get all image generation events for comparison (internal query for comparison actions).
+ */
+export const getAllImageGenerationEventsForComparison = internalQuery({
+  args: {},
+  handler: async ctx => {
+    const events = await ctx.db.query('imageGenerationEvents').collect();
+    return events.map(e => ({
+      _id: e._id,
+      clerkUserId: e.clerkUserId,
+      xpCost: e.xpCost,
+      generationStatus: e.generationStatus,
+      serviceUsed: e.serviceUsed,
+      imageUrl: e.imageUrl,
+    }));
+  },
+});
+
+// ============================================================================
+// Table Cleanup (Development/Testing Only)
+// ============================================================================
+
 /**
  * Clear all migrated data (USE WITH CAUTION - for testing only).
  *
