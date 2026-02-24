@@ -88,6 +88,22 @@ interface SignUpData {
   gradeLevel: GradeLevel;
 }
 
+/**
+ * Pending profile data stored in AsyncStorage during Clerk email/password sign-up.
+ * This data is stored after sign-up but before email verification,
+ * and used to create the Convex profile after verification completes.
+ */
+interface PendingClerkProfile {
+  username: string;
+  displayName: string;
+  gradeLevel: GradeLevel;
+  email: string;
+  createdAt: string;
+}
+
+// AsyncStorage key for pending Clerk profile data (US-002)
+const PENDING_CLERK_PROFILE_KEY = '@CreativeBridge:pendingClerkProfile';
+
 interface AuthContextType {
   session: Session | null;
   user: User | null;
@@ -165,6 +181,12 @@ interface AuthContextType {
   }>;
   checkProfileCompletion: () => Promise<void>;
   clearOAuthError: () => void;
+  // Clerk email/password authentication (US-002)
+  signUpWithClerk: (
+    email: string,
+    password: string,
+    profileData: SignUpData,
+  ) => Promise<{ needsVerification?: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -1521,6 +1543,109 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('💥 Error creating image generation event:', error);
       return null;
+    }
+  };
+
+  // ============================================================================
+  // CLERK EMAIL/PASSWORD AUTHENTICATION (US-002)
+  // ============================================================================
+
+  /**
+   * Sign up a new user with email and password via Clerk.
+   *
+   * This function:
+   * 1. Creates a Clerk sign-up with email/password
+   * 2. Triggers email verification code flow
+   * 3. Stores pending profile data in AsyncStorage for post-verification
+   *
+   * @param email - User's email address
+   * @param password - User's password (min 8 chars, mixed case, numbers per Clerk config)
+   * @param profileData - Username, displayName, and gradeLevel for profile creation
+   * @returns { needsVerification: true } on success, { error: string } on failure
+   */
+  const signUpWithClerk = async (
+    email: string,
+    password: string,
+    profileData: SignUpData,
+  ): Promise<{ needsVerification?: boolean; error?: string }> => {
+    try {
+      console.log(
+        '📧 [AuthContext] Initiating Clerk email/password sign-up...',
+      );
+
+      // Check if Clerk signUp is available
+      if (!clerkSignUp?.signUp) {
+        const error =
+          'Clerk is not configured or not available. Please configure Clerk to use email/password authentication.';
+        console.error('❌ [AuthContext]', error);
+        return { error };
+      }
+
+      const { signUp } = clerkSignUp;
+
+      // Step 1: Create Clerk sign-up with email and password
+      console.log('📧 [AuthContext] Creating Clerk sign-up...');
+      await signUp.create({
+        emailAddress: email,
+        password,
+      });
+
+      // Step 2: Trigger email verification code flow
+      console.log('📧 [AuthContext] Preparing email verification...');
+      await signUp.prepareEmailAddressVerification({
+        strategy: 'email_code',
+      });
+
+      // Step 3: Store pending profile data in AsyncStorage
+      // This will be used after email verification to create the Convex profile
+      const pendingProfile: PendingClerkProfile = {
+        username: profileData.username,
+        displayName: profileData.displayName || profileData.username,
+        gradeLevel: profileData.gradeLevel,
+        email,
+        createdAt: new Date().toISOString(),
+      };
+
+      console.log('📧 [AuthContext] Storing pending profile data...');
+      await AsyncStorage.setItem(
+        PENDING_CLERK_PROFILE_KEY,
+        JSON.stringify(pendingProfile),
+      );
+
+      console.log(
+        '✅ [AuthContext] Clerk sign-up successful, verification email sent',
+      );
+      return { needsVerification: true };
+    } catch (error) {
+      console.error('❌ [AuthContext] Clerk sign-up failed:', error);
+
+      // Parse Clerk error messages for user-friendly display
+      let errorMessage = 'An unexpected error occurred during sign-up';
+
+      if (error instanceof Error) {
+        const message = error.message.toLowerCase();
+
+        // Handle common Clerk errors
+        if (message.includes('email_address') && message.includes('taken')) {
+          errorMessage =
+            'This email address is already registered. Please sign in instead.';
+        } else if (message.includes('password') && message.includes('weak')) {
+          errorMessage =
+            'Password is too weak. Please use at least 8 characters with mixed case and numbers.';
+        } else if (message.includes('password') && message.includes('short')) {
+          errorMessage = 'Password must be at least 8 characters long.';
+        } else if (message.includes('invalid') && message.includes('email')) {
+          errorMessage = 'Please enter a valid email address.';
+        } else if (message.includes('rate') || message.includes('limit')) {
+          errorMessage =
+            'Too many sign-up attempts. Please wait a moment and try again.';
+        } else {
+          // Use the original error message if it's descriptive enough
+          errorMessage = error.message;
+        }
+      }
+
+      return { error: errorMessage };
     }
   };
 
@@ -3735,6 +3860,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       signInWithApple,
       checkProfileCompletion,
       clearOAuthError,
+      signUpWithClerk,
     }),
     [
       session,
@@ -3764,6 +3890,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       signInWithApple,
       checkProfileCompletion,
       clearOAuthError,
+      signUpWithClerk,
     ],
   );
 
