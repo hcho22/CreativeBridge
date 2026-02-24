@@ -2503,10 +2503,16 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       });
 
       // Get Clerk user ID for Convex operations
-      const clerkUserIdForXp = userProfile.clerk_user_id || clerkAuth?.userId;
+      // Priority order: userProfile.clerk_user_id > clerkUserId (component-level) > clerkAuth?.userId
+      const clerkUserIdForXp =
+        userProfile.clerk_user_id || clerkUserId || clerkAuth?.userId;
 
       if (!clerkUserIdForXp) {
-        console.error('❌ XP deduction failed: No Clerk user ID');
+        console.error('❌ XP deduction failed: No Clerk user ID', {
+          profileClerkId: userProfile.clerk_user_id,
+          componentClerkId: clerkUserId,
+          authClerkId: clerkAuth?.userId,
+        });
         return {
           success: false,
           error: 'No Clerk user ID available',
@@ -2609,10 +2615,16 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       });
 
       // Get Clerk user ID for Convex operations
-      const clerkUserIdForXp = userProfile.clerk_user_id || clerkAuth?.userId;
+      // Priority order: userProfile.clerk_user_id > clerkUserId (component-level) > clerkAuth?.userId
+      const clerkUserIdForXp =
+        userProfile.clerk_user_id || clerkUserId || clerkAuth?.userId;
 
       if (!clerkUserIdForXp) {
-        console.error('❌ XP refund failed: No Clerk user ID');
+        console.error('❌ XP refund failed: No Clerk user ID', {
+          profileClerkId: userProfile.clerk_user_id,
+          componentClerkId: clerkUserId,
+          authClerkId: clerkAuth?.userId,
+        });
         return {
           success: false,
           error: 'No Clerk user ID available',
@@ -2724,10 +2736,17 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
     try {
       // Get Clerk user ID for Convex operations
-      const clerkUserIdForXp = userProfile.clerk_user_id || clerkAuth?.userId;
+      // Priority order: userProfile.clerk_user_id (from Convex/Supabase) > clerkUserId (component-level const) > clerkAuth?.userId (real-time)
+      // Using clerkUserId (line 223) as middle fallback since it's captured at render time and more stable
+      const clerkUserIdForXp =
+        userProfile.clerk_user_id || clerkUserId || clerkAuth?.userId;
 
       if (!clerkUserIdForXp) {
-        console.error('❌ Onboarding XP award failed: No Clerk user ID');
+        console.error('❌ Onboarding XP award failed: No Clerk user ID', {
+          profileClerkId: userProfile.clerk_user_id,
+          componentClerkId: clerkUserId,
+          authClerkId: clerkAuth?.userId,
+        });
         return {
           success: false,
           error: 'No Clerk user ID available',

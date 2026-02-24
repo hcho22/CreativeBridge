@@ -52,6 +52,15 @@ const CONFIG = {
 } as const;
 
 /**
+ * Detect if an ID is a Supabase UUID or a Convex ID.
+ * Supabase UUIDs follow pattern: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+ * Convex IDs are alphanumeric strings without dashes.
+ * Email/password users have Supabase UUIDs, OAuth users have Convex IDs.
+ */
+const isSupabaseUUID = (id: string): boolean =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+/**
  * @deprecated Use the centralized client from convex.ts instead.
  * This function is kept for backward compatibility but is a no-op.
  */
@@ -106,17 +115,34 @@ export class ImageStorageService {
     console.log(`  Replicate URL: ${replicateUrl.substring(0, 60)}...`);
     console.log(`  Session ID: ${sessionId}`);
 
-    // Check if Convex is available (OAuth users only - email/password users don't have Convex)
-    if (!isConvexReady()) {
+    // Check if this is a Supabase UUID (email/password user) - these users don't have Clerk auth
+    // for Convex, so we should skip the upload entirely
+    if (isSupabaseUUID(sessionId)) {
       console.log(
-        '⚠️ Convex not available (likely email/password user) - skipping upload to Convex Storage',
+        '⚠️ Supabase UUID detected - email/password users cannot upload to Convex Storage',
       );
       console.log(
         '   Image will remain available via Replicate URL (temporary)',
       );
       return {
         success: false,
-        error: 'Convex not available for email/password users',
+        error: 'Convex storage not available for email/password users',
+        attempts: 0,
+        status: 'pending', // Keep as pending - Replicate URL is still valid
+      };
+    }
+
+    // Check if Convex is available
+    if (!isConvexReady()) {
+      console.log(
+        '⚠️ Convex not available - skipping upload to Convex Storage',
+      );
+      console.log(
+        '   Image will remain available via Replicate URL (temporary)',
+      );
+      return {
+        success: false,
+        error: 'Convex not available',
         attempts: 0,
         status: 'pending', // Keep as pending - Replicate URL is still valid
       };
@@ -276,14 +302,23 @@ export class ImageStorageService {
     try {
       console.log('🔄 Manual retry initiated by user for session:', sessionId);
 
-      // Check if Convex is available (OAuth users only)
-      if (!isConvexReady()) {
+      // Check if this is a Supabase UUID (email/password user)
+      if (isSupabaseUUID(sessionId)) {
         console.log(
-          '⚠️ Convex not available (likely email/password user) - retry not possible',
+          '⚠️ Supabase UUID detected - retry not available for email/password users',
         );
         return {
           success: false,
           error: 'Image upload retry not available for email/password users',
+        };
+      }
+
+      // Check if Convex is available
+      if (!isConvexReady()) {
+        console.log('⚠️ Convex not available - retry not possible');
+        return {
+          success: false,
+          error: 'Convex not available',
         };
       }
 
@@ -442,10 +477,18 @@ export class ImageStorageService {
    * @returns The image URL or null
    */
   async getSessionImageUrl(sessionId: string): Promise<string | null> {
-    // Check if Convex is available first
+    // Supabase UUIDs can't be queried from Convex
+    if (isSupabaseUUID(sessionId)) {
+      console.log(
+        '⚠️ Supabase UUID detected - cannot retrieve from Convex storage',
+      );
+      return null;
+    }
+
+    // Check if Convex is available
     if (!isConvexReady()) {
       console.log(
-        '⚠️ Convex not available - cannot retrieve session image URL from Convex',
+        '⚠️ Convex not available - cannot retrieve session image URL',
       );
       return null;
     }
@@ -472,11 +515,19 @@ export class ImageStorageService {
   async deleteImage(
     sessionId: string,
   ): Promise<{ success: boolean; error?: string }> {
-    // Check if Convex is available first
+    // Supabase UUIDs can't be deleted from Convex
+    if (isSupabaseUUID(sessionId)) {
+      return {
+        success: false,
+        error: 'Convex storage not available for email/password users',
+      };
+    }
+
+    // Check if Convex is available
     if (!isConvexReady()) {
       return {
         success: false,
-        error: 'Convex not available (email/password user)',
+        error: 'Convex not available',
       };
     }
 

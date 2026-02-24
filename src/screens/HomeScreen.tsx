@@ -279,9 +279,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           );
 
           // Auto-fix database: set onboarding_completed = true for existing users
-          if (!onboardingCompleted && userProfile.id) {
+          // Use clerk_user_id for OAuth users (Convex-migrated) or id for legacy Supabase users
+          // The onboardingService handles the correct field to query based on ID format
+          const autoFixUserId =
+            userProfile.clerk_user_id || clerkAuth?.userId || userProfile.id;
+          if (!onboardingCompleted && autoFixUserId) {
+            console.log(
+              '🔧 [BugFix] Auto-fixing onboarding status with userId:',
+              autoFixUserId.substring(0, 20) + '...',
+            );
             onboardingService
-              .markOnboardingComplete(userProfile.id)
+              .markOnboardingComplete(autoFixUserId)
               .then(result => {
                 if (result.error) {
                   console.error(

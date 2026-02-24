@@ -37,8 +37,13 @@ const DEFAULT_ONBOARDING_PROGRESS = {
 };
 
 /**
- * Create a new user profile for OAuth sign-up.
+ * Create a new user profile for OAuth sign-up (idempotent).
  * Called when a new user completes profile setup via Clerk OAuth.
+ *
+ * This function is IDEMPOTENT: if a profile already exists for the given
+ * clerkUserId, it returns the existing profile's ID instead of throwing.
+ * This handles race conditions where multiple code paths (e.g., reactive
+ * queries and sync functions) may attempt to create profiles simultaneously.
  *
  * Replaces: create_oauth_user_profile RPC (Supabase SECURITY DEFINER function)
  *
@@ -47,8 +52,8 @@ const DEFAULT_ONBOARDING_PROGRESS = {
  * @param displayName - Display name shown in UI
  * @param preferredGradeLevel - Content grade level preference (default: 'K-2')
  * @param speechEnabled - Whether speech/voice features are enabled (default: true)
- * @returns The newly created user profile ID
- * @throws Error if user is not authenticated or profile already exists
+ * @returns The user profile ID (newly created or existing)
+ * @throws Error if user is not authenticated
  */
 export const createOAuthProfile = mutation({
   args: {
@@ -69,9 +74,14 @@ export const createOAuthProfile = mutation({
       .first();
 
     if (existingProfile) {
-      throw new Error(
-        `Profile already exists for Clerk user: ${args.clerkUserId}`,
+      // Idempotent: Return existing profile ID instead of throwing.
+      // This handles race conditions where multiple code paths may attempt
+      // to create a profile simultaneously (e.g., reactive query effect and
+      // syncClerkWithSupabase running in parallel).
+      console.log(
+        `[createOAuthProfile] Profile already exists for ${args.clerkUserId}, returning existing ID`,
       );
+      return existingProfile._id;
     }
 
     // Get today's date for initial activity tracking
