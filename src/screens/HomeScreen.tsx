@@ -4,6 +4,7 @@ import React, {
   useCallback,
   useLayoutEffect,
   useRef,
+  useMemo,
 } from 'react';
 import {
   View,
@@ -202,12 +203,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   } | null>(null);
   const challengeDisplayContainerRef = useRef<View>(null);
 
+  // Ref to track if TTS has been initialized to prevent re-initialization loops
+  const ttsInitializedRef = useRef(false);
+
   // Enhanced empty state for new users (US-017)
   const [isNewUser, setIsNewUser] = useState(false);
 
   // Use the user's preferred grade level from their profile, or default to K-2
-  const gradeLevel: GradeLevel =
-    (userProfile?.preferred_grade_level as GradeLevel) || 'K-2';
+  // Memoize to prevent infinite re-renders in useEffect dependencies
+  const gradeLevel: GradeLevel = useMemo(
+    () => (userProfile?.preferred_grade_level as GradeLevel) || 'K-2',
+    [userProfile?.preferred_grade_level],
+  );
 
   // Detect first streak achievement (US-006)
   // When streak changes from <2 to >=2, check if we should show the celebration
@@ -856,11 +863,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             '⚠️ TTS service not available - speaker button will be disabled',
           );
         }
-
-        // Check user's voice preference
-        if (userProfile?.speech_enabled !== undefined) {
-          setVoiceInputEnabled(userProfile.speech_enabled);
-        }
+        // Voice preference is synced in a separate useEffect
       } catch (error) {
         console.error('❌ Failed to initialize audio services:', error);
         setTtsServiceAvailable(false);
@@ -868,7 +871,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       }
     };
 
-    if (user) {
+    if (user && !ttsInitializedRef.current) {
+      ttsInitializedRef.current = true;
       initializeAudio();
       // Check service availability on mount
       checkServiceAvailability();
@@ -876,8 +880,25 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
     return () => {
       textToSpeechService.removeAllListeners();
+      ttsInitializedRef.current = false;
     };
-  }, [user, userProfile?.speech_enabled, gradeLevel, checkServiceAvailability]);
+    // Only depend on user to initialize once when user logs in
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // Update TTS grade level options when gradeLevel changes (separate from init)
+  useEffect(() => {
+    if (ttsServiceAvailable && gradeLevel) {
+      textToSpeechService.setGradeLevelOptions(gradeLevel);
+    }
+  }, [ttsServiceAvailable, gradeLevel]);
+
+  // Sync voice input preference when userProfile changes
+  useEffect(() => {
+    if (userProfile?.speech_enabled !== undefined) {
+      setVoiceInputEnabled(userProfile.speech_enabled);
+    }
+  }, [userProfile?.speech_enabled]);
 
   // Periodically check service availability (e.g., when app comes to foreground)
   useEffect(() => {

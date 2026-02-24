@@ -1,9 +1,0 @@
-{
-  "tasks": {
-    "markdown:prd-image-generation-watercolor-style-fix.md:27": {
-      "count": 1,
-      "last": "2026-01-24T04:04:06.119Z",
-      "title": "Unit tests pass for prompt generation"
-    }
-  }
-}
