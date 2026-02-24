@@ -1111,17 +1111,36 @@ Migrate CreativeBridge's entire backend infrastructure from Supabase (PostgreSQL
 
 ---
 
-#### US-033: Update Documentation
+#### US-033: Update Documentation ✅
 
 **Description:** As a developer, I need to update documentation to reflect Convex architecture.
 
 **Acceptance Criteria:**
 
-- [ ] Update `.agent/README.md` with Convex info
-- [ ] Update `.agent/System/` docs with new architecture
-- [ ] Update `CLAUDE.md` with new commands and patterns
-- [ ] Create `convex/README.md` documenting functions
-- [ ] Remove outdated Supabase references
+- [x] Update `.agent/README.md` with Convex info
+- [x] Update `.agent/System/` docs with new architecture
+- [x] Update `CLAUDE.md` with new commands and patterns
+- [x] Create `convex/README.md` documenting functions
+- [x] Remove outdated Supabase references
+
+**Implementation Notes:**
+
+- Completed on 2026-02-23
+- **Files updated:**
+  - `.agent/README.md` - Updated tech stack, architecture overview, directory structure, essential files
+  - `.agent/System/project_architecture.md` - Added Convex backend section, updated auth flow, integration points
+  - `.claude/CLAUDE.md` - Updated tech stack, core services, database section, added Convex commands
+  - `convex/README.md` - Comprehensive documentation with schema, functions reference, auth patterns, XP system
+  - `.agent/Ralphy/config.yaml` - Updated database rules and React Native patterns for Convex
+- **Key documentation changes:**
+  - Tech stack now reflects dual-backend architecture (Convex PRIMARY, Supabase FALLBACK)
+  - Authentication flow documented for both OAuth (Clerk→Convex) and legacy (Supabase) users
+  - All Convex functions documented with purpose, auth requirements, and usage examples
+  - Migration reference table maps Supabase RPCs to Convex functions
+- **Supabase references retained where appropriate:**
+  - Fallback data store for legacy email/password users (UUIDs)
+  - SQL migrations archived in `.agent/archive/sql/` for reference
+  - Feature flags shared between Convex and Supabase tables
 
 ---
 

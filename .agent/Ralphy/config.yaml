@@ -6,8 +6,8 @@
 project:
   name: "CreativeBridge"
   language: "TypeScript, JavaScript"
-  framework: "React Native, Expo, Supabase"
-  description: "AI-powered educational storytelling app with gamification, multi-grade content (K-12), and collaborative story creation"
+  framework: "React Native, Expo, Convex, Supabase"
+  description: "AI-powered educational storytelling app with gamification, multi-grade content (K-12), and collaborative story creation. Backend uses Convex (PRIMARY for OAuth users) with Supabase (FALLBACK for legacy users)."
 
 # Commands (auto-detected and enhanced)
 commands:
@@ -26,15 +26,15 @@ rules:
   - "Use React Native best practices and cross-platform compatibility (iOS & Android)"
   - "Use AsyncStorage for persistent storage (not localStorage or cookies)"
 
-  # === Database Rules (from Ralph learnings) ===
-  - "Database migrations: CREATE TABLE IF NOT EXISTS, comprehensive indexes, RLS policies, rollback procedures"
-  - "Always use SECURITY DEFINER for helper functions needing elevated privileges"
-  - "Database functions use explicit parameter naming (p_parameter_name for clarity)"
-  - "JSONB preferred for flexible metadata with GIN indexes for queries"
-  - "All user-owned data must have RLS policies checking auth.uid() = user_id"
-  - "Indexes follow naming convention: idx_tablename_column1_column2"
-  - "Add COMMENT ON TABLE/COLUMN statements for all database objects"
-  - "Migration files must be in sql/ directory with descriptive names"
+  # === Database Rules (Convex PRIMARY, Supabase FALLBACK) ===
+  - "Convex is PRIMARY for OAuth users (Clerk IDs: user_xxx)"
+  - "Supabase is FALLBACK for legacy email/password users (UUIDs)"
+  - "Convex schema defined in convex/schema.ts with TypeScript validators"
+  - "Convex functions use requireAuth() from convex/auth.ts for authentication"
+  - "All Convex mutations must verify user ownership before modifying data"
+  - "Legacy Supabase: Use SECURITY DEFINER for helper functions needing elevated privileges"
+  - "Legacy Supabase: All user-owned data must have RLS policies checking auth.uid() = user_id"
+  - "Archived SQL migrations in .agent/archive/sql/ directory (reference only)"
 
   # === Documentation (CLAUDE.md requirements) ===
   - "ALWAYS update .agent/ documentation after implementing features"
@@ -72,8 +72,9 @@ rules:
   # === React Native Integration Patterns ===
   - "API pattern: service functions called from screens (not REST endpoints)"
   - "Session management: AsyncStorage for tokens with 24-hour expiration"
-  - "Supabase RPC: use SECURITY DEFINER functions for server-side operations"
-  - "Real-time: leverage Supabase subscriptions where needed"
+  - "Convex: use useMutation and useQuery hooks for real-time data"
+  - "Convex: mutations auto-invalidate related queries (no manual refresh)"
+  - "Supabase fallback: Use SECURITY DEFINER functions for legacy users"
   - "Navigation: use React Navigation v7 (tabs + stack)"
   - "State management: React Context API with AsyncStorage persistence"
 

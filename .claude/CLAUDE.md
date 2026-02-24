@@ -60,9 +60,10 @@ npm run format               # Format with Prettier
 ### Tech Stack
 
 - **Frontend**: React Native 0.81.5 + Expo 54 + TypeScript 5.8
-- **Backend**: Supabase (PostgreSQL with RLS, real-time, edge functions)
+- **Backend (Primary)**: Convex (real-time database, native Clerk auth, storage)
+- **Backend (Fallback)**: Supabase (PostgreSQL with RLS for legacy users)
 - **AI**: OpenAI GPT-4 (stories) + Replicate Stable Diffusion 3.5 (images) + Claude Skills SDK
-- **Auth**: Clerk (OAuth) + Supabase JWT verification
+- **Auth**: Clerk (OAuth) → Convex JWT verification
 - **Navigation**: React Navigation v7 (tabs + stack)
 
 ### Path Aliases
@@ -92,23 +93,47 @@ The project uses path aliases defined in `tsconfig.json`:
 
 **Core Infrastructure**:
 
-- `supabase.ts` - Database client and auth
+- `convex.ts` - Convex client initialization (PRIMARY for OAuth users)
+- `supabase.ts` - Supabase client (FALLBACK for legacy users)
 - `xpEventTracker.ts` - Gamification (XP costs 1000 for image generation)
 - `analyticsService.ts` - User behavior tracking
 
+### Convex Functions (`convex/`)
+
+- `userProfiles.ts` - User profile mutations/queries (XP, streaks, stats)
+- `gameSessions.ts` - Story session management, search, library
+- `imageGeneration.ts` - Image generation event tracking and analytics
+- `onboarding.ts` - Onboarding milestones and progress
+- `storage.ts` - Image upload/storage functions
+- `auth.ts` - Authentication helpers (`requireAuth`, `getClerkUserId`)
+
 ### Authentication Flow
 
+**OAuth Users (Clerk IDs):**
+
 - Clerk handles OAuth (Google/Apple) → issues JWT
-- Supabase verifies Clerk JWT for database access
+- Convex verifies Clerk JWT via `ConvexProviderWithClerk`
+- User profiles stored in Convex `userProfiles` table
+
+**Legacy Users (Supabase UUIDs):**
+
+- Supabase email/password authentication
 - `AuthContext.tsx` manages session state
 - Email confirmation via deep links
 
 ### Database
 
-- Migrations stored in `sql/` directory
+**Convex (PRIMARY - OAuth users):**
+
+- Schema defined in `convex/schema.ts`
+- TypeScript types auto-generated in `convex/_generated/`
+- Key tables: `userProfiles`, `gameSessions`, `imageGenerationEvents`
+
+**Supabase (FALLBACK - legacy users):**
+
+- SQL migrations archived in `.agent/archive/sql/`
 - TypeScript types in `src/types/database.ts`
-- Row Level Security (RLS) policies enforce user data isolation
-- Key tables: `user_profiles`, `game_sessions`, `story_diversity_scores`
+- Row Level Security (RLS) policies for data isolation
 
 ### Grade Level System
 
@@ -140,8 +165,16 @@ export const serviceName = new ServiceName();
 
 ### Feature Flags
 
-- Managed via Supabase `feature_management` tables
-- Check `minimal_feature_setup.sql` for current flags
+- Managed via Convex `featureFlags` table (OAuth users)
+- Fallback to Supabase `feature_management` tables (legacy users)
+
+### Convex Development
+
+```bash
+npx convex dev                    # Start Convex dev server
+npx convex deploy                 # Deploy to production
+npx convex run migration:migrateUserProfiles  # Run migration
+```
 
 ## TestFlight Deployment
 
@@ -153,8 +186,11 @@ See `.agent/SOP/testflight-deployment-procedure.md` for detailed steps:
 
 ## Important Files
 
-- `App.tsx` - Entry point
+- `App.tsx` - Entry point with ConvexProviderWithClerk
 - `src/navigation/AppNavigator.tsx` - Navigation structure
 - `src/context/AuthContext.tsx` - Auth state management
-- `src/types/database.ts` - Supabase schema types
+- `convex/schema.ts` - Convex database schema (PRIMARY)
+- `convex/README.md` - Convex functions documentation
+- `src/types/database.ts` - Supabase schema types (FALLBACK)
+- `src/services/convex.ts` - Convex client initialization
 - `app.json` - Expo configuration
