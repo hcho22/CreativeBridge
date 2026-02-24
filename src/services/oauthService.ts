@@ -4,14 +4,16 @@
  * This service handles OAuth authentication using Clerk:
  * 1. Initiates OAuth flow via Clerk
  * 2. Retrieves Clerk JWT token after authentication
- * 3. Sends Clerk JWT to Supabase for verification
- * 4. Extracts user information from Clerk user object
+ * 3. Extracts user information from Clerk user object
  *
  * Architecture: Clerk handles OAuth authentication and issues JWTs.
- * This service coordinates between Clerk and Supabase.
+ * Convex handles profile creation/lookup natively via ConvexProviderWithClerk.
+ *
+ * Migration Note (US-032): The Supabase sync step has been removed.
+ * Profile management is now handled by Convex reactive queries and
+ * migrations in AuthContext.tsx.
  */
 
-import { createSupabaseSessionFromClerkJWT } from './clerkSupabaseSync';
 import { isClerkConfigured } from '../config/environment';
 
 /**
@@ -138,9 +140,13 @@ export async function signInWithApple(
  * Complete OAuth flow after Clerk callback
  * This should be called after the OAuth callback completes via deep linking
  *
+ * Migration Note (US-032): Profile creation/lookup is now handled by Convex.
+ * This function no longer syncs with Supabase - it just extracts user info
+ * from the Clerk session.
+ *
  * @param clerkAuth Clerk auth methods from useAuth() hook
  * @param clerkUser Optional Clerk user object from useUser() hook
- * @returns OAuth result with JWT and Supabase session
+ * @returns OAuth result with JWT and user info
  */
 export async function completeOAuthFlow(
   clerkAuth: ClerkAuthMethods,
@@ -174,7 +180,7 @@ export async function completeOAuthFlow(
 
     console.log('✅ [OAuth Service] Clerk JWT retrieved successfully');
 
-    // Extract user email from Clerk user object (before Supabase sync for account linking)
+    // Extract user email from Clerk user object
     // Note: For Apple OAuth, this may be a private relay email (e.g., privaterelay@icloud.com)
     // Clerk handles Apple's email privacy feature automatically and provides the email
     // (whether real or private relay) in the user object
@@ -206,56 +212,16 @@ export async function completeOAuthFlow(
       );
     }
 
-    // Send Clerk JWT to Supabase for verification (with email for account linking)
-    console.log(
-      '🔄 [OAuth Service] Sending Clerk JWT to Supabase for verification and account linking...',
-    );
-    const supabaseResult = await createSupabaseSessionFromClerkJWT(
-      clerkJWT,
-      userEmail,
-    );
-
-    if (!supabaseResult.success) {
-      const error =
-        supabaseResult.error ||
-        'Failed to create Supabase session from Clerk JWT';
-      const errorType = supabaseResult.errorType || 'UNKNOWN';
-
-      console.error('❌ [OAuth Service] Account linking/sync failed:', error);
-      console.error('❌ [OAuth Service] Error type:', errorType);
-
-      // Log account linking errors for monitoring
-      const errorContext = {
-        errorType,
-        errorMessage: error,
-        clerkUserId: clerkUser?.id || clerkAuth.userId || 'unknown',
-        userEmail: userEmail || 'not provided',
-        timestamp: new Date().toISOString(),
-      };
-      console.error(
-        '📊 [OAuth Service] Account linking error context:',
-        errorContext,
-      );
-
-      // Return error with type for better error handling in UI
-      // The error handler will use the error type to provide appropriate user messages
-      return {
-        success: false,
-        error: error, // Error message that will be processed by error handler
-        errorType, // Additional context for error handling
-        jwt: clerkJWT, // Still return JWT even if Supabase sync fails
-      };
-    }
-
-    console.log('✅ [OAuth Service] Supabase session created successfully');
-
     // Extract Clerk user ID
     const clerkUserId = clerkUser?.id || clerkAuth.userId || undefined;
+
+    console.log(
+      '✅ [OAuth Service] OAuth flow completed - Convex will handle profile management',
+    );
 
     return {
       success: true,
       jwt: clerkJWT,
-      supabaseSession: supabaseResult.session,
       userEmail,
       clerkUserId,
     };
