@@ -5,6 +5,7 @@ import React, {
   useState,
   useCallback,
   useRef,
+  useMemo,
 } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import AsyncStorage from '../utils/asyncStorageWrapper';
@@ -230,15 +231,33 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
   // This replaces the manual fetchUserProfile for OAuth users
   useEffect(() => {
     if (convexProfile && clerkUserId) {
-      console.log('🔄 [Convex] Profile updated from reactive query:', {
-        clerkUserId,
-        username: convexProfile.username,
-        totalXp: convexProfile.totalXp,
-      });
-
-      // Convert Convex profile to legacy format and update state
+      // Convert Convex profile to legacy format
       const legacyProfile = convertConvexProfileToLegacy(convexProfile);
-      setUserProfile(legacyProfile);
+
+      // Only update state if values actually changed to prevent infinite re-renders
+      // Compare key fields that would trigger dependent useEffects
+      setUserProfile(currentProfile => {
+        if (
+          currentProfile &&
+          currentProfile.total_xp === legacyProfile.total_xp &&
+          currentProfile.speech_enabled === legacyProfile.speech_enabled &&
+          currentProfile.preferred_grade_level ===
+            legacyProfile.preferred_grade_level &&
+          currentProfile.current_streak === legacyProfile.current_streak &&
+          currentProfile.username === legacyProfile.username
+        ) {
+          // No meaningful change, return current state to prevent re-render
+          return currentProfile;
+        }
+
+        console.log('🔄 [Convex] Profile updated from reactive query:', {
+          clerkUserId,
+          username: convexProfile.username,
+          totalXp: convexProfile.totalXp,
+        });
+
+        return legacyProfile;
+      });
     }
   }, [convexProfile, clerkUserId]);
 
@@ -3074,6 +3093,17 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
       console.log('✅ [AuthContext] OAuth flow completed successfully');
 
+      // CRITICAL: Mark OAuth processing as complete BEFORE any state updates
+      // This prevents infinite re-render loops where useEffect fires on `user` change
+      // and re-enters this flow because isProcessingOAuth.current is still true
+      isProcessingOAuth.current = false;
+
+      // Track that we've successfully synced this Clerk user ID
+      // Do this early to prevent re-sync attempts during state updates
+      if (oauthResult.clerkUserId) {
+        lastSyncedClerkUserId.current = oauthResult.clerkUserId;
+      }
+
       // Clear any previous OAuth errors on success
       setOAuthError(null);
 
@@ -3250,13 +3280,8 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         await checkProfileCompletion();
       }
 
-      // Mark OAuth processing as complete
-      isProcessingOAuth.current = false;
-
-      // Track that we've successfully synced this Clerk user ID
-      if (oauthResult.clerkUserId) {
-        lastSyncedClerkUserId.current = oauthResult.clerkUserId;
-      }
+      // Note: isProcessingOAuth.current and lastSyncedClerkUserId.current
+      // are set early (before setUser) to prevent infinite re-render loops
 
       return { success: true };
     } catch (error) {
@@ -3679,35 +3704,68 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     setOAuthError(null);
   }, []);
 
-  const value: AuthContextType = {
-    session,
-    user,
-    userProfile,
-    loading,
-    emailConfirmed,
-    needsProfileCompletion,
-    oauthError,
-    signIn,
-    signUp,
-    signOut,
-    updateProfile,
-    refreshProfile,
-    resendConfirmation,
-    checkEmailConfirmation,
-    resetPassword,
-    deductXP,
-    refundXP,
-    awardOnboardingXP,
-    validateXPBalance,
-    getXPBalanceInfo,
-    canGenerateImage,
-    trackXPEvent,
-    createImageGenerationEvent,
-    signInWithGoogle,
-    signInWithApple,
-    checkProfileCompletion,
-    clearOAuthError,
-  };
+  // Memoize context value to prevent unnecessary re-renders of consumers
+  // Only include state values in deps - callbacks are stable via useCallback
+  const value: AuthContextType = useMemo(
+    () => ({
+      session,
+      user,
+      userProfile,
+      loading,
+      emailConfirmed,
+      needsProfileCompletion,
+      oauthError,
+      signIn,
+      signUp,
+      signOut,
+      updateProfile,
+      refreshProfile,
+      resendConfirmation,
+      checkEmailConfirmation,
+      resetPassword,
+      deductXP,
+      refundXP,
+      awardOnboardingXP,
+      validateXPBalance,
+      getXPBalanceInfo,
+      canGenerateImage,
+      trackXPEvent,
+      createImageGenerationEvent,
+      signInWithGoogle,
+      signInWithApple,
+      checkProfileCompletion,
+      clearOAuthError,
+    }),
+    [
+      session,
+      user,
+      userProfile,
+      loading,
+      emailConfirmed,
+      needsProfileCompletion,
+      oauthError,
+      signIn,
+      signUp,
+      signOut,
+      updateProfile,
+      refreshProfile,
+      resendConfirmation,
+      checkEmailConfirmation,
+      resetPassword,
+      deductXP,
+      refundXP,
+      awardOnboardingXP,
+      validateXPBalance,
+      getXPBalanceInfo,
+      canGenerateImage,
+      trackXPEvent,
+      createImageGenerationEvent,
+      signInWithGoogle,
+      signInWithApple,
+      checkProfileCompletion,
+      clearOAuthError,
+    ],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
