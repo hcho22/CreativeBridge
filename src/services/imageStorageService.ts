@@ -1,16 +1,32 @@
 /**
  * Image Storage Service
- * Handles uploading generated images to Supabase Storage with retry logic
+ * Handles uploading generated images to Convex Storage with retry logic
  * Provides permanent backup for images initially stored via Replicate URLs
+ *
+ * ## Migration Notes (US-015):
+ * This service has been updated to use Convex Storage instead of Supabase Storage.
+ * During the dual-write transition period, it writes to both backends.
+ *
+ * @see convex/storage.ts for the Convex backend functions
+ * @implements US-015: Create Image Storage Service Adapter
  */
 
-import { supabase } from './supabase';
+import { ConvexReactClient } from 'convex/react';
+import { api } from '../../convex/_generated/api';
+import { Id } from '../../convex/_generated/dataModel';
 import { ImageUploadStatus } from '../types/database';
+import {
+  getConvexClient as getCentralizedConvexClient,
+  isConvexReady,
+} from './convex';
 
 // Upload result interface
 export interface UploadImageResult {
   success: boolean;
+  /** @deprecated Use convexImageUrl instead - kept for backward compatibility */
   supabaseUrl?: string;
+  convexImageUrl?: string;
+  storageId?: string;
   error?: string;
   attempts: number;
   status: ImageUploadStatus;
@@ -19,14 +35,15 @@ export interface UploadImageResult {
 // Retry result interface (for manual retry operations)
 export interface RetryResult {
   success: boolean;
+  /** @deprecated Use convexImageUrl instead */
   supabaseUrl?: string;
+  convexImageUrl?: string;
   error?: string;
   attempts?: number;
 }
 
 // Configuration constants
 const CONFIG = {
-  BUCKET_NAME: 'story-images',
   MAX_RETRY_ATTEMPTS: 3,
   RETRY_DELAY_BASE_MS: 1000, // 1 second for first retry
   TIMEOUT_MS: 30000, // 30 seconds per upload attempt
@@ -35,29 +52,103 @@ const CONFIG = {
 } as const;
 
 /**
+ * Detect if an ID is a Supabase UUID or a Convex ID.
+ * Supabase UUIDs follow pattern: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+ * Convex IDs are alphanumeric strings without dashes.
+ * Email/password users have Supabase UUIDs, OAuth users have Convex IDs.
+ */
+const isSupabaseUUID = (id: string): boolean =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+/**
+ * @deprecated Use the centralized client from convex.ts instead.
+ * This function is kept for backward compatibility but is a no-op.
+ */
+export function setConvexClient(_client: ConvexReactClient): void {
+  console.log(
+    '⚠️ ImageStorageService.setConvexClient is deprecated - using centralized client from convex.ts',
+  );
+}
+
+/**
+ * Get the Convex client from the centralized service.
+ * Throws if not initialized.
+ */
+function getConvexClient(): ConvexReactClient {
+  const client = getCentralizedConvexClient();
+  if (!client) {
+    throw new Error(
+      'Convex client not initialized. Ensure ConvexProviderWithClerk is mounted.',
+    );
+  }
+  return client;
+}
+
+/**
  * ImageStorageService
- * Manages permanent image storage in Supabase with exponential backoff retry
+ * Manages permanent image storage in Convex with exponential backoff retry
+ *
+ * ## Convex Upload Flow:
+ * 1. Call `generateUploadUrl` mutation to get a presigned URL
+ * 2. Upload image data directly to the presigned URL via fetch POST
+ * 3. Parse the response to get the `storageId`
+ * 4. Call `storeImageReference` mutation to link storageId to game session
  */
 export class ImageStorageService {
   /**
-   * Upload an image from Replicate URL to Supabase Storage
+   * Upload an image from Replicate URL to Convex Storage
    *
    * @param replicateUrl - The temporary Replicate image URL
-   * @param sessionId - Game session ID for organizing images
-   * @param userId - User ID for folder organization and security
-   * @returns Upload result with status and Supabase URL if successful
+   * @param sessionId - Game session ID (Convex ID format)
+   * @param _userId - User ID (not used for Convex - auth is handled via JWT)
+   * @returns Upload result with status and Convex URL if successful
    */
-  async uploadImageToSupabase(
+  async uploadImageToConvex(
     replicateUrl: string,
     sessionId: string,
-    userId: string,
+    _userId: string,
   ): Promise<UploadImageResult> {
     let attempts = 0;
     let lastError: string | undefined;
 
-    console.log('📤 Starting image upload to Supabase Storage');
+    console.log('📤 Starting image upload to Convex Storage');
     console.log(`  Replicate URL: ${replicateUrl.substring(0, 60)}...`);
     console.log(`  Session ID: ${sessionId}`);
+
+    // Check if this is a Supabase UUID (email/password user) - these users don't have Clerk auth
+    // for Convex, so we should skip the upload entirely
+    if (isSupabaseUUID(sessionId)) {
+      console.log(
+        '⚠️ Supabase UUID detected - email/password users cannot upload to Convex Storage',
+      );
+      console.log(
+        '   Image will remain available via Replicate URL (temporary)',
+      );
+      return {
+        success: false,
+        error: 'Convex storage not available for email/password users',
+        attempts: 0,
+        status: 'pending', // Keep as pending - Replicate URL is still valid
+      };
+    }
+
+    // Check if Convex is available
+    if (!isConvexReady()) {
+      console.log(
+        '⚠️ Convex not available - skipping upload to Convex Storage',
+      );
+      console.log(
+        '   Image will remain available via Replicate URL (temporary)',
+      );
+      return {
+        success: false,
+        error: 'Convex not available',
+        attempts: 0,
+        status: 'pending', // Keep as pending - Replicate URL is still valid
+      };
+    }
+
+    const client = getConvexClient();
 
     while (attempts < CONFIG.MAX_RETRY_ATTEMPTS) {
       attempts++;
@@ -91,51 +182,50 @@ export class ImageStorageService {
           );
         }
 
-        // Step 3: Generate file path
-        const filePath = this.generateFilePath(userId, sessionId);
-        console.log(`  Upload path: ${filePath}`);
+        // Step 3: Get presigned upload URL from Convex
+        const uploadUrl = await client.mutation(api.storage.generateUploadUrl);
+        console.log(`  ✓ Got presigned upload URL`);
 
-        // Step 4: Upload to Supabase Storage
-        // In React Native, we upload the ArrayBuffer directly
-        // Convert to Uint8Array which Supabase Storage accepts
-        const uint8Array = new Uint8Array(imageData.data);
-
-        const { error } = await supabase.storage
-          .from(CONFIG.BUCKET_NAME)
-          .upload(filePath, uint8Array, {
-            contentType: imageData.contentType,
-            upsert: true, // Allow overwriting if retrying
-            cacheControl: '31536000', // Cache for 1 year (images are immutable)
-          });
-
-        if (error) {
-          throw new Error(`Supabase upload failed: ${error.message}`);
-        }
-
-        // Step 5: Get public URL
-        const { data: publicUrlData } = supabase.storage
-          .from(CONFIG.BUCKET_NAME)
-          .getPublicUrl(filePath);
-
-        if (!publicUrlData || !publicUrlData.publicUrl) {
-          throw new Error('Failed to get public URL from Supabase');
-        }
-
-        const supabaseUrl = publicUrlData.publicUrl;
-        console.log('  ✅ Upload successful!');
-        console.log(`  Supabase URL: ${supabaseUrl.substring(0, 60)}...`);
-
-        // Update database with success status
-        await this.updateSessionUploadStatus(sessionId, {
-          supabaseUrl,
-          status: 'uploaded',
-          attempts,
-          error: null,
+        // Step 4: Upload image data to presigned URL
+        const uploadResponse = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': imageData.contentType,
+          },
+          body: imageData.data,
         });
+
+        if (!uploadResponse.ok) {
+          throw new Error(
+            `Upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`,
+          );
+        }
+
+        // Step 5: Parse response to get storageId
+        const uploadResult = (await uploadResponse.json()) as {
+          storageId: string;
+        };
+        const storageId = uploadResult.storageId as Id<'_storage'>;
+        console.log(`  ✓ Uploaded to Convex storage: ${storageId}`);
+
+        // Step 6: Link storage reference to game session
+        const storeResult = await client.mutation(
+          api.storage.storeImageReference,
+          {
+            sessionId: sessionId as Id<'gameSessions'>,
+            storageId,
+          },
+        );
+
+        const convexImageUrl = storeResult.imageUrl;
+        console.log('  ✅ Upload successful!');
+        console.log(`  Convex URL: ${convexImageUrl?.substring(0, 60)}...`);
 
         return {
           success: true,
-          supabaseUrl,
+          convexImageUrl,
+          supabaseUrl: convexImageUrl, // Backward compatibility
+          storageId: storageId as string,
           attempts,
           status: 'uploaded',
         };
@@ -143,12 +233,16 @@ export class ImageStorageService {
         lastError = error.message || String(error);
         console.error(`  ❌ Attempt ${attempts} failed:`, lastError);
 
-        // Update database with failed attempt
-        await this.updateSessionUploadStatus(sessionId, {
-          status: 'failed',
-          attempts,
-          error: lastError,
-        });
+        // Record failure in Convex for retry tracking
+        try {
+          await client.mutation(api.storage.recordUploadFailure, {
+            sessionId: sessionId as Id<'gameSessions'>,
+            error: lastError || 'Unknown error',
+          });
+        } catch (recordError) {
+          // Don't fail the whole operation if we can't record the failure
+          console.error('  ⚠️ Could not record upload failure:', recordError);
+        }
 
         // If this was the last attempt, return failure
         if (attempts >= CONFIG.MAX_RETRY_ATTEMPTS) {
@@ -174,59 +268,104 @@ export class ImageStorageService {
   }
 
   /**
+   * Upload an image from Replicate URL to storage.
+   * This is the main entry point - currently routes to Convex.
+   *
+   * @param replicateUrl - The temporary Replicate image URL
+   * @param sessionId - Game session ID
+   * @param userId - User ID
+   * @returns Upload result with status and URL if successful
+   */
+  async uploadImageToSupabase(
+    replicateUrl: string,
+    sessionId: string,
+    userId: string,
+  ): Promise<UploadImageResult> {
+    // Route to Convex implementation
+    // The method name is kept for backward compatibility with existing callers
+    return this.uploadImageToConvex(replicateUrl, sessionId, userId);
+  }
+
+  /**
    * Retry a previously failed upload
-   * Fetches the Replicate URL from the database and attempts upload again
+   * Uses the Convex uploadFromUrl action to fetch and store the image server-side
    * Used when user clicks "Retry Upload" button in the UI
    *
-   * @param sessionId - The game session ID
-   * @param userId - The user ID
+   * @param sessionId - The game session ID (Convex ID format)
+   * @param _userId - The user ID (not used - auth via JWT)
    * @returns Retry result with success status
    */
   async retryFailedUpload(
     sessionId: string,
-    userId: string,
+    _userId: string,
   ): Promise<RetryResult> {
     try {
       console.log('🔄 Manual retry initiated by user for session:', sessionId);
 
-      // Fetch session data to get the Replicate URL
-      const { data: session, error } = await supabase
-        .from('game_sessions')
-        .select('generated_image_url, image_upload_status')
-        .eq('id', sessionId)
-        .single<{
-          generated_image_url?: string;
-          image_upload_status?: string;
-        }>();
-
-      if (error) {
-        throw new Error(`Failed to fetch session: ${error.message}`);
+      // Check if this is a Supabase UUID (email/password user)
+      if (isSupabaseUUID(sessionId)) {
+        console.log(
+          '⚠️ Supabase UUID detected - retry not available for email/password users',
+        );
+        return {
+          success: false,
+          error: 'Image upload retry not available for email/password users',
+        };
       }
 
-      if (!session || !session.generated_image_url) {
-        throw new Error('No Replicate image URL found for this session');
+      // Check if Convex is available
+      if (!isConvexReady()) {
+        console.log('⚠️ Convex not available - retry not possible');
+        return {
+          success: false,
+          error: 'Convex not available',
+        };
       }
 
-      if (session.image_upload_status === 'uploaded') {
+      const client = getConvexClient();
+
+      // First, get the session to check if there's an image URL to retry
+      const sessionImageInfo = await client.query(
+        api.storage.getSessionImageUrl,
+        {
+          sessionId: sessionId as Id<'gameSessions'>,
+        },
+      );
+
+      if (sessionImageInfo.error) {
+        throw new Error(sessionImageInfo.error);
+      }
+
+      // If already uploaded successfully, skip retry
+      if (
+        sessionImageInfo.uploadStatus === 'uploaded' &&
+        sessionImageInfo.imageUrl
+      ) {
         console.log('⚠️  Image already uploaded, skipping retry');
         return {
           success: true,
+          convexImageUrl: sessionImageInfo.imageUrl,
+          supabaseUrl: sessionImageInfo.imageUrl,
           error: 'Image already uploaded',
         };
       }
 
-      // Attempt upload with the Replicate URL from database
-      const replicateUrl = session.generated_image_url;
-      const result = await this.uploadImageToSupabase(
-        replicateUrl,
-        sessionId,
-        userId,
-      );
+      // Get the source URL from the session's generatedImageUrl
+      // (This is the Replicate URL that was saved before upload failed)
+      if (!sessionImageInfo.imageUrl) {
+        throw new Error('No source image URL found for this session');
+      }
+
+      // Use the uploadFromUrl action to retry server-side
+      const result = (await client.action(api.storage.uploadFromUrl, {
+        sourceUrl: sessionImageInfo.imageUrl,
+        sessionId: sessionId as Id<'gameSessions'>,
+      })) as { success: boolean; storageId?: string; imageUrl?: string | null };
 
       return {
         success: result.success,
-        supabaseUrl: result.supabaseUrl,
-        error: result.error,
+        convexImageUrl: result.imageUrl ?? undefined,
+        supabaseUrl: result.imageUrl ?? undefined, // Backward compatibility
       };
     } catch (error: any) {
       console.error('❌ Retry failed:', error);
@@ -238,8 +377,8 @@ export class ImageStorageService {
   }
 
   /**
-   * Legacy method - use retryFailedUpload instead
-   * @deprecated Use retryFailedUpload(sessionId, userId) instead
+   * Legacy method - routes to uploadImageToConvex
+   * @deprecated Use uploadImageToConvex or uploadImageToSupabase instead
    */
   async retryUpload(
     replicateUrl: string,
@@ -247,73 +386,7 @@ export class ImageStorageService {
     userId: string,
   ): Promise<UploadImageResult> {
     console.log('🔄 Manual retry initiated by user (legacy method)');
-    return this.uploadImageToSupabase(replicateUrl, sessionId, userId);
-  }
-
-  /**
-   * Update game session with upload status
-   * Updates the database with current upload progress and results
-   *
-   * @param sessionId - The session ID
-   * @param options - Status update options
-   */
-  private async updateSessionUploadStatus(
-    sessionId: string,
-    options: {
-      supabaseUrl?: string;
-      status: ImageUploadStatus;
-      attempts: number;
-      error?: string | null;
-    },
-  ): Promise<void> {
-    try {
-      const updateData: {
-        image_upload_status: ImageUploadStatus;
-        image_upload_attempts: number;
-        supabase_image_url?: string;
-        image_upload_error?: string | null;
-      } = {
-        image_upload_status: options.status,
-        image_upload_attempts: options.attempts,
-      };
-
-      if (options.supabaseUrl) {
-        updateData.supabase_image_url = options.supabaseUrl;
-      }
-
-      if (options.error !== undefined) {
-        updateData.image_upload_error = options.error;
-      }
-
-      // Perform database update with proper error handling
-      console.log('🔄 Updating session with data:', {
-        sessionId,
-        status: options.status,
-        attempts: options.attempts,
-        hasSupabaseUrl: !!options.supabaseUrl,
-      });
-
-      const result = await supabase
-        .from('game_sessions')
-        .update(updateData as any)
-        .eq('id', sessionId);
-
-      if (result.error) {
-        console.error(
-          '❌ Failed to update session upload status:',
-          result.error?.message || result.error,
-        );
-      } else {
-        console.log('✓ Session upload status updated:', options.status);
-      }
-    } catch (error: any) {
-      // Handle various error formats
-      const errorMessage =
-        error?.message || error?.toString?.() || String(error);
-      console.error('❌ Error updating session status:', errorMessage);
-      console.error('❌ Error details:', error);
-      // Don't throw - upload status update is non-critical
-    }
+    return this.uploadImageToConvex(replicateUrl, sessionId, userId);
   }
 
   /**
@@ -368,23 +441,6 @@ export class ImageStorageService {
   }
 
   /**
-   * Generate organized file path in Supabase Storage
-   * Format: {userId}/{sessionId}.png
-   *
-   * This structure:
-   * - Organizes images by user (easy to implement user-level quotas)
-   * - Uses session ID as filename (prevents collisions, easy to find)
-   * - Supports RLS policies based on user_id folder structure
-   */
-  private generateFilePath(userId: string, sessionId: string): string {
-    // Sanitize inputs to prevent path traversal attacks
-    const sanitizedUserId = userId.replace(/[^a-zA-Z0-9-]/g, '');
-    const sanitizedSessionId = sessionId.replace(/[^a-zA-Z0-9-]/g, '');
-
-    return `${sanitizedUserId}/${sanitizedSessionId}.png`;
-  }
-
-  /**
    * Promise-based delay helper for retry backoff
    */
   private delay(ms: number): Promise<void> {
@@ -392,59 +448,95 @@ export class ImageStorageService {
   }
 
   /**
-   * Check if Supabase Storage bucket exists and is accessible
+   * Check if Convex Storage is accessible
    * Useful for health checks and diagnostics
    */
   async checkStorageHealth(): Promise<{ healthy: boolean; error?: string }> {
+    // Check if Convex is available first
+    if (!isConvexReady()) {
+      return {
+        healthy: false,
+        error: 'Convex not available (email/password user)',
+      };
+    }
+
     try {
-      const { data, error } = await supabase.storage
-        .from(CONFIG.BUCKET_NAME)
-        .list('', { limit: 1 });
-
-      if (error) {
-        return { healthy: false, error: error.message };
-      }
-
-      return { healthy: true };
+      const client = getConvexClient();
+      const result = await client.query(api.storage.checkStorageHealth);
+      return { healthy: result.healthy };
     } catch (error: any) {
       return { healthy: false, error: error.message || 'Unknown error' };
     }
   }
 
   /**
-   * Get the public URL for an already uploaded image
-   * Does not check if the file exists
+   * Get the image URL for a session
+   * Handles both Convex storage IDs and legacy external URLs
+   *
+   * @param sessionId - The game session ID
+   * @returns The image URL or null
    */
-  getPublicUrl(userId: string, sessionId: string): string {
-    const filePath = this.generateFilePath(userId, sessionId);
-    const { data } = supabase.storage
-      .from(CONFIG.BUCKET_NAME)
-      .getPublicUrl(filePath);
+  async getSessionImageUrl(sessionId: string): Promise<string | null> {
+    // Supabase UUIDs can't be queried from Convex
+    if (isSupabaseUUID(sessionId)) {
+      console.log(
+        '⚠️ Supabase UUID detected - cannot retrieve from Convex storage',
+      );
+      return null;
+    }
 
-    return data.publicUrl;
+    // Check if Convex is available
+    if (!isConvexReady()) {
+      console.log(
+        '⚠️ Convex not available - cannot retrieve session image URL',
+      );
+      return null;
+    }
+
+    try {
+      const client = getConvexClient();
+      const result = await client.query(api.storage.getSessionImageUrl, {
+        sessionId: sessionId as Id<'gameSessions'>,
+      });
+      return result.imageUrl ?? null;
+    } catch (error: any) {
+      console.error('❌ Error getting session image URL:', error);
+      return null;
+    }
   }
 
   /**
-   * Delete an image from Supabase Storage
+   * Delete an image from Convex Storage
    * Used for cleanup or when user deletes a story
+   *
+   * @param sessionId - The game session ID
+   * @returns Delete result
    */
   async deleteImage(
-    userId: string,
     sessionId: string,
   ): Promise<{ success: boolean; error?: string }> {
+    // Supabase UUIDs can't be deleted from Convex
+    if (isSupabaseUUID(sessionId)) {
+      return {
+        success: false,
+        error: 'Convex storage not available for email/password users',
+      };
+    }
+
+    // Check if Convex is available
+    if (!isConvexReady()) {
+      return {
+        success: false,
+        error: 'Convex not available',
+      };
+    }
+
     try {
-      const filePath = this.generateFilePath(userId, sessionId);
-
-      const { error } = await supabase.storage
-        .from(CONFIG.BUCKET_NAME)
-        .remove([filePath]);
-
-      if (error) {
-        console.error('❌ Failed to delete image:', error);
-        return { success: false, error: error.message };
-      }
-
-      console.log('🗑️  Image deleted successfully:', filePath);
+      const client = getConvexClient();
+      await client.mutation(api.storage.deleteImage, {
+        sessionId: sessionId as Id<'gameSessions'>,
+      });
+      console.log('🗑️  Image deleted successfully for session:', sessionId);
       return { success: true };
     } catch (error: any) {
       console.error('❌ Error deleting image:', error);
@@ -457,6 +549,17 @@ export class ImageStorageService {
    */
   getConfig() {
     return { ...CONFIG };
+  }
+
+  /**
+   * @deprecated No longer used - Convex doesn't need path generation
+   * Kept for backward compatibility during transition
+   */
+  getPublicUrl(_userId: string, _sessionId: string): string {
+    console.warn(
+      '⚠️ getPublicUrl is deprecated - use getSessionImageUrl instead',
+    );
+    return '';
   }
 }
 

@@ -33,4 +33,7 @@ declare module '@env' {
   export const CLERK_PUBLISHABLE_KEY: string;
   export const CLERK_SECRET_KEY: string;
   export const CLERK_JWKS_URL: string;
+
+  // Convex Configuration
+  export const CONVEX_URL: string;
 }

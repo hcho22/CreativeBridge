@@ -17,7 +17,7 @@ jest.mock('../../services/supabase', () => ({
   },
 }));
 jest.mock('@react-native-community/netinfo');
-jest.mock('../../services/clerkSupabaseSync');
+// Note: clerkSupabaseSync removed in US-032 migration - Convex handles profile management
 jest.mock('../../config/environment', () => ({
   isClerkConfigured: jest.fn().mockReturnValue(true),
 }));
@@ -32,11 +32,15 @@ describe('OAuth Performance Tests', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockNetInfoFetch = NetInfo.fetch as jest.MockedFunction<typeof NetInfo.fetch>;
+    mockNetInfoFetch = NetInfo.fetch as jest.MockedFunction<
+      typeof NetInfo.fetch
+    >;
     // Ensure mock is properly set up
     if (!mockNetInfoFetch) {
       (NetInfo.fetch as any) = jest.fn();
-      mockNetInfoFetch = NetInfo.fetch as jest.MockedFunction<typeof NetInfo.fetch>;
+      mockNetInfoFetch = NetInfo.fetch as jest.MockedFunction<
+        typeof NetInfo.fetch
+      >;
     }
   });
 
@@ -146,9 +150,18 @@ describe('OAuth Performance Tests', () => {
   describe('Retry Performance', () => {
     test('exponential backoff delays are reasonable', () => {
       const error = 'Network error';
-      const attempt1 = handleOAuthError(error, { provider: 'google', attemptNumber: 1 });
-      const attempt2 = handleOAuthError(error, { provider: 'google', attemptNumber: 2 });
-      const attempt3 = handleOAuthError(error, { provider: 'google', attemptNumber: 3 });
+      const attempt1 = handleOAuthError(error, {
+        provider: 'google',
+        attemptNumber: 1,
+      });
+      const attempt2 = handleOAuthError(error, {
+        provider: 'google',
+        attemptNumber: 2,
+      });
+      const attempt3 = handleOAuthError(error, {
+        provider: 'google',
+        attemptNumber: 3,
+      });
 
       // Retry delays should be reasonable (not too long)
       expect(attempt1.retryDelay).toBeLessThan(5000);
@@ -158,7 +171,10 @@ describe('OAuth Performance Tests', () => {
 
     test('retry delays are capped at maximum', () => {
       const error = 'Network error';
-      const result = handleOAuthError(error, { provider: 'google', attemptNumber: 10 });
+      const result = handleOAuthError(error, {
+        provider: 'google',
+        attemptNumber: 10,
+      });
 
       // Retry delay should be capped
       expect(result.retryDelay).toBeLessThanOrEqual(10000);
@@ -200,4 +216,3 @@ describe('OAuth Performance Tests', () => {
     });
   });
 });
-

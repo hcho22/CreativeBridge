@@ -28,10 +28,18 @@ Enable educational, age-appropriate collaborative storytelling between users and
 
 #### Backend & Database
 
-- **Supabase** (PostgreSQL) - Primary backend service
-- Real-time subscriptions and Row Level Security (RLS)
-- Custom database functions for business logic
-- Comprehensive audit logging and analytics
+**Primary (OAuth Users):**
+
+- **Convex** - Real-time TypeScript backend with native Clerk integration
+- Automatic real-time updates for queries
+- Type-safe mutations and queries with generated TypeScript
+- Convex Storage for image persistence
+
+**Fallback (Legacy Email/Password Users):**
+
+- **Supabase** (PostgreSQL) - Fallback for users without Clerk IDs
+- Row Level Security (RLS) for data isolation
+- Existing database functions maintained for backward compatibility
 
 #### AI Services Integration
 
@@ -81,13 +89,28 @@ src/
 
 ### 1. Authentication & User Management
 
-**Location**: `src/context/AuthContext.tsx`, `src/services/supabase.ts`
+**Location**: `src/context/AuthContext.tsx`, `src/services/convex.ts`, `convex/auth.ts`
 
-- Supabase-powered email/password authentication
+**Primary (OAuth Users - Clerk IDs):**
+
+- Clerk OAuth authentication (Google/Apple)
+- Convex native JWT verification via `ConvexProviderWithClerk`
+- User profiles stored in Convex `userProfiles` table
+- Automatic profile creation on first OAuth sign-in
+
+**Fallback (Legacy Email/Password Users - UUIDs):**
+
+- Supabase email/password authentication
 - Email confirmation workflow
+- User profiles stored in Supabase `user_profiles` table
 - Automatic session management with token refresh
 - Deep link handling for email confirmations
-- Remember Me functionality with secure storage
+
+**Auth Helper Functions** (`convex/auth.ts`):
+
+- `getCurrentUser(ctx)` - Returns user identity or null
+- `requireAuth(ctx)` - Throws if not authenticated
+- `getClerkUserId(ctx)` - Extracts Clerk user ID from identity
 
 ### 2. Story Generation Engine
 
@@ -197,12 +220,18 @@ src/
 
 ### 6. Database Integration Layer
 
-**Location**: `src/services/supabase.ts`, `src/types/database.ts`
+**Primary - Convex** (`src/services/convex.ts`, `convex/schema.ts`):
 
-- **Real-time Sync**: Live data updates across devices
-- **Row Level Security**: User data isolation and privacy
-- **Custom Functions**: Server-side business logic
-- **Migration System**: Structured database evolution
+- **Real-time Queries**: Automatic UI updates when data changes
+- **Type-safe Mutations**: Generated TypeScript for all functions
+- **Auth Integration**: Native Clerk JWT verification
+- **Tables**: `userProfiles`, `gameSessions`, `imageGenerationEvents`, `storyElements`, `storyDiversityScores`, `featureFlags`, `storyDownloadHistory`
+
+**Fallback - Supabase** (`src/services/supabase.ts`, `src/types/database.ts`):
+
+- **Row Level Security**: User data isolation for legacy users
+- **Custom Functions**: Server-side business logic (RPC)
+- **Migration System**: SQL files in `.agent/archive/sql/`
 
 ### 7. Claude Skills AI Enhancement System
 
@@ -321,32 +350,114 @@ User Action → MilestoneTracker (AsyncStorage) → OnboardingService → Databa
               UI Component Update ← ← ← ← ← Cache Invalidation
 ```
 
+### 10. Convex Backend System
+
+**Location**: `convex/`, `src/services/convex.ts`
+
+The Convex backend provides the primary data layer for OAuth users, offering real-time capabilities and native Clerk integration.
+
+#### Convex Tables (Schema: `convex/schema.ts`)
+
+| Table                   | Purpose                   | Key Fields                                                      |
+| ----------------------- | ------------------------- | --------------------------------------------------------------- |
+| `userProfiles`          | User accounts and stats   | `clerkUserId`, `totalXp`, `currentStreak`, `onboardingProgress` |
+| `gameSessions`          | Story writing sessions    | `userId`, `clerkUserId`, `storyContent`, `storageId`            |
+| `imageGenerationEvents` | Image generation tracking | `userId`, `xpCost`, `generationStatus`, `serviceUsed`           |
+| `storyElements`         | Story diversity tracking  | `storyId`, `elementType`, `embeddingVector`                     |
+| `storyDiversityScores`  | Diversity analytics       | `storyId`, `diversityScore`, `novelElementCount`                |
+| `featureFlags`          | Feature configuration     | `featureName`, `enabled`, `config`                              |
+| `storyDownloadHistory`  | Download tracking         | `userId`, `downloadMethod`, `storyMetadata`                     |
+
+#### Convex Functions
+
+**User Profiles** (`convex/userProfiles.ts`):
+
+- `createOAuthProfile` - Create profile for new OAuth users
+- `getProfileByClerkId` - Fetch profile by Clerk ID
+- `addUserXp` / `deductUserXp` / `refundUserXp` - XP operations
+- `updateStreak` - Daily streak management
+- `getLeaderboard` - XP leaderboard
+
+**Game Sessions** (`convex/gameSessions.ts`):
+
+- `createSession` / `createStoryContinuationSession` - Session creation
+- `updateSession` / `completeSession` - Session management
+- `searchUserStories` - Full-text story search
+- `getStoryLibrary` - Filtered/sorted story listing
+
+**Image Generation** (`convex/imageGeneration.ts`):
+
+- `createImageGenerationEvent` - Start tracking with XP deduction
+- `updateImageGenerationEvent` - Status updates with auto-refund
+- `getImageGenerationAnalytics` - Aggregated statistics
+
+**Onboarding** (`convex/onboarding.ts`):
+
+- `recordOnboardingMilestone` - Record milestone with XP reward
+- `getOnboardingStatus` - Full onboarding state
+
+**Storage** (`convex/storage.ts`):
+
+- `generateUploadUrl` - Presigned URL for client uploads
+- `uploadFromUrl` - Server-side image migration
+- `getSessionImageUrl` - Image URL retrieval
+
+#### Data Flow: OAuth User
+
+```
+User Action → React Component → Convex Mutation → Convex DB
+                    ↓                    ↓
+            Real-time Query ← ← ← Automatic Update
+```
+
+#### Data Flow: Legacy Email/Password User
+
+```
+User Action → React Component → Supabase RPC → PostgreSQL
+                    ↓                    ↓
+              Manual Refresh ← ← ← Response
+```
+
 ## Integration Points
 
 ### External Services
 
-1. **Supabase Backend**
+1. **Convex Backend** (PRIMARY for OAuth users)
 
-   - Authentication service
-   - PostgreSQL database with real-time features
-   - File storage capabilities
-   - Edge functions for server-side logic
+   - Real-time database with automatic subscriptions
+   - Native Clerk JWT authentication
+   - Convex Storage for image persistence
+   - TypeScript-first API with generated types
 
-2. **OpenAI Integration**
+2. **Supabase Backend** (FALLBACK for legacy users)
+
+   - PostgreSQL database with RLS
+   - Email/password authentication
+   - Feature flags and configuration
+   - Maintained for backward compatibility
+
+3. **Clerk Authentication**
+
+   - OAuth providers (Google/Apple)
+   - JWT issuance for Convex verification
+   - User identity management
+   - `ConvexProviderWithClerk` integration
+
+4. **OpenAI Integration**
 
    - GPT-4 Turbo for story generation
    - Custom React Native-compatible client
    - Rate limiting and error handling
    - Content moderation and safety checks
 
-3. **Replicate AI Platform**
+5. **Replicate AI Platform**
 
    - Stable Diffusion 3.5 Large for image generation
    - Webhook support for async processing
    - Cost tracking and usage analytics
    - Fallback service integration
 
-4. **Claude Skills SDK**
+6. **Claude Skills SDK**
    - Advanced AI capabilities for content optimization
    - Performance monitoring and adaptive thresholds
    - Quality assessment and behavior analysis

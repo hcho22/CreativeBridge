@@ -5,6 +5,7 @@ import React, {
   useState,
   useCallback,
   useRef,
+  useMemo,
 } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import AsyncStorage from '../utils/asyncStorageWrapper';
@@ -29,6 +30,10 @@ import {
   clerkTokenCache,
 } from '../utils/clerkTokenCache';
 import * as WebBrowser from 'expo-web-browser';
+// Convex imports for database migration (US-017)
+import { useQuery, useMutation, useConvex } from 'convex/react';
+import { api } from '../services/convex';
+import type { Doc } from '../../convex/_generated/dataModel';
 
 // Verify supabase is properly imported
 if (!supabase) {
@@ -36,6 +41,46 @@ if (!supabase) {
     '❌ CRITICAL: Supabase client is not initialized at module load time',
   );
 }
+
+/**
+ * Migration Complete (US-031)
+ *
+ * Convex is now the PRIMARY data store for OAuth users
+ * Supabase remains as FALLBACK for email/password users (UUID-based)
+ */
+
+/**
+ * Helper to convert Convex userProfile to legacy UserProfile type
+ * This ensures backward compatibility during the migration period.
+ */
+const convertConvexProfileToLegacy = (
+  convexProfile: Doc<'userProfiles'>,
+): UserProfile => ({
+  id: convexProfile._id,
+  clerk_user_id: convexProfile.clerkUserId,
+  username: convexProfile.username,
+  display_name: convexProfile.displayName,
+  total_xp: convexProfile.totalXp,
+  current_streak: convexProfile.currentStreak,
+  longest_streak: convexProfile.longestStreak,
+  last_activity_date: convexProfile.lastActivityDate,
+  best_score: convexProfile.bestScore,
+  total_games_played: convexProfile.totalGamesPlayed,
+  total_stories_completed: convexProfile.totalStoriesCompleted,
+  total_words_written: convexProfile.totalWordsWritten,
+  preferred_grade_level: convexProfile.preferredGradeLevel as GradeLevel,
+  speech_enabled: convexProfile.speechEnabled,
+  avatar_url: convexProfile.avatarUrl,
+  bio: convexProfile.bio,
+  onboarding_completed: convexProfile.onboardingCompleted,
+  onboarding_progress: convexProfile.onboardingProgress,
+  first_story_completed_at: convexProfile.firstStoryCompletedAt,
+  first_image_generated_at: convexProfile.firstImageGeneratedAt,
+  first_voice_input_at: convexProfile.firstVoiceInputAt,
+  first_streak_achieved_at: convexProfile.firstStreakAchievedAt,
+  created_at: new Date(convexProfile._creationTime).toISOString(),
+  updated_at: new Date().toISOString(),
+});
 
 interface SignUpData {
   username: string;
@@ -159,6 +204,292 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Track the last Clerk user ID we synced to prevent infinite sync loops
   const lastSyncedClerkUserId = useRef<string | null>(null);
+
+  // ============================================================================
+  // CONVEX INTEGRATION (US-017)
+  // ============================================================================
+
+  // Get Convex client for direct mutations
+  const convex = useConvex();
+
+  // Convex mutations for user profile operations
+  const convexCreateProfile = useMutation(api.userProfiles.createOAuthProfile);
+  const convexUpdateProfile = useMutation(api.userProfiles.updateProfile);
+  const convexAddXp = useMutation(api.userProfiles.addUserXp);
+  const convexDeductXp = useMutation(api.userProfiles.deductUserXp);
+  const convexRefundXp = useMutation(api.userProfiles.refundUserXp);
+
+  // Convex reactive query for current user's profile
+  // This will automatically update when the profile changes in the database
+  const clerkUserId = clerkAuth?.userId;
+  const convexProfile = useQuery(
+    api.userProfiles.getProfileByClerkId,
+    clerkUserId ? { clerkUserId } : 'skip',
+  );
+
+  // Effect to sync Convex profile to local state
+  // This replaces the manual fetchUserProfile for OAuth users
+  useEffect(() => {
+    if (convexProfile && clerkUserId) {
+      // Convert Convex profile to legacy format
+      const legacyProfile = convertConvexProfileToLegacy(convexProfile);
+
+      // Only update state if values actually changed to prevent infinite re-renders
+      // Compare key fields that would trigger dependent useEffects
+      setUserProfile(currentProfile => {
+        if (
+          currentProfile &&
+          currentProfile.total_xp === legacyProfile.total_xp &&
+          currentProfile.speech_enabled === legacyProfile.speech_enabled &&
+          currentProfile.preferred_grade_level ===
+            legacyProfile.preferred_grade_level &&
+          currentProfile.current_streak === legacyProfile.current_streak &&
+          currentProfile.username === legacyProfile.username
+        ) {
+          // No meaningful change, return current state to prevent re-render
+          return currentProfile;
+        }
+
+        console.log('🔄 [Convex] Profile updated from reactive query:', {
+          clerkUserId,
+          username: convexProfile.username,
+          totalXp: convexProfile.totalXp,
+        });
+
+        return legacyProfile;
+      });
+    }
+  }, [convexProfile, clerkUserId]);
+
+  // Track if we've already attempted Supabase fallback for this session
+  const supabaseFallbackAttemptedRef = useRef<string | null>(null);
+
+  // Fallback effect: Load profile from Supabase when Convex query fails/unavailable
+  // This handles the case where the Convex JWT template is not configured in Clerk
+  // or when Convex auth is otherwise unavailable.
+  useEffect(() => {
+    const loadSupabaseFallback = async () => {
+      // Skip if:
+      // - No Clerk user ID (not logged in)
+      // - Convex profile exists (no fallback needed)
+      // - userProfile already loaded (no fallback needed)
+      // - Already attempted fallback for this user
+      // - convexProfile is undefined (still loading - wait for it to resolve)
+      if (
+        !clerkUserId ||
+        convexProfile !== null ||
+        userProfile !== null ||
+        supabaseFallbackAttemptedRef.current === clerkUserId
+      ) {
+        return;
+      }
+
+      // Check if convexProfile query has settled (null = not found, undefined = loading)
+      // We need a timeout to detect when Convex auth is failing and never resolving
+      // After 3 seconds, if still undefined and no userProfile, try Supabase fallback
+      if (convexProfile === undefined) {
+        // Set up a delayed fallback check
+        const timeoutId = setTimeout(async () => {
+          // Double-check conditions after timeout
+          if (
+            clerkUserId &&
+            convexProfile === undefined &&
+            userProfile === null &&
+            supabaseFallbackAttemptedRef.current !== clerkUserId
+          ) {
+            console.log(
+              '⚠️ [AuthContext] Convex query stuck (auth token issue?), attempting Supabase fallback...',
+            );
+            supabaseFallbackAttemptedRef.current = clerkUserId;
+
+            try {
+              const { data: profiles, error } = await supabase
+                .from('user_profiles')
+                .select('*')
+                .eq('clerk_user_id', clerkUserId)
+                .limit(1);
+
+              if (error) {
+                console.error(
+                  '❌ [AuthContext] Supabase fallback query error:',
+                  error,
+                );
+                return;
+              }
+
+              const profile =
+                profiles && profiles.length > 0 ? profiles[0] : null;
+
+              if (profile) {
+                console.log(
+                  '✅ [AuthContext] Loaded profile from Supabase fallback:',
+                  {
+                    username: profile.username,
+                    clerkUserId: profile.clerk_user_id,
+                  },
+                );
+                setUserProfile(profile);
+              } else {
+                console.log(
+                  '📋 [AuthContext] No Supabase profile found for Clerk user (new user)',
+                );
+              }
+            } catch (fallbackError) {
+              console.error(
+                '❌ [AuthContext] Supabase fallback failed:',
+                fallbackError,
+              );
+            }
+          }
+        }, 3000); // Wait 3 seconds before fallback
+
+        return () => clearTimeout(timeoutId);
+      }
+
+      // convexProfile is null (query completed, profile not found)
+      // The migration effect will handle creating the Convex profile if Supabase has one
+      // But we should also load the Supabase profile into context for immediate use
+      if (convexProfile === null) {
+        supabaseFallbackAttemptedRef.current = clerkUserId;
+        console.log(
+          '🔍 [AuthContext] Convex profile is null, loading Supabase profile into context...',
+        );
+
+        try {
+          const { data: profiles, error } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('clerk_user_id', clerkUserId)
+            .limit(1);
+
+          if (error) {
+            console.error(
+              '❌ [AuthContext] Supabase profile query error:',
+              error,
+            );
+            return;
+          }
+
+          const profile = profiles && profiles.length > 0 ? profiles[0] : null;
+
+          if (profile && !userProfile) {
+            console.log(
+              '✅ [AuthContext] Loaded Supabase profile while waiting for Convex migration:',
+              {
+                username: profile.username,
+                clerkUserId: profile.clerk_user_id,
+              },
+            );
+            setUserProfile(profile);
+          }
+        } catch (queryError) {
+          console.error(
+            '❌ [AuthContext] Failed to load Supabase profile:',
+            queryError,
+          );
+        }
+      }
+    };
+
+    loadSupabaseFallback();
+  }, [clerkUserId, convexProfile, userProfile]);
+
+  // Track if we've already attempted migration for this session
+  const migrationAttemptedRef = useRef<string | null>(null);
+
+  // Effect to migrate Supabase profile to Convex if needed
+  // This handles existing users who have a Supabase profile but no Convex profile
+  useEffect(() => {
+    const migrateProfileIfNeeded = async () => {
+      // Skip if:
+      // - No clerk user ID (not logged in)
+      // - convexProfile is undefined (still loading - not null)
+      // - convexProfile exists (no migration needed)
+      // - Already attempted migration for this user
+      // - Currently signing out
+      if (
+        !clerkUserId ||
+        convexProfile === undefined ||
+        convexProfile !== null ||
+        migrationAttemptedRef.current === clerkUserId ||
+        isSigningOut.current
+      ) {
+        return;
+      }
+
+      // Mark that we've attempted migration for this user
+      migrationAttemptedRef.current = clerkUserId;
+
+      console.log(
+        '🔍 [Convex Migration] Convex profile is null, checking for Supabase profile to migrate...',
+      );
+
+      try {
+        // Check if there's a Supabase profile for this Clerk user
+        const { data: supabaseProfiles, error } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('clerk_user_id', clerkUserId)
+          .limit(1);
+
+        if (error) {
+          console.error(
+            '❌ [Convex Migration] Error checking Supabase profile:',
+            error,
+          );
+          return;
+        }
+
+        const supabaseProfile =
+          supabaseProfiles && supabaseProfiles.length > 0
+            ? supabaseProfiles[0]
+            : null;
+
+        if (!supabaseProfile) {
+          console.log(
+            '📋 [Convex Migration] No Supabase profile found - user needs to complete profile setup',
+          );
+          return;
+        }
+
+        console.log(
+          '📦 [Convex Migration] Found Supabase profile to migrate:',
+          {
+            clerkUserId: supabaseProfile.clerk_user_id,
+            username: supabaseProfile.username,
+            displayName: supabaseProfile.display_name,
+            totalXp: supabaseProfile.total_xp,
+          },
+        );
+
+        // Create Convex profile from Supabase profile data
+        const convexProfileId = await convexCreateProfile({
+          clerkUserId,
+          username: supabaseProfile.username,
+          displayName: supabaseProfile.display_name,
+          preferredGradeLevel: (supabaseProfile.preferred_grade_level ||
+            'K-2') as GradeLevel,
+          speechEnabled: supabaseProfile.speech_enabled ?? true,
+        });
+
+        console.log(
+          '✅ [Convex Migration] Convex profile created from Supabase migration:',
+          convexProfileId,
+        );
+
+        // The convexProfile reactive query will automatically pick up the new profile
+      } catch (migrationError) {
+        console.error(
+          '❌ [Convex Migration] Failed to migrate profile:',
+          migrationError,
+        );
+        // Reset migration attempt so user can retry
+        migrationAttemptedRef.current = null;
+      }
+    };
+
+    migrateProfileIfNeeded();
+  }, [clerkUserId, convexProfile, convexCreateProfile]);
 
   const fetchUserProfile = async (
     userId: string,
@@ -747,45 +1078,65 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
             : null;
 
         // Profile exists - update it
+        // US-017: Convex PRIMARY, Supabase FALLBACK for UUID users
         if (existingProfile) {
           console.log(
             '✅ [AuthContext] Found existing profile, updating it:',
             existingProfile.id,
           );
 
-          // For OAuth users, we need to update and then fetch separately
-          // because RLS policies might block SELECT in the same query
-          const { error: updateError } = await supabase
-            .from('user_profiles')
-            .update(profile as any)
-            .eq('clerk_user_id', clerkUserId);
+          // Build update object for Convex (camelCase)
+          const convexUpdates: {
+            username?: string;
+            displayName?: string;
+            preferredGradeLevel?: 'K-2' | '3-5' | '6-8' | '9-12';
+            speechEnabled?: boolean;
+            avatarUrl?: string;
+            bio?: string;
+          } = {};
 
-          if (updateError) {
-            console.error(
-              '❌ [AuthContext] Failed to update profile:',
-              updateError,
+          if (profile.username !== undefined)
+            convexUpdates.username = profile.username;
+          if (profile.display_name !== undefined)
+            convexUpdates.displayName = profile.display_name;
+          if (profile.preferred_grade_level !== undefined)
+            convexUpdates.preferredGradeLevel = profile.preferred_grade_level;
+          if (profile.speech_enabled !== undefined)
+            convexUpdates.speechEnabled = profile.speech_enabled;
+          if (profile.avatar_url !== undefined)
+            convexUpdates.avatarUrl = profile.avatar_url;
+          if (profile.bio !== undefined) convexUpdates.bio = profile.bio;
+
+          // PRIMARY: Update in Convex
+          console.log('📝 [Convex] Updating profile for:', clerkUserId);
+          try {
+            await convexUpdateProfile({
+              clerkUserId,
+              updates: convexUpdates,
+            });
+            console.log('✅ [Convex] Profile updated successfully');
+
+            // Fetch updated profile from Convex
+            const updatedConvexProfile = await convex.query(
+              api.userProfiles.getProfileByClerkId,
+              { clerkUserId },
             );
-            return { error: updateError.message };
+
+            if (updatedConvexProfile) {
+              const legacyProfile =
+                convertConvexProfileToLegacy(updatedConvexProfile);
+              setUserProfile(legacyProfile);
+            }
+          } catch (convexError) {
+            console.error('❌ [Convex] Failed to update profile:', convexError);
+            return {
+              error:
+                convexError instanceof Error
+                  ? convexError.message
+                  : 'Failed to update profile',
+            };
           }
 
-          // Fetch the updated profile using clerk_user_id (which passes RLS)
-          const { data: updatedProfiles, error: fetchError } = await supabase
-            .from('user_profiles')
-            .select('*')
-            .eq('clerk_user_id', clerkUserId)
-            .limit(1);
-
-          if (fetchError || !updatedProfiles || updatedProfiles.length === 0) {
-            console.error(
-              '❌ [AuthContext] Failed to fetch updated profile:',
-              fetchError,
-            );
-            return { error: 'Failed to fetch updated profile' };
-          }
-
-          const updatedProfile = updatedProfiles[0];
-          console.log('✅ [AuthContext] Profile updated successfully');
-          setUserProfile(updatedProfile);
           return {};
         }
 
@@ -852,48 +1203,66 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           return `User ${uniqueSuffix}`;
         };
 
-        // Use RPC function to create profile (bypasses RLS)
-        const { data: createdProfile, error: createError } = await (
-          supabase as any
-        )
-          .rpc('create_oauth_user_profile', {
-            p_clerk_user_id: clerkUserId,
-            p_username: generateUniqueUsername(),
-            p_display_name: generateDisplayName(),
-            p_preferred_grade_level: profile.preferred_grade_level || 'K-2',
-            p_email: user.email || null,
-            p_speech_enabled: profile.speech_enabled ?? true,
-          })
-          .single();
+        // US-017: Convex PRIMARY, Supabase FALLBACK for UUID users
+        const username = generateUniqueUsername();
+        const displayName = generateDisplayName();
+        const preferredGradeLevel = (profile.preferred_grade_level ||
+          'K-2') as GradeLevel;
+        const speechEnabled = profile.speech_enabled ?? true;
 
-        if (createError) {
-          console.error(
-            '❌ [AuthContext] Failed to create profile:',
-            createError,
-          );
-          return { error: createError.message };
-        }
-
+        // PRIMARY: Create profile in Convex
         console.log(
-          '✅ [AuthContext] Profile created successfully:',
-          createdProfile?.id,
+          '📝 [Convex] Creating profile for OAuth user:',
+          clerkUserId,
         );
-
-        // Update the synthetic user's ID to match the generated profile ID
-        // This ensures that future operations that check user.id === profile.id will work
-        if (createdProfile && user.id !== createdProfile.id) {
-          console.log(
-            '🔗 [AuthContext] Updating synthetic user ID to match profile ID:',
-            createdProfile.id,
-          );
-          setUser({
-            ...user,
-            id: createdProfile.id,
+        try {
+          const convexProfileId = await convexCreateProfile({
+            clerkUserId,
+            username,
+            displayName,
+            preferredGradeLevel,
+            speechEnabled,
           });
+
+          console.log(
+            '✅ [Convex] Profile created successfully:',
+            convexProfileId,
+          );
+
+          // Fetch the created profile to get full data
+          const createdConvexProfile = await convex.query(
+            api.userProfiles.getProfileByClerkId,
+            { clerkUserId },
+          );
+
+          if (createdConvexProfile) {
+            const legacyProfile =
+              convertConvexProfileToLegacy(createdConvexProfile);
+            setUserProfile(legacyProfile);
+            setNeedsProfileCompletion(false);
+
+            // Update the synthetic user's ID to match the generated profile ID
+            if (user.id !== legacyProfile.id) {
+              console.log(
+                '🔗 [AuthContext] Updating synthetic user ID to match profile ID:',
+                legacyProfile.id,
+              );
+              setUser({
+                ...user,
+                id: legacyProfile.id,
+              });
+            }
+          }
+        } catch (convexError) {
+          console.error('❌ [Convex] Failed to create profile:', convexError);
+          return {
+            error:
+              convexError instanceof Error
+                ? convexError.message
+                : 'Failed to create profile',
+          };
         }
 
-        setUserProfile(createdProfile as any);
-        setNeedsProfileCompletion(false);
         return {};
       }
 
@@ -2152,23 +2521,47 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         currentBalance: userProfile.total_xp,
       });
 
-      // Use negative amount for deduction with the add_user_xp function
-      const { error } = await supabase.rpc('add_user_xp', {
-        user_uuid: user.id,
-        xp_to_add: -amount,
-        words_added: 0,
-      });
+      // Get Clerk user ID for Convex operations
+      // Priority order: userProfile.clerk_user_id > clerkUserId (component-level) > clerkAuth?.userId
+      const clerkUserIdForXp =
+        userProfile.clerk_user_id || clerkUserId || clerkAuth?.userId;
 
-      if (error) {
-        console.error('❌ Database XP deduction failed:', error);
+      if (!clerkUserIdForXp) {
+        console.error('❌ XP deduction failed: No Clerk user ID', {
+          profileClerkId: userProfile.clerk_user_id,
+          componentClerkId: clerkUserId,
+          authClerkId: clerkAuth?.userId,
+        });
         return {
           success: false,
-          error: `Database error: ${error.message}`,
+          error: 'No Clerk user ID available',
+        };
+      }
+
+      let newBalance = (userProfile.total_xp || 0) - amount;
+
+      // US-017: Convex PRIMARY, Supabase FALLBACK for UUID users
+      // PRIMARY: Deduct XP via Convex
+      console.log('💸 [Convex] Deducting XP:', { clerkUserIdForXp, amount });
+      try {
+        const convexResult = await convexDeductXp({
+          clerkUserId: clerkUserIdForXp,
+          xpToDeduct: amount,
+        });
+        newBalance = convexResult.newBalance;
+        console.log('✅ [Convex] XP deducted successfully:', convexResult);
+      } catch (convexError) {
+        console.error('❌ [Convex] XP deduction failed:', convexError);
+        return {
+          success: false,
+          error:
+            convexError instanceof Error
+              ? convexError.message
+              : 'XP deduction failed',
         };
       }
 
       // Update local state immediately for better UX
-      const newBalance = (userProfile.total_xp || 0) - amount;
       const updatedProfile = {
         ...userProfile,
         total_xp: newBalance,
@@ -2240,23 +2633,52 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         currentBalance: userProfile.total_xp,
       });
 
-      // Use positive amount for refund with the add_user_xp function
-      const { error } = await supabase.rpc('add_user_xp', {
-        user_uuid: user.id,
-        xp_to_add: amount,
-        words_added: 0,
-      });
+      // Get Clerk user ID for Convex operations
+      // Priority order: userProfile.clerk_user_id > clerkUserId (component-level) > clerkAuth?.userId
+      const clerkUserIdForXp =
+        userProfile.clerk_user_id || clerkUserId || clerkAuth?.userId;
 
-      if (error) {
-        console.error('❌ Database XP refund failed:', error);
+      if (!clerkUserIdForXp) {
+        console.error('❌ XP refund failed: No Clerk user ID', {
+          profileClerkId: userProfile.clerk_user_id,
+          componentClerkId: clerkUserId,
+          authClerkId: clerkAuth?.userId,
+        });
         return {
           success: false,
-          error: `Database error: ${error.message}`,
+          error: 'No Clerk user ID available',
+        };
+      }
+
+      let newBalance = (userProfile.total_xp || 0) + amount;
+
+      // US-017: Convex PRIMARY, Supabase FALLBACK for UUID users
+      // PRIMARY: Refund XP via Convex
+      console.log('💰 [Convex] Refunding XP:', {
+        clerkUserIdForXp,
+        amount,
+        reason: reason.trim(),
+      });
+      try {
+        const convexResult = await convexRefundXp({
+          clerkUserId: clerkUserIdForXp,
+          xpToRefund: amount,
+          reason: reason.trim(),
+        });
+        newBalance = convexResult.newBalance;
+        console.log('✅ [Convex] XP refunded successfully:', convexResult);
+      } catch (convexError) {
+        console.error('❌ [Convex] XP refund failed:', convexError);
+        return {
+          success: false,
+          error:
+            convexError instanceof Error
+              ? convexError.message
+              : 'XP refund failed',
         };
       }
 
       // Update local state immediately for better UX
-      const newBalance = (userProfile.total_xp || 0) + amount;
       const updatedProfile = {
         ...userProfile,
         total_xp: newBalance,
@@ -2332,35 +2754,64 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     try {
+      // Get Clerk user ID for Convex operations
+      // Priority order: userProfile.clerk_user_id (from Convex/Supabase) > clerkUserId (component-level const) > clerkAuth?.userId (real-time)
+      // Using clerkUserId (line 223) as middle fallback since it's captured at render time and more stable
+      const clerkUserIdForXp =
+        userProfile.clerk_user_id || clerkUserId || clerkAuth?.userId;
+
+      if (!clerkUserIdForXp) {
+        console.error('❌ Onboarding XP award failed: No Clerk user ID', {
+          profileClerkId: userProfile.clerk_user_id,
+          componentClerkId: clerkUserId,
+          authClerkId: clerkAuth?.userId,
+        });
+        return {
+          success: false,
+          error: 'No Clerk user ID available',
+          xpAwarded: 0,
+        };
+      }
+
       console.log('🎁 Awarding onboarding XP:', {
-        supabaseUserId: userProfile.id,
-        clerkUserId: user.id,
+        clerkUserId: clerkUserIdForXp,
         milestoneType,
         xpAmount,
         currentBalance: userProfile.total_xp,
       });
 
-      // Use positive amount to add XP with the add_user_xp function
-      // IMPORTANT: Use userProfile.id (Supabase UUID) instead of user.id
-      // For OAuth users, user.id contains the Clerk user ID (e.g., "user_xxxxx")
-      // which is not a valid UUID and will fail the database query
-      const { error } = await supabase.rpc('add_user_xp', {
-        user_uuid: userProfile.id,
-        xp_to_add: xpAmount,
-        words_added: 0,
-      });
+      let newBalance = (userProfile.total_xp || 0) + xpAmount;
 
-      if (error) {
-        console.error('❌ Database onboarding XP award failed:', error);
+      // US-017: Convex PRIMARY, Supabase FALLBACK for UUID users
+      // PRIMARY: Add XP via Convex
+      console.log('🎁 [Convex] Adding onboarding XP:', {
+        clerkUserIdForXp,
+        xpAmount,
+        milestoneType,
+      });
+      try {
+        const convexResult = await convexAddXp({
+          clerkUserId: clerkUserIdForXp,
+          xpToAdd: xpAmount,
+          wordsAdded: 0,
+        });
+        newBalance = convexResult.newBalance;
+        console.log(
+          '✅ [Convex] Onboarding XP added successfully:',
+          convexResult,
+        );
+      } catch (convexError) {
+        console.error('❌ [Convex] Onboarding XP award failed:', convexError);
         return {
           success: false,
-          error: `Database error: ${error.message}`,
+          error:
+            convexError instanceof Error
+              ? convexError.message
+              : 'Onboarding XP award failed',
           xpAwarded: 0,
         };
       }
 
-      // Update local state immediately for better UX
-      const newBalance = (userProfile.total_xp || 0) + xpAmount;
       const updatedProfile = {
         ...userProfile,
         total_xp: newBalance,
@@ -2642,6 +3093,17 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
       console.log('✅ [AuthContext] OAuth flow completed successfully');
 
+      // CRITICAL: Mark OAuth processing as complete BEFORE any state updates
+      // This prevents infinite re-render loops where useEffect fires on `user` change
+      // and re-enters this flow because isProcessingOAuth.current is still true
+      isProcessingOAuth.current = false;
+
+      // Track that we've successfully synced this Clerk user ID
+      // Do this early to prevent re-sync attempts during state updates
+      if (oauthResult.clerkUserId) {
+        lastSyncedClerkUserId.current = oauthResult.clerkUserId;
+      }
+
       // Clear any previous OAuth errors on success
       setOAuthError(null);
 
@@ -2754,6 +3216,56 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
             profile.username,
           );
           setUserProfile(profile);
+
+          // US-017 Migration: Ensure Convex profile exists for existing Supabase users
+          // Check if Convex profile exists - if not, migrate the Supabase profile
+          try {
+            const existingConvexProfile = await convex.query(
+              api.userProfiles.getProfileByClerkId,
+              { clerkUserId: oauthResult.clerkUserId! },
+            );
+
+            if (!existingConvexProfile) {
+              console.log(
+                '📦 [AuthContext] No Convex profile found - migrating from Supabase...',
+              );
+              console.log('📦 [AuthContext] Supabase profile to migrate:', {
+                clerkUserId: profile.clerk_user_id,
+                username: profile.username,
+                displayName: profile.display_name,
+                totalXp: profile.total_xp,
+              });
+
+              // Create Convex profile from Supabase profile data
+              const convexProfileId = await convexCreateProfile({
+                clerkUserId: oauthResult.clerkUserId!,
+                username: profile.username,
+                displayName: profile.display_name,
+                preferredGradeLevel: (profile.preferred_grade_level ||
+                  'K-2') as GradeLevel,
+                speechEnabled: profile.speech_enabled ?? true,
+              });
+
+              console.log(
+                '✅ [AuthContext] Convex profile created from Supabase migration:',
+                convexProfileId,
+              );
+
+              // Note: XP and other stats will be synced via the convexProfile reactive query
+              // The full profile with XP is already in Supabase; Convex starts fresh but
+              // the reactive query will load the authoritative data
+            } else {
+              console.log(
+                '✅ [AuthContext] Convex profile already exists - no migration needed',
+              );
+            }
+          } catch (convexMigrationError) {
+            // Log but don't fail - the user can still use the app with Supabase
+            console.warn(
+              '⚠️ [AuthContext] Convex profile migration failed (non-fatal):',
+              convexMigrationError,
+            );
+          }
         } else {
           // Profile will be created during profile completion (Task 5.1)
           console.log(
@@ -2768,13 +3280,8 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         await checkProfileCompletion();
       }
 
-      // Mark OAuth processing as complete
-      isProcessingOAuth.current = false;
-
-      // Track that we've successfully synced this Clerk user ID
-      if (oauthResult.clerkUserId) {
-        lastSyncedClerkUserId.current = oauthResult.clerkUserId;
-      }
+      // Note: isProcessingOAuth.current and lastSyncedClerkUserId.current
+      // are set early (before setUser) to prevent infinite re-render loops
 
       return { success: true };
     } catch (error) {
@@ -3197,35 +3704,68 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     setOAuthError(null);
   }, []);
 
-  const value: AuthContextType = {
-    session,
-    user,
-    userProfile,
-    loading,
-    emailConfirmed,
-    needsProfileCompletion,
-    oauthError,
-    signIn,
-    signUp,
-    signOut,
-    updateProfile,
-    refreshProfile,
-    resendConfirmation,
-    checkEmailConfirmation,
-    resetPassword,
-    deductXP,
-    refundXP,
-    awardOnboardingXP,
-    validateXPBalance,
-    getXPBalanceInfo,
-    canGenerateImage,
-    trackXPEvent,
-    createImageGenerationEvent,
-    signInWithGoogle,
-    signInWithApple,
-    checkProfileCompletion,
-    clearOAuthError,
-  };
+  // Memoize context value to prevent unnecessary re-renders of consumers
+  // Only include state values in deps - callbacks are stable via useCallback
+  const value: AuthContextType = useMemo(
+    () => ({
+      session,
+      user,
+      userProfile,
+      loading,
+      emailConfirmed,
+      needsProfileCompletion,
+      oauthError,
+      signIn,
+      signUp,
+      signOut,
+      updateProfile,
+      refreshProfile,
+      resendConfirmation,
+      checkEmailConfirmation,
+      resetPassword,
+      deductXP,
+      refundXP,
+      awardOnboardingXP,
+      validateXPBalance,
+      getXPBalanceInfo,
+      canGenerateImage,
+      trackXPEvent,
+      createImageGenerationEvent,
+      signInWithGoogle,
+      signInWithApple,
+      checkProfileCompletion,
+      clearOAuthError,
+    }),
+    [
+      session,
+      user,
+      userProfile,
+      loading,
+      emailConfirmed,
+      needsProfileCompletion,
+      oauthError,
+      signIn,
+      signUp,
+      signOut,
+      updateProfile,
+      refreshProfile,
+      resendConfirmation,
+      checkEmailConfirmation,
+      resetPassword,
+      deductXP,
+      refundXP,
+      awardOnboardingXP,
+      validateXPBalance,
+      getXPBalanceInfo,
+      canGenerateImage,
+      trackXPEvent,
+      createImageGenerationEvent,
+      signInWithGoogle,
+      signInWithApple,
+      checkProfileCompletion,
+      clearOAuthError,
+    ],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

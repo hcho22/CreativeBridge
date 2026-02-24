@@ -4,6 +4,20 @@
 // Part of US-012: Store diversity scores with story metadata
 
 import { supabase } from './supabase';
+
+/**
+ * Checks if an ID is a valid UUID format (Supabase format).
+ * Convex uses a different ID format (alphanumeric strings like 'j978rdkax3fcmqc4tf283zvv5x81f9bh')
+ * which will fail Supabase UUID validation.
+ *
+ * @param id - The ID to check
+ * @returns true if the ID is a valid UUID, false otherwise
+ */
+function isValidUUID(id: string): boolean {
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(id);
+}
 import { storyElementExtractionService } from './storyElementExtractionService';
 import { embeddingGenerationService } from './embeddingGenerationService';
 import { diversityScoreStorageService } from './diversityScoreStorageService';
@@ -82,6 +96,30 @@ class PostGenerationStorageService {
 
     const errors: string[] = [];
     let elementsStored = 0;
+
+    // Check if this is a Convex session (non-UUID format)
+    // During Supabase-to-Convex migration, sessions created via Convex will have
+    // IDs like 'j978rdkax3fcmqc4tf283zvv5x81f9bh' that cannot be stored in
+    // Supabase's UUID-typed columns. Skip Supabase storage for these sessions.
+    // TODO: Migrate this service to use Convex storage (story elements table exists in Convex schema)
+    if (!isValidUUID(sessionId) || !isValidUUID(storyId)) {
+      console.log(
+        '⚠️ Convex IDs detected, skipping Supabase storage (not yet migrated to Convex):',
+        {
+          sessionId: sessionId.substring(0, 12),
+          storyId: storyId.substring(0, 12),
+          isSessionUUID: isValidUUID(sessionId),
+          isStoryUUID: isValidUUID(storyId),
+        },
+      );
+      return {
+        success: true, // Not a failure, just skipping legacy storage
+        elementsStored: 0,
+        diversityScoreStored: false,
+        errors: [],
+        duration: Date.now() - startTime,
+      };
+    }
 
     try {
       // Step 1: Extract story elements using LLM
@@ -391,6 +429,20 @@ class PostGenerationStorageService {
     withEmbeddings: number;
     withoutEmbeddings: number;
   }> {
+    // Skip Supabase query for Convex session IDs (non-UUID format)
+    if (!isValidUUID(sessionId)) {
+      console.log(
+        '⚠️ Convex session ID detected, returning empty stats (not yet migrated):',
+        { sessionId: sessionId.substring(0, 12) },
+      );
+      return {
+        total: 0,
+        byType: { character: 0, setting: 0, object: 0, plot_pattern: 0 },
+        withEmbeddings: 0,
+        withoutEmbeddings: 0,
+      };
+    }
+
     try {
       const { data, error } = await supabase
         .from('story_elements')

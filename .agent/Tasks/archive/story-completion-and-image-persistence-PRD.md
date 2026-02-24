@@ -3,14 +3,18 @@
 ## 1. Overview
 
 ### Feature Summary
+
 Implement proper story completion tracking and enhanced image persistence to ensure stories are properly marked as complete when they reach the maximum round count (5 rounds), and generated images are permanently backed up to Supabase Storage in addition to the temporary Replicate URLs.
 
 ### Problem Statement
+
 Currently, the application has two critical issues:
+
 1. **Story Completion Bug**: The `completed_at` field in game_sessions is never set, making it impossible to track which stories are actually finished. This breaks analytics, leaderboards, and user progress tracking.
 2. **Image Persistence Risk**: Generated images are only stored via Replicate URLs, which may expire or become unavailable. There's no permanent backup, risking loss of user-generated content.
 
 ### Business Value
+
 - **Data Integrity**: Proper completion tracking enables accurate analytics and user engagement metrics
 - **User Experience**: Permanent image storage prevents disappointment from lost images
 - **Compliance**: Reliable data retention meets user expectations and potential regulatory requirements
@@ -18,6 +22,7 @@ Currently, the application has two critical issues:
 - **Feature Foundation**: Completion tracking is required for future features like "Completed Only" filters and completion achievements
 
 ### Success Metrics
+
 - 100% of stories that reach MAX_ROUNDS (5) have `completed_at` set
 - 100% of generated images have both Replicate URL and Supabase Storage URL
 - Image generation only occurs when `current_round >= MAX_ROUNDS`
@@ -30,18 +35,21 @@ Currently, the application has two critical issues:
 ## 2. User Stories
 
 ### As a Story Writer
+
 - **Story Completion**: When I complete my 5th round of story writing, I want the system to automatically mark my story as complete so I can see it in my "completed stories" list
 - **Image Generation Timing**: When my story is complete, I want the option to generate an image so I can visualize my finished work
 - **Image Reliability**: When I generate an image for my story, I want it to be permanently saved so I can access it anytime in the future
 - **Visual Feedback**: When viewing my completed story, I want to clearly see that it's finished and see my generated image (if I created one)
 
 ### As a Developer
+
 - **Data Consistency**: I need `completed_at` to be reliably set when stories finish so analytics queries work correctly
 - **State Management**: I need to track the current round number persistently so the app knows when a story is complete
 - **Image URLs**: I need both Replicate URL (temporary) and Supabase Storage URL (permanent) saved in the database for fallback functionality
 - **Error Handling**: I need proper error handling for Supabase uploads that doesn't break the user experience
 
 ### As a Product Owner
+
 - **Analytics**: I need accurate completion data to measure user engagement and story completion rates
 - **Content Preservation**: I need all user-generated images backed up permanently to prevent data loss
 - **Cost Control**: I need images to only be generated for completed stories to optimize API costs
@@ -54,24 +62,28 @@ Currently, the application has two critical issues:
 ### 3.1 Story Completion Tracking
 
 #### 3.1.1 Round Counter Implementation
+
 - **FR-1.1**: Add `current_round` column to `game_sessions` table (integer, default: 1, not null)
 - **FR-1.2**: Increment `current_round` after each user contribution + AI response cycle
 - **FR-1.3**: Track `current_round` in the `StorySession` interface for local state management
 - **FR-1.4**: Persist `current_round` to database on each session update
 
 #### 3.1.2 Completion Detection
+
 - **FR-1.5**: When `current_round` reaches `MAX_ROUNDS` (5), automatically set `completed_at` to current timestamp
 - **FR-1.6**: Set `isCompleted` flag to `true` in local StorySession state
 - **FR-1.7**: Update `sessionStats.sessionDuration` to reflect total time from `created_at` to `completed_at`
 - **FR-1.8**: Trigger completion event for XP award calculation (if not already awarded)
 
 #### 3.1.3 Completion State Persistence
+
 - **FR-1.9**: Call `storySessionManager.completeSession(sessionId)` when round limit reached
 - **FR-1.10**: Update Supabase `game_sessions` table with `completed_at` timestamp
 - **FR-1.11**: Cache completed state locally for offline access
 - **FR-1.12**: Clear "current session" reference in AsyncStorage after completion
 
 #### 3.1.4 Backward Compatibility
+
 - **FR-1.13**: Existing sessions without `current_round` default to round 1
 - **FR-1.14**: Auto-complete existing stories that have 5+ contributions via migration
 - **FR-1.15**: Preserve all existing story data during migration
@@ -79,12 +91,14 @@ Currently, the application has two critical issues:
 ### 3.2 Image Generation Gating
 
 #### 3.2.1 Completion Requirement
+
 - **FR-2.1**: Disable image generation UI if `current_round < MAX_ROUNDS`
 - **FR-2.2**: Show disabled state with message: "Complete your story (Round {currentRound}/{MAX_ROUNDS}) to unlock image generation"
 - **FR-2.3**: Enable image generation UI only when `isCompleted === true` OR `current_round >= MAX_ROUNDS`
 - **FR-2.4**: Display XP cost and balance check only when image generation is enabled
 
 #### 3.2.2 UI State Management
+
 - **FR-2.5**: Update `ImageGeneration` component to accept `disabled` prop based on completion state
 - **FR-2.6**: Pass `isCompleted` and `currentRound` props from HomeScreen to ImageGeneration component
 - **FR-2.7**: Show completion progress indicator (e.g., "Round 3/5") near image generation section
@@ -93,6 +107,7 @@ Currently, the application has two critical issues:
 ### 3.3 Supabase Storage Integration
 
 #### 3.3.1 Storage Bucket Setup
+
 - **FR-3.1**: Create `story-images` storage bucket in Supabase (if not exists)
 - **FR-3.2**: Configure bucket as private with authenticated user access only
 - **FR-3.3**: Set up Row Level Security (RLS) policies:
@@ -105,6 +120,7 @@ Currently, the application has two critical issues:
   - File storage path pattern: `{userId}/session_{sessionId}/image_{timestamp}.{ext}`
 
 #### 3.3.2 Image Upload Service
+
 - **FR-3.5**: Create `imageStorageService.ts` in `/src/services/` directory
 - **FR-3.6**: Implement `uploadImageToSupabase(imageUrl: string, sessionId: string, userId: string)` method
 - **FR-3.7**: Download image from Replicate URL to temporary buffer/blob
@@ -114,6 +130,7 @@ Currently, the application has two critical issues:
 - **FR-3.11**: Handle network errors, timeout errors, and storage quota errors gracefully
 
 #### 3.3.3 Database Schema Updates
+
 - **FR-3.12**: Add `supabase_image_url` column to `game_sessions` table (text, nullable)
 - **FR-3.13**: Keep existing `generated_image_url` column for Replicate URL (backward compatibility)
 - **FR-3.14**: Add `image_upload_status` column (enum: 'pending', 'uploaded', 'failed', nullable)
@@ -121,6 +138,7 @@ Currently, the application has two critical issues:
 - **FR-3.16**: Add `image_upload_error` column (text, nullable) for debugging
 
 #### 3.3.4 Upload Flow Integration
+
 - **FR-3.17**: After successful Replicate image generation in `imageGenerationService.ts`:
   1. Save Replicate URL to `generated_image_url` field immediately
   2. Attempt Supabase Storage upload
@@ -133,6 +151,7 @@ Currently, the application has two critical issues:
 ### 3.4 Image Display with Fallback
 
 #### 3.4.1 Display Priority Logic
+
 - **FR-4.1**: Update `StoryImageDisplay` component to handle both URL fields
 - **FR-4.2**: Display priority: `supabase_image_url` (if exists) → `generated_image_url` (fallback) → placeholder
 - **FR-4.3**: Show loading indicator during image fetch
@@ -142,6 +161,7 @@ Currently, the application has two critical issues:
 - **FR-4.5**: Add retry button for failed uploads (visible to user only if `image_upload_status === 'failed'`)
 
 #### 3.4.2 Error Handling
+
 - **FR-4.6**: If Supabase URL fails to load, automatically fall back to Replicate URL
 - **FR-4.7**: If both URLs fail, show error state with retry option
 - **FR-4.8**: Log all image load failures for monitoring
@@ -150,18 +170,21 @@ Currently, the application has two critical issues:
 ### 3.5 XP Management
 
 #### 3.5.1 XP Deduction Validation
+
 - **FR-5.1**: Before image generation, verify story is completed: `isCompleted === true`
 - **FR-5.2**: Check user has sufficient XP balance (>= IMAGE_GENERATION_COST = 1000 XP)
 - **FR-5.3**: Deduct XP only after both checks pass
 - **FR-5.4**: Create `image_generation_event` tracking record before deduction
 
 #### 3.5.2 XP Refund Logic
+
 - **FR-5.5**: If Replicate image generation fails → full refund (1000 XP)
 - **FR-5.6**: If Replicate succeeds but Supabase upload fails → NO refund (user still gets image via Replicate URL)
 - **FR-5.7**: If content safety violation → NO refund (user violated policy)
 - **FR-5.8**: Update `image_generation_event` status to track refunds accurately
 
 #### 3.5.3 XP Event Tracking
+
 - **FR-5.9**: Update `xpEventTracker.updateImageGenerationEvent()` to include:
   - `supabase_upload_status`: 'success' | 'failed' | 'pending'
   - `supabase_url`: URL if upload succeeded
@@ -172,17 +195,20 @@ Currently, the application has two critical issues:
 ### 3.6 Offline Support
 
 #### 3.6.1 Local Caching
+
 - **FR-6.1**: Cache `supabase_image_url` in AsyncStorage via `cacheSessionLocally()` method
 - **FR-6.2**: Cache `generated_image_url` (Replicate URL) as fallback for offline viewing
 - **FR-6.3**: Cache `image_upload_status` to show upload state even when offline
 - **FR-6.4**: When offline, display cached images with indicator showing "Offline Mode"
 
 #### 3.6.2 Sync Behavior
+
 - **FR-6.5**: When app goes online, sync cached sessions with Supabase database
 - **FR-6.6**: Update local cache if Supabase has newer `supabase_image_url` data
 - **FR-6.7**: Preserve offline-cached images during sync (don't delete until confirmed uploaded)
 
 #### 3.6.3 Multi-Device Story Import
+
 - **FR-6.8**: User can view completed stories with images across devices via database sync
 - **FR-6.9**: Story import functionality already handles fetching from Supabase database
 - **FR-6.10**: Ensure `getSession()` method fetches both image URL fields from database for cross-device access
@@ -192,6 +218,7 @@ Currently, the application has two critical issues:
 ## 4. Non-Functional Requirements
 
 ### 4.1 Performance
+
 - **NFR-1**: Image upload to Supabase should not block UI (must be asynchronous)
 - **NFR-2**: Image generation flow should complete in < 60 seconds (Replicate + Supabase)
 - **NFR-3**: Supabase upload should have 3-second timeout per retry attempt
@@ -199,6 +226,7 @@ Currently, the application has two critical issues:
 - **NFR-5**: Local state updates (currentRound) should be instant (< 16ms)
 
 ### 4.2 Reliability
+
 - **NFR-6**: Story completion tracking must have 100% accuracy (no missed completions)
 - **NFR-7**: Supabase upload must have automatic retry with exponential backoff
 - **NFR-8**: System must gracefully handle network failures during image upload
@@ -206,6 +234,7 @@ Currently, the application has two critical issues:
 - **NFR-10**: All database operations must be atomic (transaction-safe)
 
 ### 4.3 Security
+
 - **NFR-11**: Supabase Storage bucket must have proper RLS policies (user isolation)
 - **NFR-12**: Image URLs must not be guessable (use UUID/timestamp in filenames)
 - **NFR-13**: User can only access their own uploaded images
@@ -213,18 +242,21 @@ Currently, the application has two critical issues:
 - **NFR-15**: All database migrations must preserve RLS policies
 
 ### 4.4 Scalability
+
 - **NFR-16**: Supabase Storage must handle 1000+ concurrent uploads without degradation
 - **NFR-17**: Database schema changes must not require downtime
 - **NFR-18**: Image upload queue can scale to handle high traffic periods
 - **NFR-19**: Storage bucket can accommodate unlimited user growth (with proper cleanup)
 
 ### 4.5 Maintainability
+
 - **NFR-20**: All new code must have TypeScript type definitions
 - **NFR-21**: Image upload service must have comprehensive error logging
 - **NFR-22**: Database migrations must be reversible (rollback support)
 - **NFR-23**: Code must follow existing patterns in `storySessionManager` and `imageGenerationService`
 
 ### 4.6 Backward Compatibility
+
 - **NFR-24**: Existing stories without `current_round` must still function correctly
 - **NFR-25**: Existing images with only `generated_image_url` must still display
 - **NFR-26**: Migration must not break any existing user data
@@ -237,6 +269,7 @@ Currently, the application has two critical issues:
 ### 5.1 Database Schema Changes
 
 #### Migration: Add Story Completion & Image Persistence Fields
+
 ```sql
 -- Add current_round and supabase_image_url columns to game_sessions
 ALTER TABLE game_sessions
@@ -273,6 +306,7 @@ COMMENT ON COLUMN game_sessions.image_upload_status IS 'Upload status for Supaba
 ```
 
 #### Supabase Storage Bucket Setup
+
 ```typescript
 // Run this via Supabase Dashboard or API
 // 1. Create storage bucket
@@ -323,6 +357,7 @@ USING (
 ### 5.2 TypeScript Type Updates
 
 #### Update `src/types/database.ts`
+
 ```typescript
 export interface GameSession {
   id: string;
@@ -364,6 +399,7 @@ export interface GameSession {
 ```
 
 #### Update `src/services/storySessionManager.ts`
+
 ```typescript
 export interface StorySession {
   // ... existing fields ...
@@ -382,6 +418,7 @@ export interface StorySession {
 ### 5.3 Service Layer Changes
 
 #### New Service: `src/services/imageStorageService.ts`
+
 ```typescript
 import { supabase } from './supabase';
 
@@ -407,7 +444,7 @@ class ImageStorageService {
   async uploadImageToSupabase(
     replicateUrl: string,
     sessionId: string,
-    userId: string
+    userId: string,
   ): Promise<UploadImageResult> {
     let attempts = 0;
     let lastError: string | undefined;
@@ -416,7 +453,9 @@ class ImageStorageService {
       attempts++;
 
       try {
-        console.log(`🔄 Uploading image to Supabase (attempt ${attempts}/${this.MAX_RETRY_ATTEMPTS})...`);
+        console.log(
+          `🔄 Uploading image to Supabase (attempt ${attempts}/${this.MAX_RETRY_ATTEMPTS})...`,
+        );
 
         // Step 1: Download image from Replicate
         const imageBlob = await this.downloadImage(replicateUrl);
@@ -441,14 +480,16 @@ class ImageStorageService {
           .from(this.BUCKET_NAME)
           .getPublicUrl(filePath);
 
-        console.log('✅ Image uploaded to Supabase successfully:', publicUrlData.publicUrl);
+        console.log(
+          '✅ Image uploaded to Supabase successfully:',
+          publicUrlData.publicUrl,
+        );
 
         return {
           success: true,
           supabaseUrl: publicUrlData.publicUrl,
           attempts,
         };
-
       } catch (error: any) {
         lastError = error.message || 'Unknown upload error';
         console.error(`❌ Upload attempt ${attempts} failed:`, lastError);
@@ -511,7 +552,10 @@ class ImageStorageService {
    * Retry failed upload for a specific session
    * Called from UI retry button
    */
-  async retryFailedUpload(sessionId: string, userId: string): Promise<UploadImageResult> {
+  async retryFailedUpload(
+    sessionId: string,
+    userId: string,
+  ): Promise<UploadImageResult> {
     // Fetch current session to get Replicate URL
     const { data: session, error } = await supabase
       .from('game_sessions')
@@ -531,7 +575,7 @@ class ImageStorageService {
     const result = await this.uploadImageToSupabase(
       session.generated_image_url,
       sessionId,
-      userId
+      userId,
     );
 
     // Update database with result
@@ -545,7 +589,7 @@ class ImageStorageService {
    */
   private async updateSessionUploadStatus(
     sessionId: string,
-    result: UploadImageResult
+    result: UploadImageResult,
   ): Promise<void> {
     const updateData: any = {
       image_upload_attempts: result.attempts,
@@ -575,6 +619,7 @@ export const imageStorageService = new ImageStorageService();
 ```
 
 #### Update `src/services/imageGenerationService.ts`
+
 ```typescript
 import { imageStorageService } from './imageStorageService';
 
@@ -656,6 +701,7 @@ private async uploadToSupabaseAsync(
 ```
 
 #### Update `src/services/storySessionManager.ts`
+
 ```typescript
 // In addContribution method:
 public async addContribution(
@@ -738,6 +784,7 @@ private async cacheSessionLocally(session: StorySession): Promise<void> {
 ### 5.4 UI/Component Changes
 
 #### Update `src/components/common/ImageGeneration.tsx`
+
 ```typescript
 interface ImageGenerationProps {
   storyContent: string;
@@ -760,7 +807,11 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
 }) => {
   // Disable button if story is not completed
   const isDisabledByCompletion = !isStoryCompleted;
-  const isButtonDisabled = disabled || !xpBalanceInfo.canGenerate || state.isGenerating || isDisabledByCompletion;
+  const isButtonDisabled =
+    disabled ||
+    !xpBalanceInfo.canGenerate ||
+    state.isGenerating ||
+    isDisabledByCompletion;
 
   // Update disabled state message
   const renderDisabledState = () => {
@@ -798,6 +849,7 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
 ```
 
 #### Update `src/components/common/StoryImageDisplay.tsx`
+
 ```typescript
 interface StoryImageDisplayProps {
   replicateUrl?: string; // Replicate URL (temporary)
@@ -817,7 +869,9 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
   onRetryUpload,
 }) => {
   // Display priority: Supabase URL (permanent) > Replicate URL (fallback)
-  const [displayUrl, setDisplayUrl] = useState<string | null>(supabaseUrl || replicateUrl || null);
+  const [displayUrl, setDisplayUrl] = useState<string | null>(
+    supabaseUrl || replicateUrl || null,
+  );
   const [imageLoadError, setImageLoadError] = useState(false);
 
   // Handle image load error with fallback
@@ -843,13 +897,20 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
         {uploadStatus === 'pending' && (
           <View style={styles.statusPending}>
             <ActivityIndicator size="small" color="#6f42c1" />
-            <Text style={styles.statusText}>🔄 Backing up to permanent storage...</Text>
+            <Text style={styles.statusText}>
+              🔄 Backing up to permanent storage...
+            </Text>
           </View>
         )}
         {uploadStatus === 'failed' && (
           <View style={styles.statusFailed}>
-            <Text style={styles.statusText}>⚠️ Backup failed (image still available)</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={onRetryUpload}>
+            <Text style={styles.statusText}>
+              ⚠️ Backup failed (image still available)
+            </Text>
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={onRetryUpload}
+            >
               <Text style={styles.retryButtonText}>Retry Backup</Text>
             </TouchableOpacity>
           </View>
@@ -871,7 +932,10 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
       <View style={styles.errorContainer}>
         <Text style={styles.errorIcon}>⚠️</Text>
         <Text style={styles.errorMessage}>Failed to load image</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={() => setImageLoadError(false)}>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={() => setImageLoadError(false)}
+        >
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -889,7 +953,9 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
       />
       <View style={styles.imageSourceInfo}>
         <Text style={styles.imageSourceText}>
-          {displayUrl === supabaseUrl ? '✅ Permanently saved' : '⏳ Temporary (backup in progress)'}
+          {displayUrl === supabaseUrl
+            ? '✅ Permanently saved'
+            : '⏳ Temporary (backup in progress)'}
         </Text>
       </View>
     </View>
@@ -898,6 +964,7 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
 ```
 
 #### Update `src/screens/HomeScreen.tsx`
+
 ```typescript
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   // ... existing code ...
@@ -930,16 +997,21 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       console.log('🔄 Retrying Supabase image upload...');
       const result = await imageStorageService.retryFailedUpload(
         currentSession.id,
-        effectiveUserId
+        effectiveUserId,
       );
 
       if (result.success) {
         Alert.alert('✅ Success', 'Image backup completed successfully!');
         // Refresh session to get updated upload status
-        const updatedSession = await storySessionManager.getSession(currentSession.id);
+        const updatedSession = await storySessionManager.getSession(
+          currentSession.id,
+        );
         setCurrentSession(updatedSession);
       } else {
-        Alert.alert('❌ Retry Failed', result.error || 'Upload failed. Please try again later.');
+        Alert.alert(
+          '❌ Retry Failed',
+          result.error || 'Upload failed. Please try again later.',
+        );
       }
     } catch (error: any) {
       console.error('Retry upload error:', error);
@@ -949,7 +1021,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   // Display story image with fallback and upload status
   const renderStoryImage = () => {
-    if (!currentSession?.generated_image_url && !currentSession?.supabase_image_url) {
+    if (
+      !currentSession?.generated_image_url &&
+      !currentSession?.supabase_image_url
+    ) {
       return null;
     }
 
@@ -980,6 +1055,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 ## 6. User Experience Flow
 
 ### 6.1 Story Writing → Completion Flow
+
 1. User starts a new story (Round 1/5)
 2. User writes their contribution
 3. AI responds with continuation
@@ -994,6 +1070,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 7. User sees completion badge and XP earned notification
 
 ### 6.2 Image Generation Flow (Post-Completion)
+
 1. User completes story (5 rounds)
 2. Image generation section becomes enabled
 3. User sees their XP balance and generation cost (1000 XP)
@@ -1015,6 +1092,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     - Image remains visible via Replicate URL
 
 ### 6.3 Image Display with Fallback
+
 1. User opens completed story with generated image
 2. System attempts to load Supabase URL first (permanent)
 3. **If Supabase URL loads:** Image displays with "✅ Permanently saved" badge
@@ -1028,16 +1106,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 ### 6.4 Error Scenarios & Recovery
 
 #### Scenario A: Insufficient XP
+
 - **Trigger:** User has < 1000 XP
 - **UI:** Button disabled, message shows "Need {shortfall} more XP to generate an image"
 - **Recovery:** User completes more stories to earn XP
 
 #### Scenario B: Story Not Completed
+
 - **Trigger:** User tries to generate image before round 5
 - **UI:** Button disabled, message shows "Complete Your Story First - Progress: Round {current}/{max}"
 - **Recovery:** User continues writing until round 5
 
 #### Scenario C: Replicate Generation Fails
+
 - **Trigger:** Replicate API error (timeout, rate limit, etc.)
 - **Actions:**
   1. Full XP refund (1000 XP)
@@ -1046,6 +1127,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 - **Recovery:** User can retry image generation
 
 #### Scenario D: Supabase Upload Fails (Replicate Succeeds)
+
 - **Trigger:** Network error, storage quota exceeded, etc.
 - **Actions:**
   1. **NO XP refund** (user already has image via Replicate)
@@ -1055,6 +1137,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 - **Recovery:** User can manually retry upload via "Retry Backup" button
 
 #### Scenario E: Both URLs Fail to Load
+
 - **Trigger:** Network issues, expired URLs, corrupted data
 - **Actions:**
   1. Show error state with placeholder
@@ -1069,6 +1152,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 ### 7.1 Unit Tests
 
 #### Story Completion Tracking
+
 - **Test:** `current_round` increments correctly after each AI response
 - **Test:** `completed_at` is set when `current_round` reaches MAX_ROUNDS (5)
 - **Test:** `isCompleted` flag is true after completion
@@ -1076,6 +1160,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 - **Test:** Sessions with 5+ `sentences_completed` are auto-completed during migration
 
 #### Image Upload Service
+
 - **Test:** `uploadImageToSupabase()` successfully uploads image from URL
 - **Test:** Retry logic attempts up to 3 times with exponential backoff
 - **Test:** Upload fails gracefully when Replicate URL is invalid
@@ -1085,6 +1170,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 - **Test:** MIME type validation only allows `image/png`, `image/jpeg`, `image/webp`
 
 #### XP Management
+
 - **Test:** XP is deducted only when story is completed AND user has sufficient balance
 - **Test:** XP is refunded if Replicate generation fails
 - **Test:** XP is NOT refunded if Supabase upload fails (Replicate succeeded)
@@ -1094,17 +1180,20 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 ### 7.2 Integration Tests
 
 #### Story Completion Flow
+
 - **Test:** Complete story from round 1 to round 5, verify `completed_at` is set
 - **Test:** Resume incomplete story, continue to completion, verify data persistence
 - **Test:** Multiple users complete stories concurrently without data conflicts
 
 #### Image Generation Flow
+
 - **Test:** Generate image for completed story, verify Replicate URL is saved immediately
 - **Test:** Verify Supabase upload happens asynchronously after Replicate success
 - **Test:** Verify both `generated_image_url` and `supabase_image_url` are populated
 - **Test:** Verify upload status transitions: pending → uploaded/failed
 
 #### Image Display Flow
+
 - **Test:** Display image using Supabase URL when available
 - **Test:** Fallback to Replicate URL if Supabase URL fails to load
 - **Test:** Show placeholder if both URLs are unavailable
@@ -1113,12 +1202,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 ### 7.3 End-to-End Tests
 
 #### Complete User Journey
+
 1. **Test:** User creates new story → writes 5 rounds → story marked complete → generates image → views image
 2. **Test:** User completes story → insufficient XP → earns XP → generates image
 3. **Test:** User generates image → Supabase upload fails → user sees warning → retry succeeds → permanent URL displayed
 4. **Test:** User generates image → both uploads fail → XP refunded → user retries successfully
 
 #### Edge Cases
+
 - **Test:** User force-quits app during image generation → XP refunded, state recovered
 - **Test:** User goes offline during Supabase upload → upload retries when online
 - **Test:** User deletes session before Supabase upload completes → upload cancelled gracefully
@@ -1144,6 +1235,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 ## 8. Success Criteria
 
 ### 8.1 Functional Success
+
 - ✅ 100% of stories that reach round 5 have `completed_at` timestamp set correctly
 - ✅ Image generation is disabled until story completion (round >= 5)
 - ✅ All generated images have both Replicate URL and Supabase Storage URL saved
@@ -1152,12 +1244,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 - ✅ Upload retry mechanism successfully recovers from transient failures (95%+ success after 3 retries)
 
 ### 8.2 Data Quality
+
 - ✅ Zero data loss during migration (all existing stories preserved)
 - ✅ `current_round` field accurately reflects story progress for all sessions
 - ✅ Image upload status correctly tracks: pending, uploaded, or failed
 - ✅ Database constraints prevent invalid states (e.g., current_round > 5)
 
 ### 8.3 User Experience
+
 - ✅ Users can see their story progress (Round X/5) clearly in the UI
 - ✅ Users are informed when their story is complete and ready for image generation
 - ✅ Users see their generated image immediately (no blocking on Supabase upload)
@@ -1165,12 +1259,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 - ✅ Users can retry failed uploads with a single tap
 
 ### 8.4 Performance
+
 - ✅ Image display loads within 2 seconds under normal network conditions
 - ✅ Supabase upload completes within 10 seconds for typical images (2-5MB)
 - ✅ Story completion tracking adds negligible latency (< 50ms) to story updates
 - ✅ UI remains responsive during background image upload
 
 ### 8.5 Backward Compatibility
+
 - ✅ All existing stories function correctly after migration
 - ✅ Existing images without Supabase URLs display correctly via Replicate URLs
 - ✅ No breaking changes to existing API contracts
@@ -1181,6 +1277,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 ## 9. Dependencies & Risks
 
 ### 9.1 Technical Dependencies
+
 - **Supabase Storage**: Requires storage bucket configured with proper RLS policies
 - **Database Migration**: Schema changes must be applied to production database
 - **Replicate API**: Image generation depends on Replicate service availability
@@ -1189,6 +1286,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 ### 9.2 Identified Risks
 
 #### Risk 1: Migration Complexity
+
 - **Description**: Auto-completing existing stories may introduce data inconsistencies
 - **Probability**: Medium
 - **Impact**: Medium
@@ -1199,6 +1297,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   - Manual QA of migrated data before production deployment
 
 #### Risk 2: Supabase Storage Quota
+
 - **Description**: Large volume of image uploads could exceed storage quota
 - **Probability**: Low (if user base grows rapidly)
 - **Impact**: High (blocks all new uploads)
@@ -1209,6 +1308,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   - Plan for storage tier upgrade
 
 #### Risk 3: Image Upload Failures
+
 - **Description**: Network issues or Supabase outages could cause high failure rates
 - **Probability**: Medium
 - **Impact**: Medium (users still have Replicate URLs)
@@ -1219,6 +1319,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   - Provide manual retry button for users
 
 #### Risk 4: XP Refund Race Conditions
+
 - **Description**: Concurrent image generation attempts could cause double XP deductions or refunds
 - **Probability**: Low
 - **Impact**: High (user trust, data integrity)
@@ -1229,6 +1330,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   - Monitor XP event logs for anomalies
 
 #### Risk 5: Backward Compatibility Issues
+
 - **Description**: Schema changes could break existing code or user data
 - **Probability**: Low (with proper testing)
 - **Impact**: Critical (app breakage)
@@ -1243,6 +1345,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 ## 10. Implementation Plan
 
 ### Phase 1: Database & Infrastructure Setup (Week 1)
+
 - [ ] Create database migration script for `current_round`, `supabase_image_url`, and upload status fields
 - [ ] Apply migration to staging database and verify
 - [ ] Create Supabase Storage bucket `story-images` with RLS policies
@@ -1251,6 +1354,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 - [ ] **Deliverable:** Database schema updated, storage bucket configured and tested
 
 ### Phase 2: Image Storage Service (Week 1-2)
+
 - [ ] Implement `imageStorageService.ts` with upload, retry, and error handling logic
 - [ ] Add unit tests for upload service (success, failure, retry scenarios)
 - [ ] Integrate with `imageGenerationService.ts` for async Supabase upload
@@ -1259,6 +1363,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 - [ ] **Deliverable:** Image storage service fully implemented and tested
 
 ### Phase 3: Story Completion Tracking & Offline Caching (Week 2)
+
 - [ ] Update `storySessionManager.ts` to track and persist `current_round`
 - [ ] Implement auto-completion logic when `current_round >= MAX_ROUNDS`
 - [ ] Update `addContribution()` method to increment round counter
@@ -1269,6 +1374,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 - [ ] **Deliverable:** Story completion tracking and offline caching working end-to-end
 
 ### Phase 4: UI Components & Integration (Week 2-3)
+
 - [ ] Update `ImageGeneration` component to accept completion props and disable when not complete
 - [ ] Implement `StoryImageDisplay` component with fallback and status badge logic
 - [ ] Update `HomeScreen` to pass completion state and render image display
@@ -1278,6 +1384,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 - [ ] **Deliverable:** UI fully integrated with backend logic
 
 ### Phase 5: XP Management & Error Handling (Week 3)
+
 - [ ] Update XP deduction logic to check story completion before allowing image generation
 - [ ] Implement correct refund logic (refund only if Replicate fails, not Supabase)
 - [ ] Update `image_generation_event` tracking to include upload status
@@ -1286,6 +1393,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 - [ ] **Deliverable:** XP system working correctly for all scenarios
 
 ### Phase 6: Testing & QA (Week 3-4)
+
 - [ ] Run full unit test suite and achieve 80%+ coverage
 - [ ] Execute integration tests for story completion and image generation flows
 - [ ] Perform end-to-end testing of complete user journeys
@@ -1295,6 +1403,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 - [ ] **Deliverable:** All tests passing, bugs fixed, feature ready for production
 
 ### Phase 7: Deployment & Monitoring (Week 4)
+
 - [ ] Deploy database migration to production (with rollback plan ready)
 - [ ] Deploy code changes via standard release process
 - [ ] Monitor upload success rates, completion tracking accuracy
@@ -1303,6 +1412,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 - [ ] **Deliverable:** Feature live in production, monitored and stable
 
 ### Phase 8: Post-Launch Iteration (Week 5+)
+
 - [ ] Analyze metrics: completion rate, image generation rate, upload success rate
 - [ ] Address any bugs or edge cases discovered in production
 - [ ] Optimize performance based on real-world usage patterns
@@ -1317,26 +1427,31 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 ### Answered Questions
 
 1. **Storage Costs**: What is the budget for Supabase Storage? Should we implement image compression to reduce costs?
+
    - **Answer**: No image compression needed. Will upgrade Supabase storage tier if needed.
    - **Impact**: Simplifies implementation - no compression logic needed in `imageStorageService`
    - **Action**: Monitor storage usage and plan for tier upgrade as user base grows
 
 2. **Retry Strategy**: Should failed uploads be queued for automatic background retry, or only retried on user request?
+
    - **Answer**: Only retried on user request via manual retry button
    - **Impact**: Simpler implementation - no background queue system needed
    - **Action**: Ensure retry button is prominently displayed when upload status is 'failed'
 
 3. **Analytics**: What specific metrics should we track for story completion and image uploads?
+
    - **Answer**: Track number of words, XP points, completed challenges, and image linked to the story
    - **Impact**: These metrics are already captured in `game_sessions` table
    - **Action**: Ensure analytics queries join `game_sessions` with image fields for complete reporting
 
 4. **Content Moderation**: Should generated images be scanned for inappropriate content before permanent storage?
+
    - **Answer**: Not applicable (N/A)
    - **Impact**: No content moderation logic needed
    - **Action**: None - rely on Replicate's built-in content safety mechanisms
 
 5. **Multi-Device Sync**: How do we handle a user completing a story on one device and viewing it on another?
+
    - **Answer**: User would need to import the story and the image from the database
    - **Impact**: Story and image data already synced via Supabase database - works automatically
    - **Action**: Ensure `getSession()` properly fetches both `generated_image_url` and `supabase_image_url` from database
@@ -1374,6 +1489,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 ### A. Database Schema Reference
 
 #### `game_sessions` Table (Updated)
+
 ```sql
 CREATE TABLE game_sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1414,6 +1530,7 @@ CREATE INDEX idx_game_sessions_user_id ON game_sessions(user_id);
 ### B. API Contracts
 
 #### `imageStorageService.uploadImageToSupabase()`
+
 ```typescript
 /**
  * Upload image to Supabase Storage with retry logic
@@ -1431,6 +1548,7 @@ interface UploadImageResult {
 ```
 
 #### `storySessionManager.completeSession()`
+
 ```typescript
 /**
  * Mark session as complete and update completion timestamp

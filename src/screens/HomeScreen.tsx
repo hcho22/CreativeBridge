@@ -4,6 +4,7 @@ import React, {
   useCallback,
   useLayoutEffect,
   useRef,
+  useMemo,
 } from 'react';
 import {
   View,
@@ -202,12 +203,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   } | null>(null);
   const challengeDisplayContainerRef = useRef<View>(null);
 
+  // Ref to track if TTS has been initialized to prevent re-initialization loops
+  const ttsInitializedRef = useRef(false);
+
   // Enhanced empty state for new users (US-017)
   const [isNewUser, setIsNewUser] = useState(false);
 
   // Use the user's preferred grade level from their profile, or default to K-2
-  const gradeLevel: GradeLevel =
-    (userProfile?.preferred_grade_level as GradeLevel) || 'K-2';
+  // Memoize to prevent infinite re-renders in useEffect dependencies
+  const gradeLevel: GradeLevel = useMemo(
+    () => (userProfile?.preferred_grade_level as GradeLevel) || 'K-2',
+    [userProfile?.preferred_grade_level],
+  );
 
   // Detect first streak achievement (US-006)
   // When streak changes from <2 to >=2, check if we should show the celebration
@@ -279,9 +286,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           );
 
           // Auto-fix database: set onboarding_completed = true for existing users
-          if (!onboardingCompleted && userProfile.id) {
+          // Use clerk_user_id for OAuth users (Convex-migrated) or id for legacy Supabase users
+          // The onboardingService handles the correct field to query based on ID format
+          const autoFixUserId =
+            userProfile.clerk_user_id || clerkAuth?.userId || userProfile.id;
+          if (!onboardingCompleted && autoFixUserId) {
+            console.log(
+              '🔧 [BugFix] Auto-fixing onboarding status with userId:',
+              autoFixUserId.substring(0, 20) + '...',
+            );
             onboardingService
-              .markOnboardingComplete(userProfile.id)
+              .markOnboardingComplete(autoFixUserId)
               .then(result => {
                 if (result.error) {
                   console.error(
@@ -848,11 +863,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             '⚠️ TTS service not available - speaker button will be disabled',
           );
         }
-
-        // Check user's voice preference
-        if (userProfile?.speech_enabled !== undefined) {
-          setVoiceInputEnabled(userProfile.speech_enabled);
-        }
+        // Voice preference is synced in a separate useEffect
       } catch (error) {
         console.error('❌ Failed to initialize audio services:', error);
         setTtsServiceAvailable(false);
@@ -860,7 +871,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       }
     };
 
-    if (user) {
+    if (user && !ttsInitializedRef.current) {
+      ttsInitializedRef.current = true;
       initializeAudio();
       // Check service availability on mount
       checkServiceAvailability();
@@ -868,8 +880,25 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
     return () => {
       textToSpeechService.removeAllListeners();
+      ttsInitializedRef.current = false;
     };
-  }, [user, userProfile?.speech_enabled, gradeLevel, checkServiceAvailability]);
+    // Only depend on user to initialize once when user logs in
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // Update TTS grade level options when gradeLevel changes (separate from init)
+  useEffect(() => {
+    if (ttsServiceAvailable && gradeLevel) {
+      textToSpeechService.setGradeLevelOptions(gradeLevel);
+    }
+  }, [ttsServiceAvailable, gradeLevel]);
+
+  // Sync voice input preference when userProfile changes
+  useEffect(() => {
+    if (userProfile?.speech_enabled !== undefined) {
+      setVoiceInputEnabled(userProfile.speech_enabled);
+    }
+  }, [userProfile?.speech_enabled]);
 
   // Periodically check service availability (e.g., when app comes to foreground)
   useEffect(() => {
@@ -1608,11 +1637,38 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       }
     }
 
-    // Use resolvedProfileId if available, otherwise fall back to effectiveUserId
-    const userIdForSession = resolvedProfileId || effectiveUserId;
+    // Determine the user ID for session creation
+    // For OAuth users (Clerk): use clerk_user_id for Convex operations
+    // For email/password users (Supabase-only): use Supabase UUID, which falls back to Supabase storage
+    const clerkUserIdForSession =
+      userProfile?.clerk_user_id || clerkAuth?.userId;
+    const supabaseUserId = userProfile?.id || user?.id;
+
+    // Use Clerk user ID if available (OAuth users), otherwise use Supabase UUID (email/password users)
+    const userIdForSession = clerkUserIdForSession || supabaseUserId;
+
+    if (!userIdForSession) {
+      console.log('📖 handleStartNewGame: No user ID available for session');
+      Alert.alert(
+        'Profile Setup Required',
+        'Please complete your profile setup before starting a story. This ensures your progress is properly saved.',
+        [
+          {
+            text: 'Complete Profile',
+            onPress: () => navigation.navigate('Profile'),
+          },
+        ],
+      );
+      return;
+    }
+
+    const isEmailPasswordUser = !clerkUserIdForSession && !!supabaseUserId;
     console.log(
       '📖 handleStartNewGame: Using user ID for session:',
       userIdForSession,
+      isEmailPasswordUser
+        ? '(email/password user - Supabase fallback)'
+        : '(OAuth user - Convex)',
     );
 
     // Check if first story guidance should be shown (US-012)
@@ -1622,7 +1678,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
       if (shouldShowGuidance) {
         // Store the action to execute after guidance is dismissed
-        // Capture the resolved user ID in a closure
+        // Capture the user ID in a closure (works for both OAuth and email/password users)
         pendingStoryActionRef.current = () =>
           executeStartNewGame(userIdForSession);
         setShowFirstStoryGuidance(true);

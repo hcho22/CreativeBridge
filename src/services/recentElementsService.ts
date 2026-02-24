@@ -11,6 +11,23 @@ import { supabase } from './supabase';
 import { diversityPerformanceMonitoringService } from './diversityPerformanceMonitoringService';
 
 /**
+ * Checks if a session ID is a valid UUID format (Supabase format).
+ * Convex uses a different ID format (alphanumeric strings like 'j978rdkax3fcmqc4tf283zvv5x81f9bh')
+ * which will fail Supabase UUID validation.
+ *
+ * During the Supabase-to-Convex migration, sessions created via Convex will have
+ * non-UUID IDs that cannot be queried against Supabase's UUID-typed columns.
+ *
+ * @param id - The session ID to check
+ * @returns true if the ID is a valid UUID, false otherwise
+ */
+function isValidUUID(id: string): boolean {
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(id);
+}
+
+/**
  * Story element with embedding for semantic comparison
  */
 export interface StoredElement {
@@ -132,6 +149,24 @@ class RecentElementsService {
       operation: 'getRecentElements',
       cacheHit: false,
     });
+
+    // Check if this is a Convex session ID (non-UUID format)
+    // During Supabase-to-Convex migration, new sessions created via Convex
+    // will have IDs like 'j978rdkax3fcmqc4tf283zvv5x81f9bh' that cannot be
+    // queried against Supabase's UUID-typed session_id column.
+    // Return empty results for these sessions (they have no Supabase history anyway).
+    if (!isValidUUID(sessionId)) {
+      console.log(
+        '⚠️ Convex session ID detected, returning empty results (no Supabase history):',
+        {
+          sessionId: sessionId.substring(0, 12),
+          idLength: sessionId.length,
+        },
+      );
+      const emptyResult = this.createEmptyRecentElements();
+      this.cacheElements(sessionId, emptyResult);
+      return emptyResult;
+    }
 
     try {
       // Query story_elements table for recent elements in this session

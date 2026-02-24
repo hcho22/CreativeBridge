@@ -14,11 +14,37 @@
  * - Checking if specific celebrations should trigger
  * - Marking onboarding as complete
  * - Syncing AsyncStorage state to database
+ *
+ * ## Convex Migration (US-021)
+ * This service now uses Convex as PRIMARY data store with Supabase as SECONDARY
+ * with Supabase fallback for email/password users.
+ *
+ * Pattern: Convex PRIMARY, Supabase SECONDARY (non-blocking)
+ * - All writes go to Convex first (source of truth)
+ * - Supabase used as fallback for email/password users
+ * - Reads from Convex with Supabase fallback
+ *
+ * @see prd-supabase-to-convex-migration.md (US-021)
  */
 
 import { supabase } from './supabase';
 import { onboardingMilestoneTracker } from './onboardingMilestoneTracker';
 import type { OnboardingProgress, OnboardingStatus } from '../types/database';
+
+// Convex imports for database migration (US-021)
+import { getConvexClient, api, isConvexReady } from './convex';
+
+// ============================================================================
+// MIGRATION COMPLETE (US-031)
+// ============================================================================
+// Convex is now the PRIMARY data store for OAuth users
+// Supabase remains as FALLBACK for email/password users (UUID-based)
+
+/**
+ * Detect if a user ID is a Clerk user ID (OAuth users) vs Supabase UUID (email/password users).
+ * Clerk user IDs start with "user_".
+ */
+const isClerkUserId = (userId: string): boolean => userId.startsWith('user_');
 
 // Re-export types from tracker for backward compatibility
 export type {
@@ -143,6 +169,10 @@ class OnboardingService {
   /**
    * Fetch onboarding progress from database
    * Falls back to AsyncStorage if database call fails
+   *
+   * Convex Migration (US-021):
+   * - PRIMARY: Reads from Convex for OAuth/Clerk users
+   * - FALLBACK: Supabase for email/password users or if Convex fails
    */
   async getOnboardingStatus(userId: string): Promise<OnboardingStatus | null> {
     try {
@@ -151,6 +181,48 @@ class OnboardingService {
         return this.cachedOnboardingStatus;
       }
 
+      // PRIMARY: Use Convex for OAuth/Clerk users (US-021)
+      if (isConvexReady() && isClerkUserId(userId)) {
+        const convexClient = getConvexClient();
+        if (convexClient) {
+          try {
+            console.log('📝 Fetching onboarding status from Convex (PRIMARY)');
+            const convexStatus = await convexClient.query(
+              api.onboarding.getOnboardingStatus,
+              { clerkUserId: userId },
+            );
+
+            if (convexStatus) {
+              // Convert Convex response to legacy OnboardingStatus format
+              const status: OnboardingStatus = {
+                onboarding_completed: convexStatus.onboardingCompleted,
+                onboarding_progress: convexStatus.onboardingProgress,
+                first_story_completed_at:
+                  convexStatus.milestones.firstStoryCompletedAt,
+                first_image_generated_at:
+                  convexStatus.milestones.firstImageGeneratedAt,
+                first_voice_input_at: convexStatus.milestones.firstVoiceInputAt,
+                first_streak_achieved_at:
+                  convexStatus.milestones.firstStreakAchievedAt,
+                completion_percentage: convexStatus.completionPercentage,
+              };
+
+              this.cachedOnboardingStatus = status;
+              this.statusCacheExpiry = Date.now() + this.CACHE_TTL_MS;
+              console.log('✅ Onboarding status fetched from Convex');
+              return status;
+            }
+          } catch (convexError) {
+            console.error(
+              '⚠️ Convex onboarding status fetch failed, falling back to Supabase:',
+              convexError,
+            );
+            // Fall through to Supabase
+          }
+        }
+      }
+
+      // FALLBACK: Use Supabase for email/password users or if Convex fails
       const { data, error } = await callRpc<OnboardingStatus[]>(
         'get_onboarding_status',
         {
@@ -209,6 +281,10 @@ class OnboardingService {
 
   /**
    * Update a specific checklist item completion status in database
+   *
+   * Convex Migration (US-021):
+   * - PRIMARY: Updates in Convex for OAuth/Clerk users
+   * - FALLBACK: Supabase for email/password users (UUID-based)
    */
   async updateChecklistItem(
     userId: string,
@@ -216,25 +292,82 @@ class OnboardingService {
     completed: boolean = true,
   ): Promise<OnboardingServiceResult> {
     try {
-      const { data, error } = await callRpc<boolean>(
-        'update_onboarding_progress_item',
-        {
-          p_user_id: userId,
-          p_item_key: itemKey,
-          p_completed: completed,
-        },
-      );
+      let convexSucceeded = false;
 
-      if (error) {
-        console.error(`❌ Error updating checklist item ${itemKey}:`, error);
-        return { success: false, error: error.message };
+      // PRIMARY: Update in Convex for OAuth/Clerk users (US-021)
+      if (isConvexReady() && isClerkUserId(userId)) {
+        const convexClient = getConvexClient();
+        if (convexClient) {
+          try {
+            console.log(
+              `📝 Updating checklist item '${itemKey}' in Convex (PRIMARY)`,
+            );
+            await convexClient.mutation(
+              api.onboarding.updateOnboardingProgressItem,
+              {
+                clerkUserId: userId,
+                itemKey: itemKey,
+                completed: completed,
+              },
+            );
+            convexSucceeded = true;
+            console.log(
+              `✅ Checklist item '${itemKey}' updated in Convex to ${completed}`,
+            );
+          } catch (convexError) {
+            console.error(
+              `❌ Convex checklist update failed for '${itemKey}':`,
+              convexError,
+            );
+            // For PRIMARY, we fail if Convex fails for Clerk users
+            return {
+              success: false,
+              error:
+                convexError instanceof Error
+                  ? convexError.message
+                  : 'Convex update failed',
+            };
+          }
+        }
+      }
+
+      // FALLBACK: Use Supabase for email/password users (UUID-based)
+      if (!convexSucceeded) {
+        try {
+          const { error } = await callRpc<boolean>(
+            'update_onboarding_progress_item',
+            {
+              p_user_id: userId,
+              p_item_key: itemKey,
+              p_completed: completed,
+            },
+          );
+
+          if (error) {
+            console.error(
+              `❌ Error updating checklist item ${itemKey}:`,
+              error,
+            );
+            return { success: false, error: error.message };
+          }
+
+          console.log(
+            `✅ Checklist item '${itemKey}' updated in Supabase to ${completed}`,
+          );
+        } catch (supabaseError) {
+          const errorMessage =
+            supabaseError instanceof Error
+              ? supabaseError.message
+              : 'Unknown error';
+          console.error(`❌ Error in updateChecklistItem:`, supabaseError);
+          return { success: false, error: errorMessage };
+        }
       }
 
       // Invalidate cache
       this.invalidateCache();
 
-      console.log(`✅ Checklist item '${itemKey}' updated to ${completed}`);
-      return { success: data === true };
+      return { success: true };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
@@ -245,6 +378,10 @@ class OnboardingService {
 
   /**
    * Record a milestone achievement in database with optional XP reward
+   *
+   * Convex Migration (US-021):
+   * - PRIMARY: Records milestone in Convex for OAuth/Clerk users
+   * - FALLBACK: Supabase for email/password users (UUID-based)
    */
   async recordMilestone(
     userId: string,
@@ -253,28 +390,89 @@ class OnboardingService {
   ): Promise<OnboardingServiceResult> {
     try {
       const xpReward = awardXp ? ONBOARDING_XP_REWARDS[milestoneType] : 0;
+      let convexSucceeded = false;
 
-      const { data, error } = await callRpc<boolean>(
-        'record_onboarding_milestone',
-        {
-          p_user_id: userId,
-          p_milestone_type: milestoneType,
-          p_xp_reward: xpReward,
-        },
-      );
+      // PRIMARY: Record milestone in Convex for OAuth/Clerk users (US-021)
+      if (isConvexReady() && isClerkUserId(userId)) {
+        const convexClient = getConvexClient();
+        if (convexClient) {
+          try {
+            console.log(
+              `📝 Recording milestone '${milestoneType}' in Convex (PRIMARY)`,
+            );
+            const result = await convexClient.mutation(
+              api.onboarding.recordOnboardingMilestone,
+              {
+                clerkUserId: userId,
+                milestoneType: milestoneType,
+                awardXp: awardXp,
+              },
+            );
+            convexSucceeded = true;
 
-      if (error) {
-        console.error(`❌ Error recording milestone ${milestoneType}:`, error);
-        return { success: false, error: error.message };
+            if (result.alreadyAchieved) {
+              console.log(
+                `ℹ️ Milestone '${milestoneType}' was already achieved in Convex`,
+              );
+            } else {
+              console.log(
+                `🏆 Milestone '${milestoneType}' recorded in Convex with ${result.xpAwarded} XP`,
+              );
+            }
+          } catch (convexError) {
+            console.error(
+              `❌ Convex milestone recording failed for '${milestoneType}':`,
+              convexError,
+            );
+            // For PRIMARY, we fail if Convex fails for Clerk users
+            return {
+              success: false,
+              error:
+                convexError instanceof Error
+                  ? convexError.message
+                  : 'Convex milestone recording failed',
+            };
+          }
+        }
+      }
+
+      // FALLBACK: Use Supabase for email/password users (UUID-based)
+      if (!convexSucceeded) {
+        try {
+          const { error } = await callRpc<boolean>(
+            'record_onboarding_milestone',
+            {
+              p_user_id: userId,
+              p_milestone_type: milestoneType,
+              p_xp_reward: xpReward,
+            },
+          );
+
+          if (error) {
+            console.error(
+              `❌ Error recording milestone ${milestoneType}:`,
+              error,
+            );
+            return { success: false, error: error.message };
+          }
+
+          console.log(
+            `🏆 Milestone '${milestoneType}' recorded in Supabase with ${xpReward} XP`,
+          );
+        } catch (supabaseError) {
+          const errorMessage =
+            supabaseError instanceof Error
+              ? supabaseError.message
+              : 'Unknown error';
+          console.error(`❌ Error in recordMilestone:`, supabaseError);
+          return { success: false, error: errorMessage };
+        }
       }
 
       // Invalidate cache
       this.invalidateCache();
 
-      console.log(
-        `🏆 Milestone '${milestoneType}' recorded with ${xpReward} XP`,
-      );
-      return { success: data === true };
+      return { success: true };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
@@ -457,12 +655,16 @@ class OnboardingService {
   /**
    * Get comprehensive onboarding progress
    * Combines database and AsyncStorage data
+   *
+   * Convex Migration (US-021):
+   * - Uses getOnboardingStatus which already handles Convex PRIMARY
    */
   async getOnboardingProgress(
     userId?: string,
   ): Promise<OnboardingProgressResult> {
     try {
       // Try database first if user ID provided
+      // Note: getOnboardingStatus already handles Convex PRIMARY (US-021)
       if (userId) {
         const dbStatus = await this.getOnboardingStatus(userId);
         if (dbStatus) {
@@ -540,24 +742,106 @@ class OnboardingService {
 
   /**
    * Mark onboarding as complete in database
+   *
+   * Convex Migration (US-021):
+   * - PRIMARY: Updates in Convex for OAuth/Clerk users
+   * - FALLBACK: Supabase for email/password users (UUID-based)
+   *
+   * Note: For Convex, we use updateOnboardingProgressItem to set all items as complete,
+   * which automatically updates onboardingCompleted via the isOnboardingComplete helper.
    */
   async markOnboardingComplete(
     userId: string,
   ): Promise<OnboardingServiceResult> {
     try {
-      const { error } = await (supabase.from('user_profiles') as any)
-        .update({ onboarding_completed: true })
-        .eq('id', userId);
+      let convexSucceeded = false;
 
-      if (error) {
-        console.error('❌ Error marking onboarding complete:', error);
-        return { success: false, error: error.message };
+      // PRIMARY: Mark complete in Convex for OAuth/Clerk users (US-021)
+      if (isConvexReady() && isClerkUserId(userId)) {
+        const convexClient = getConvexClient();
+        if (convexClient) {
+          try {
+            console.log('📝 Marking onboarding complete in Convex (PRIMARY)');
+
+            // Record all milestones to ensure onboardingCompleted becomes true
+            // Using recordMultipleMilestones for atomic batch update
+            const milestones = [
+              'first_story',
+              'first_image',
+              'first_voice',
+              'first_streak',
+            ];
+
+            await convexClient.mutation(
+              api.onboarding.recordMultipleMilestones,
+              {
+                clerkUserId: userId,
+                milestones: milestones,
+                awardXp: false, // Don't award XP when force-completing
+              },
+            );
+
+            convexSucceeded = true;
+            console.log('✅ Onboarding marked as complete in Convex');
+          } catch (convexError) {
+            console.error(
+              '❌ Convex markOnboardingComplete failed:',
+              convexError,
+            );
+            // For PRIMARY, we fail if Convex fails for Clerk users
+            return {
+              success: false,
+              error:
+                convexError instanceof Error
+                  ? convexError.message
+                  : 'Convex update failed',
+            };
+          }
+        }
+      }
+
+      // FALLBACK: Use Supabase for email/password users (UUID-based)
+      if (!convexSucceeded) {
+        try {
+          // Determine the correct field to query based on user ID type:
+          // - Clerk user IDs (start with "user_") should query by clerk_user_id
+          // - Supabase UUIDs (email/password users) should query by id
+          const isSupabaseUuid =
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+              userId,
+            );
+          const queryField = isSupabaseUuid ? 'id' : 'clerk_user_id';
+
+          console.log(
+            `📝 Supabase fallback: querying by ${queryField} for userId: ${userId.substring(
+              0,
+              20,
+            )}...`,
+          );
+
+          const { error } = await (supabase.from('user_profiles') as any)
+            .update({ onboarding_completed: true })
+            .eq(queryField, userId);
+
+          if (error) {
+            console.error('❌ Error marking onboarding complete:', error);
+            return { success: false, error: error.message };
+          }
+
+          console.log('✅ Onboarding marked as complete in Supabase');
+        } catch (supabaseError) {
+          const errorMessage =
+            supabaseError instanceof Error
+              ? supabaseError.message
+              : 'Unknown error';
+          console.error('❌ Error in markOnboardingComplete:', supabaseError);
+          return { success: false, error: errorMessage };
+        }
       }
 
       // Invalidate cache
       this.invalidateCache();
 
-      console.log('✅ Onboarding marked as complete');
       return { success: true };
     } catch (error) {
       const errorMessage =
@@ -658,35 +942,81 @@ class OnboardingService {
   /**
    * Sync AsyncStorage milestones to database
    * Call this when user first logs in or to ensure consistency
+   *
+   * Convex Migration (US-021):
+   * - Uses recordMilestone which already handles Convex PRIMARY
+   * - For Convex users, can use recordMultipleMilestones for efficiency
    */
   async syncToDatabase(userId: string): Promise<DatabaseSyncResult> {
     try {
       const milestones = await onboardingMilestoneTracker.getMilestones();
       const synced: string[] = [];
 
-      // Sync each milestone if it exists in AsyncStorage
+      // Collect milestones that need syncing
+      const milestonesToSync: OnboardingMilestoneType[] = [];
+
       if (milestones.firstStoryCompletedAt) {
-        const result = await this.recordMilestone(userId, 'first_story', false);
-        if (result.success) synced.push('first_story');
+        milestonesToSync.push('first_story');
       }
-
       if (milestones.firstImageGeneratedAt) {
-        const result = await this.recordMilestone(userId, 'first_image', false);
-        if (result.success) synced.push('first_image');
+        milestonesToSync.push('first_image');
       }
-
       if (milestones.firstVoiceInputAt) {
-        const result = await this.recordMilestone(userId, 'first_voice', false);
-        if (result.success) synced.push('first_voice');
+        milestonesToSync.push('first_voice');
+      }
+      if (milestones.firstStreakAchievedAt) {
+        milestonesToSync.push('first_streak');
       }
 
-      if (milestones.firstStreakAchievedAt) {
-        const result = await this.recordMilestone(
-          userId,
-          'first_streak',
-          false,
-        );
-        if (result.success) synced.push('first_streak');
+      // For Convex users, use batch sync for efficiency (US-021)
+      if (
+        isConvexReady() &&
+        isClerkUserId(userId) &&
+        milestonesToSync.length > 0
+      ) {
+        const convexClient = getConvexClient();
+        if (convexClient) {
+          try {
+            console.log(
+              `📝 Batch syncing ${milestonesToSync.length} milestones to Convex`,
+            );
+            const result = await convexClient.mutation(
+              api.onboarding.recordMultipleMilestones,
+              {
+                clerkUserId: userId,
+                milestones: milestonesToSync,
+                awardXp: false, // Don't award XP during sync (may have been awarded earlier)
+              },
+            );
+
+            // Track which milestones were successfully synced
+            for (const milestoneResult of result.results) {
+              if (milestoneResult.success) {
+                synced.push(milestoneResult.milestoneType);
+              }
+            }
+
+            console.log(
+              `✅ Batch synced ${synced.length} milestones to Convex`,
+            );
+
+            return {
+              success: true,
+              synced: synced.length > 0,
+              milestonesSynced: synced,
+            };
+          } catch (convexError) {
+            console.error('❌ Convex batch sync failed:', convexError);
+            // Fall through to individual sync via recordMilestone
+          }
+        }
+      }
+
+      // Fallback: Sync each milestone individually
+      // This uses recordMilestone which handles Convex PRIMARY + Supabase SECONDARY
+      for (const milestone of milestonesToSync) {
+        const result = await this.recordMilestone(userId, milestone, false);
+        if (result.success) synced.push(milestone);
       }
 
       console.log(`🔄 Synced ${synced.length} milestones to database:`, synced);
@@ -725,6 +1055,10 @@ class OnboardingService {
 
   /**
    * Reset all onboarding data (for testing or account reset)
+   *
+   * Convex Migration (US-021):
+   * - PRIMARY: Resets in Convex for OAuth/Clerk users
+   * - FALLBACK: Supabase for email/password users (UUID-based)
    */
   async resetOnboarding(userId?: string): Promise<OnboardingServiceResult> {
     try {
@@ -733,26 +1067,74 @@ class OnboardingService {
 
       // Clear database if user ID provided
       if (userId) {
-        const { error } = await (supabase.from('user_profiles') as any)
-          .update({
-            onboarding_completed: false,
-            onboarding_progress: {
-              create_account: true,
-              first_story: false,
-              first_image: false,
-              first_voice: false,
-              first_streak: false,
-            },
-            first_story_completed_at: null,
-            first_image_generated_at: null,
-            first_voice_input_at: null,
-            first_streak_achieved_at: null,
-          })
-          .eq('id', userId);
+        let convexSucceeded = false;
 
-        if (error) {
-          console.error('❌ Error resetting onboarding in database:', error);
-          return { success: false, error: error.message };
+        // PRIMARY: Reset in Convex for OAuth/Clerk users (US-021)
+        if (isConvexReady() && isClerkUserId(userId)) {
+          const convexClient = getConvexClient();
+          if (convexClient) {
+            try {
+              console.log('📝 Resetting onboarding in Convex (PRIMARY)');
+              await convexClient.mutation(
+                api.onboarding.resetOnboardingProgress,
+                {
+                  clerkUserId: userId,
+                  keepAccountCreated: true,
+                },
+              );
+              convexSucceeded = true;
+              console.log('✅ Onboarding reset in Convex');
+            } catch (convexError) {
+              console.error('❌ Convex onboarding reset failed:', convexError);
+              // For PRIMARY, we fail if Convex fails for Clerk users
+              return {
+                success: false,
+                error:
+                  convexError instanceof Error
+                    ? convexError.message
+                    : 'Convex reset failed',
+              };
+            }
+          }
+        }
+
+        // FALLBACK: Use Supabase for email/password users (UUID-based)
+        if (!convexSucceeded) {
+          try {
+            const { error } = await (supabase.from('user_profiles') as any)
+              .update({
+                onboarding_completed: false,
+                onboarding_progress: {
+                  create_account: true,
+                  first_story: false,
+                  first_image: false,
+                  first_voice: false,
+                  first_streak: false,
+                },
+                first_story_completed_at: null,
+                first_image_generated_at: null,
+                first_voice_input_at: null,
+                first_streak_achieved_at: null,
+              })
+              .eq('id', userId);
+
+            if (error) {
+              console.error(
+                '❌ Error resetting onboarding in database:',
+                error,
+              );
+              return { success: false, error: error.message };
+            }
+
+            console.log('✅ Onboarding reset in Supabase');
+          } catch (supabaseError) {
+            const errorMessage =
+              supabaseError instanceof Error
+                ? supabaseError.message
+                : 'Unknown error';
+            console.error('❌ Error resetting onboarding:', supabaseError);
+            return { success: false, error: errorMessage };
+          }
         }
       }
 

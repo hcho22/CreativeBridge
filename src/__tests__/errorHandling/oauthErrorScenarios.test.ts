@@ -8,18 +8,21 @@
  */
 
 import { handleOAuthError } from '../../utils/oauthErrorHandler';
-import { checkNetworkBeforeOAuth, getNetworkErrorMessage } from '../../utils/oauthNetworkCheck';
+import {
+  checkNetworkBeforeOAuth,
+  getNetworkErrorMessage,
+} from '../../utils/oauthNetworkCheck';
 
 // Mock dependencies
 jest.mock('../../utils/oauthNetworkCheck');
-jest.mock('../../services/clerkSupabaseSync');
+// Note: clerkSupabaseSync removed in US-032 migration - Convex handles profile management
 
-const mockCheckNetworkBeforeOAuth = checkNetworkBeforeOAuth as jest.MockedFunction<
-  typeof checkNetworkBeforeOAuth
->;
-const mockGetNetworkErrorMessage = getNetworkErrorMessage as jest.MockedFunction<
-  typeof getNetworkErrorMessage
->;
+const mockCheckNetworkBeforeOAuth =
+  checkNetworkBeforeOAuth as jest.MockedFunction<
+    typeof checkNetworkBeforeOAuth
+  >;
+const mockGetNetworkErrorMessage =
+  getNetworkErrorMessage as jest.MockedFunction<typeof getNetworkErrorMessage>;
 
 describe('OAuth Error Handling Scenarios', () => {
   beforeEach(() => {
@@ -162,7 +165,10 @@ describe('OAuth Error Handling Scenarios', () => {
 
     test('handles general database errors with retry', () => {
       const error = 'database_error';
-      const result = handleOAuthError(error, { provider: 'google', attemptNumber: 1 });
+      const result = handleOAuthError(error, {
+        provider: 'google',
+        attemptNumber: 1,
+      });
 
       expect(result.shouldShowError).toBe(true);
       expect(result.userMessage).toContain('save account information');
@@ -172,7 +178,10 @@ describe('OAuth Error Handling Scenarios', () => {
 
     test('limits database error retries', () => {
       const error = 'Database error';
-      const result = handleOAuthError(error, { provider: 'google', attemptNumber: 2 });
+      const result = handleOAuthError(error, {
+        provider: 'google',
+        attemptNumber: 2,
+      });
 
       expect(result.canRetry).toBe(false);
     });
@@ -181,7 +190,10 @@ describe('OAuth Error Handling Scenarios', () => {
   describe('Provider Error Scenarios', () => {
     test('handles Clerk service errors', () => {
       const error = 'Clerk error';
-      const result = handleOAuthError(error, { provider: 'google', attemptNumber: 1 });
+      const result = handleOAuthError(error, {
+        provider: 'google',
+        attemptNumber: 1,
+      });
 
       expect(result.shouldShowError).toBe(true);
       expect(result.userMessage).toContain('Authentication service');
@@ -190,8 +202,14 @@ describe('OAuth Error Handling Scenarios', () => {
 
     test('handles server errors with exponential backoff', () => {
       const error = 'Internal server error';
-      const attempt1 = handleOAuthError(error, { provider: 'google', attemptNumber: 1 });
-      const attempt2 = handleOAuthError(error, { provider: 'google', attemptNumber: 2 });
+      const attempt1 = handleOAuthError(error, {
+        provider: 'google',
+        attemptNumber: 1,
+      });
+      const attempt2 = handleOAuthError(error, {
+        provider: 'google',
+        attemptNumber: 2,
+      });
 
       expect(attempt1.canRetry).toBe(true);
       expect(attempt2.canRetry).toBe(false);
@@ -232,9 +250,18 @@ describe('OAuth Error Handling Scenarios', () => {
   describe('Retry Logic Scenarios', () => {
     test('allows retry for network errors with exponential backoff', () => {
       const error = 'network_error';
-      const attempt1 = handleOAuthError(error, { provider: 'google', attemptNumber: 1 });
-      const attempt2 = handleOAuthError(error, { provider: 'google', attemptNumber: 2 });
-      const attempt3 = handleOAuthError(error, { provider: 'google', attemptNumber: 3 });
+      const attempt1 = handleOAuthError(error, {
+        provider: 'google',
+        attemptNumber: 1,
+      });
+      const attempt2 = handleOAuthError(error, {
+        provider: 'google',
+        attemptNumber: 2,
+      });
+      const attempt3 = handleOAuthError(error, {
+        provider: 'google',
+        attemptNumber: 3,
+      });
 
       expect(attempt1.canRetry).toBe(true); // attemptNumber 1 < 3
       expect(attempt2.canRetry).toBe(true); // attemptNumber 2 < 3
@@ -244,7 +271,10 @@ describe('OAuth Error Handling Scenarios', () => {
 
     test('disallows retry for non-retryable errors', () => {
       const error = 'account_linking_failed';
-      const result = handleOAuthError(error, { provider: 'google', attemptNumber: 1 });
+      const result = handleOAuthError(error, {
+        provider: 'google',
+        attemptNumber: 1,
+      });
 
       expect(result.canRetry).toBe(false);
     });
@@ -293,4 +323,3 @@ describe('OAuth Error Handling Scenarios', () => {
     });
   });
 });
-

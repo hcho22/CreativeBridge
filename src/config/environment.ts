@@ -10,6 +10,7 @@ import {
   SUPABASE_ANON_KEY,
   OPENAI_API_KEY,
   ELEVENLABS_API_KEY,
+  CONVEX_URL,
 } from '@env';
 
 export interface EnvironmentConfig {
@@ -31,6 +32,9 @@ export interface EnvironmentConfig {
     publishableKey: string;
     secretKey?: string;
     jwksUrl: string;
+  };
+  convex?: {
+    url: string;
   };
   app: {
     name: string;
@@ -88,6 +92,9 @@ const getEnvironmentConfig = (): EnvironmentConfig => {
       publishableKey: CLERK_PUBLISHABLE_KEY || '',
       secretKey: CLERK_SECRET_KEY || '',
       jwksUrl: CLERK_JWKS_URL || '', // Format: https://your-clerk-instance.clerk.accounts.dev/.well-known/jwks.json
+    },
+    convex: {
+      url: CONVEX_URL || '', // Format: https://[your-project].convex.cloud
     },
     app: {
       name: 'CreativeBridge',
@@ -205,6 +212,58 @@ export const isClerkConfigured = (): boolean => {
         error instanceof Error ? error.message : 'Unknown error',
       );
       console.log('  isClerkConfigured():', false);
+    }
+    return false;
+  }
+};
+
+// Convex Configuration Helpers
+
+/**
+ * Get Convex configuration
+ * @returns Convex URL string
+ * @throws Error if Convex is not configured
+ */
+export const getConvexUrl = (): string => {
+  const convexConfig = Environment.convex;
+  if (!convexConfig || !convexConfig.url) {
+    throw new Error(
+      'Convex is not configured. Please set CONVEX_URL environment variable.',
+    );
+  }
+  return convexConfig.url;
+};
+
+/**
+ * Check if Convex is properly configured
+ * @returns true if Convex URL is configured
+ */
+export const isConvexConfigured = (): boolean => {
+  try {
+    const url = Environment.convex?.url;
+    const isConfigured = Boolean(
+      url &&
+        url.length > 10 &&
+        (url.includes('.convex.cloud') || url.includes('.convex.site')),
+    );
+
+    // Debug logging in development
+    if (__DEV__) {
+      console.log('🔧 Convex Configuration Check:');
+      console.log('  CONVEX_URL:', CONVEX_URL ? `${CONVEX_URL}` : 'NOT SET');
+      console.log('  isConvexConfigured():', isConfigured);
+    }
+
+    return isConfigured;
+  } catch (error) {
+    if (__DEV__) {
+      console.log('🔧 Convex Configuration Check:');
+      console.log('  CONVEX_URL:', CONVEX_URL ? CONVEX_URL : 'NOT SET');
+      console.log(
+        '  Error:',
+        error instanceof Error ? error.message : 'Unknown error',
+      );
+      console.log('  isConvexConfigured():', false);
     }
     return false;
   }

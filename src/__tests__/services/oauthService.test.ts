@@ -2,7 +2,10 @@
  * OAuth Service Unit Tests
  *
  * Comprehensive unit tests for OAuth service functions (Google and Apple OAuth)
- * Tests OAuth flow initiation, JWT retrieval, Supabase sync, and error handling
+ * Tests OAuth flow completion, JWT retrieval, and error handling
+ *
+ * Migration Note (US-032): The Supabase sync step has been removed.
+ * Profile management is now handled by Convex reactive queries in AuthContext.
  *
  * Based on: TASKS-oauth-google-apple-signin-PRD.md Task 5.5
  */
@@ -23,17 +26,11 @@ import {
   signInWithApple,
   completeOAuthFlow,
 } from '../../services/oauthService';
-import { createSupabaseSessionFromClerkJWT } from '../../services/clerkSupabaseSync';
 import { isClerkConfigured } from '../../config/environment';
 
 // Mock dependencies
-jest.mock('../../services/clerkSupabaseSync');
 jest.mock('../../config/environment');
 
-const mockCreateSupabaseSessionFromClerkJWT =
-  createSupabaseSessionFromClerkJWT as jest.MockedFunction<
-    typeof createSupabaseSessionFromClerkJWT
-  >;
 const mockIsClerkConfigured = isClerkConfigured as jest.MockedFunction<
   typeof isClerkConfigured
 >;
@@ -61,22 +58,15 @@ describe('OAuth Service', () => {
       firstName: 'Test',
       lastName: 'User',
     };
-
-    mockCreateSupabaseSessionFromClerkJWT.mockResolvedValue({
-      success: true,
-      session: { access_token: 'supabase-token', user: { id: 'supabase-user-id' } },
-    });
   });
 
-  describe('signInWithGoogle', () => {
-    test('initiates Google OAuth flow via Clerk', async () => {
+  describe('signInWithGoogle (deprecated)', () => {
+    test('returns deprecation error - OAuth now handled in AuthContext', async () => {
       const result = await signInWithGoogle(mockClerkAuth, mockClerkUser);
 
-      expect(mockClerkAuth.signInWithOAuth).toHaveBeenCalledWith({
-        strategy: 'oauth_google',
-        redirectUrl: 'creativebridge://auth/callback',
-      });
-      expect(result.success).toBe(true);
+      // Function is deprecated - returns error directing to AuthContext
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('deprecated');
     });
 
     test('returns error if Clerk is not configured', async () => {
@@ -86,38 +76,16 @@ describe('OAuth Service', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('Clerk is not configured');
-      expect(mockClerkAuth.signInWithOAuth).not.toHaveBeenCalled();
-    });
-
-    test('handles OAuth initiation errors', async () => {
-      const error = new Error('OAuth initiation failed');
-      mockClerkAuth.signInWithOAuth.mockRejectedValue(error);
-
-      const result = await signInWithGoogle(mockClerkAuth, mockClerkUser);
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('OAuth initiation failed');
-    });
-
-    test('handles unexpected errors gracefully', async () => {
-      mockClerkAuth.signInWithOAuth.mockRejectedValue('Unexpected error');
-
-      const result = await signInWithGoogle(mockClerkAuth, mockClerkUser);
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBeDefined();
     });
   });
 
-  describe('signInWithApple', () => {
-    test('initiates Apple OAuth flow via Clerk', async () => {
+  describe('signInWithApple (deprecated)', () => {
+    test('returns deprecation error - OAuth now handled in AuthContext', async () => {
       const result = await signInWithApple(mockClerkAuth, mockClerkUser);
 
-      expect(mockClerkAuth.signInWithOAuth).toHaveBeenCalledWith({
-        strategy: 'oauth_apple',
-        redirectUrl: 'creativebridge://auth/callback',
-      });
-      expect(result.success).toBe(true);
+      // Function is deprecated - returns error directing to AuthContext
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('deprecated');
     });
 
     test('returns error if Clerk is not configured', async () => {
@@ -127,36 +95,6 @@ describe('OAuth Service', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('Clerk is not configured');
-      expect(mockClerkAuth.signInWithOAuth).not.toHaveBeenCalled();
-    });
-
-    test('handles user cancellation silently', async () => {
-      const error = new Error('User cancelled Apple sign-in');
-      mockClerkAuth.signInWithOAuth.mockRejectedValue(error);
-
-      const result = await signInWithApple(mockClerkAuth, mockClerkUser);
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('User cancelled Apple sign-in');
-    });
-
-    test('handles network errors', async () => {
-      const error = new Error('Network connection error');
-      mockClerkAuth.signInWithOAuth.mockRejectedValue(error);
-
-      const result = await signInWithApple(mockClerkAuth, mockClerkUser);
-
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Network error');
-    });
-
-    test('handles unexpected errors gracefully', async () => {
-      mockClerkAuth.signInWithOAuth.mockRejectedValue('Unexpected error');
-
-      const result = await signInWithApple(mockClerkAuth, mockClerkUser);
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBeDefined();
     });
   });
 
@@ -165,13 +103,8 @@ describe('OAuth Service', () => {
       const result = await completeOAuthFlow(mockClerkAuth, mockClerkUser);
 
       expect(mockClerkAuth.getToken).toHaveBeenCalled();
-      expect(mockCreateSupabaseSessionFromClerkJWT).toHaveBeenCalledWith(
-        'mock-clerk-jwt-token',
-        'test@example.com',
-      );
       expect(result.success).toBe(true);
       expect(result.jwt).toBe('mock-clerk-jwt-token');
-      expect(result.supabaseSession).toBeDefined();
       expect(result.userEmail).toBe('test@example.com');
       expect(result.clerkUserId).toBe('user_test123');
     });
@@ -193,32 +126,12 @@ describe('OAuth Service', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('Failed to retrieve Clerk JWT token');
-      expect(mockCreateSupabaseSessionFromClerkJWT).not.toHaveBeenCalled();
-    });
-
-    test('handles Supabase sync failure', async () => {
-      mockCreateSupabaseSessionFromClerkJWT.mockResolvedValue({
-        success: false,
-        error: 'Account linking failed',
-        errorType: 'ACCOUNT_LINKING_CONFLICT',
-      });
-
-      const result = await completeOAuthFlow(mockClerkAuth, mockClerkUser);
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('Account linking failed');
-      expect(result.errorType).toBe('ACCOUNT_LINKING_CONFLICT');
-      expect(result.jwt).toBe('mock-clerk-jwt-token'); // JWT still returned
     });
 
     test('extracts email from Clerk user object', async () => {
       const result = await completeOAuthFlow(mockClerkAuth, mockClerkUser);
 
       expect(result.userEmail).toBe('test@example.com');
-      expect(mockCreateSupabaseSessionFromClerkJWT).toHaveBeenCalledWith(
-        'mock-clerk-jwt-token',
-        'test@example.com',
-      );
     });
 
     test('handles Apple private relay email', async () => {
@@ -230,10 +143,6 @@ describe('OAuth Service', () => {
       const result = await completeOAuthFlow(mockClerkAuth, appleUser);
 
       expect(result.userEmail).toBe('privaterelay@icloud.com');
-      expect(mockCreateSupabaseSessionFromClerkJWT).toHaveBeenCalledWith(
-        'mock-clerk-jwt-token',
-        'privaterelay@icloud.com',
-      );
     });
 
     test('uses Clerk user ID from user object', async () => {
@@ -258,10 +167,6 @@ describe('OAuth Service', () => {
 
       expect(result.success).toBe(true);
       expect(result.userEmail).toBeUndefined();
-      expect(mockCreateSupabaseSessionFromClerkJWT).toHaveBeenCalledWith(
-        'mock-clerk-jwt-token',
-        undefined,
-      );
     });
 
     test('handles unexpected errors during completion', async () => {
@@ -273,43 +178,4 @@ describe('OAuth Service', () => {
       expect(result.error).toBeDefined();
     });
   });
-
-  describe('Error Types', () => {
-    test('returns correct error type for account linking conflicts', async () => {
-      mockCreateSupabaseSessionFromClerkJWT.mockResolvedValue({
-        success: false,
-        error: 'Profile already linked to different Clerk account',
-        errorType: 'ACCOUNT_LINKING_CONFLICT',
-      });
-
-      const result = await completeOAuthFlow(mockClerkAuth, mockClerkUser);
-
-      expect(result.errorType).toBe('ACCOUNT_LINKING_CONFLICT');
-    });
-
-    test('returns correct error type for email mismatch', async () => {
-      mockCreateSupabaseSessionFromClerkJWT.mockResolvedValue({
-        success: false,
-        error: 'Email mismatch',
-        errorType: 'EMAIL_MISMATCH',
-      });
-
-      const result = await completeOAuthFlow(mockClerkAuth, mockClerkUser);
-
-      expect(result.errorType).toBe('EMAIL_MISMATCH');
-    });
-
-    test('returns correct error type for database errors', async () => {
-      mockCreateSupabaseSessionFromClerkJWT.mockResolvedValue({
-        success: false,
-        error: 'Database constraint violation',
-        errorType: 'DATABASE_ERROR',
-      });
-
-      const result = await completeOAuthFlow(mockClerkAuth, mockClerkUser);
-
-      expect(result.errorType).toBe('DATABASE_ERROR');
-    });
-  });
 });
-

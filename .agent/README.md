@@ -15,9 +15,10 @@ This directory contains comprehensive documentation for the CreativeBridge educa
 - 🧠 **Claude Skills Integration**: Advanced AI capabilities for content optimization and quality assessment
 - 🎮 **Gamification**: XP system, streaks, leaderboards, and achievements
 - 📚 **Grade-Level Content**: Age-appropriate stories across K-12 education levels
-- 🔐 **Secure Backend**: Supabase with Row Level Security and real-time features
+- 🔐 **Dual Backend**: Convex (PRIMARY for OAuth users) with Supabase fallback for legacy users
 - 📱 **Cross-Platform**: React Native for iOS and Android
 - 🎯 **Advanced AI Agents**: Multi-personality AI with adaptive quality assessment
+- ⚡ **Native Clerk Integration**: Convex + Clerk for seamless OAuth authentication
 
 ## 📚 Documentation Structure
 
@@ -89,6 +90,7 @@ The `Tasks/` directory contains Product Requirements Documents (PRDs) and implem
 
 **Active PRDs**:
 
+- [**Supabase to Convex Migration**](./Tasks/prd-supabase-to-convex-migration.md) - ✅ **COMPLETE** (33/33 user stories) - Full backend migration from Supabase to Convex with native Clerk integration, real-time capabilities, and TypeScript-first experience. OAuth users now use Convex as primary data store; Supabase remains as fallback for legacy email/password users.
 - [**Onboarding Enhancement**](./Tasks/prd-onboarding-enhancement.md) - ✅ **COMPLETE** (20/20 user stories) - Comprehensive onboarding CRO improvements including checklist, celebrations, feature discovery tooltips, and XP rewards. See [Project Architecture](./System/project_architecture.md#9-onboarding-system) for technical documentation.
 - [**Image Generation Watercolor Style Fix**](./Tasks/prd-image-generation-watercolor-style-fix.md) - Critical bug fix to enforce grade-appropriate art styles across all grade levels (K-2, 3-5, 6-8, 9-12)
 - [**Image Generation Quality Improvement**](./Tasks/prd-image-generation-quality-improvement.md) - LLM-based prompt generation for better story-to-image relevance
@@ -147,12 +149,14 @@ The `Tasks/` directory contains Product Requirements Documents (PRDs) and implem
 ### Technology Stack Summary
 
 - **Frontend**: React Native 0.81.1 with TypeScript 5.8.3
-- **Backend**: Supabase (PostgreSQL) with real-time features
+- **Backend (Primary)**: Convex with native Clerk integration (OAuth users)
+- **Backend (Fallback)**: Supabase (PostgreSQL) for legacy email/password users
 - **AI Services**: OpenAI API (GPT-4) + Replicate API (Stable Diffusion) + Claude Skills SDK
 - **State Management**: React Context API with AsyncStorage
 - **Navigation**: React Navigation v7 (tabs + stack)
 - **Testing**: Jest with comprehensive test suites
 - **Advanced AI**: Multi-agent architecture with Claude Skills integration
+- **Authentication**: Clerk OAuth (Google/Apple) → Convex JWT verification
 
 ### Key Directories
 
@@ -165,6 +169,7 @@ src/
 │   └── story/      # Story-specific components
 ├── screens/        # Screen components for navigation
 ├── services/       # Business logic layer (30+ specialized services)
+│   ├── convex.ts                    # Convex client initialization
 │   ├── onboardingService.ts         # Centralized onboarding management
 │   ├── onboardingMilestoneTracker.ts # Local milestone tracking
 │   └── ...                          # Other services
@@ -172,6 +177,18 @@ src/
 ├── context/        # React Context providers
 ├── navigation/     # App navigation configuration
 └── utils/          # Utility functions and helpers
+
+convex/
+├── README.md         # Convex functions documentation
+├── schema.ts         # Database schema definitions
+├── auth.ts           # Auth helper functions
+├── auth.config.ts    # Clerk authentication configuration
+├── userProfiles.ts   # User profile mutations/queries
+├── gameSessions.ts   # Game session mutations/queries
+├── imageGeneration.ts # Image generation event tracking
+├── onboarding.ts     # Onboarding functions
+├── storage.ts        # File storage functions
+└── migration.ts      # Data migration utilities
 
 .agent/
 ├── README.md                  # This documentation index
@@ -186,27 +203,32 @@ src/
 
 - **Entry Point**: `App.tsx` - Main application component
 - **Navigation**: `src/navigation/AppNavigator.tsx` - App navigation setup
-- **Database Types**: `src/types/database.ts` - TypeScript definitions
+- **Convex Schema**: `convex/schema.ts` - Convex database schema (PRIMARY)
+- **Supabase Types**: `src/types/database.ts` - Supabase TypeScript definitions (FALLBACK)
 - **Auth Context**: `src/context/AuthContext.tsx` - Authentication management
+- **Convex Client**: `src/services/convex.ts` - Convex client initialization
 - **Main Services**: `src/services/` - Core business logic
 
 ## 📊 Architecture Overview
 
 ### System Components
 
-1. **Authentication Layer**: Supabase Auth with email verification
+1. **Authentication Layer**: Clerk OAuth (Google/Apple) with Convex JWT integration
 2. **Story Engine**: AI-powered collaborative storytelling with multi-agent architecture
 3. **Image Generation**: Multi-service AI image creation with XP economy
 4. **Claude Skills Integration**: Advanced AI optimization and quality assessment
 5. **Gamification**: XP, streaks, and achievement system
-6. **Data Layer**: PostgreSQL with real-time sync and comprehensive analytics
-7. **Security Layer**: RLS policies and input validation
+6. **Data Layer**: Convex (PRIMARY for OAuth) + Supabase (FALLBACK for legacy users)
+7. **Security Layer**: Convex auth verification + Supabase RLS policies for fallback
 8. **Advanced AI Agents**: Multi-personality story partners with adaptive behavior
 9. **Onboarding System**: Guided new user experience with celebrations, tooltips, and XP rewards (150 XP total)
+10. **Storage Layer**: Convex Storage for image persistence (replaced Supabase Storage)
 
 ### Integration Points
 
-- **Supabase**: Database, auth, real-time subscriptions, feature flags
+- **Convex**: Primary database for OAuth users, real-time queries, mutations, storage
+- **Supabase**: Fallback database for legacy email/password users, feature flags
+- **Clerk**: OAuth authentication provider (Google/Apple)
 - **OpenAI**: Story generation with GPT-4 Turbo and adaptive prompting
 - **Replicate**: Image generation with Stable Diffusion 3.5 Large
 - **Claude Skills**: AI optimization, quality assessment, behavior analysis
