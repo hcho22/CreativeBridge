@@ -153,18 +153,34 @@ Migrate all email/password authentication from Supabase to Clerk, unifying all u
 - [x] Modify existing `signIn()` to try Clerk first
 - [x] Typecheck passes
 
-#### US-006: Implement Clerk Password Reset
+#### US-006: Implement Clerk Password Reset ✅ COMPLETED
 
 **Description:** As a user who forgot my password, I want to reset it via email so I can regain access to my account.
 
+**Completion Date:** 2026-02-25
+
+**Implementation Notes:**
+
+- Added `resetPasswordWithClerk(email)` function using Clerk's `signIn.create({ strategy: 'reset_password_email_code', identifier })` to send a 6-digit code
+- Added `verifyPasswordResetCode(code, newPassword)` function using `signIn.attemptFirstFactor({ strategy: 'reset_password_email_code', code, password })` to verify code and set new password in one call
+- Both functions added to `AuthContextType` interface and provider value
+- Updated existing `resetPassword()` to delegate to `resetPasswordWithClerk()` instead of Supabase's `resetPasswordForEmail()`
+- Replaced old single-step "send reset link" UI with two-step in-app flow: (1) Enter email → send code, (2) Enter 6-digit code + new password → verify and reset
+- Code input uses `textContentType="oneTimeCode"` for iOS autofill, numeric keyboard, 6-digit max
+- New password input includes show/hide toggle and `validatePassword()` strength check before submission
+- Handles Clerk error codes: `form_identifier_not_found`, `strategy_for_user_invalid`, `form_code_incorrect`, `verification_expired`, `form_password_pwned`, `form_password_length_too_short`
+- On successful reset, Clerk session is activated automatically — user is signed in and navigated to main app
+- Resend code button allows requesting a new code without leaving the verification screen
+- Removed unused `resetEmailSent` state variable (old Supabase flow artifact)
+
 **Acceptance Criteria:**
 
-- [ ] Add `resetPasswordWithClerk(email)` function to `AuthContext.tsx`
-- [ ] Function triggers Clerk's `reset_password_email_code` strategy
-- [ ] Add password reset code verification UI
-- [ ] Add new password input UI after code verification
-- [ ] Update existing `resetPassword()` to use Clerk
-- [ ] Typecheck passes
+- [x] Add `resetPasswordWithClerk(email)` function to `AuthContext.tsx`
+- [x] Function triggers Clerk's `reset_password_email_code` strategy
+- [x] Add password reset code verification UI
+- [x] Add new password input UI after code verification
+- [x] Update existing `resetPassword()` to use Clerk
+- [x] Typecheck passes
 - [ ] Verify in simulator/device: complete password reset flow
 
 ---

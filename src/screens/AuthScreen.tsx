@@ -47,12 +47,14 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
     emailConfirmed,
     resendConfirmation,
     checkEmailConfirmation,
-    resetPassword,
     oauthError,
     clearOAuthError,
     signUpWithClerk,
     verifyEmailCode,
     resendClerkVerificationCode,
+    resetPasswordWithClerk,
+    verifyPasswordResetCode,
+    verifySignInSecondFactor,
   } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -78,7 +80,13 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
   const [resendingConfirmation, setResendingConfirmation] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [resetEmailSent, setResetEmailSent] = useState(false);
+  // US-006: Clerk password reset code flow state
+  const [showResetCodeInput, setShowResetCodeInput] = useState(false);
+  const [resetCode, setResetCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resettingPassword, setResettingPassword] = useState(false);
   // US-004: Clerk email verification state
   const [showVerificationInput, setShowVerificationInput] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
@@ -87,6 +95,13 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
   );
   const [verifyingCode, setVerifyingCode] = useState(false);
   const [resendingCode, setResendingCode] = useState(false);
+  // Sign-in second factor verification state
+  const [showSecondFactor, setShowSecondFactor] = useState(false);
+  const [secondFactorCode, setSecondFactorCode] = useState('');
+  const [secondFactorError, setSecondFactorError] = useState<string | null>(
+    null,
+  );
+  const [verifyingSecondFactor, setVerifyingSecondFactor] = useState(false);
   // US-010: OAuth Session Help Modal state
   const [showSessionHelp, setShowSessionHelp] = useState(false);
   const [helpProvider, setHelpProvider] = useState<OAuthProvider>('google');
@@ -332,6 +347,11 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
         const result = await signIn(email.trim(), password, rememberMe);
         if (result.error) {
           Alert.alert('Error', result.error);
+        } else if (result.needsSecondFactor) {
+          // Show second factor verification screen
+          setShowSecondFactor(true);
+          setSecondFactorCode('');
+          setSecondFactorError(null);
         } else if (result.needsMigration) {
           // US-005: User authenticated via Supabase (legacy) — migration prompt will be added in US-010
           console.log(
@@ -379,7 +399,13 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
     setUsernameValidation(null);
     setUsernameTouched(false);
     setShowForgotPassword(false);
-    setResetEmailSent(false);
+    setShowResetCodeInput(false);
+    setResetCode('');
+    setNewPassword('');
+    setResetError(null);
+    setShowSecondFactor(false);
+    setSecondFactorCode('');
+    setSecondFactorError(null);
   };
 
   const handleEmailChange = (text: string) => {
@@ -450,6 +476,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
     }
   };
 
+  // US-006: Send Clerk password reset code
   const handleForgotPassword = async () => {
     if (!email.trim()) {
       Alert.alert('Error', 'Please enter your email address');
@@ -462,22 +489,119 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
     }
 
     setLoading(true);
+    setResetError(null);
     try {
-      const result = await resetPassword(email.trim());
+      const result = await resetPasswordWithClerk(email.trim());
       if (result.error) {
         Alert.alert('Error', result.error);
-      } else {
-        setResetEmailSent(true);
-        Alert.alert(
-          'Reset Email Sent!',
-          'Please check your email for instructions to reset your password.',
-        );
+      } else if (result.needsCode) {
+        // Show the code verification + new password input screen
+        setShowResetCodeInput(true);
+        setResetCode('');
+        setNewPassword('');
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to send reset email. Please try again.');
+      Alert.alert('Error', 'Failed to send reset code. Please try again.');
     } finally {
       setLoading(false);
     }
+  };
+
+  // US-006: Verify reset code and set new password
+  const handleResetPasswordVerify = async () => {
+    if (resetCode.length !== 6) {
+      setResetError('Please enter the 6-digit code from your email.');
+      return;
+    }
+
+    if (!newPassword || newPassword.length < 8) {
+      setResetError('New password must be at least 8 characters long.');
+      return;
+    }
+
+    const passwordCheck = validatePassword(newPassword);
+    if (!passwordCheck.isValid) {
+      setResetError(
+        passwordCheck.feedback[0] || 'Please choose a stronger password.',
+      );
+      return;
+    }
+
+    setResettingPassword(true);
+    setResetError(null);
+
+    try {
+      const result = await verifyPasswordResetCode(resetCode, newPassword);
+      if (result.error) {
+        setResetError(result.error);
+      }
+      // On success, verifyPasswordResetCode activates the Clerk session.
+      // The auth state change will automatically navigate away from AuthScreen.
+    } catch (error) {
+      setResetError('An unexpected error occurred. Please try again.');
+    } finally {
+      setResettingPassword(false);
+    }
+  };
+
+  // US-006: Resend password reset code
+  const handleResendResetCode = async () => {
+    setLoading(true);
+    setResetError(null);
+    try {
+      const result = await resetPasswordWithClerk(email.trim());
+      if (result.error) {
+        setResetError(result.error);
+      } else {
+        Alert.alert(
+          'Code Sent',
+          'A new reset code has been sent to your email.',
+        );
+      }
+    } catch (error) {
+      setResetError('Failed to resend code. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // US-006: Go back from reset code input to email entry
+  const handleBackFromResetCode = () => {
+    setShowResetCodeInput(false);
+    setResetCode('');
+    setNewPassword('');
+    setResetError(null);
+  };
+
+  // Handle sign-in second factor verification
+  const handleVerifySecondFactor = async () => {
+    if (secondFactorCode.length !== 6) {
+      setSecondFactorError('Please enter the 6-digit code from your email.');
+      return;
+    }
+
+    setVerifyingSecondFactor(true);
+    setSecondFactorError(null);
+
+    try {
+      const result = await verifySignInSecondFactor(secondFactorCode);
+      if (result.error) {
+        setSecondFactorError(result.error);
+      }
+      // On success, the Clerk session is activated and auth state
+      // will automatically navigate away from AuthScreen.
+    } catch (error) {
+      setSecondFactorError('An unexpected error occurred. Please try again.');
+    } finally {
+      setVerifyingSecondFactor(false);
+    }
+  };
+
+  // Handle back from second factor to sign-in screen
+  const handleBackFromSecondFactor = () => {
+    setShowSecondFactor(false);
+    setSecondFactorCode('');
+    setSecondFactorError(null);
   };
 
   // US-004: Handle verification code submission
@@ -585,6 +709,100 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
 
     return [styles.textInput, styles.textInputValid];
   };
+
+  // Sign-in second factor verification screen
+  if (showSecondFactor) {
+    return (
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContainer}>
+          <View style={styles.content}>
+            <View style={styles.headerSection}>
+              <Text style={styles.appTitle}>Verify Identity</Text>
+              <Text style={styles.appSubtitle}>
+                Enter the 6-digit code sent to your email
+              </Text>
+            </View>
+
+            <View style={styles.formSection}>
+              <Text style={styles.formTitle}>Additional Verification</Text>
+              <Text style={styles.formSubtitle}>
+                For security, please enter the verification code we sent to your
+                email.
+              </Text>
+
+              <View style={styles.emailConfirmationInfo}>
+                <Text style={styles.emailLabel}>Code sent to:</Text>
+                <Text style={styles.emailAddress}>{email}</Text>
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Verification Code</Text>
+                <TextInput
+                  style={[
+                    styles.verificationCodeInput,
+                    secondFactorError && styles.textInputError,
+                  ]}
+                  value={secondFactorCode}
+                  onChangeText={text => {
+                    const cleaned = text.replace(/[^0-9]/g, '').slice(0, 6);
+                    setSecondFactorCode(cleaned);
+                    if (secondFactorError) setSecondFactorError(null);
+                  }}
+                  placeholder="000000"
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  autoFocus
+                  editable={!verifyingSecondFactor}
+                  textContentType="oneTimeCode"
+                />
+              </View>
+
+              {secondFactorError && (
+                <View style={styles.validationFeedback}>
+                  <Text style={styles.errorText}>{secondFactorError}</Text>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={[
+                  styles.authButton,
+                  (verifyingSecondFactor || secondFactorCode.length !== 6) &&
+                    styles.disabledButton,
+                ]}
+                onPress={handleVerifySecondFactor}
+                disabled={
+                  verifyingSecondFactor || secondFactorCode.length !== 6
+                }
+              >
+                {verifyingSecondFactor ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text style={styles.authButtonText}>Verify</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={handleBackFromSecondFactor}
+                disabled={verifyingSecondFactor}
+              >
+                <Text style={styles.backButtonText}>Back to Sign In</Text>
+              </TouchableOpacity>
+
+              <View style={styles.helpSection}>
+                <Text style={styles.helpText}>
+                  Check your spam folder if you don't see the email
+                </Text>
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
 
   // US-004: If user needs to enter Clerk verification code, show verification screen
   if (showVerificationInput) {
@@ -758,6 +976,121 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
 
   // If user is on forgot password screen, show forgot password form
   if (showForgotPassword) {
+    // US-006: Step 2 — Enter reset code and new password
+    if (showResetCodeInput) {
+      return (
+        <KeyboardAvoidingView
+          style={styles.container}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <ScrollView contentContainerStyle={styles.scrollContainer}>
+            <View style={styles.content}>
+              <View style={styles.headerSection}>
+                <Text style={styles.appTitle}>🔑 Reset Password</Text>
+                <Text style={styles.appSubtitle}>
+                  Enter the code sent to {email}
+                </Text>
+              </View>
+
+              <View style={styles.formSection}>
+                <Text style={styles.formTitle}>Enter Reset Code</Text>
+                <Text style={styles.formSubtitle}>
+                  We sent a 6-digit code to your email. Enter it below along
+                  with your new password.
+                </Text>
+
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>Verification Code</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={resetCode}
+                    onChangeText={text =>
+                      setResetCode(text.replace(/[^0-9]/g, '').slice(0, 6))
+                    }
+                    placeholder="Enter 6-digit code"
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    textContentType="oneTimeCode"
+                    editable={!resettingPassword}
+                  />
+                </View>
+
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>New Password</Text>
+                  <View style={styles.passwordInputWrapper}>
+                    <TextInput
+                      style={styles.passwordInput}
+                      value={newPassword}
+                      onChangeText={setNewPassword}
+                      placeholder="Enter new password"
+                      secureTextEntry={!showNewPassword}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      textContentType="newPassword"
+                      editable={!resettingPassword}
+                    />
+                    <TouchableOpacity
+                      style={styles.passwordToggle}
+                      onPress={() => setShowNewPassword(!showNewPassword)}
+                    >
+                      <Text style={styles.passwordToggleText}>
+                        {showNewPassword ? 'Hide' : 'Show'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {resetError && (
+                  <View style={styles.validationFeedback}>
+                    <Text style={styles.errorText}>{resetError}</Text>
+                  </View>
+                )}
+
+                <TouchableOpacity
+                  style={[
+                    styles.authButton,
+                    (resettingPassword ||
+                      resetCode.length !== 6 ||
+                      !newPassword) &&
+                      styles.disabledButton,
+                  ]}
+                  onPress={handleResetPasswordVerify}
+                  disabled={
+                    resettingPassword || resetCode.length !== 6 || !newPassword
+                  }
+                >
+                  {resettingPassword ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.authButtonText}>Reset Password</Text>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.secondaryButton}
+                  onPress={handleResendResetCode}
+                  disabled={loading || resettingPassword}
+                >
+                  <Text style={styles.secondaryButtonText}>
+                    {loading ? 'Sending...' : 'Resend Code'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.secondaryButton}
+                  onPress={handleBackFromResetCode}
+                  disabled={resettingPassword}
+                >
+                  <Text style={styles.secondaryButtonText}>Back</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      );
+    }
+
+    // US-006: Step 1 — Enter email to receive reset code
     return (
       <KeyboardAvoidingView
         style={styles.container}
@@ -768,15 +1101,15 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
             <View style={styles.headerSection}>
               <Text style={styles.appTitle}>🔑 Reset Password</Text>
               <Text style={styles.appSubtitle}>
-                Enter your email to receive reset instructions
+                Enter your email to receive a reset code
               </Text>
             </View>
 
             <View style={styles.formSection}>
               <Text style={styles.formTitle}>Forgot Your Password?</Text>
               <Text style={styles.formSubtitle}>
-                No worries! Enter your email address and we'll send you
-                instructions to reset your password.
+                No worries! Enter your email address and we'll send you a code
+                to reset your password.
               </Text>
 
               <View style={styles.inputContainer}>
@@ -804,19 +1137,19 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
                   <View style={styles.validationFeedback}>
                     {emailValidation.errors.map((error, index) => (
                       <Text key={`error-${index}`} style={styles.errorText}>
-                        ❌ {error}
+                        {error}
                       </Text>
                     ))}
                     {emailValidation.warnings.map((warning, index) => (
                       <Text key={`warning-${index}`} style={styles.warningText}>
-                        ⚠️ {warning}
+                        {warning}
                       </Text>
                     ))}
                     {emailValidation.isValid &&
                       emailValidation.errors.length === 0 &&
                       emailValidation.warnings.length === 0 && (
                         <Text style={styles.successText}>
-                          ✅ Email looks good!
+                          Email looks good!
                         </Text>
                       )}
                   </View>
@@ -839,28 +1172,21 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
                 }
               >
                 <Text style={styles.authButtonText}>
-                  {loading ? 'Sending...' : 'Send Reset Email'}
+                  {loading ? 'Sending...' : 'Send Reset Code'}
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.secondaryButton}
-                onPress={() => setShowForgotPassword(false)}
+                onPress={() => {
+                  setShowForgotPassword(false);
+                  setShowResetCodeInput(false);
+                  setResetError(null);
+                }}
                 disabled={loading}
               >
                 <Text style={styles.secondaryButtonText}>Back to Sign In</Text>
               </TouchableOpacity>
-
-              {resetEmailSent && (
-                <View style={styles.helpSection}>
-                  <Text style={styles.helpText}>
-                    📧 Check your email for reset instructions
-                  </Text>
-                  <Text style={styles.helpText}>
-                    💡 Don't forget to check your spam folder
-                  </Text>
-                </View>
-              )}
             </View>
           </View>
         </ScrollView>

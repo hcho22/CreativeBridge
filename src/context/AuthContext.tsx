@@ -116,7 +116,11 @@ interface AuthContextType {
     email: string,
     password: string,
     rememberMe?: boolean,
-  ) => Promise<{ error?: string; needsMigration?: boolean }>;
+  ) => Promise<{
+    error?: string;
+    needsMigration?: boolean;
+    needsSecondFactor?: boolean;
+  }>;
   signUp: (
     email: string,
     password: string,
@@ -195,7 +199,21 @@ interface AuthContextType {
   signInWithClerk: (
     email: string,
     password: string,
-  ) => Promise<{ needsMigration?: boolean; error?: string }>;
+  ) => Promise<{
+    needsMigration?: boolean;
+    needsSecondFactor?: boolean;
+    error?: string;
+  }>;
+  // Clerk sign-in second factor verification
+  verifySignInSecondFactor: (code: string) => Promise<{ error?: string }>;
+  // Clerk password reset (US-006)
+  resetPasswordWithClerk: (
+    email: string,
+  ) => Promise<{ needsCode?: boolean; error?: string }>;
+  verifyPasswordResetCode: (
+    code: string,
+    newPassword: string,
+  ) => Promise<{ error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -743,12 +761,24 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     email: string,
     password: string,
     rememberMe = false,
-  ): Promise<{ error?: string; needsMigration?: boolean }> => {
+  ): Promise<{
+    error?: string;
+    needsMigration?: boolean;
+    needsSecondFactor?: boolean;
+  }> => {
     try {
       console.log('🔐 Attempting sign in (Clerk-first)', { email, rememberMe });
 
       // US-005: Try Clerk sign-in first
       const clerkResult = await signInWithClerk(email, password);
+
+      if (clerkResult.needsSecondFactor) {
+        // Second factor required — email code already sent by signInWithClerk
+        console.log('🔐 Sign-in requires second factor verification');
+        // Store rememberMe for after second factor completes
+        await RememberMeStorage.setRememberMe(rememberMe, email);
+        return { needsSecondFactor: true };
+      }
 
       if (!clerkResult.error && !clerkResult.needsMigration) {
         // Clerk sign-in successful
@@ -1387,15 +1417,15 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const resetPassword = async (email: string): Promise<{ error?: string }> => {
+    // US-006: Use Clerk password reset (sends 6-digit code)
+    // The caller should check for needsCode in the result from resetPasswordWithClerk
+    // to show the code verification UI. This wrapper maintains backward compatibility.
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'creativebridge://reset-password',
-      });
-
-      if (error) {
-        return { error: error.message };
+      const result = await resetPasswordWithClerk(email);
+      if (result.error) {
+        return { error: result.error };
       }
-
+      // Success — the caller will handle the code input UI
       return {};
     } catch (error) {
       return { error: 'An unexpected error occurred' };
@@ -1878,7 +1908,11 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
   const signInWithClerk = async (
     email: string,
     password: string,
-  ): Promise<{ needsMigration?: boolean; error?: string }> => {
+  ): Promise<{
+    needsMigration?: boolean;
+    needsSecondFactor?: boolean;
+    error?: string;
+  }> => {
     try {
       console.log(
         '🔐 [AuthContext] Attempting Clerk email/password sign-in...',
@@ -1908,7 +1942,40 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         return {};
       }
 
-      // Handle incomplete sign-in (e.g., needs_second_factor)
+      // Handle needs_second_factor: prepare email code and signal UI
+      if (result.status === 'needs_second_factor') {
+        console.log(
+          '🔐 [AuthContext] Sign-in needs second factor. Supported:',
+          result.supportedSecondFactors?.map((f: any) => f.strategy),
+        );
+
+        // Check if email_code is a supported second factor
+        const hasEmailCode = result.supportedSecondFactors?.some(
+          (f: any) => f.strategy === 'email_code',
+        );
+
+        if (hasEmailCode) {
+          // Prepare the email code second factor — this sends the code
+          await clerkSignInResource.prepareSecondFactor({
+            strategy: 'email_code',
+          });
+          console.log(
+            '📧 [AuthContext] Second factor email code sent, awaiting verification',
+          );
+          return { needsSecondFactor: true };
+        }
+
+        // No supported second factor strategy we can handle
+        console.warn(
+          '⚠️ [AuthContext] No supported second factor strategy available',
+        );
+        return {
+          error:
+            'Your account requires two-factor authentication that is not yet supported in this app.',
+        };
+      }
+
+      // Handle other incomplete statuses
       console.warn(
         '⚠️ [AuthContext] Clerk sign-in incomplete, status:',
         result.status,
@@ -1956,6 +2023,311 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         if (message.includes('rate') || message.includes('limit')) {
           errorMessage =
             'Too many sign-in attempts. Please wait a moment and try again.';
+        } else if (message.includes('network') || message.includes('fetch')) {
+          errorMessage =
+            'Network error. Please check your connection and try again.';
+        }
+      }
+
+      return { error: errorMessage };
+    }
+  };
+
+  /**
+   * Verify second factor during sign-in.
+   *
+   * Called after `signInWithClerk` returns `{ needsSecondFactor: true }`.
+   * The email code has already been sent by `prepareSecondFactor` inside
+   * `signInWithClerk`. This function verifies the 6-digit code and
+   * activates the Clerk session.
+   *
+   * @param code - 6-digit verification code from email
+   * @returns {} on success, { error: string } on failure
+   */
+  const verifySignInSecondFactor = async (
+    code: string,
+  ): Promise<{ error?: string }> => {
+    try {
+      console.log('🔐 [AuthContext] Verifying sign-in second factor...');
+
+      if (!clerkSignIn?.signIn || !clerkSignIn?.setActive) {
+        return {
+          error: 'Clerk is not available. Please try signing in again.',
+        };
+      }
+
+      const { signIn: clerkSignInResource, setActive } = clerkSignIn;
+
+      const result = await clerkSignInResource.attemptSecondFactor({
+        strategy: 'email_code',
+        code,
+      });
+
+      if (result.status === 'complete') {
+        console.log('📧 [AuthContext] Activating Clerk session after 2FA...');
+        await setActive({ session: result.createdSessionId });
+        console.log('✅ [AuthContext] Sign-in with second factor successful');
+        return {};
+      }
+
+      console.warn(
+        '⚠️ [AuthContext] Second factor verification incomplete, status:',
+        result.status,
+      );
+      return {
+        error: 'Verification incomplete. Please try again.',
+      };
+    } catch (error: any) {
+      console.error(
+        '❌ [AuthContext] Second factor verification failed:',
+        error,
+      );
+
+      const clerkErrors = error?.errors || [];
+      const firstError = clerkErrors[0];
+
+      if (firstError) {
+        const errCode = firstError.code;
+
+        if (errCode === 'form_code_incorrect' || errCode === 'form_param_nil') {
+          return {
+            error: 'Invalid verification code. Please check and try again.',
+          };
+        }
+
+        if (errCode === 'verification_expired') {
+          return {
+            error:
+              'Verification code has expired. Please sign in again to get a new code.',
+          };
+        }
+      }
+
+      return { error: 'Failed to verify code. Please try again.' };
+    }
+  };
+
+  /**
+   * Initiate Clerk password reset flow (US-006).
+   *
+   * Sends a 6-digit reset code to the user's email using Clerk's
+   * `reset_password_email_code` strategy. The user then enters the code
+   * along with a new password via `verifyPasswordResetCode()`.
+   *
+   * @param email - User's email address
+   * @returns { needsCode: true } on success, { error: string } on failure
+   */
+  const resetPasswordWithClerk = async (
+    email: string,
+  ): Promise<{ needsCode?: boolean; error?: string }> => {
+    try {
+      console.log('🔑 [AuthContext] Initiating Clerk password reset...');
+
+      if (!clerkSignIn?.signIn) {
+        return {
+          error: 'Clerk is not available. Please try again or restart the app.',
+        };
+      }
+
+      const { signIn: clerkSignInResource } = clerkSignIn;
+
+      // Create a sign-in attempt with the reset_password_email_code strategy
+      await clerkSignInResource.create({
+        strategy: 'reset_password_email_code',
+        identifier: email,
+      });
+
+      console.log('✅ [AuthContext] Password reset code sent to', email);
+      return { needsCode: true };
+    } catch (error: any) {
+      console.error('❌ [AuthContext] Password reset request failed:', error);
+
+      // Parse Clerk structured error codes
+      const clerkErrors = error?.errors || [];
+      const firstError = clerkErrors[0];
+
+      if (firstError) {
+        const code = firstError.code;
+
+        if (code === 'form_identifier_not_found') {
+          return {
+            error:
+              'No account found with this email. Please check the address or sign up.',
+          };
+        }
+
+        if (code === 'strategy_for_user_invalid') {
+          return {
+            error:
+              'This account uses social sign-in (Google/Apple). Password reset is not available for social accounts.',
+          };
+        }
+      }
+
+      let errorMessage = 'An unexpected error occurred. Please try again.';
+
+      if (error instanceof Error) {
+        const message = error.message.toLowerCase();
+
+        if (message.includes('rate') || message.includes('limit')) {
+          errorMessage =
+            'Too many reset attempts. Please wait a moment and try again.';
+        } else if (message.includes('network') || message.includes('fetch')) {
+          errorMessage =
+            'Network error. Please check your connection and try again.';
+        }
+      }
+
+      return { error: errorMessage };
+    }
+  };
+
+  /**
+   * Verify password reset code and set new password (US-006).
+   *
+   * Completes the password reset flow started by `resetPasswordWithClerk()`.
+   * Uses Clerk's two-step flow:
+   *   1. `attemptFirstFactor` verifies the 6-digit code → status: `needs_new_password`
+   *   2. `resetPassword` sets the new password → status: `complete`
+   *
+   * @param code - 6-digit verification code from email
+   * @param newPassword - The new password to set
+   * @returns {} on success, { error: string } on failure
+   */
+  const verifyPasswordResetCode = async (
+    code: string,
+    newPassword: string,
+  ): Promise<{ error?: string }> => {
+    try {
+      console.log('🔑 [AuthContext] Verifying password reset code...');
+
+      if (!clerkSignIn?.signIn || !clerkSignIn?.setActive) {
+        return {
+          error:
+            'Clerk is not available. Please restart the password reset process.',
+        };
+      }
+
+      const { signIn: clerkSignInResource, setActive } = clerkSignIn;
+
+      // Step 1: Verify the 6-digit code (first factor only — no password here)
+      const firstFactorResult = await clerkSignInResource.attemptFirstFactor({
+        strategy: 'reset_password_email_code',
+        code,
+      });
+
+      console.log(
+        '🔑 [AuthContext] First factor result status:',
+        firstFactorResult.status,
+      );
+
+      // Step 2: Set the new password via resetPassword()
+      if (firstFactorResult.status === 'needs_new_password') {
+        const resetResult = await clerkSignInResource.resetPassword({
+          password: newPassword,
+          signOutOfOtherSessions: true,
+        });
+
+        if (resetResult.status === 'complete') {
+          console.log(
+            '🔑 [AuthContext] Activating session after password reset...',
+          );
+          await setActive({ session: resetResult.createdSessionId });
+          console.log('✅ [AuthContext] Password reset and sign-in successful');
+          return {};
+        }
+
+        // Unexpected status after resetPassword
+        console.warn(
+          '⚠️ [AuthContext] Unexpected status after resetPassword:',
+          resetResult.status,
+        );
+        return {
+          error:
+            'Password reset incomplete. Please try signing in with your new password.',
+        };
+      }
+
+      // If attemptFirstFactor returned 'complete' directly (e.g., password was
+      // already set via optional param in some Clerk versions)
+      if (firstFactorResult.status === 'complete') {
+        console.log(
+          '🔑 [AuthContext] Activating session after password reset...',
+        );
+        await setActive({ session: firstFactorResult.createdSessionId });
+        console.log('✅ [AuthContext] Password reset and sign-in successful');
+        return {};
+      }
+
+      // Handle needs_second_factor — user has 2FA enabled
+      if (firstFactorResult.status === 'needs_second_factor') {
+        console.warn(
+          '⚠️ [AuthContext] Password reset requires second factor (2FA)',
+        );
+        return {
+          error:
+            'Your account has two-factor authentication enabled. Please disable 2FA first or contact support to reset your password.',
+        };
+      }
+
+      // Handle any other incomplete status
+      console.warn(
+        '⚠️ [AuthContext] Password reset incomplete, status:',
+        firstFactorResult.status,
+      );
+      return {
+        error: 'Password reset incomplete. Please try again.',
+      };
+    } catch (error: any) {
+      console.error(
+        '❌ [AuthContext] Password reset verification failed:',
+        error,
+      );
+
+      const clerkErrors = error?.errors || [];
+      const firstError = clerkErrors[0];
+
+      if (firstError) {
+        const code_str = firstError.code;
+
+        if (
+          code_str === 'form_code_incorrect' ||
+          code_str === 'form_param_nil'
+        ) {
+          return {
+            error: 'Invalid verification code. Please check and try again.',
+          };
+        }
+
+        if (code_str === 'verification_expired') {
+          return {
+            error: 'Verification code has expired. Please request a new one.',
+          };
+        }
+
+        if (
+          code_str === 'form_password_pwned' ||
+          code_str === 'form_password_not_strong_enough'
+        ) {
+          return {
+            error:
+              'Password is too weak or has appeared in a data breach. Please choose a stronger password.',
+          };
+        }
+
+        if (code_str === 'form_password_length_too_short') {
+          return { error: 'Password must be at least 8 characters long.' };
+        }
+      }
+
+      let errorMessage = 'Failed to reset password. Please try again.';
+
+      if (error instanceof Error) {
+        const message = error.message.toLowerCase();
+
+        if (message.includes('rate') || message.includes('limit')) {
+          errorMessage =
+            'Too many attempts. Please wait a moment and try again.';
         } else if (message.includes('network') || message.includes('fetch')) {
           errorMessage =
             'Network error. Please check your connection and try again.';
@@ -4181,6 +4553,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       verifyEmailCode,
       resendClerkVerificationCode,
       signInWithClerk,
+      verifySignInSecondFactor,
+      resetPasswordWithClerk,
+      verifyPasswordResetCode,
     }),
     [
       session,
@@ -4214,6 +4589,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       verifyEmailCode,
       resendClerkVerificationCode,
       signInWithClerk,
+      verifySignInSecondFactor,
+      resetPasswordWithClerk,
+      verifyPasswordResetCode,
     ],
   );
 
