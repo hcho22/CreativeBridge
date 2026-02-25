@@ -332,6 +332,11 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
         const result = await signIn(email.trim(), password, rememberMe);
         if (result.error) {
           Alert.alert('Error', result.error);
+        } else if (result.needsMigration) {
+          // US-005: User authenticated via Supabase (legacy) — migration prompt will be added in US-010
+          console.log(
+            '📋 [AuthScreen] Legacy Supabase user signed in, migration available in future update',
+          );
         }
       } else {
         // US-004: Use Clerk for new email/password sign-ups

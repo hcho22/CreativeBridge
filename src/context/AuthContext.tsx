@@ -116,7 +116,7 @@ interface AuthContextType {
     email: string,
     password: string,
     rememberMe?: boolean,
-  ) => Promise<{ error?: string }>;
+  ) => Promise<{ error?: string; needsMigration?: boolean }>;
   signUp: (
     email: string,
     password: string,
@@ -191,6 +191,11 @@ interface AuthContextType {
   verifyEmailCode: (code: string) => Promise<{ error?: string }>;
   // Clerk resend verification code (US-004)
   resendClerkVerificationCode: () => Promise<{ error?: string }>;
+  // Clerk email/password sign-in (US-005)
+  signInWithClerk: (
+    email: string,
+    password: string,
+  ) => Promise<{ needsMigration?: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -738,25 +743,47 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     email: string,
     password: string,
     rememberMe = false,
-  ): Promise<{ error?: string }> => {
+  ): Promise<{ error?: string; needsMigration?: boolean }> => {
     try {
-      console.log('🔐 Attempting sign in', { email, rememberMe });
+      console.log('🔐 Attempting sign in (Clerk-first)', { email, rememberMe });
 
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      // US-005: Try Clerk sign-in first
+      const clerkResult = await signInWithClerk(email, password);
 
-      if (error) {
-        console.error('❌ Sign in failed', error.message);
-        return { error: error.message };
+      if (!clerkResult.error && !clerkResult.needsMigration) {
+        // Clerk sign-in successful
+        await RememberMeStorage.setRememberMe(rememberMe, email);
+        console.log('✅ Sign in successful via Clerk', { rememberMe });
+        return {};
       }
 
-      // Save remember me preference
-      await RememberMeStorage.setRememberMe(rememberMe, email);
+      if (clerkResult.needsMigration) {
+        // User not found in Clerk — fall back to Supabase for legacy users
+        console.log(
+          '🔄 User not in Clerk, falling back to Supabase sign-in...',
+        );
 
-      console.log('✅ Sign in successful', { rememberMe });
-      return {};
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (error) {
+          console.error('❌ Supabase sign-in also failed:', error.message);
+          return { error: error.message };
+        }
+
+        // Supabase sign-in succeeded — this is a legacy user who needs migration
+        await RememberMeStorage.setRememberMe(rememberMe, email);
+        console.log('✅ Sign in successful via Supabase (legacy user)', {
+          rememberMe,
+        });
+        // Return needsMigration so UI can prompt migration when US-010 is ready
+        return { needsMigration: true };
+      }
+
+      // Clerk returned an error (e.g., wrong password, OAuth-only account)
+      return { error: clerkResult.error };
     } catch (error) {
       console.error('💥 Sign in exception', error);
       return { error: 'An unexpected error occurred' };
@@ -1830,6 +1857,108 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         if (message.includes('rate') || message.includes('limit')) {
           errorMessage =
             'Too many attempts. Please wait a moment before requesting a new code.';
+        }
+      }
+
+      return { error: errorMessage };
+    }
+  };
+
+  /**
+   * Sign in with Clerk using email and password (US-005).
+   *
+   * Attempts to authenticate the user via Clerk's email/password flow.
+   * Returns { needsMigration: true } when the user is not found in Clerk,
+   * indicating they may be a legacy Supabase user who needs to migrate.
+   *
+   * @param email - User's email address
+   * @param password - User's password
+   * @returns {} on success, { needsMigration: true } if not in Clerk, { error } on failure
+   */
+  const signInWithClerk = async (
+    email: string,
+    password: string,
+  ): Promise<{ needsMigration?: boolean; error?: string }> => {
+    try {
+      console.log(
+        '🔐 [AuthContext] Attempting Clerk email/password sign-in...',
+      );
+
+      // Check if Clerk signIn hook is available
+      if (!clerkSignIn?.signIn || !clerkSignIn?.setActive) {
+        const error =
+          'Clerk is not available. Please try again or restart the app.';
+        console.error('❌ [AuthContext]', error);
+        return { error };
+      }
+
+      const { signIn: clerkSignInResource, setActive } = clerkSignIn;
+
+      // Attempt Clerk sign-in with email and password
+      const result = await clerkSignInResource.create({
+        identifier: email,
+        password,
+      });
+
+      if (result.status === 'complete') {
+        // Activate the Clerk session
+        console.log('📧 [AuthContext] Activating Clerk session...');
+        await setActive({ session: result.createdSessionId });
+        console.log('✅ [AuthContext] Clerk sign-in successful');
+        return {};
+      }
+
+      // Handle incomplete sign-in (e.g., needs_second_factor)
+      console.warn(
+        '⚠️ [AuthContext] Clerk sign-in incomplete, status:',
+        result.status,
+      );
+      return {
+        error: 'Sign-in incomplete. Additional verification may be required.',
+      };
+    } catch (error: any) {
+      console.error('❌ [AuthContext] Clerk sign-in failed:', error);
+
+      // Parse Clerk structured error codes
+      const clerkErrors = error?.errors || [];
+      const firstError = clerkErrors[0];
+
+      if (firstError) {
+        const code = firstError.code;
+
+        if (code === 'form_identifier_not_found') {
+          // User doesn't exist in Clerk — likely a legacy Supabase user
+          console.log(
+            '📋 [AuthContext] User not found in Clerk, may need migration',
+          );
+          return { needsMigration: true };
+        }
+
+        if (code === 'form_password_incorrect') {
+          return { error: 'Invalid credentials' };
+        }
+
+        if (code === 'strategy_for_user_invalid') {
+          // User exists in Clerk but only has OAuth — no password set
+          return {
+            error:
+              'This account uses social sign-in (Google/Apple). Please use the appropriate sign-in button.',
+          };
+        }
+      }
+
+      // Generic error handling
+      let errorMessage = 'An unexpected error occurred during sign-in';
+
+      if (error instanceof Error) {
+        const message = error.message.toLowerCase();
+
+        if (message.includes('rate') || message.includes('limit')) {
+          errorMessage =
+            'Too many sign-in attempts. Please wait a moment and try again.';
+        } else if (message.includes('network') || message.includes('fetch')) {
+          errorMessage =
+            'Network error. Please check your connection and try again.';
         }
       }
 
@@ -4051,6 +4180,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       signUpWithClerk,
       verifyEmailCode,
       resendClerkVerificationCode,
+      signInWithClerk,
     }),
     [
       session,
@@ -4083,6 +4213,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       signUpWithClerk,
       verifyEmailCode,
       resendClerkVerificationCode,
+      signInWithClerk,
     ],
   );
 

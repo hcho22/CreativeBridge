@@ -128,19 +128,30 @@ Migrate all email/password authentication from Supabase to Clerk, unifying all u
 - [x] Typecheck passes
 - [ ] Verify in simulator/device: complete sign-up flow with email verification
 
-#### US-005: Implement Clerk Email/Password Sign-In
+#### US-005: Implement Clerk Email/Password Sign-In ✅ COMPLETED
 
 **Description:** As a returning user, I want to sign in with my email and password so I can access my account.
 
+**Completion Date:** 2026-02-25
+
+**Implementation Notes:**
+
+- Added `signInWithClerk(email, password)` function using Clerk's `useSignIn` hook via `clerkSignIn` from `useSafeClerkAuth`
+- Uses `signIn.create({ identifier, password })` to authenticate, then `setActive({ session })` to activate the session
+- Handles Clerk structured error codes: `form_identifier_not_found` → `needsMigration`, `form_password_incorrect` → `Invalid credentials`, `strategy_for_user_invalid` → OAuth-only account message
+- Modified existing `signIn()` to try Clerk first, then fall back to Supabase for legacy users
+- Supabase fallback returns `{ needsMigration: true }` so UI can prompt migration when US-010 is ready
+- AuthScreen `proceedWithAuth()` updated to handle `needsMigration` response (logs for now, migration UI in US-010)
+
 **Acceptance Criteria:**
 
-- [ ] Add `signInWithClerk(email, password)` function to `AuthContext.tsx`
-- [ ] Function attempts Clerk sign-in with credentials
-- [ ] On success: activates Clerk session, returns empty object `{}`
-- [ ] On "user not found": returns `{ needsMigration: true }` (for Supabase users)
-- [ ] On invalid password: returns `{ error: 'Invalid credentials' }`
-- [ ] Modify existing `signIn()` to try Clerk first
-- [ ] Typecheck passes
+- [x] Add `signInWithClerk(email, password)` function to `AuthContext.tsx`
+- [x] Function attempts Clerk sign-in with credentials
+- [x] On success: activates Clerk session, returns empty object `{}`
+- [x] On "user not found": returns `{ needsMigration: true }` (for Supabase users)
+- [x] On invalid password: returns `{ error: 'Invalid credentials' }`
+- [x] Modify existing `signIn()` to try Clerk first
+- [x] Typecheck passes
 
 #### US-006: Implement Clerk Password Reset
 
