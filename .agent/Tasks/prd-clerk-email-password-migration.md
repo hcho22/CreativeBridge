@@ -101,20 +101,31 @@ Migrate all email/password authentication from Supabase to Clerk, unifying all u
 - [x] Function returns `{ error: string }` on invalid code
 - [x] Typecheck passes
 
-#### US-004: Add Email Verification UI
+#### US-004: Add Email Verification UI ✅ COMPLETED
 
 **Description:** As a user, I want to see a verification code input screen after signing up so I can complete the verification process.
 
+**Completion Date:** 2026-02-24
+
+**Implementation Notes:**
+
+- Added `showVerificationInput`, `verificationCode`, `verificationError`, `verifyingCode`, `resendingCode` states to `AuthScreen.tsx`
+- Modified `proceedWithAuth()` to call `signUpWithClerk()` for sign-ups instead of Supabase `signUp()`
+- Built dedicated verification code screen with centered 6-digit numeric input (`textContentType="oneTimeCode"` for iOS autofill)
+- Added `resendClerkVerificationCode()` function to `AuthContext.tsx` that re-calls `signUp.prepareEmailAddressVerification({ strategy: 'email_code' })`
+- Verification success automatically navigates to main app via Clerk session activation (auth state change triggers navigation)
+- Input sanitization: only digits allowed, max 6 characters
+
 **Acceptance Criteria:**
 
-- [ ] Add `showVerificationInput` state to `AuthScreen.tsx`
-- [ ] Display 6-digit code input field after sign-up
-- [ ] "Verify" button calls `verifyEmailCode()` and shows loading state
-- [ ] "Resend Code" button triggers new verification email
-- [ ] Back button allows user to restart sign-up process
-- [ ] Error message displays for invalid codes
-- [ ] Success navigates to main app
-- [ ] Typecheck passes
+- [x] Add `showVerificationInput` state to `AuthScreen.tsx`
+- [x] Display 6-digit code input field after sign-up
+- [x] "Verify" button calls `verifyEmailCode()` and shows loading state
+- [x] "Resend Code" button triggers new verification email
+- [x] Back button allows user to restart sign-up process
+- [x] Error message displays for invalid codes
+- [x] Success navigates to main app
+- [x] Typecheck passes
 - [ ] Verify in simulator/device: complete sign-up flow with email verification
 
 #### US-005: Implement Clerk Email/Password Sign-In

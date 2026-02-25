@@ -189,6 +189,8 @@ interface AuthContextType {
   ) => Promise<{ needsVerification?: boolean; error?: string }>;
   // Clerk email verification (US-003)
   verifyEmailCode: (code: string) => Promise<{ error?: string }>;
+  // Clerk resend verification code (US-004)
+  resendClerkVerificationCode: () => Promise<{ error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -1631,6 +1633,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         if (message.includes('email_address') && message.includes('taken')) {
           errorMessage =
             'This email address is already registered. Please sign in instead.';
+        } else if (message.includes('password') && message.includes('breach')) {
+          errorMessage =
+            'This password has appeared in a known data breach. Please choose a different, unique password for your security.';
         } else if (message.includes('password') && message.includes('weak')) {
           errorMessage =
             'Password is too weak. Please use at least 8 characters with mixed case and numbers.';
@@ -1778,6 +1783,53 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
             'Too many attempts. Please wait a moment and try again.';
         } else {
           errorMessage = error.message;
+        }
+      }
+
+      return { error: errorMessage };
+    }
+  };
+
+  /**
+   * Resend the email verification code for Clerk email/password sign-up (US-004).
+   *
+   * Re-triggers the email_code verification strategy on the current sign-up attempt.
+   * This is safe to call multiple times — Clerk handles rate limiting.
+   */
+  const resendClerkVerificationCode = async (): Promise<{
+    error?: string;
+  }> => {
+    try {
+      console.log('📧 [AuthContext] Resending Clerk verification code...');
+
+      if (!clerkSignUp?.signUp) {
+        return {
+          error: 'Clerk is not available. Please restart the sign-up process.',
+        };
+      }
+
+      const { signUp } = clerkSignUp;
+
+      await signUp.prepareEmailAddressVerification({
+        strategy: 'email_code',
+      });
+
+      console.log('✅ [AuthContext] Verification code resent successfully');
+      return {};
+    } catch (error) {
+      console.error(
+        '❌ [AuthContext] Failed to resend verification code:',
+        error,
+      );
+
+      let errorMessage =
+        'Failed to resend verification code. Please try again.';
+
+      if (error instanceof Error) {
+        const message = error.message.toLowerCase();
+        if (message.includes('rate') || message.includes('limit')) {
+          errorMessage =
+            'Too many attempts. Please wait a moment before requesting a new code.';
         }
       }
 
@@ -3998,6 +4050,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       clearOAuthError,
       signUpWithClerk,
       verifyEmailCode,
+      resendClerkVerificationCode,
     }),
     [
       session,
@@ -4029,6 +4082,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       clearOAuthError,
       signUpWithClerk,
       verifyEmailCode,
+      resendClerkVerificationCode,
     ],
   );
 

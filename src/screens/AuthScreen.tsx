@@ -50,6 +50,9 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
     resetPassword,
     oauthError,
     clearOAuthError,
+    signUpWithClerk,
+    verifyEmailCode,
+    resendClerkVerificationCode,
   } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -76,6 +79,14 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
+  // US-004: Clerk email verification state
+  const [showVerificationInput, setShowVerificationInput] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationError, setVerificationError] = useState<string | null>(
+    null,
+  );
+  const [verifyingCode, setVerifyingCode] = useState(false);
+  const [resendingCode, setResendingCode] = useState(false);
   // US-010: OAuth Session Help Modal state
   const [showSessionHelp, setShowSessionHelp] = useState(false);
   const [helpProvider, setHelpProvider] = useState<OAuthProvider>('google');
@@ -317,25 +328,27 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
     setLoading(true);
 
     try {
-      let result;
       if (isLogin) {
-        result = await signIn(email.trim(), password, rememberMe);
+        const result = await signIn(email.trim(), password, rememberMe);
+        if (result.error) {
+          Alert.alert('Error', result.error);
+        }
       } else {
-        result = await signUp(email.trim(), password, {
+        // US-004: Use Clerk for new email/password sign-ups
+        const result = await signUpWithClerk(email.trim(), password, {
           username: username.trim(),
           displayName: displayName.trim() || undefined,
           gradeLevel: gradeLevel as GradeLevel,
         });
-      }
 
-      if (result.error) {
-        Alert.alert('Error', result.error);
-      } else if (!isLogin) {
-        setShowEmailConfirmation(true);
-        Alert.alert(
-          'Account Created!',
-          'Please check your email and click the confirmation link to complete your registration.',
-        );
+        if (result.error) {
+          Alert.alert('Error', result.error);
+        } else if (result.needsVerification) {
+          // Show the verification code input screen
+          setShowVerificationInput(true);
+          setVerificationError(null);
+          setVerificationCode('');
+        }
       }
     } catch (error) {
       console.error('Auth error:', error);
@@ -462,6 +475,60 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
     }
   };
 
+  // US-004: Handle verification code submission
+  const handleVerifyCode = async () => {
+    if (verificationCode.length !== 6) {
+      setVerificationError('Please enter the 6-digit code from your email.');
+      return;
+    }
+
+    setVerifyingCode(true);
+    setVerificationError(null);
+
+    try {
+      const result = await verifyEmailCode(verificationCode);
+      if (result.error) {
+        setVerificationError(result.error);
+      }
+      // On success, verifyEmailCode activates the Clerk session and
+      // creates the Convex profile. The auth state change will automatically
+      // navigate away from AuthScreen via the navigation listener.
+    } catch (error) {
+      setVerificationError('An unexpected error occurred. Please try again.');
+    } finally {
+      setVerifyingCode(false);
+    }
+  };
+
+  // US-004: Handle resending verification code
+  const handleResendCode = async () => {
+    setResendingCode(true);
+    setVerificationError(null);
+
+    try {
+      const result = await resendClerkVerificationCode();
+      if (result.error) {
+        setVerificationError(result.error);
+      } else {
+        Alert.alert(
+          'Code Sent',
+          'A new verification code has been sent to your email.',
+        );
+      }
+    } catch (error) {
+      setVerificationError('Failed to resend code. Please try again.');
+    } finally {
+      setResendingCode(false);
+    }
+  };
+
+  // US-004: Handle going back from verification to sign-up form
+  const handleBackFromVerification = () => {
+    setShowVerificationInput(false);
+    setVerificationCode('');
+    setVerificationError(null);
+  };
+
   const getEmailInputStyle = () => {
     if (!emailTouched || !emailValidation) {
       return styles.textInput;
@@ -513,6 +580,111 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
 
     return [styles.textInput, styles.textInputValid];
   };
+
+  // US-004: If user needs to enter Clerk verification code, show verification screen
+  if (showVerificationInput) {
+    return (
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContainer}>
+          <View style={styles.content}>
+            <View style={styles.headerSection}>
+              <Text style={styles.appTitle}>Verify Email</Text>
+              <Text style={styles.appSubtitle}>
+                Enter the 6-digit code sent to your email
+              </Text>
+            </View>
+
+            <View style={styles.formSection}>
+              <Text style={styles.formTitle}>Check Your Inbox</Text>
+              <Text style={styles.formSubtitle}>
+                We sent a verification code to complete your registration.
+              </Text>
+
+              <View style={styles.emailConfirmationInfo}>
+                <Text style={styles.emailLabel}>Code sent to:</Text>
+                <Text style={styles.emailAddress}>{email}</Text>
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Verification Code</Text>
+                <TextInput
+                  style={[
+                    styles.verificationCodeInput,
+                    verificationError && styles.textInputError,
+                  ]}
+                  value={verificationCode}
+                  onChangeText={text => {
+                    // Only allow digits, max 6
+                    const cleaned = text.replace(/[^0-9]/g, '').slice(0, 6);
+                    setVerificationCode(cleaned);
+                    if (verificationError) setVerificationError(null);
+                  }}
+                  placeholder="000000"
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  autoFocus
+                  editable={!verifyingCode}
+                  textContentType="oneTimeCode"
+                />
+              </View>
+
+              {verificationError && (
+                <View style={styles.validationFeedback}>
+                  <Text style={styles.errorText}>{verificationError}</Text>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={[
+                  styles.authButton,
+                  (verifyingCode || verificationCode.length !== 6) &&
+                    styles.disabledButton,
+                ]}
+                onPress={handleVerifyCode}
+                disabled={verifyingCode || verificationCode.length !== 6}
+              >
+                {verifyingCode ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text style={styles.authButtonText}>Verify</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.secondaryButton,
+                  resendingCode && styles.disabledButton,
+                ]}
+                onPress={handleResendCode}
+                disabled={resendingCode}
+              >
+                <Text style={styles.secondaryButtonText}>
+                  {resendingCode ? 'Sending...' : 'Resend Code'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={handleBackFromVerification}
+                disabled={verifyingCode}
+              >
+                <Text style={styles.backButtonText}>Back to Sign Up</Text>
+              </TouchableOpacity>
+
+              <View style={styles.helpSection}>
+                <Text style={styles.helpText}>
+                  Check your spam folder if you don't see the email
+                </Text>
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
 
   // If user needs email confirmation, show confirmation screen
   if (showEmailConfirmation) {
@@ -1530,6 +1702,28 @@ const styles = StyleSheet.create({
   linkText: {
     color: '#4CAF50',
     fontWeight: '600',
+  },
+  // US-004: Verification code input styles
+  verificationCodeInput: {
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    paddingHorizontal: 15,
+    paddingVertical: 14,
+    fontSize: 28,
+    backgroundColor: '#f8f9fa',
+    textAlign: 'center',
+    letterSpacing: 12,
+    fontWeight: '600',
+  },
+  backButton: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  backButtonText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
   },
 });
 
