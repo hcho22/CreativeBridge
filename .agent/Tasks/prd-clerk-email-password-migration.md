@@ -75,21 +75,31 @@ Migrate all email/password authentication from Supabase to Clerk, unifying all u
 - [x] Function returns `{ error: string }` on failure with descriptive message
 - [x] Typecheck passes
 
-#### US-003: Implement Email Verification Flow
+#### US-003: Implement Email Verification Flow ✅ COMPLETED
 
 **Description:** As a user signing up, I want to verify my email with a code so I can complete my account creation.
 
+**Completion Date:** 2026-02-24
+
+**Implementation Notes:**
+
+- Added `verifyEmailCode(code)` function using Clerk's `attemptEmailAddressVerification` API
+- 5-step flow: verify code → activate session → retrieve pending profile → create Convex profile → clear AsyncStorage
+- Graceful degradation: if pending profile is missing, session still activates (profile can be created later)
+- User-friendly error messages for invalid codes, expired codes, and rate limiting
+- Uses existing `convexCreateProfile` mutation (idempotent — safe against race conditions)
+
 **Acceptance Criteria:**
 
-- [ ] Add `verifyEmailCode(code)` function to `AuthContext.tsx`
-- [ ] Function verifies 6-digit code against Clerk
-- [ ] On success: activates Clerk session
-- [ ] On success: retrieves pending profile from AsyncStorage
-- [ ] On success: creates Convex profile via `createOAuthProfile` mutation
-- [ ] On success: clears pending profile from AsyncStorage
-- [ ] Function returns empty object `{}` on success
-- [ ] Function returns `{ error: string }` on invalid code
-- [ ] Typecheck passes
+- [x] Add `verifyEmailCode(code)` function to `AuthContext.tsx`
+- [x] Function verifies 6-digit code against Clerk
+- [x] On success: activates Clerk session
+- [x] On success: retrieves pending profile from AsyncStorage
+- [x] On success: creates Convex profile via `createOAuthProfile` mutation
+- [x] On success: clears pending profile from AsyncStorage
+- [x] Function returns empty object `{}` on success
+- [x] Function returns `{ error: string }` on invalid code
+- [x] Typecheck passes
 
 #### US-004: Add Email Verification UI
 

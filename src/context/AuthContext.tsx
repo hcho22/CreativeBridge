@@ -187,6 +187,8 @@ interface AuthContextType {
     password: string,
     profileData: SignUpData,
   ) => Promise<{ needsVerification?: boolean; error?: string }>;
+  // Clerk email verification (US-003)
+  verifyEmailCode: (code: string) => Promise<{ error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -1641,6 +1643,140 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
             'Too many sign-up attempts. Please wait a moment and try again.';
         } else {
           // Use the original error message if it's descriptive enough
+          errorMessage = error.message;
+        }
+      }
+
+      return { error: errorMessage };
+    }
+  };
+
+  /**
+   * Verify email code for Clerk email/password sign-up (US-003).
+   *
+   * Completes the email verification flow started by signUpWithClerk().
+   * On success: activates the Clerk session, creates a Convex profile
+   * from the pending profile stored in AsyncStorage, and clears the pending data.
+   *
+   * @param code - 6-digit verification code from the user's email
+   * @returns {} on success, { error: string } on failure
+   */
+  const verifyEmailCode = async (code: string): Promise<{ error?: string }> => {
+    try {
+      console.log('📧 [AuthContext] Verifying email code...');
+
+      // Check if Clerk signUp hook is available
+      if (!clerkSignUp?.signUp || !clerkSignUp?.setActive) {
+        const error =
+          'Clerk is not available. Please try again or restart the app.';
+        console.error('❌ [AuthContext]', error);
+        return { error };
+      }
+
+      const { signUp, setActive } = clerkSignUp;
+
+      // Step 1: Attempt email address verification with the provided code
+      console.log('📧 [AuthContext] Attempting email verification...');
+      const result = await signUp.attemptEmailAddressVerification({ code });
+
+      if (result.status !== 'complete') {
+        console.warn(
+          '⚠️ [AuthContext] Verification incomplete, status:',
+          result.status,
+        );
+        return {
+          error:
+            'Verification is not complete. Please check your code and try again.',
+        };
+      }
+
+      // Step 2: Activate the Clerk session
+      if (!result.createdSessionId) {
+        console.error('❌ [AuthContext] No session created after verification');
+        return {
+          error:
+            'Account verified but session could not be created. Please try signing in.',
+        };
+      }
+
+      console.log('📧 [AuthContext] Activating Clerk session...');
+      await setActive({ session: result.createdSessionId });
+
+      // Step 3: Retrieve pending profile from AsyncStorage
+      console.log('📧 [AuthContext] Retrieving pending profile data...');
+      const pendingProfileJson = await AsyncStorage.getItem(
+        PENDING_CLERK_PROFILE_KEY,
+      );
+
+      if (!pendingProfileJson) {
+        console.warn(
+          '⚠️ [AuthContext] No pending profile found in AsyncStorage. Profile will need to be created manually.',
+        );
+        // Session is active but no profile data — not a fatal error.
+        // The user is authenticated; profile creation can happen via other flows.
+        return {};
+      }
+
+      const pendingProfile: PendingClerkProfile =
+        JSON.parse(pendingProfileJson);
+
+      // Step 4: Create Convex profile via createOAuthProfile mutation
+      // Use the Clerk user ID from the completed sign-up
+      const clerkUserId = result.createdUserId;
+
+      if (!clerkUserId) {
+        console.error(
+          '❌ [AuthContext] No Clerk user ID available after verification',
+        );
+        // Session is active but we can't create the profile without a user ID
+        await AsyncStorage.removeItem(PENDING_CLERK_PROFILE_KEY);
+        return {
+          error:
+            'Account verified but profile could not be created. Please complete your profile in settings.',
+        };
+      }
+
+      console.log(
+        '📧 [AuthContext] Creating Convex profile for user:',
+        clerkUserId,
+      );
+      await convexCreateProfile({
+        clerkUserId,
+        username: pendingProfile.username,
+        displayName: pendingProfile.displayName,
+        preferredGradeLevel: pendingProfile.gradeLevel,
+      });
+
+      // Step 5: Clear pending profile from AsyncStorage
+      console.log('📧 [AuthContext] Clearing pending profile data...');
+      await AsyncStorage.removeItem(PENDING_CLERK_PROFILE_KEY);
+
+      console.log(
+        '✅ [AuthContext] Email verification complete, session active, profile created',
+      );
+      return {};
+    } catch (error) {
+      console.error('❌ [AuthContext] Email verification failed:', error);
+
+      let errorMessage = 'Verification failed. Please try again.';
+
+      if (error instanceof Error) {
+        const message = error.message.toLowerCase();
+
+        if (
+          message.includes('incorrect') ||
+          message.includes('invalid') ||
+          message.includes('code')
+        ) {
+          errorMessage =
+            'Invalid verification code. Please check and try again.';
+        } else if (message.includes('expired')) {
+          errorMessage =
+            'Verification code has expired. Please request a new code.';
+        } else if (message.includes('rate') || message.includes('limit')) {
+          errorMessage =
+            'Too many attempts. Please wait a moment and try again.';
+        } else {
           errorMessage = error.message;
         }
       }
@@ -3861,6 +3997,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       checkProfileCompletion,
       clearOAuthError,
       signUpWithClerk,
+      verifyEmailCode,
     }),
     [
       session,
@@ -3891,6 +4028,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       checkProfileCompletion,
       clearOAuthError,
       signUpWithClerk,
+      verifyEmailCode,
     ],
   );
 
