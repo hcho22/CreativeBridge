@@ -315,18 +315,31 @@ Migrate all email/password authentication from Supabase to Clerk, unifying all u
 - [x] Typecheck passes
 - [x] Existing XP tracking tests pass
 
-#### US-012: Remove isClerkUserId() from Onboarding Service
+#### US-012: Remove isClerkUserId() from Onboarding Service ✅ COMPLETED
 
 **Description:** As a developer, I want to remove dual-auth code from the onboarding service so it always uses Convex.
 
+**Completion Date:** 2026-02-26
+
+**Implementation Notes:**
+
+- Removed `isClerkUserId()` function and `import { supabase } from './supabase'` from `onboardingService.ts`
+- Removed `callRpc` helper function (Supabase RPC wrapper no longer needed)
+- Simplified 6 data-access methods (`getOnboardingStatus`, `updateChecklistItem`, `recordMilestone`, `markOnboardingComplete`, `syncToDatabase`, `resetOnboarding`) to use Convex exclusively
+- For read operations (`getOnboardingStatus`): falls back to AsyncStorage when Convex is unavailable
+- For write operations: returns `{ success: false, error }` when Convex is unavailable
+- Removed all `if (isClerkUserId())` conditional branches and Supabase fallback paths
+- Updated file header to reflect Convex-only architecture
+- All 28 onboarding tests pass, no new typecheck errors introduced
+
 **Acceptance Criteria:**
 
-- [ ] Remove `isClerkUserId()` function from `src/services/onboardingService.ts`
-- [ ] Remove all `if (isClerkUserId())` conditional branches
-- [ ] Keep only Convex code paths
-- [ ] Remove Supabase imports if no longer needed
-- [ ] Typecheck passes
-- [ ] Existing onboarding tests pass
+- [x] Remove `isClerkUserId()` function from `src/services/onboardingService.ts`
+- [x] Remove all `if (isClerkUserId())` conditional branches
+- [x] Keep only Convex code paths
+- [x] Remove Supabase imports if no longer needed
+- [x] Typecheck passes
+- [x] Existing onboarding tests pass
 
 #### US-013: Remove isClerkUserId() from Story Session Manager
 
