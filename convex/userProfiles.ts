@@ -657,6 +657,86 @@ export const completeGameSession = mutation({
 });
 
 /**
+ * Migrate user stats from Supabase to an existing Convex profile (US-007).
+ *
+ * Called during Supabase → Clerk migration after the Convex profile has been
+ * created. Overwrites default stats with the user's accumulated Supabase data.
+ * Idempotent — `patch` with the same values is a no-op on retry.
+ *
+ * @param clerkUserId - Clerk user ID of the migrated user
+ * @param totalXp - Accumulated XP from Supabase
+ * @param currentStreak - Current streak count
+ * @param longestStreak - Longest streak ever achieved
+ * @param bestScore - Highest single-session score
+ * @param totalGamesPlayed - Total games played
+ * @param totalStoriesCompleted - Total stories completed
+ * @param totalWordsWritten - Total words written across all sessions
+ * @param lastActivityDate - Last activity date (ISO 8601)
+ * @param onboardingCompleted - Whether onboarding was completed in Supabase
+ * @param onboardingProgress - Milestone completion flags
+ * @param firstStoryCompletedAt - Optional milestone timestamp
+ * @param firstImageGeneratedAt - Optional milestone timestamp
+ * @param firstVoiceInputAt - Optional milestone timestamp
+ * @param firstStreakAchievedAt - Optional milestone timestamp
+ */
+export const migrateUserStats = mutation({
+  args: {
+    clerkUserId: v.string(),
+    totalXp: v.number(),
+    currentStreak: v.number(),
+    longestStreak: v.number(),
+    bestScore: v.number(),
+    totalGamesPlayed: v.number(),
+    totalStoriesCompleted: v.number(),
+    totalWordsWritten: v.number(),
+    lastActivityDate: v.string(),
+    onboardingCompleted: v.boolean(),
+    onboardingProgress: v.object({
+      create_account: v.boolean(),
+      first_story: v.boolean(),
+      first_image: v.boolean(),
+      first_voice: v.boolean(),
+      first_streak: v.boolean(),
+    }),
+    firstStoryCompletedAt: v.optional(v.string()),
+    firstImageGeneratedAt: v.optional(v.string()),
+    firstVoiceInputAt: v.optional(v.string()),
+    firstStreakAchievedAt: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx);
+
+    const profile = await ctx.db
+      .query('userProfiles')
+      .withIndex('by_clerk_user_id', q => q.eq('clerkUserId', args.clerkUserId))
+      .first();
+
+    if (!profile) {
+      throw new Error(`Profile not found for clerkUserId: ${args.clerkUserId}`);
+    }
+
+    await ctx.db.patch(profile._id, {
+      totalXp: args.totalXp,
+      currentStreak: args.currentStreak,
+      longestStreak: args.longestStreak,
+      bestScore: args.bestScore,
+      totalGamesPlayed: args.totalGamesPlayed,
+      totalStoriesCompleted: args.totalStoriesCompleted,
+      totalWordsWritten: args.totalWordsWritten,
+      lastActivityDate: args.lastActivityDate,
+      onboardingCompleted: args.onboardingCompleted,
+      onboardingProgress: args.onboardingProgress,
+      firstStoryCompletedAt: args.firstStoryCompletedAt,
+      firstImageGeneratedAt: args.firstImageGeneratedAt,
+      firstVoiceInputAt: args.firstVoiceInputAt,
+      firstStreakAchievedAt: args.firstStreakAchievedAt,
+    });
+
+    return { success: true };
+  },
+});
+
+/**
  * Get leaderboard data sorted by total XP.
  *
  * @param limit - Maximum number of profiles to return (default: 10)

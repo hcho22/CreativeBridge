@@ -104,6 +104,59 @@ interface PendingClerkProfile {
 // AsyncStorage key for pending Clerk profile data (US-002)
 const PENDING_CLERK_PROFILE_KEY = '@CreativeBridge:pendingClerkProfile';
 
+// AsyncStorage key for pending migration data (US-007)
+const PENDING_MIGRATION_KEY = '@CreativeBridge:pendingMigration';
+
+/**
+ * Data stored in AsyncStorage during Supabase → Clerk migration (US-007).
+ * Persisted between Phase A (create Clerk account) and Phase B (post-verification data transfer).
+ */
+interface PendingMigrationData {
+  supabaseUserId: string;
+  email: string;
+  // Profile stats to migrate
+  totalXp: number;
+  currentStreak: number;
+  longestStreak: number;
+  bestScore: number;
+  totalGamesPlayed: number;
+  totalStoriesCompleted: number;
+  totalWordsWritten: number;
+  lastActivityDate: string;
+  preferredGradeLevel: GradeLevel;
+  onboardingCompleted: boolean;
+  onboardingProgress: {
+    create_account: boolean;
+    first_story: boolean;
+    first_image: boolean;
+    first_voice: boolean;
+    first_streak: boolean;
+  };
+  firstStoryCompletedAt?: string;
+  firstImageGeneratedAt?: string;
+  firstVoiceInputAt?: string;
+  firstStreakAchievedAt?: string;
+  // Game sessions to migrate
+  gameSessions: Array<{
+    completedAt?: string;
+    gradeLevel: string;
+    finalScore: number;
+    wordsWritten: number;
+    sentencesCompleted: number;
+    challengesCompleted: number;
+    xpEarned: number;
+    storyContent?: string;
+    importedStoryContent?: string;
+    storySource: string;
+    originalCreationDate?: string;
+    storyMetadata?: Record<string, unknown>;
+    generatedImageUrl?: string;
+    imageGenerationTimestamp?: string;
+    imageGenerationCost?: number;
+    currentRound: number;
+  }>;
+}
+
 interface AuthContextType {
   session: Session | null;
   user: User | null;
@@ -214,6 +267,14 @@ interface AuthContextType {
     code: string,
     newPassword: string,
   ) => Promise<{ error?: string }>;
+  // Supabase → Clerk/Convex migration (US-007)
+  migrateFromSupabase: (
+    email: string,
+    password: string,
+  ) => Promise<{
+    needsVerification?: boolean;
+    error?: string;
+  }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -267,6 +328,10 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
   const convexAddXp = useMutation(api.userProfiles.addUserXp);
   const convexDeductXp = useMutation(api.userProfiles.deductUserXp);
   const convexRefundXp = useMutation(api.userProfiles.refundUserXp);
+  const convexMigrateStats = useMutation(api.userProfiles.migrateUserStats);
+  const convexMigrateGameSessions = useMutation(
+    api.migration.migrateUserGameSessions,
+  );
 
   // Convex reactive query for current user's profile
   // This will automatically update when the profile changes in the database
@@ -1608,6 +1673,297 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   // ============================================================================
+  // SUPABASE → CLERK/CONVEX MIGRATION (US-007)
+  // ============================================================================
+
+  /**
+   * Complete migration directly when the Clerk account already exists (US-007).
+   *
+   * This handles the case where a user previously started migration (Phase A)
+   * but didn't complete verification, and their Clerk account was already created.
+   * We sign into the existing Clerk account and port all data to Convex.
+   */
+  const completeMigrationDirectly = async (
+    migrationData: PendingMigrationData,
+  ): Promise<void> => {
+    const currentClerkUserId = clerkAuth?.userId;
+    if (!currentClerkUserId) {
+      throw new Error('Clerk user ID not available after sign-in');
+    }
+
+    console.log(
+      '🔄 [AuthContext] Completing migration directly for:',
+      currentClerkUserId,
+    );
+
+    // 1. Create Convex profile (idempotent — createOAuthProfile checks for existing)
+    await convexCreateProfile({
+      clerkUserId: currentClerkUserId,
+      username: migrationData.email.split('@')[0],
+      displayName: migrationData.email.split('@')[0],
+      preferredGradeLevel: migrationData.preferredGradeLevel,
+    });
+
+    // 2. Migrate stats
+    await convexMigrateStats({
+      clerkUserId: currentClerkUserId,
+      totalXp: migrationData.totalXp,
+      currentStreak: migrationData.currentStreak,
+      longestStreak: migrationData.longestStreak,
+      bestScore: migrationData.bestScore,
+      totalGamesPlayed: migrationData.totalGamesPlayed,
+      totalStoriesCompleted: migrationData.totalStoriesCompleted,
+      totalWordsWritten: migrationData.totalWordsWritten,
+      lastActivityDate: migrationData.lastActivityDate,
+      onboardingCompleted: migrationData.onboardingCompleted,
+      onboardingProgress: migrationData.onboardingProgress,
+      firstStoryCompletedAt: migrationData.firstStoryCompletedAt,
+      firstImageGeneratedAt: migrationData.firstImageGeneratedAt,
+      firstVoiceInputAt: migrationData.firstVoiceInputAt,
+      firstStreakAchievedAt: migrationData.firstStreakAchievedAt,
+    });
+
+    // 3. Migrate game sessions in batches of 50
+    const sessions = migrationData.gameSessions;
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < sessions.length; i += BATCH_SIZE) {
+      const batch = sessions.slice(i, i + BATCH_SIZE);
+      await convexMigrateGameSessions({
+        clerkUserId: currentClerkUserId,
+        sessions: batch,
+      });
+    }
+
+    // 4. Sign out of Supabase (no longer needed)
+    await supabase.auth.signOut();
+
+    // 5. Clear migration data from AsyncStorage
+    await AsyncStorage.removeItem(PENDING_MIGRATION_KEY);
+    await AsyncStorage.removeItem(PENDING_CLERK_PROFILE_KEY);
+
+    console.log(
+      '✅ [AuthContext] Migration completed directly for:',
+      currentClerkUserId,
+    );
+  };
+
+  /**
+   * Phase A of Supabase → Clerk migration (US-007).
+   *
+   * 1. Verifies Supabase credentials
+   * 2. Fetches all user data (profile + sessions) from Supabase
+   * 3. Creates a Clerk account (or signs into existing one)
+   * 4. If new account: sends verification email, stores migration data
+   * 5. If existing account: completes migration directly
+   *
+   * @param email - User's email address (same in Supabase and Clerk)
+   * @param password - User's password (same for both)
+   * @returns { needsVerification: true } if email verification needed,
+   *          {} if migration completed directly, or { error } on failure
+   */
+  const migrateFromSupabase = async (
+    email: string,
+    password: string,
+  ): Promise<{ needsVerification?: boolean; error?: string }> => {
+    try {
+      console.log('🔄 [AuthContext] Starting Supabase → Clerk migration...');
+
+      // Step 1: Verify Supabase credentials
+      const { data: authData, error: authError } =
+        await supabase.auth.signInWithPassword({ email, password });
+
+      if (authError || !authData.user) {
+        console.error(
+          '❌ [AuthContext] Supabase auth failed during migration:',
+          authError?.message,
+        );
+        return {
+          error: authError?.message || 'Could not verify your credentials.',
+        };
+      }
+
+      const supabaseUserId = authData.user.id;
+      console.log(
+        '🔄 [AuthContext] Supabase auth verified, userId:',
+        supabaseUserId,
+      );
+
+      // Step 2: Fetch user profile from Supabase
+      const { data: profileRaw, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', supabaseUserId)
+        .single();
+      // Cast to any — Supabase client lacks typed schema in this project
+      const profileData = profileRaw as any;
+
+      if (profileError || !profileRaw) {
+        console.error(
+          '❌ [AuthContext] Failed to fetch Supabase profile:',
+          profileError?.message,
+        );
+        return {
+          error: 'Could not fetch your profile data. Please try again.',
+        };
+      }
+
+      // Step 3: Fetch game sessions from Supabase (non-fatal if fails)
+      let gameSessions: PendingMigrationData['gameSessions'] = [];
+      try {
+        const { data: sessionsRaw } = await supabase
+          .from('game_sessions')
+          .select('*')
+          .eq('user_id', supabaseUserId);
+        // Cast to any[] — Supabase client lacks typed schema in this project
+        const sessionsData = sessionsRaw as any[];
+
+        if (sessionsData) {
+          gameSessions = sessionsData.map((s: any) => ({
+            completedAt: s.completed_at ?? undefined,
+            gradeLevel: s.grade_level,
+            finalScore: s.final_score ?? 0,
+            wordsWritten: s.words_written ?? 0,
+            sentencesCompleted: s.sentences_completed ?? 0,
+            challengesCompleted: s.challenges_completed ?? 0,
+            xpEarned: s.xp_earned ?? 0,
+            storyContent: s.story_content ?? undefined,
+            importedStoryContent: s.imported_story_content ?? undefined,
+            storySource: s.story_source ?? 'New',
+            originalCreationDate: s.original_creation_date ?? undefined,
+            storyMetadata: s.story_metadata ?? undefined,
+            generatedImageUrl: s.generated_image_url ?? undefined,
+            imageGenerationTimestamp: s.image_generation_timestamp ?? undefined,
+            imageGenerationCost: s.image_generation_cost ?? undefined,
+            currentRound: s.current_round ?? 1,
+          }));
+        }
+        console.log(
+          `🔄 [AuthContext] Fetched ${gameSessions.length} game sessions`,
+        );
+      } catch (sessionsError) {
+        console.warn(
+          '⚠️ [AuthContext] Failed to fetch game sessions (non-fatal):',
+          sessionsError,
+        );
+      }
+
+      // Build migration data
+      const migrationData: PendingMigrationData = {
+        supabaseUserId,
+        email,
+        totalXp: profileData.total_xp ?? 0,
+        currentStreak: profileData.current_streak ?? 0,
+        longestStreak: profileData.longest_streak ?? 0,
+        bestScore: profileData.best_score ?? 0,
+        totalGamesPlayed: profileData.total_games_played ?? 0,
+        totalStoriesCompleted: profileData.total_stories_completed ?? 0,
+        totalWordsWritten: profileData.total_words_written ?? 0,
+        lastActivityDate:
+          profileData.last_activity_date ??
+          new Date().toISOString().split('T')[0],
+        preferredGradeLevel:
+          (profileData.preferred_grade_level as GradeLevel) ?? 'K-2',
+        onboardingCompleted: profileData.onboarding_completed ?? false,
+        onboardingProgress: profileData.onboarding_progress ?? {
+          create_account: true,
+          first_story: false,
+          first_image: false,
+          first_voice: false,
+          first_streak: false,
+        },
+        firstStoryCompletedAt:
+          profileData.first_story_completed_at ?? undefined,
+        firstImageGeneratedAt:
+          profileData.first_image_generated_at ?? undefined,
+        firstVoiceInputAt: profileData.first_voice_input_at ?? undefined,
+        firstStreakAchievedAt:
+          profileData.first_streak_achieved_at ?? undefined,
+        gameSessions,
+      };
+
+      // Step 4: Create Clerk account
+      if (!clerkSignUp?.signUp) {
+        return {
+          error: 'Clerk is not available. Please try again or restart the app.',
+        };
+      }
+
+      const { signUp: clerkSignUpResource } = clerkSignUp;
+
+      try {
+        await clerkSignUpResource.create({
+          emailAddress: email,
+          password,
+        });
+      } catch (clerkError: any) {
+        // Check if the account already exists in Clerk
+        const clerkErrors = clerkError?.errors || [];
+        const firstError = clerkErrors[0];
+
+        if (
+          firstError?.code === 'form_identifier_exists' ||
+          firstError?.message?.toLowerCase().includes('taken')
+        ) {
+          console.log(
+            '🔄 [AuthContext] Clerk account already exists, signing in directly...',
+          );
+
+          // Sign into existing Clerk account and complete migration
+          const signInResult = await signInWithClerk(email, password);
+          if (signInResult.error) {
+            return { error: signInResult.error };
+          }
+
+          // Complete migration directly (Clerk session is now active)
+          await completeMigrationDirectly(migrationData);
+          return {};
+        }
+
+        // Re-throw unexpected Clerk errors
+        throw clerkError;
+      }
+
+      // Step 5: Prepare email verification
+      await clerkSignUpResource.prepareEmailAddressVerification({
+        strategy: 'email_code',
+      });
+
+      // Step 6: Store migration data and pending profile in AsyncStorage
+      await AsyncStorage.setItem(
+        PENDING_MIGRATION_KEY,
+        JSON.stringify(migrationData),
+      );
+
+      // Also store a pending Clerk profile so verifyEmailCode creates the Convex profile
+      const pendingProfile: PendingClerkProfile = {
+        username: email.split('@')[0],
+        displayName: email.split('@')[0],
+        gradeLevel: migrationData.preferredGradeLevel,
+        email,
+        createdAt: new Date().toISOString(),
+      };
+      await AsyncStorage.setItem(
+        PENDING_CLERK_PROFILE_KEY,
+        JSON.stringify(pendingProfile),
+      );
+
+      console.log(
+        '✅ [AuthContext] Migration Phase A complete, verification email sent',
+      );
+      return { needsVerification: true };
+    } catch (error) {
+      console.error('❌ [AuthContext] Migration failed:', error);
+
+      let errorMessage = 'Migration failed. Please try again.';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+
+      return { error: errorMessage };
+    }
+  };
+
+  // ============================================================================
   // CLERK EMAIL/PASSWORD AUTHENTICATION (US-002)
   // ============================================================================
 
@@ -1809,7 +2165,66 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         preferredGradeLevel: pendingProfile.gradeLevel,
       });
 
-      // Step 5: Clear pending profile from AsyncStorage
+      // Step 5 (US-007): Check for pending migration data and complete Phase B
+      try {
+        const migrationJson = await AsyncStorage.getItem(PENDING_MIGRATION_KEY);
+
+        if (migrationJson) {
+          console.log(
+            '🔄 [AuthContext] Pending migration found — completing Phase B...',
+          );
+          const migrationData: PendingMigrationData = JSON.parse(migrationJson);
+
+          // Migrate stats
+          await convexMigrateStats({
+            clerkUserId,
+            totalXp: migrationData.totalXp,
+            currentStreak: migrationData.currentStreak,
+            longestStreak: migrationData.longestStreak,
+            bestScore: migrationData.bestScore,
+            totalGamesPlayed: migrationData.totalGamesPlayed,
+            totalStoriesCompleted: migrationData.totalStoriesCompleted,
+            totalWordsWritten: migrationData.totalWordsWritten,
+            lastActivityDate: migrationData.lastActivityDate,
+            onboardingCompleted: migrationData.onboardingCompleted,
+            onboardingProgress: migrationData.onboardingProgress,
+            firstStoryCompletedAt: migrationData.firstStoryCompletedAt,
+            firstImageGeneratedAt: migrationData.firstImageGeneratedAt,
+            firstVoiceInputAt: migrationData.firstVoiceInputAt,
+            firstStreakAchievedAt: migrationData.firstStreakAchievedAt,
+          });
+
+          // Migrate game sessions in batches of 50
+          const sessions = migrationData.gameSessions;
+          const BATCH_SIZE = 50;
+          for (let i = 0; i < sessions.length; i += BATCH_SIZE) {
+            const batch = sessions.slice(i, i + BATCH_SIZE);
+            await convexMigrateGameSessions({
+              clerkUserId,
+              sessions: batch,
+            });
+          }
+
+          // Sign out of Supabase (legacy session no longer needed)
+          await supabase.auth.signOut();
+
+          // Clear migration data
+          await AsyncStorage.removeItem(PENDING_MIGRATION_KEY);
+
+          console.log(
+            '✅ [AuthContext] Migration Phase B complete — stats and sessions migrated',
+          );
+        }
+      } catch (migrationError) {
+        // Migration failure is non-fatal — Clerk session is still active.
+        // PENDING_MIGRATION_KEY is kept so migration can be retried later.
+        console.error(
+          '⚠️ [AuthContext] Migration Phase B failed (non-fatal):',
+          migrationError,
+        );
+      }
+
+      // Step 6: Clear pending profile from AsyncStorage
       console.log('📧 [AuthContext] Clearing pending profile data...');
       await AsyncStorage.removeItem(PENDING_CLERK_PROFILE_KEY);
 
@@ -4556,6 +4971,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       verifySignInSecondFactor,
       resetPasswordWithClerk,
       verifyPasswordResetCode,
+      migrateFromSupabase,
     }),
     [
       session,
@@ -4592,6 +5008,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       verifySignInSecondFactor,
       resetPasswordWithClerk,
       verifyPasswordResetCode,
+      migrateFromSupabase,
     ],
   );
 
