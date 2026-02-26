@@ -2,37 +2,17 @@
  * XP Event Tracker Service
  * Comprehensive tracking for all XP-related events in image generation
  *
- * ## Convex Migration (US-020)
- * This service now uses Convex as PRIMARY data store with Supabase as SECONDARY
- * for dual-write during the migration period.
+ * Uses Convex exclusively as the data store for all users.
+ * Supabase dual-write and fallback paths removed per US-011 (Phase 4 cleanup).
  *
- * Pattern: Convex PRIMARY, Supabase SECONDARY (non-blocking)
- * - All writes go to Convex first (source of truth)
- * - Dual-writes to Supabase for safety during transition
- * - Reads from Convex with Supabase fallback
- *
- * @see prd-supabase-to-convex-migration.md (US-020)
+ * @see prd-clerk-email-password-migration.md (US-011)
  */
 
-import { supabase } from './supabase';
 import { GenerationStatus, ErrorType, ServiceUsed } from '../types/database';
 
-// Convex imports for database migration (US-020)
+// Convex imports
 import { getConvexClient, api, isConvexReady } from './convex';
 import type { Id } from '../../convex/_generated/dataModel';
-
-// ============================================================================
-// DUAL-WRITE CONFIGURATION (US-031: DISABLED)
-// ============================================================================
-// Migration complete: Convex is now the ONLY data store
-// Dual-write has been disabled per US-031
-const ENABLE_DUAL_WRITE = false;
-
-/**
- * Detect if a user ID is a Clerk user ID (OAuth users) vs Supabase UUID (email/password users).
- * Clerk user IDs start with "user_".
- */
-const isClerkUserId = (userId: string): boolean => userId.startsWith('user_');
 
 export interface XPEventData {
   userId: string;
@@ -50,7 +30,7 @@ export interface ImageGenerationXPEvent {
   xpCost: number;
   storyGradeLevel?: string;
   storyWordCount?: number;
-  storyCompleted?: boolean; // NEW: Track whether story was completed before image generation
+  storyCompleted?: boolean;
   metadata?: Record<string, any>;
 }
 
@@ -71,12 +51,8 @@ class XPEventTracker {
   }
 
   /**
-   * Create an image generation event for XP tracking
-   *
-   * Convex Migration (US-020):
-   * - PRIMARY: Creates event in Convex (atomically deducts XP)
-   * - SECONDARY: Dual-writes to Supabase for safety during transition
-   * - Only uses Convex for Clerk/OAuth users (user IDs starting with "user_")
+   * Create an image generation event for XP tracking.
+   * Creates the event in Convex, which atomically deducts XP.
    */
   async createImageGenerationEvent(
     eventData: ImageGenerationXPEvent,
@@ -88,83 +64,39 @@ class XPEventTracker {
         sessionId: eventData.sessionId,
       });
 
-      let eventId: string | undefined;
-      let convexSucceeded = false;
-
-      // PRIMARY: Create event in Convex (US-020) - only for OAuth/Clerk users
-      if (isConvexReady() && isClerkUserId(eventData.userId)) {
-        const convexClient = getConvexClient();
-        if (convexClient) {
-          try {
-            console.log(
-              '📝 Creating image generation event in Convex (PRIMARY)',
-            );
-            const result = await convexClient.mutation(
-              api.imageGeneration.createImageGenerationEvent,
-              {
-                clerkUserId: eventData.userId,
-                sessionId: eventData.sessionId as
-                  | Id<'gameSessions'>
-                  | undefined,
-                xpCost: eventData.xpCost,
-                serviceUsed: 'replicate', // Default service
-                storyGradeLevel: eventData.storyGradeLevel,
-                storyWordCount: eventData.storyWordCount,
-                metadata: {
-                  ...eventData.metadata,
-                  storyCompleted: eventData.storyCompleted,
-                },
-              },
-            );
-            eventId = result.eventId;
-            convexSucceeded = true;
-            console.log('✅ Convex image generation event created:', {
-              eventId,
-              xpDeducted: result.xpDeducted,
-            });
-          } catch (convexError) {
-            console.error(
-              '❌ Convex createImageGenerationEvent failed:',
-              convexError,
-            );
-            // Fall through to Supabase
-          }
-        }
+      if (!isConvexReady()) {
+        console.error('❌ Convex is not ready');
+        return { success: false, error: 'Database not available' };
       }
 
-      // Fallback to Supabase when Convex fails
-      if (!convexSucceeded) {
-        console.log('📝 Fallback: Creating event in Supabase');
+      const convexClient = getConvexClient();
+      if (!convexClient) {
+        console.error('❌ Convex client unavailable');
+        return { success: false, error: 'Database client unavailable' };
+      }
 
-        const { data: supabaseEventId, error } = await supabase.rpc(
-          'create_image_generation_event',
-          {
-            p_user_id: eventData.userId,
-            p_session_id: eventData.sessionId || '',
-            p_xp_cost: eventData.xpCost,
-            p_story_grade_level: eventData.storyGradeLevel,
-            p_story_word_count: eventData.storyWordCount,
-            p_metadata: eventData.metadata || {},
+      console.log('📝 Creating image generation event in Convex');
+      const result = await convexClient.mutation(
+        api.imageGeneration.createImageGenerationEvent,
+        {
+          clerkUserId: eventData.userId,
+          sessionId: eventData.sessionId as Id<'gameSessions'> | undefined,
+          xpCost: eventData.xpCost,
+          serviceUsed: 'replicate',
+          storyGradeLevel: eventData.storyGradeLevel,
+          storyWordCount: eventData.storyWordCount,
+          metadata: {
+            ...eventData.metadata,
+            storyCompleted: eventData.storyCompleted,
           },
-        );
+        },
+      );
 
-        if (error) {
-          if (!convexSucceeded) {
-            // Both failed
-            console.error(
-              '❌ Both Convex and Supabase failed to create event:',
-              error,
-            );
-            return { success: false, error: error.message };
-          }
-        } else {
-          console.log('✅ Supabase event created:', { supabaseEventId });
-          eventId = supabaseEventId;
-        }
-      }
-
-      console.log('✅ Image generation event created:', { eventId });
-      return { success: true, eventId };
+      console.log('✅ Image generation event created:', {
+        eventId: result.eventId,
+        xpDeducted: result.xpDeducted,
+      });
+      return { success: true, eventId: result.eventId };
     } catch (error) {
       console.error('💥 Exception creating image generation event:', error);
       return {
@@ -175,12 +107,8 @@ class XPEventTracker {
   }
 
   /**
-   * Update image generation event status
-   *
-   * Convex Migration (US-020):
-   * - PRIMARY: Updates event in Convex (handles XP refunds automatically)
-   * - SECONDARY: Dual-writes to Supabase for safety during transition
-   * - Detects Convex vs Supabase event IDs by format
+   * Update image generation event status.
+   * Updates the event in Convex, which handles XP refunds automatically.
    */
   async updateImageGenerationEvent(
     eventId: string,
@@ -200,75 +128,36 @@ class XPEventTracker {
         ...options,
       });
 
-      let convexSucceeded = false;
-
-      // Detect if this is a Convex ID (alphanumeric) vs Supabase UUID
-      // Supabase UUIDs have dashes, Convex IDs are alphanumeric
-      const isConvexEventId = !eventId.includes('-');
-
-      // PRIMARY: Update in Convex (US-020) - only for Convex event IDs
-      if (isConvexReady() && isConvexEventId) {
-        const convexClient = getConvexClient();
-        if (convexClient) {
-          try {
-            console.log('📝 Updating event in Convex (PRIMARY)');
-            const result = await convexClient.mutation(
-              api.imageGeneration.updateImageGenerationEvent,
-              {
-                eventId: eventId as Id<'imageGenerationEvents'>,
-                generationStatus: status,
-                imageUrl: options?.imageUrl,
-                errorType: options?.errorType,
-                apiResponseTime: options?.apiResponseTime,
-                promptUsed: options?.promptUsed,
-              },
-            );
-            convexSucceeded = true;
-            console.log('✅ Convex event updated:', {
-              eventId,
-              finalStatus: result.finalStatus,
-              refunded: result.refunded,
-              refundAmount: result.refundAmount,
-            });
-          } catch (convexError) {
-            console.error(
-              '❌ Convex updateImageGenerationEvent failed:',
-              convexError,
-            );
-            // Fall through to Supabase
-          }
-        }
+      if (!isConvexReady()) {
+        console.error('❌ Convex is not ready');
+        return { success: false, error: 'Database not available' };
       }
 
-      // Fallback to Supabase for Supabase event IDs or when Convex fails
-      if (!convexSucceeded || !isConvexEventId) {
-        const logPrefix = !isConvexEventId
-          ? '📝 Primary (UUID):'
-          : '📝 Fallback:';
-        console.log(`${logPrefix} Updating event in Supabase`);
-
-        const { error } = await supabase.rpc('update_image_generation_event', {
-          p_event_id: eventId,
-          p_status: status,
-          p_image_url: options?.imageUrl,
-          p_error_type: options?.errorType,
-          p_service_used: options?.serviceUsed,
-          p_api_response_time: options?.apiResponseTime,
-          p_prompt_used: options?.promptUsed,
-        });
-
-        if (error) {
-          if (!convexSucceeded) {
-            // Both failed
-            console.error('❌ Both Convex and Supabase failed:', error);
-            return { success: false, error: error.message };
-          }
-        } else {
-          console.log('✅ Supabase event updated');
-        }
+      const convexClient = getConvexClient();
+      if (!convexClient) {
+        console.error('❌ Convex client unavailable');
+        return { success: false, error: 'Database client unavailable' };
       }
 
-      console.log('✅ Image generation event updated:', { eventId, status });
+      console.log('📝 Updating event in Convex');
+      const result = await convexClient.mutation(
+        api.imageGeneration.updateImageGenerationEvent,
+        {
+          eventId: eventId as Id<'imageGenerationEvents'>,
+          generationStatus: status,
+          imageUrl: options?.imageUrl,
+          errorType: options?.errorType,
+          apiResponseTime: options?.apiResponseTime,
+          promptUsed: options?.promptUsed,
+        },
+      );
+
+      console.log('✅ Convex event updated:', {
+        eventId,
+        finalStatus: result.finalStatus,
+        refunded: result.refunded,
+        refundAmount: result.refundAmount,
+      });
       return { success: true, eventId };
     } catch (error) {
       console.error('💥 Exception updating image generation event:', error);
@@ -291,8 +180,6 @@ class XPEventTracker {
         imageGenerationEventId: eventData.imageGenerationEventId,
       });
 
-      // For now, we'll log to console and could extend to save to a separate XP events table
-      // This provides audit trail for all XP operations
       const xpEvent = {
         timestamp: new Date().toISOString(),
         type: 'XP_DEDUCTION',
@@ -308,22 +195,15 @@ class XPEventTracker {
         },
       };
 
-      // Log for audit purposes
       console.log('📝 XP Event Audit Log:', xpEvent);
-
-      // TODO: In a production system, you might want to save this to a dedicated audit table
-      // For now, the image_generation_events table serves as our tracking mechanism
     } catch (error) {
       console.error('💥 Error tracking XP deduction:', error);
     }
   }
 
   /**
-   * Track XP refund for failed image generation
-   *
-   * Convex Migration (US-020):
-   * - If the event ID is a Convex ID, uses the Convex refund mutation
-   * - The Convex updateImageGenerationEvent automatically handles refunds
+   * Track XP refund for failed image generation.
+   * Uses the Convex refund mutation, then updates the event status.
    */
   async trackXPRefund(eventData: XPEventData): Promise<void> {
     try {
@@ -351,20 +231,12 @@ class XPEventTracker {
 
       console.log('📝 XP Refund Audit Log:', xpEvent);
 
-      // Update the image generation event status to 'refunded' if eventId provided
       if (eventData.imageGenerationEventId) {
-        // Detect if this is a Convex ID (alphanumeric) vs Supabase UUID
-        const isConvexEventId = !eventData.imageGenerationEventId.includes('-');
-
-        // For Convex events, we can use the dedicated refund mutation for edge cases
-        // However, updateImageGenerationEvent already handles refunds automatically
-        // when status is 'failed' or 'timeout' with a refundable error type
-        if (isConvexReady() && isConvexEventId) {
+        if (isConvexReady()) {
           const convexClient = getConvexClient();
           if (convexClient) {
             try {
               console.log('💰 Processing refund via Convex');
-              // Use the manual refund mutation for edge cases
               const result = await convexClient.mutation(
                 api.imageGeneration.refundImageGenerationEvent,
                 {
@@ -376,9 +248,7 @@ class XPEventTracker {
                 refundAmount: result.refundAmount,
                 newBalance: result.newBalance,
               });
-              // Still call updateImageGenerationEvent for Supabase dual-write
             } catch (convexError: any) {
-              // If already refunded, that's fine - just log and continue
               if (convexError?.message?.includes('already refunded')) {
                 console.log('ℹ️ Event already refunded in Convex');
               } else {
@@ -388,7 +258,7 @@ class XPEventTracker {
           }
         }
 
-        // Also update via the standard method (handles Supabase dual-write)
+        // Update the event status to 'refunded'
         await this.updateImageGenerationEvent(
           eventData.imageGenerationEventId,
           'refunded',
@@ -401,11 +271,8 @@ class XPEventTracker {
   }
 
   /**
-   * Track XP balance validation checks
-   *
-   * Convex Migration (US-020):
-   * - For Clerk users, can use Convex's checkXpForImageGeneration query
-   * - Falls back to local logging for email/password users
+   * Track XP balance validation checks.
+   * Uses Convex's checkXpForImageGeneration query for accurate XP info.
    */
   async trackXPValidation(
     userId: string,
@@ -415,11 +282,10 @@ class XPEventTracker {
     context: string = 'image_generation',
   ): Promise<void> {
     try {
-      // For Clerk users with Convex, we can get more accurate XP info
       let actualCurrentXP = currentXP;
       let actualShortfall = validationResult ? 0 : requiredXP - currentXP;
 
-      if (isConvexReady() && isClerkUserId(userId)) {
+      if (isConvexReady()) {
         const convexClient = getConvexClient();
         if (convexClient) {
           try {
@@ -456,11 +322,7 @@ class XPEventTracker {
   }
 
   /**
-   * Get XP analytics for image generation
-   *
-   * Convex Migration (US-020):
-   * - PRIMARY: Fetches analytics from Convex
-   * - FALLBACK: Falls back to Supabase if Convex unavailable
+   * Get XP analytics for image generation from Convex.
    */
   async getXPAnalytics(
     userId?: string,
@@ -470,49 +332,26 @@ class XPEventTracker {
     try {
       console.log('📈 Fetching XP analytics:', { userId, startDate, endDate });
 
-      // PRIMARY: Try Convex first (US-020) - only for Clerk users or all-user analytics
-      if (isConvexReady() && (!userId || isClerkUserId(userId))) {
-        const convexClient = getConvexClient();
-        if (convexClient) {
-          try {
-            console.log('📖 Fetching analytics from Convex (PRIMARY)');
-            const analytics = await convexClient.query(
-              api.imageGeneration.getImageGenerationAnalytics,
-              {
-                clerkUserId: userId,
-                startDate: startDate,
-                endDate: endDate,
-              },
-            );
-
-            if (analytics) {
-              console.log('✅ Convex analytics retrieved:', analytics);
-              return analytics;
-            }
-          } catch (convexError) {
-            console.warn(
-              '⚠️ Convex analytics query failed, falling back to Supabase:',
-              convexError,
-            );
-          }
-        }
-      }
-
-      // FALLBACK: Try Supabase
-      console.log('📖 Fetching analytics from Supabase (FALLBACK)');
-      const { data: analytics, error } = await supabase.rpc(
-        'get_image_generation_analytics',
-        {
-          p_user_id: userId,
-          p_start_date: startDate,
-          p_end_date: endDate,
-        },
-      );
-
-      if (error) {
-        console.error('❌ Failed to fetch XP analytics:', error);
+      if (!isConvexReady()) {
+        console.error('❌ Convex is not ready');
         return null;
       }
+
+      const convexClient = getConvexClient();
+      if (!convexClient) {
+        console.error('❌ Convex client unavailable');
+        return null;
+      }
+
+      console.log('📖 Fetching analytics from Convex');
+      const analytics = await convexClient.query(
+        api.imageGeneration.getImageGenerationAnalytics,
+        {
+          clerkUserId: userId,
+          startDate: startDate,
+          endDate: endDate,
+        },
+      );
 
       console.log('✅ XP Analytics retrieved:', analytics);
       return analytics;
@@ -523,11 +362,7 @@ class XPEventTracker {
   }
 
   /**
-   * Get user-specific image generation events
-   *
-   * Convex Migration (US-020):
-   * - PRIMARY: Fetches events from Convex for Clerk users
-   * - FALLBACK: Falls back to Supabase for email/password users or if Convex unavailable
+   * Get user-specific image generation events from Convex.
    */
   async getUserImageGenerationEvents(
     userId: string,
@@ -541,69 +376,49 @@ class XPEventTracker {
         offset,
       });
 
-      // PRIMARY: Try Convex first (US-020) - only for Clerk users
-      if (isConvexReady() && isClerkUserId(userId)) {
-        const convexClient = getConvexClient();
-        if (convexClient) {
-          try {
-            console.log('📖 Fetching events from Convex (PRIMARY)');
-            const events = await convexClient.query(
-              api.imageGeneration.getUserImageGenerationEvents,
-              {
-                clerkUserId: userId,
-                limit: limit,
-                offset: offset,
-              },
-            );
-
-            if (events) {
-              console.log('✅ Convex events retrieved:', {
-                count: events.length,
-              });
-              // Convert Convex response format to legacy format for compatibility
-              return events.map(event => ({
-                id: event.id,
-                created_at: event.createdAt,
-                completed_at: event.completedAt,
-                session_id: event.sessionId,
-                xp_cost: event.xpCost,
-                generation_status: event.generationStatus,
-                error_type: event.errorType,
-                service_used: event.serviceUsed,
-                api_response_time: event.apiResponseTime,
-                image_url: event.imageUrl,
-                story_grade_level: event.storyGradeLevel,
-                story_word_count: event.storyWordCount,
-                prompt_used: event.promptUsed,
-              }));
-            }
-          } catch (convexError) {
-            console.warn(
-              '⚠️ Convex events query failed, falling back to Supabase:',
-              convexError,
-            );
-          }
-        }
-      }
-
-      // FALLBACK: Try Supabase
-      console.log('📖 Fetching events from Supabase (FALLBACK)');
-      const { data: events, error } = await supabase.rpc(
-        'get_user_image_generation_events',
-        {
-          p_user_id: userId,
-          p_limit: limit,
-          p_offset: offset,
-        },
-      );
-
-      if (error) {
-        console.error('❌ Failed to fetch user events:', error);
+      if (!isConvexReady()) {
+        console.error('❌ Convex is not ready');
         return [];
       }
 
-      console.log('✅ User events retrieved:', { count: events?.length || 0 });
-      return events || [];
+      const convexClient = getConvexClient();
+      if (!convexClient) {
+        console.error('❌ Convex client unavailable');
+        return [];
+      }
+
+      console.log('📖 Fetching events from Convex');
+      const events = await convexClient.query(
+        api.imageGeneration.getUserImageGenerationEvents,
+        {
+          clerkUserId: userId,
+          limit: limit,
+          offset: offset,
+        },
+      );
+
+      if (events) {
+        console.log('✅ Convex events retrieved:', {
+          count: events.length,
+        });
+        return events.map(event => ({
+          id: event.id,
+          created_at: event.createdAt,
+          completed_at: event.completedAt,
+          session_id: event.sessionId,
+          xp_cost: event.xpCost,
+          generation_status: event.generationStatus,
+          error_type: event.errorType,
+          service_used: event.serviceUsed,
+          api_response_time: event.apiResponseTime,
+          image_url: event.imageUrl,
+          story_grade_level: event.storyGradeLevel,
+          story_word_count: event.storyWordCount,
+          prompt_used: event.promptUsed,
+        }));
+      }
+
+      return [];
     } catch (error) {
       console.error('💥 Exception fetching user events:', error);
       return [];
@@ -620,12 +435,6 @@ class XPEventTracker {
   ): number {
     // Base cost is always 1000 XP for now
     let baseCost = 1000;
-
-    // Future: Could implement variable pricing based on:
-    // - Grade level (K-2 might be cheaper)
-    // - Story complexity (word count)
-    // - Premium user discounts
-    // - Promotional events
 
     console.log('💵 XP Cost Calculation:', {
       baseCost,

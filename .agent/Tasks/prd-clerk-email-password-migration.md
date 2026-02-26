@@ -290,18 +290,30 @@ Migrate all email/password authentication from Supabase to Clerk, unifying all u
 
 ### Phase 4: Service Layer Cleanup
 
-#### US-011: Remove isClerkUserId() from XP Event Tracker
+#### US-011: Remove isClerkUserId() from XP Event Tracker ✅ COMPLETED
 
 **Description:** As a developer, I want to remove dual-auth code from the XP service so it always uses Convex.
 
+**Completion Date:** 2026-02-26
+
+**Implementation Notes:**
+
+- Removed `isClerkUserId()` function and `ENABLE_DUAL_WRITE` constant from `xpEventTracker.ts`
+- Removed `import { supabase } from './supabase'` — no more Supabase runtime dependency
+- Kept `GenerationStatus`, `ErrorType`, `ServiceUsed` type imports from `database.ts` (still used in public API signatures)
+- Simplified all 6 data-access methods (`createImageGenerationEvent`, `updateImageGenerationEvent`, `trackXPRefund`, `trackXPValidation`, `getXPAnalytics`, `getUserImageGenerationEvents`) to use Convex exclusively with clean error handling when Convex is unavailable
+- Removed Supabase RPC fallback paths and UUID-based event ID detection
+- Updated test suite from Supabase mocks to Convex mocks (`getConvexClient`, `isConvexReady`) — 29 tests, all passing
+- Net improvement: eliminated 5 pre-existing typecheck errors from untyped Supabase RPC calls
+
 **Acceptance Criteria:**
 
-- [ ] Remove `isClerkUserId()` function from `src/services/xpEventTracker.ts`
-- [ ] Remove all `if (isClerkUserId())` conditional branches
-- [ ] Keep only Convex code paths
-- [ ] Remove Supabase imports if no longer needed
-- [ ] Typecheck passes
-- [ ] Existing XP tracking tests pass
+- [x] Remove `isClerkUserId()` function from `src/services/xpEventTracker.ts`
+- [x] Remove all `if (isClerkUserId())` conditional branches
+- [x] Keep only Convex code paths
+- [x] Remove Supabase imports if no longer needed
+- [x] Typecheck passes
+- [x] Existing XP tracking tests pass
 
 #### US-012: Remove isClerkUserId() from Onboarding Service
 

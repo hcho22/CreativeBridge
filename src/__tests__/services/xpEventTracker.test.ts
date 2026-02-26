@@ -1,34 +1,53 @@
 /**
  * XP Event Tracker Test Suite
  * Tests for XP tracking and analytics for image generation events
+ *
+ * Updated for US-011: All tests now use Convex mocks (Supabase removed).
  */
 
 import { xpEventTracker } from '../../services/xpEventTracker';
-import { supabase } from '../../services/supabase';
 
-// Mock supabase
-jest.mock('../../services/supabase', () => ({
-  supabase: {
-    rpc: jest.fn(),
+// Mock Convex client
+const mockConvexClient = {
+  mutation: jest.fn(),
+  query: jest.fn(),
+};
+
+jest.mock('../../services/convex', () => ({
+  getConvexClient: jest.fn(() => mockConvexClient),
+  isConvexReady: jest.fn(() => true),
+  api: {
+    imageGeneration: {
+      createImageGenerationEvent: 'imageGeneration:createImageGenerationEvent',
+      updateImageGenerationEvent: 'imageGeneration:updateImageGenerationEvent',
+      refundImageGenerationEvent: 'imageGeneration:refundImageGenerationEvent',
+      checkXpForImageGeneration: 'imageGeneration:checkXpForImageGeneration',
+      getImageGenerationAnalytics:
+        'imageGeneration:getImageGenerationAnalytics',
+      getUserImageGenerationEvents:
+        'imageGeneration:getUserImageGenerationEvents',
+    },
   },
 }));
 
-const mockSupabase = supabase as jest.Mocked<typeof supabase>;
+const { isConvexReady, getConvexClient } = require('../../services/convex');
 
 describe('XP Event Tracker Service', () => {
-  const mockUserId = 'test-user-123';
-  const mockSessionId = 'session-456';
+  const mockUserId = 'user_test123';
+  const mockSessionId = 'session456abc';
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (isConvexReady as jest.Mock).mockReturnValue(true);
+    (getConvexClient as jest.Mock).mockReturnValue(mockConvexClient);
   });
 
   describe('Image Generation Event Creation', () => {
-    test('should create image generation event with XP tracking', async () => {
-      const mockEventId = 'event-789';
-      mockSupabase.rpc.mockResolvedValueOnce({
-        data: mockEventId,
-        error: null,
+    test('should create image generation event via Convex', async () => {
+      const mockEventId = 'evt789abc';
+      mockConvexClient.mutation.mockResolvedValueOnce({
+        eventId: mockEventId,
+        xpDeducted: 1000,
       });
 
       const eventData = {
@@ -44,24 +63,22 @@ describe('XP Event Tracker Service', () => {
 
       expect(result.success).toBe(true);
       expect(result.eventId).toBe(mockEventId);
-      expect(mockSupabase.rpc).toHaveBeenCalledWith(
-        'create_image_generation_event',
+      expect(mockConvexClient.mutation).toHaveBeenCalledWith(
+        'imageGeneration:createImageGenerationEvent',
         {
-          p_user_id: mockUserId,
-          p_session_id: mockSessionId,
-          p_xp_cost: 1000,
-          p_story_grade_level: 'K-2',
-          p_story_word_count: 150,
-          p_metadata: { test: true },
+          clerkUserId: mockUserId,
+          sessionId: mockSessionId,
+          xpCost: 1000,
+          serviceUsed: 'replicate',
+          storyGradeLevel: 'K-2',
+          storyWordCount: 150,
+          metadata: { test: true, storyCompleted: undefined },
         },
       );
     });
 
-    test('should handle database errors during event creation', async () => {
-      mockSupabase.rpc.mockResolvedValueOnce({
-        data: null,
-        error: { message: 'Database connection failed' },
-      });
+    test('should return error when Convex is not ready', async () => {
+      (isConvexReady as jest.Mock).mockReturnValue(false);
 
       const eventData = {
         userId: mockUserId,
@@ -72,11 +89,28 @@ describe('XP Event Tracker Service', () => {
       const result = await xpEventTracker.createImageGenerationEvent(eventData);
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Database connection failed');
+      expect(result.error).toBe('Database not available');
     });
 
-    test('should handle exceptions during event creation', async () => {
-      mockSupabase.rpc.mockRejectedValueOnce(new Error('Network error'));
+    test('should return error when Convex client is unavailable', async () => {
+      (getConvexClient as jest.Mock).mockReturnValue(null);
+
+      const eventData = {
+        userId: mockUserId,
+        sessionId: mockSessionId,
+        xpCost: 1000,
+      };
+
+      const result = await xpEventTracker.createImageGenerationEvent(eventData);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Database client unavailable');
+    });
+
+    test('should handle Convex mutation exceptions', async () => {
+      mockConvexClient.mutation.mockRejectedValueOnce(
+        new Error('Convex mutation failed'),
+      );
 
       const eventData = {
         userId: mockUserId,
@@ -92,11 +126,12 @@ describe('XP Event Tracker Service', () => {
   });
 
   describe('Image Generation Event Updates', () => {
-    test('should update event status successfully', async () => {
-      const eventId = 'event-789';
-      mockSupabase.rpc.mockResolvedValueOnce({
-        data: true,
-        error: null,
+    test('should update event status via Convex', async () => {
+      const eventId = 'evt789abc';
+      mockConvexClient.mutation.mockResolvedValueOnce({
+        finalStatus: 'success',
+        refunded: false,
+        refundAmount: 0,
       });
 
       const result = await xpEventTracker.updateImageGenerationEvent(
@@ -112,25 +147,25 @@ describe('XP Event Tracker Service', () => {
 
       expect(result.success).toBe(true);
       expect(result.eventId).toBe(eventId);
-      expect(mockSupabase.rpc).toHaveBeenCalledWith(
-        'update_image_generation_event',
+      expect(mockConvexClient.mutation).toHaveBeenCalledWith(
+        'imageGeneration:updateImageGenerationEvent',
         {
-          p_event_id: eventId,
-          p_status: 'success',
-          p_image_url: 'https://example.com/image.jpg',
-          p_error_type: undefined,
-          p_service_used: 'replicate',
-          p_api_response_time: 45000,
-          p_prompt_used: 'A beautiful story illustration',
+          eventId,
+          generationStatus: 'success',
+          imageUrl: 'https://example.com/image.jpg',
+          errorType: undefined,
+          apiResponseTime: 45000,
+          promptUsed: 'A beautiful story illustration',
         },
       );
     });
 
     test('should update event with failure status and error type', async () => {
-      const eventId = 'event-789';
-      mockSupabase.rpc.mockResolvedValueOnce({
-        data: true,
-        error: null,
+      const eventId = 'evt789abc';
+      mockConvexClient.mutation.mockResolvedValueOnce({
+        finalStatus: 'failed',
+        refunded: false,
+        refundAmount: 0,
       });
 
       const result = await xpEventTracker.updateImageGenerationEvent(
@@ -144,34 +179,43 @@ describe('XP Event Tracker Service', () => {
       );
 
       expect(result.success).toBe(true);
-      expect(mockSupabase.rpc).toHaveBeenCalledWith(
-        'update_image_generation_event',
+      expect(mockConvexClient.mutation).toHaveBeenCalledWith(
+        'imageGeneration:updateImageGenerationEvent',
         {
-          p_event_id: eventId,
-          p_status: 'failed',
-          p_image_url: undefined,
-          p_error_type: 'api_failure',
-          p_service_used: 'backup_service',
-          p_api_response_time: 65000,
-          p_prompt_used: undefined,
+          eventId,
+          generationStatus: 'failed',
+          imageUrl: undefined,
+          errorType: 'api_failure',
+          apiResponseTime: 65000,
+          promptUsed: undefined,
         },
       );
     });
 
-    test('should handle database errors during event update', async () => {
-      const eventId = 'event-789';
-      mockSupabase.rpc.mockResolvedValueOnce({
-        data: null,
-        error: { message: 'Update failed' },
-      });
+    test('should return error when Convex is not ready', async () => {
+      (isConvexReady as jest.Mock).mockReturnValue(false);
 
       const result = await xpEventTracker.updateImageGenerationEvent(
-        eventId,
+        'evt789abc',
         'success',
       );
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Update failed');
+      expect(result.error).toBe('Database not available');
+    });
+
+    test('should handle Convex mutation exceptions during update', async () => {
+      mockConvexClient.mutation.mockRejectedValueOnce(
+        new Error('Update failed'),
+      );
+
+      const result = await xpEventTracker.updateImageGenerationEvent(
+        'evt789abc',
+        'success',
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Failed to update image generation event');
     });
   });
 
@@ -185,7 +229,7 @@ describe('XP Event Tracker Service', () => {
         xpAmount: 1000,
         eventType: 'deduction' as const,
         reason: 'Image generation attempt',
-        imageGenerationEventId: 'event-123',
+        imageGenerationEventId: 'evt123abc',
         metadata: { test: true },
       };
 
@@ -197,7 +241,7 @@ describe('XP Event Tracker Service', () => {
           userId: mockUserId,
           xpAmount: 1000,
           reason: 'Image generation attempt',
-          imageGenerationEventId: 'event-123',
+          imageGenerationEventId: 'evt123abc',
         }),
       );
 
@@ -214,14 +258,22 @@ describe('XP Event Tracker Service', () => {
       consoleSpy.mockRestore();
     });
 
-    test('should track XP refund and update event status', async () => {
+    test('should track XP refund and update event status via Convex', async () => {
       const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
 
-      // Mock the update call for refunded status
-      mockSupabase.rpc.mockResolvedValueOnce({
-        data: true,
-        error: null,
-      });
+      // Mock the refund mutation
+      mockConvexClient.mutation
+        .mockResolvedValueOnce({
+          refundAmount: 1000,
+          newBalance: 2000,
+        })
+        // Mock the updateImageGenerationEvent call from within trackXPRefund
+        .mockResolvedValueOnce({
+          finalStatus: 'refunded',
+          refunded: true,
+          refundAmount: 1000,
+        });
 
       const eventData = {
         userId: mockUserId,
@@ -229,7 +281,7 @@ describe('XP Event Tracker Service', () => {
         xpAmount: 1000,
         eventType: 'refund' as const,
         reason: 'API timeout failure',
-        imageGenerationEventId: 'event-123',
+        imageGenerationEventId: 'evt123abc',
       };
 
       await xpEventTracker.trackXPRefund(eventData);
@@ -252,32 +304,79 @@ describe('XP Event Tracker Service', () => {
         }),
       );
 
-      // Should update the event status to 'refunded'
-      expect(mockSupabase.rpc).toHaveBeenCalledWith(
-        'update_image_generation_event',
-        {
-          p_event_id: 'event-123',
-          p_status: 'refunded',
-          p_image_url: undefined,
-          p_error_type: 'timeout',
-          p_service_used: undefined,
-          p_api_response_time: undefined,
-          p_prompt_used: undefined,
-        },
+      // Should call refund mutation
+      expect(mockConvexClient.mutation).toHaveBeenCalledWith(
+        'imageGeneration:refundImageGenerationEvent',
+        { eventId: 'evt123abc' },
+      );
+
+      // Should also call update mutation for status change
+      expect(mockConvexClient.mutation).toHaveBeenCalledWith(
+        'imageGeneration:updateImageGenerationEvent',
+        expect.objectContaining({
+          eventId: 'evt123abc',
+          generationStatus: 'refunded',
+          errorType: 'timeout',
+        }),
+      );
+
+      consoleSpy.mockRestore();
+      consoleWarnSpy.mockRestore();
+    });
+
+    test('should handle already-refunded events gracefully', async () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+      // Mock refund mutation to throw "already refunded"
+      mockConvexClient.mutation
+        .mockRejectedValueOnce(new Error('Event already refunded'))
+        // Mock the updateImageGenerationEvent call
+        .mockResolvedValueOnce({
+          finalStatus: 'refunded',
+          refunded: true,
+          refundAmount: 0,
+        });
+
+      const eventData = {
+        userId: mockUserId,
+        xpAmount: 1000,
+        eventType: 'refund' as const,
+        reason: 'API timeout failure',
+        imageGenerationEventId: 'evt123abc',
+      };
+
+      await xpEventTracker.trackXPRefund(eventData);
+
+      // Should log the "already refunded" message
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'ℹ️ Event already refunded in Convex',
       );
 
       consoleSpy.mockRestore();
     });
 
-    test('should track XP validation events', async () => {
+    test('should track XP validation events with Convex XP check', async () => {
       const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+      mockConvexClient.query.mockResolvedValueOnce({
+        currentBalance: 1500,
+        shortfall: 0,
+      });
 
       await xpEventTracker.trackXPValidation(
         mockUserId,
-        1000, // required XP
-        1500, // current XP
-        true, // validation result
+        1000,
+        1500,
+        true,
         'image_generation',
+      );
+
+      expect(mockConvexClient.query).toHaveBeenCalledWith(
+        'imageGeneration:checkXpForImageGeneration',
+        {
+          clerkUserId: mockUserId,
+          requiredXp: 1000,
+        },
       );
 
       expect(consoleSpy).toHaveBeenCalledWith(
@@ -296,14 +395,19 @@ describe('XP Event Tracker Service', () => {
       consoleSpy.mockRestore();
     });
 
-    test('should track validation failure with shortfall', async () => {
+    test('should track validation failure with shortfall from Convex', async () => {
       const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+      mockConvexClient.query.mockResolvedValueOnce({
+        currentBalance: 750,
+        shortfall: 250,
+      });
 
       await xpEventTracker.trackXPValidation(
         mockUserId,
-        1000, // required XP
-        750, // current XP
-        false, // validation result
+        1000,
+        750,
+        false,
         'image_generation',
       );
 
@@ -311,30 +415,54 @@ describe('XP Event Tracker Service', () => {
         '🔍 XP Validation Event:',
         expect.objectContaining({
           validationResult: false,
+          currentXP: 750,
           shortfall: 250,
         }),
       );
 
       consoleSpy.mockRestore();
     });
+
+    test('should fall back to provided XP values when Convex query fails', async () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+
+      mockConvexClient.query.mockRejectedValueOnce(
+        new Error('Convex query failed'),
+      );
+
+      await xpEventTracker.trackXPValidation(
+        mockUserId,
+        1000,
+        750,
+        false,
+        'image_generation',
+      );
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '🔍 XP Validation Event:',
+        expect.objectContaining({
+          currentXP: 750,
+          shortfall: 250,
+        }),
+      );
+
+      consoleSpy.mockRestore();
+      consoleWarnSpy.mockRestore();
+    });
   });
 
   describe('Analytics and Reporting', () => {
-    test('should fetch XP analytics successfully', async () => {
-      const mockAnalytics = [
-        {
-          total_attempts: 10,
-          successful_generations: 8,
-          failed_generations: 2,
-          total_xp_spent: 8000,
-          avg_response_time: 42.5,
-        },
-      ];
+    test('should fetch XP analytics from Convex', async () => {
+      const mockAnalytics = {
+        totalAttempts: 10,
+        successfulGenerations: 8,
+        failedGenerations: 2,
+        totalXpSpent: 8000,
+        avgResponseTime: 42.5,
+      };
 
-      mockSupabase.rpc.mockResolvedValueOnce({
-        data: mockAnalytics,
-        error: null,
-      });
+      mockConvexClient.query.mockResolvedValueOnce(mockAnalytics);
 
       const result = await xpEventTracker.getXPAnalytics(
         mockUserId,
@@ -343,36 +471,69 @@ describe('XP Event Tracker Service', () => {
       );
 
       expect(result).toEqual(mockAnalytics);
-      expect(mockSupabase.rpc).toHaveBeenCalledWith(
-        'get_image_generation_analytics',
+      expect(mockConvexClient.query).toHaveBeenCalledWith(
+        'imageGeneration:getImageGenerationAnalytics',
         {
-          p_user_id: mockUserId,
-          p_start_date: '2024-01-01',
-          p_end_date: '2024-01-31',
+          clerkUserId: mockUserId,
+          startDate: '2024-01-01',
+          endDate: '2024-01-31',
         },
       );
     });
 
-    test('should fetch user events successfully', async () => {
+    test('should return null when Convex is not ready for analytics', async () => {
+      (isConvexReady as jest.Mock).mockReturnValue(false);
+
+      const result = await xpEventTracker.getXPAnalytics(mockUserId);
+
+      expect(result).toBeNull();
+    });
+
+    test('should handle Convex analytics query exceptions', async () => {
+      mockConvexClient.query.mockRejectedValueOnce(
+        new Error('Analytics query failed'),
+      );
+
+      const result = await xpEventTracker.getXPAnalytics(mockUserId);
+
+      expect(result).toBeNull();
+    });
+
+    test('should fetch user events from Convex', async () => {
       const mockEvents = [
         {
-          event_id: 'event-1',
-          xp_cost: 1000,
-          generation_status: 'success',
-          created_at: '2024-01-01T10:00:00Z',
+          id: 'evt1abc',
+          createdAt: '2024-01-01T10:00:00Z',
+          completedAt: '2024-01-01T10:01:00Z',
+          sessionId: 'session1',
+          xpCost: 1000,
+          generationStatus: 'success',
+          errorType: null,
+          serviceUsed: 'replicate',
+          apiResponseTime: 45000,
+          imageUrl: 'https://example.com/img1.jpg',
+          storyGradeLevel: 'K-2',
+          storyWordCount: 150,
+          promptUsed: 'A colorful scene',
         },
         {
-          event_id: 'event-2',
-          xp_cost: 1000,
-          generation_status: 'failed',
-          created_at: '2024-01-02T11:00:00Z',
+          id: 'evt2abc',
+          createdAt: '2024-01-02T11:00:00Z',
+          completedAt: null,
+          sessionId: 'session2',
+          xpCost: 1000,
+          generationStatus: 'failed',
+          errorType: 'api_failure',
+          serviceUsed: 'replicate',
+          apiResponseTime: 65000,
+          imageUrl: null,
+          storyGradeLevel: '3-5',
+          storyWordCount: 200,
+          promptUsed: 'An adventure scene',
         },
       ];
 
-      mockSupabase.rpc.mockResolvedValueOnce({
-        data: mockEvents,
-        error: null,
-      });
+      mockConvexClient.query.mockResolvedValueOnce(mockEvents);
 
       const result = await xpEventTracker.getUserImageGenerationEvents(
         mockUserId,
@@ -380,15 +541,52 @@ describe('XP Event Tracker Service', () => {
         0,
       );
 
-      expect(result).toEqual(mockEvents);
-      expect(mockSupabase.rpc).toHaveBeenCalledWith(
-        'get_user_image_generation_events',
+      // Should convert Convex camelCase to legacy snake_case format
+      expect(result).toEqual([
+        expect.objectContaining({
+          id: 'evt1abc',
+          created_at: '2024-01-01T10:00:00Z',
+          xp_cost: 1000,
+          generation_status: 'success',
+        }),
+        expect.objectContaining({
+          id: 'evt2abc',
+          created_at: '2024-01-02T11:00:00Z',
+          xp_cost: 1000,
+          generation_status: 'failed',
+        }),
+      ]);
+
+      expect(mockConvexClient.query).toHaveBeenCalledWith(
+        'imageGeneration:getUserImageGenerationEvents',
         {
-          p_user_id: mockUserId,
-          p_limit: 10,
-          p_offset: 0,
+          clerkUserId: mockUserId,
+          limit: 10,
+          offset: 0,
         },
       );
+    });
+
+    test('should return empty array when Convex is not ready for events', async () => {
+      (isConvexReady as jest.Mock).mockReturnValue(false);
+
+      const result = await xpEventTracker.getUserImageGenerationEvents(
+        mockUserId,
+      );
+
+      expect(result).toEqual([]);
+    });
+
+    test('should handle Convex events query exceptions', async () => {
+      mockConvexClient.query.mockRejectedValueOnce(
+        new Error('Events query failed'),
+      );
+
+      const result = await xpEventTracker.getUserImageGenerationEvents(
+        mockUserId,
+      );
+
+      expect(result).toEqual([]);
     });
 
     test('should generate XP usage report correctly', () => {
@@ -435,7 +633,7 @@ describe('XP Event Tracker Service', () => {
 
     test('should calculate XP cost with context parameters', () => {
       const cost = xpEventTracker.calculateXPCost('K-2', 150, false);
-      expect(cost).toBe(1000); // Base cost for now
+      expect(cost).toBe(1000);
     });
 
     test('should log calculation parameters', () => {
@@ -456,108 +654,101 @@ describe('XP Event Tracker Service', () => {
 
   describe('Error Type Detection', () => {
     test('should detect timeout error type from reason', async () => {
-      mockSupabase.rpc.mockResolvedValueOnce({ data: true, error: null });
+      // Mock both mutations: refund + updateImageGenerationEvent
+      mockConvexClient.mutation
+        .mockResolvedValueOnce({ refundAmount: 1000, newBalance: 2000 })
+        .mockResolvedValueOnce({
+          finalStatus: 'refunded',
+          refunded: true,
+          refundAmount: 1000,
+        });
 
       const eventData = {
         userId: mockUserId,
         xpAmount: 1000,
         eventType: 'refund' as const,
         reason: 'API timeout after 60 seconds',
-        imageGenerationEventId: 'event-123',
+        imageGenerationEventId: 'evt123abc',
       };
 
       await xpEventTracker.trackXPRefund(eventData);
 
-      expect(mockSupabase.rpc).toHaveBeenCalledWith(
-        'update_image_generation_event',
+      // The update mutation should receive 'timeout' as error type
+      expect(mockConvexClient.mutation).toHaveBeenCalledWith(
+        'imageGeneration:updateImageGenerationEvent',
         expect.objectContaining({
-          p_error_type: 'timeout',
+          errorType: 'timeout',
         }),
       );
     });
 
     test('should detect content safety error type from reason', async () => {
-      mockSupabase.rpc.mockResolvedValueOnce({ data: true, error: null });
+      mockConvexClient.mutation
+        .mockResolvedValueOnce({ refundAmount: 1000, newBalance: 2000 })
+        .mockResolvedValueOnce({
+          finalStatus: 'refunded',
+          refunded: true,
+          refundAmount: 1000,
+        });
 
       const eventData = {
         userId: mockUserId,
         xpAmount: 1000,
         eventType: 'refund' as const,
         reason: 'Content safety filter violation',
-        imageGenerationEventId: 'event-123',
+        imageGenerationEventId: 'evt123abc',
       };
 
       await xpEventTracker.trackXPRefund(eventData);
 
-      expect(mockSupabase.rpc).toHaveBeenCalledWith(
-        'update_image_generation_event',
+      expect(mockConvexClient.mutation).toHaveBeenCalledWith(
+        'imageGeneration:updateImageGenerationEvent',
         expect.objectContaining({
-          p_error_type: 'content_safety',
+          errorType: 'content_safety',
         }),
       );
     });
 
     test('should default to api_failure for unknown error types', async () => {
-      mockSupabase.rpc.mockResolvedValueOnce({ data: true, error: null });
+      mockConvexClient.mutation
+        .mockResolvedValueOnce({ refundAmount: 1000, newBalance: 2000 })
+        .mockResolvedValueOnce({
+          finalStatus: 'refunded',
+          refunded: true,
+          refundAmount: 1000,
+        });
 
       const eventData = {
         userId: mockUserId,
         xpAmount: 1000,
         eventType: 'refund' as const,
         reason: 'Unknown error occurred',
-        imageGenerationEventId: 'event-123',
+        imageGenerationEventId: 'evt123abc',
       };
 
       await xpEventTracker.trackXPRefund(eventData);
 
-      expect(mockSupabase.rpc).toHaveBeenCalledWith(
-        'update_image_generation_event',
+      expect(mockConvexClient.mutation).toHaveBeenCalledWith(
+        'imageGeneration:updateImageGenerationEvent',
         expect.objectContaining({
-          p_error_type: 'api_failure',
+          errorType: 'api_failure',
         }),
       );
     });
   });
 
   describe('Error Handling', () => {
-    test('should handle analytics fetch errors gracefully', async () => {
-      mockSupabase.rpc.mockResolvedValueOnce({
-        data: null,
-        error: { message: 'Analytics fetch failed' },
-      });
-
-      const result = await xpEventTracker.getXPAnalytics(mockUserId);
-
-      expect(result).toBeNull();
-    });
-
-    test('should handle user events fetch errors gracefully', async () => {
-      mockSupabase.rpc.mockResolvedValueOnce({
-        data: null,
-        error: { message: 'Events fetch failed' },
-      });
-
-      const result = await xpEventTracker.getUserImageGenerationEvents(
-        mockUserId,
-      );
-
-      expect(result).toEqual([]);
-    });
-
     test('should handle exceptions in tracking methods gracefully', async () => {
       const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
 
-      // The method doesn't throw exceptions, it just logs events
-      // Test that it can handle malformed data without crashing
       await xpEventTracker.trackXPDeduction({
-        userId: 'test-user',
+        userId: mockUserId,
         xpAmount: 1000,
         eventType: 'deduction',
         reason: 'Test reason',
       } as any);
 
-      // Should have logged the tracking attempt
       expect(consoleLogSpy).toHaveBeenCalledWith(
         '💸 Tracking XP deduction:',
         expect.any(Object),
