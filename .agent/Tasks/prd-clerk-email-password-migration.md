@@ -341,18 +341,36 @@ Migrate all email/password authentication from Supabase to Clerk, unifying all u
 - [x] Typecheck passes
 - [x] Existing onboarding tests pass
 
-#### US-013: Remove isClerkUserId() from Story Session Manager
+#### US-013: Remove isClerkUserId() from Story Session Manager ✅ COMPLETED
 
 **Description:** As a developer, I want to remove dual-auth code from the story session manager so it always uses Convex.
 
+**Completion Date:** 2026-02-26
+
+**Implementation Notes:**
+
+- Removed `import { supabase } from './supabase'` and unused type imports (`GameSession`, `GameSessionInsert`, `GameSessionUpdate`) — no more Supabase runtime dependency
+- Removed `ENABLE_DUAL_WRITE` constant, `isSupabaseUUID()` function, and `isClerkUserId()` function
+- Simplified 7 methods to use Convex exclusively:
+  - `createSession()`: Removed Supabase `.from().insert()` fallback — now throws if Convex unavailable
+  - `getSession()`: Removed `isSupabaseUUID` routing and Supabase `.from().select().single()` fallback — now falls through to AsyncStorage local cache when Convex fails
+  - `getUserSessions()`: Removed `isClerkUserId` routing and Supabase query fallback — returns `[]` if Convex unavailable
+  - `updateSession()`: Removed `supabaseUpdateData` object, `isSupabaseUUID` routing, and Supabase `.from().update()` dual-write — caches locally when Convex fails
+  - `updateSessionWithImage()`: Removed `isSupabaseUUID` check from Convex mutation guard
+  - `updateSessionWithSupabaseImage()`: Removed `isSupabaseUUID` check from Convex mutation guard
+  - `updateUserStatisticsOnCompletion()`: Removed `isClerkUserId` routing and Supabase RPC `complete_game_session` fallback
+- Updated 5 test files from Supabase mocks to Convex mocks (`mockConvexClient.query`, `mockConvexClient.mutation`) — 59 tests, all passing
+- Updated file header and internal comments to reflect Convex-only architecture
+- Note: `supabase_image_url` field name retained in `StorySession` interface (data model field, not auth concern)
+
 **Acceptance Criteria:**
 
-- [ ] Remove `isClerkUserId()` function from `src/services/storySessionManager.ts`
-- [ ] Remove all `if (isClerkUserId())` conditional branches
-- [ ] Keep only Convex code paths
-- [ ] Remove Supabase imports if no longer needed
-- [ ] Typecheck passes
-- [ ] Existing story session tests pass
+- [x] Remove `isClerkUserId()` function from `src/services/storySessionManager.ts`
+- [x] Remove all `if (isClerkUserId())` conditional branches
+- [x] Keep only Convex code paths
+- [x] Remove Supabase imports if no longer needed
+- [x] Typecheck passes
+- [x] Existing story session tests pass
 
 #### US-014: Remove Dual-Write from Story Management Service ✅ COMPLETED
 
@@ -398,7 +416,7 @@ Migrate all email/password authentication from Supabase to Clerk, unifying all u
 - Simplified `autoFixUserId` to use `clerkAuth?.userId || userProfile.clerk_user_id` instead of triple-fallback with `userProfile.id`
 - Updated TTS initialization effect to depend on `isAuthenticated` instead of Supabase `user` object
 - Net improvement: eliminated 2 pre-existing typecheck errors (Supabase type inference issues), no new errors introduced
-- Note: `supabase_image_url` references in image display remain — these are image storage URLs (not auth), addressed in US-013
+- Note: `supabase_image_url` field name retained in StorySession interface — these are image storage URLs (not auth). US-013 removed all Supabase auth/database code but kept this field name for backward compatibility
 
 **Acceptance Criteria:**
 

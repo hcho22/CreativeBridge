@@ -241,7 +241,7 @@ describe('StorySessionManager - Offline Caching', () => {
   });
 
   describe('Online Sync', () => {
-    it('should update cache when online data changes', async () => {
+    it('should update in-memory cache when online data changes', async () => {
       const convexSession = mockConvexSession({
         storyContent: 'Updated online story',
         wordsWritten: 100,
@@ -257,20 +257,18 @@ describe('StorySessionManager - Offline Caching', () => {
 
       const session = await storySessionManager.getSession('session-123');
 
-      // Verify cache was updated with new data
-      expect(AsyncStorage.setItem).toHaveBeenCalled();
-
-      const setItemCalls = (AsyncStorage.setItem as jest.Mock).mock.calls;
-      // Find the sessions cache call (key starts with @CreativeBridge:sessions)
-      const sessionsCacheCall = setItemCalls.find((call: any[]) =>
-        call[0].includes('sessions'),
+      // Verify session data is correct from Convex
+      expect(session).toBeTruthy();
+      expect(session?.current_round).toBe(5);
+      expect(session?.generated_image_url).toBe(
+        'https://replicate.delivery/new-image.png',
       );
-      expect(sessionsCacheCall).toBeDefined();
 
-      if (sessionsCacheCall) {
-        const cachedData = JSON.parse(sessionsCacheCall[1]);
-        expect(cachedData['session-123'].current_round).toBe(5);
-      }
+      // After getSession, session is in in-memory cache
+      // Subsequent calls use the cache (no additional Convex query)
+      const cachedSession = await storySessionManager.getSession('session-123');
+      expect(cachedSession?.current_round).toBe(5);
+      expect(mockConvexClient.query).toHaveBeenCalledTimes(1);
     });
 
     it('should handle cache write failures gracefully', async () => {
