@@ -251,8 +251,12 @@ interface AuthContextType {
     password: string,
   ) => Promise<{
     needsVerification?: boolean;
+    needsNewPassword?: boolean;
     error?: string;
   }>;
+  resumeMigrationWithNewPassword: (
+    newPassword: string,
+  ) => Promise<{ needsVerification?: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -1129,7 +1133,11 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
   const migrateFromSupabase = async (
     email: string,
     password: string,
-  ): Promise<{ needsVerification?: boolean; error?: string }> => {
+  ): Promise<{
+    needsVerification?: boolean;
+    needsNewPassword?: boolean;
+    error?: string;
+  }> => {
     try {
       console.log('🔄 [AuthContext] Starting Supabase → Clerk migration...');
       logMigrationEvent({
@@ -1278,7 +1286,15 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         gameSessions,
       };
 
-      // Step 4: Create Clerk account
+      // Step 4: Persist migration data BEFORE Clerk account creation
+      // This ensures the expensive Supabase data fetch is preserved if Clerk
+      // rejects the password (e.g., breached password, too weak).
+      await AsyncStorage.setItem(
+        PENDING_MIGRATION_KEY,
+        JSON.stringify(migrationData),
+      );
+
+      // Step 5: Create Clerk account
       if (!clerkSignUp?.signUp) {
         return {
           error: 'Clerk is not available. Please try again or restart the app.',
@@ -1316,6 +1332,27 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           return {};
         }
 
+        // Check if the password was rejected by Clerk's security policies
+        if (
+          firstError?.code === 'form_password_pwned' ||
+          firstError?.code === 'form_password_not_strong_enough' ||
+          firstError?.code === 'form_password_length_too_short'
+        ) {
+          console.log(
+            '🔑 [AuthContext] Password rejected by Clerk policy, user needs new password',
+          );
+          logMigrationEvent({
+            eventType: 'migration_failed',
+            step: 'clerk_account',
+            supabaseUserId,
+            email,
+            error: `Password policy: ${firstError.code}`,
+            metadata: { requiresNewPassword: true },
+          });
+          // Migration data already saved to AsyncStorage above
+          return { needsNewPassword: true };
+        }
+
         // Re-throw unexpected Clerk errors
         logMigrationEvent({
           eventType: 'migration_failed',
@@ -1335,18 +1372,13 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         email,
       });
 
-      // Step 5: Prepare email verification
+      // Step 6: Prepare email verification
       await clerkSignUpResource.prepareEmailAddressVerification({
         strategy: 'email_code',
       });
 
-      // Step 6: Store migration data and pending profile in AsyncStorage
-      await AsyncStorage.setItem(
-        PENDING_MIGRATION_KEY,
-        JSON.stringify(migrationData),
-      );
-
-      // Also store a pending Clerk profile so verifyEmailCode creates the Convex profile
+      // Step 7: Store pending Clerk profile so verifyEmailCode creates the Convex profile
+      // (Migration data was already saved in Step 4 above)
       const pendingProfile: PendingClerkProfile = {
         username: email.split('@')[0],
         displayName: email.split('@')[0],
@@ -1383,6 +1415,132 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         email,
         error: errorMessage,
       });
+      return { error: errorMessage };
+    }
+  };
+
+  /**
+   * Resume a migration after the user's original password was rejected by Clerk.
+   * Reads the cached migration data from AsyncStorage and creates a Clerk account
+   * with the user's chosen new password.
+   */
+  const resumeMigrationWithNewPassword = async (
+    newPassword: string,
+  ): Promise<{ needsVerification?: boolean; error?: string }> => {
+    try {
+      // Step 1: Read cached migration data
+      const migrationJson = await AsyncStorage.getItem(PENDING_MIGRATION_KEY);
+      if (!migrationJson) {
+        return {
+          error:
+            'Migration data not found. Please start the sign-in process again.',
+        };
+      }
+      const migrationData: PendingMigrationData = JSON.parse(migrationJson);
+      const { email } = migrationData;
+
+      console.log(
+        '🔑 [AuthContext] Resuming migration with new password for:',
+        email,
+      );
+
+      // Step 2: Create Clerk account with the new password
+      if (!clerkSignUp?.signUp) {
+        return {
+          error: 'Clerk is not available. Please try again or restart the app.',
+        };
+      }
+
+      const { signUp: clerkSignUpResource } = clerkSignUp;
+
+      try {
+        await clerkSignUpResource.create({
+          emailAddress: email,
+          password: newPassword,
+        });
+      } catch (clerkError: any) {
+        const clerkErrors = clerkError?.errors || [];
+        const firstError = clerkErrors[0];
+
+        // Account already exists — sign in directly and complete migration
+        if (
+          firstError?.code === 'form_identifier_exists' ||
+          firstError?.message?.toLowerCase().includes('taken')
+        ) {
+          console.log(
+            '🔄 [AuthContext] Clerk account already exists, signing in directly...',
+          );
+          const signInResult = await signInWithClerk(email, newPassword);
+          if (signInResult.error) {
+            return { error: signInResult.error };
+          }
+          await completeMigrationDirectly(migrationData);
+          return {};
+        }
+
+        // Password still rejected — let user try again
+        if (
+          firstError?.code === 'form_password_pwned' ||
+          firstError?.code === 'form_password_not_strong_enough' ||
+          firstError?.code === 'form_password_length_too_short'
+        ) {
+          const message =
+            firstError.code === 'form_password_pwned'
+              ? 'This password has also been found in a data breach. Please choose a different password.'
+              : firstError.longMessage ||
+                firstError.message ||
+                'Password does not meet security requirements.';
+          return { error: message };
+        }
+
+        // Unexpected error
+        return {
+          error:
+            firstError?.longMessage ||
+            firstError?.message ||
+            'Failed to create account. Please try again.',
+        };
+      }
+
+      // Step 3: Prepare email verification
+      await clerkSignUpResource.prepareEmailAddressVerification({
+        strategy: 'email_code',
+      });
+
+      // Step 4: Store pending Clerk profile for post-verification profile creation
+      const pendingProfile: PendingClerkProfile = {
+        username: email.split('@')[0],
+        displayName: email.split('@')[0],
+        gradeLevel: migrationData.preferredGradeLevel,
+        email,
+        createdAt: new Date().toISOString(),
+      };
+      await AsyncStorage.setItem(
+        PENDING_CLERK_PROFILE_KEY,
+        JSON.stringify(pendingProfile),
+      );
+
+      logMigrationEvent({
+        eventType: 'migration_completed',
+        step: 'clerk_account',
+        supabaseUserId: migrationData.supabaseUserId,
+        email,
+        metadata: { resumedWithNewPassword: true },
+      });
+
+      console.log(
+        '✅ [AuthContext] Migration resumed, verification email sent',
+      );
+      return { needsVerification: true };
+    } catch (error) {
+      console.error(
+        '❌ [AuthContext] Resume migration with new password failed:',
+        error,
+      );
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'Failed to resume migration. Please try again.';
       return { error: errorMessage };
     }
   };
@@ -3878,6 +4036,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       resetPasswordWithClerk,
       verifyPasswordResetCode,
       migrateFromSupabase,
+      resumeMigrationWithNewPassword,
     }),
     [
       user,
@@ -3911,6 +4070,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       resetPasswordWithClerk,
       verifyPasswordResetCode,
       migrateFromSupabase,
+      resumeMigrationWithNewPassword,
     ],
   );
 

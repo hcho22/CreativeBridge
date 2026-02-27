@@ -50,6 +50,8 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
     resetPasswordWithClerk,
     verifyPasswordResetCode,
     verifySignInSecondFactor,
+    migrateFromSupabase,
+    resumeMigrationWithNewPassword,
   } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -95,6 +97,20 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
     null,
   );
   const [verifyingSecondFactor, setVerifyingSecondFactor] = useState(false);
+  // US-010: Migration state
+  const [isMigrating, setIsMigrating] = useState(false);
+  // Migration new password state (when Clerk rejects the original password)
+  const [showMigrationNewPassword, setShowMigrationNewPassword] =
+    useState(false);
+  const [migrationNewPassword, setMigrationNewPassword] = useState('');
+  const [migrationNewPasswordError, setMigrationNewPasswordError] = useState<
+    string | null
+  >(null);
+  const [showMigrationPassword, setShowMigrationPassword] = useState(false);
+  const [migrationNewPasswordValidation, setMigrationNewPasswordValidation] =
+    useState<PasswordStrengthResult | null>(null);
+  const [submittingMigrationPassword, setSubmittingMigrationPassword] =
+    useState(false);
   // US-010: OAuth Session Help Modal state
   const [showSessionHelp, setShowSessionHelp] = useState(false);
   const [helpProvider, setHelpProvider] = useState<OAuthProvider>('google');
@@ -336,10 +352,36 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
           setSecondFactorCode('');
           setSecondFactorError(null);
         } else if (result.needsMigration) {
-          // US-005: User authenticated via Supabase (legacy) — migration prompt will be added in US-010
-          console.log(
-            '📋 [AuthScreen] Legacy Supabase user signed in, migration available in future update',
-          );
+          // US-010: Legacy Supabase user — trigger migration with the credentials already entered
+          console.log('🔄 [AuthScreen] Starting Supabase → Clerk migration...');
+          setIsMigrating(true);
+          try {
+            const migrationResult = await migrateFromSupabase(
+              email.trim(),
+              password,
+            );
+            if (migrationResult.error) {
+              Alert.alert('Migration Error', migrationResult.error);
+            } else if (migrationResult.needsNewPassword) {
+              // Password rejected by Clerk — show new password screen
+              setShowMigrationNewPassword(true);
+              setMigrationNewPassword('');
+              setMigrationNewPasswordError(null);
+              setMigrationNewPasswordValidation(null);
+            } else if (migrationResult.needsVerification) {
+              // Migration Phase A complete — show verification code input for Phase B
+              setShowVerificationInput(true);
+              setVerificationError(null);
+              setVerificationCode('');
+            }
+            // If neither error nor needsVerification, migration completed directly
+            // (existing Clerk account path) — session activates automatically
+          } catch (migrationError) {
+            console.error('❌ [AuthScreen] Migration error:', migrationError);
+            Alert.alert('Error', 'Migration failed. Please try again.');
+          } finally {
+            setIsMigrating(false);
+          }
         }
       } else {
         // US-004: Use Clerk for new email/password sign-ups
@@ -594,6 +636,53 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
     setVerificationError(null);
   };
 
+  // Handle submitting a new password during migration
+  const handleMigrationNewPassword = async () => {
+    // Client-side validation
+    const validation = validatePassword(migrationNewPassword);
+    setMigrationNewPasswordValidation(validation);
+    if (!validation.isValid) {
+      setMigrationNewPasswordError(
+        validation.feedback[0] || 'Password does not meet requirements.',
+      );
+      return;
+    }
+
+    setSubmittingMigrationPassword(true);
+    setMigrationNewPasswordError(null);
+
+    try {
+      const result = await resumeMigrationWithNewPassword(migrationNewPassword);
+      if (result.error) {
+        setMigrationNewPasswordError(result.error);
+      } else if (result.needsVerification) {
+        // Transition to verification code screen
+        setShowMigrationNewPassword(false);
+        setShowVerificationInput(true);
+        setVerificationError(null);
+        setVerificationCode('');
+      }
+      // If neither error nor needsVerification, migration completed directly
+      // (existing Clerk account path) — session activates automatically
+    } catch (error) {
+      console.error('❌ [AuthScreen] Migration new password error:', error);
+      setMigrationNewPasswordError(
+        'An unexpected error occurred. Please try again.',
+      );
+    } finally {
+      setSubmittingMigrationPassword(false);
+    }
+  };
+
+  // Handle going back from migration new password to sign-in form
+  const handleBackFromMigrationPassword = () => {
+    setShowMigrationNewPassword(false);
+    setMigrationNewPassword('');
+    setMigrationNewPasswordError(null);
+    setMigrationNewPasswordValidation(null);
+    setShowMigrationPassword(false);
+  };
+
   const getEmailInputStyle = () => {
     if (!emailTouched || !emailValidation) {
       return styles.textInput;
@@ -645,6 +734,141 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
 
     return [styles.textInput, styles.textInputValid];
   };
+
+  // Migration: Choose a new password screen (when original was rejected by Clerk)
+  if (showMigrationNewPassword) {
+    return (
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContainer}>
+          <View style={styles.content}>
+            <View style={styles.headerSection}>
+              <Text style={styles.appTitle}>Choose New Password</Text>
+              <Text style={styles.appSubtitle}>
+                Your current password has appeared in a known data breach and
+                cannot be used with our new system.
+              </Text>
+            </View>
+
+            <View style={styles.formSection}>
+              <Text style={styles.formTitle}>Create a New Password</Text>
+              <Text style={styles.formSubtitle}>
+                Your account data has been saved. Please choose a strong, unique
+                password to continue the migration.
+              </Text>
+
+              <View style={styles.emailConfirmationInfo}>
+                <Text style={styles.emailLabel}>Account:</Text>
+                <Text style={styles.emailAddress}>{email}</Text>
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>New Password</Text>
+                <View style={styles.passwordInputWrapper}>
+                  <TextInput
+                    style={styles.passwordInput}
+                    value={migrationNewPassword}
+                    onChangeText={text => {
+                      setMigrationNewPassword(text);
+                      setMigrationNewPasswordValidation(validatePassword(text));
+                      if (migrationNewPasswordError)
+                        setMigrationNewPasswordError(null);
+                    }}
+                    placeholder="Enter a strong new password"
+                    secureTextEntry={!showMigrationPassword}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    textContentType="newPassword"
+                    editable={!submittingMigrationPassword}
+                    autoFocus
+                  />
+                  <TouchableOpacity
+                    style={styles.passwordToggle}
+                    onPress={() =>
+                      setShowMigrationPassword(!showMigrationPassword)
+                    }
+                  >
+                    <Text style={styles.passwordToggleText}>
+                      {showMigrationPassword ? 'Hide' : 'Show'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {migrationNewPasswordValidation &&
+                migrationNewPassword.length > 0 && (
+                  <View style={styles.passwordStrengthContainer}>
+                    <View style={styles.passwordStrengthBar}>
+                      <View
+                        style={[
+                          styles.passwordStrengthFill,
+                          {
+                            width: `${
+                              (migrationNewPasswordValidation.score / 5) * 100
+                            }%`,
+                            backgroundColor: PasswordValidator.getStrengthColor(
+                              migrationNewPasswordValidation.score,
+                            ),
+                          },
+                        ]}
+                      />
+                    </View>
+                    <Text
+                      style={[
+                        styles.passwordStrengthText,
+                        {
+                          color: PasswordValidator.getStrengthColor(
+                            migrationNewPasswordValidation.score,
+                          ),
+                        },
+                      ]}
+                    >
+                      {PasswordValidator.getStrengthLabel(
+                        migrationNewPasswordValidation.score,
+                      )}
+                    </Text>
+                  </View>
+                )}
+
+              {migrationNewPasswordError && (
+                <View style={styles.validationFeedback}>
+                  <Text style={styles.errorText}>
+                    {migrationNewPasswordError}
+                  </Text>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={[
+                  styles.authButton,
+                  (submittingMigrationPassword || !migrationNewPassword) &&
+                    styles.disabledButton,
+                ]}
+                onPress={handleMigrationNewPassword}
+                disabled={submittingMigrationPassword || !migrationNewPassword}
+              >
+                {submittingMigrationPassword ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.authButtonText}>Continue Migration</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={handleBackFromMigrationPassword}
+                disabled={submittingMigrationPassword}
+              >
+                <Text style={styles.secondaryButtonText}>Back to Sign In</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
 
   // Sign-in second factor verification screen
   if (showSecondFactor) {
@@ -1445,7 +1669,9 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
               }
             >
               <Text style={styles.authButtonText}>
-                {loading
+                {isMigrating
+                  ? 'Upgrading account...'
+                  : loading
                   ? 'Please wait...'
                   : isLogin
                   ? 'Sign In'
