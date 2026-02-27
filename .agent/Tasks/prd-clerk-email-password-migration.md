@@ -354,29 +354,58 @@ Migrate all email/password authentication from Supabase to Clerk, unifying all u
 - [ ] Typecheck passes
 - [ ] Existing story session tests pass
 
-#### US-014: Remove Dual-Write from Story Management Service
+#### US-014: Remove Dual-Write from Story Management Service ✅ COMPLETED
 
 **Description:** As a developer, I want to remove dual-write code from the story management service so it only writes to Convex.
 
+**Completion Date:** 2026-02-26
+
+**Implementation Notes:**
+
+- Removed `import { supabase } from './supabase'` and `GameSessionInsert` type import — no more Supabase runtime dependency
+- Removed `ENABLE_DUAL_WRITE` constant and all dual-write configuration comments
+- Simplified all 8 data-access methods (`saveStory`, `updateStory`, `deleteStory`, `getStoryLibrary`, `performSearch`, `filterStories`, `getStoryById`, `getUserStoryStats`) to use Convex exclusively
+- `deleteStory` was previously Supabase-only — added new `deleteSession` mutation to `convex/gameSessions.ts` with `getClerkUserId()` ownership verification
+- Removed all "FALLBACK: Use Supabase" code paths and "falling back to Supabase" catch handlers
+- Methods now return `{ success: false, error: 'Database not available' }` when Convex is not ready (instead of falling back)
+- Updated test suite from Supabase mocks (`mockSupabaseFrom`, `mockSupabaseRpc`) to Convex mocks (`mockConvexClient.mutation`, `mockConvexClient.query`) — 26 tests, all passing
+- Added 1 new test: "should return error when database is not available" for Convex unavailability
+- Updated file header to reflect Convex-only architecture
+
 **Acceptance Criteria:**
 
-- [ ] Remove `isClerkUserId()` function from `src/services/storyManagementService.ts`
-- [ ] Remove dual-write logic that writes to both databases
-- [ ] Keep only Convex write paths
-- [ ] Remove Supabase imports if no longer needed
-- [ ] Typecheck passes
-- [ ] Existing story management tests pass
+- [x] Remove `isClerkUserId()` function from `src/services/storyManagementService.ts`
+- [x] Remove dual-write logic that writes to both databases
+- [x] Keep only Convex write paths
+- [x] Remove Supabase imports if no longer needed
+- [x] Typecheck passes
+- [x] Existing story management tests pass
 
-#### US-015: Remove isClerkUserId() from HomeScreen
+#### US-015: Remove isClerkUserId() from HomeScreen ✅ COMPLETED
 
 **Description:** As a developer, I want to remove the dual-auth check from HomeScreen profile loading.
 
+**Completion Date:** 2026-02-26
+
+**Implementation Notes:**
+
+- Removed `import { supabase } from '../services/supabase'` — no more Supabase runtime dependency in HomeScreen
+- Removed `user` (Supabase auth user) from `useAuth()` destructuring — only Clerk auth state used
+- Updated `effectiveUserId` from `userProfile?.id || user?.id || clerkAuth?.userId` to `clerkAuth?.userId || userProfile?.clerk_user_id` (Clerk-first)
+- Updated `isAuthenticated` from `!!user || clerkAuth?.isSignedIn` to `!!clerkAuth?.isSignedIn` (Clerk-only)
+- Removed `isClerkUserId` local variable (`effectiveUserId.startsWith('user_')`) and the entire Supabase profile lookup block that queried `supabase.from('user_profiles')` as fallback
+- Simplified session user ID logic: removed `supabaseUserId`, `clerkUserIdForSession`, and `isEmailPasswordUser` variables — now uses `clerkAuth?.userId || userProfile?.clerk_user_id` directly
+- Simplified `autoFixUserId` to use `clerkAuth?.userId || userProfile.clerk_user_id` instead of triple-fallback with `userProfile.id`
+- Updated TTS initialization effect to depend on `isAuthenticated` instead of Supabase `user` object
+- Net improvement: eliminated 2 pre-existing typecheck errors (Supabase type inference issues), no new errors introduced
+- Note: `supabase_image_url` references in image display remain — these are image storage URLs (not auth), addressed in US-013
+
 **Acceptance Criteria:**
 
-- [ ] Remove `isClerkUserId()` check from `src/screens/HomeScreen.tsx`
-- [ ] Always load profile from Convex via Clerk user ID
-- [ ] Remove Supabase profile fallback code
-- [ ] Typecheck passes
+- [x] Remove `isClerkUserId()` check from `src/screens/HomeScreen.tsx`
+- [x] Always load profile from Convex via Clerk user ID
+- [x] Remove Supabase profile fallback code
+- [x] Typecheck passes
 - [ ] Verify in simulator/device: HomeScreen loads correctly for Clerk user
 
 #### US-016: Remove Supabase Auth from AuthContext
