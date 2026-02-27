@@ -42,14 +42,16 @@ interface AuthScreenProps {
 const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
   const {
     signIn,
-    signUp,
-    user,
-    emailConfirmed,
-    resendConfirmation,
-    checkEmailConfirmation,
-    resetPassword,
     oauthError,
     clearOAuthError,
+    signUpWithClerk,
+    verifyEmailCode,
+    resendClerkVerificationCode,
+    resetPasswordWithClerk,
+    verifyPasswordResetCode,
+    verifySignInSecondFactor,
+    migrateFromSupabase,
+    resumeMigrationWithNewPassword,
   } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -71,11 +73,44 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
   const [usernameValidation, setUsernameValidation] =
     useState<UsernameValidationResult | null>(null);
   const [usernameTouched, setUsernameTouched] = useState(false);
-  const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
-  const [resendingConfirmation, setResendingConfirmation] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [resetEmailSent, setResetEmailSent] = useState(false);
+  // US-006: Clerk password reset code flow state
+  const [showResetCodeInput, setShowResetCodeInput] = useState(false);
+  const [resetCode, setResetCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resettingPassword, setResettingPassword] = useState(false);
+  // US-004: Clerk email verification state
+  const [showVerificationInput, setShowVerificationInput] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationError, setVerificationError] = useState<string | null>(
+    null,
+  );
+  const [verifyingCode, setVerifyingCode] = useState(false);
+  const [resendingCode, setResendingCode] = useState(false);
+  // Sign-in second factor verification state
+  const [showSecondFactor, setShowSecondFactor] = useState(false);
+  const [secondFactorCode, setSecondFactorCode] = useState('');
+  const [secondFactorError, setSecondFactorError] = useState<string | null>(
+    null,
+  );
+  const [verifyingSecondFactor, setVerifyingSecondFactor] = useState(false);
+  // US-010: Migration state
+  const [isMigrating, setIsMigrating] = useState(false);
+  // Migration new password state (when Clerk rejects the original password)
+  const [showMigrationNewPassword, setShowMigrationNewPassword] =
+    useState(false);
+  const [migrationNewPassword, setMigrationNewPassword] = useState('');
+  const [migrationNewPasswordError, setMigrationNewPasswordError] = useState<
+    string | null
+  >(null);
+  const [showMigrationPassword, setShowMigrationPassword] = useState(false);
+  const [migrationNewPasswordValidation, setMigrationNewPasswordValidation] =
+    useState<PasswordStrengthResult | null>(null);
+  const [submittingMigrationPassword, setSubmittingMigrationPassword] =
+    useState(false);
   // US-010: OAuth Session Help Modal state
   const [showSessionHelp, setShowSessionHelp] = useState(false);
   const [helpProvider, setHelpProvider] = useState<OAuthProvider>('google');
@@ -157,16 +192,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
 
     loadSavedPreferences();
   }, []);
-
-  // Check if user needs email confirmation
-  useEffect(() => {
-    if (user && !emailConfirmed) {
-      setShowEmailConfirmation(true);
-      setEmail(user.email || '');
-    } else if (user && emailConfirmed) {
-      setShowEmailConfirmation(false);
-    }
-  }, [user, emailConfirmed]);
 
   // Real-time email validation
   useEffect(() => {
@@ -317,25 +342,63 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
     setLoading(true);
 
     try {
-      let result;
       if (isLogin) {
-        result = await signIn(email.trim(), password, rememberMe);
+        const result = await signIn(email.trim(), password, rememberMe);
+        if (result.error) {
+          Alert.alert('Error', result.error);
+        } else if (result.needsSecondFactor) {
+          // Show second factor verification screen
+          setShowSecondFactor(true);
+          setSecondFactorCode('');
+          setSecondFactorError(null);
+        } else if (result.needsMigration) {
+          // US-010: Legacy Supabase user — trigger migration with the credentials already entered
+          console.log('🔄 [AuthScreen] Starting Supabase → Clerk migration...');
+          setIsMigrating(true);
+          try {
+            const migrationResult = await migrateFromSupabase(
+              email.trim(),
+              password,
+            );
+            if (migrationResult.error) {
+              Alert.alert('Migration Error', migrationResult.error);
+            } else if (migrationResult.needsNewPassword) {
+              // Password rejected by Clerk — show new password screen
+              setShowMigrationNewPassword(true);
+              setMigrationNewPassword('');
+              setMigrationNewPasswordError(null);
+              setMigrationNewPasswordValidation(null);
+            } else if (migrationResult.needsVerification) {
+              // Migration Phase A complete — show verification code input for Phase B
+              setShowVerificationInput(true);
+              setVerificationError(null);
+              setVerificationCode('');
+            }
+            // If neither error nor needsVerification, migration completed directly
+            // (existing Clerk account path) — session activates automatically
+          } catch (migrationError) {
+            console.error('❌ [AuthScreen] Migration error:', migrationError);
+            Alert.alert('Error', 'Migration failed. Please try again.');
+          } finally {
+            setIsMigrating(false);
+          }
+        }
       } else {
-        result = await signUp(email.trim(), password, {
+        // US-004: Use Clerk for new email/password sign-ups
+        const result = await signUpWithClerk(email.trim(), password, {
           username: username.trim(),
           displayName: displayName.trim() || undefined,
           gradeLevel: gradeLevel as GradeLevel,
         });
-      }
 
-      if (result.error) {
-        Alert.alert('Error', result.error);
-      } else if (!isLogin) {
-        setShowEmailConfirmation(true);
-        Alert.alert(
-          'Account Created!',
-          'Please check your email and click the confirmation link to complete your registration.',
-        );
+        if (result.error) {
+          Alert.alert('Error', result.error);
+        } else if (result.needsVerification) {
+          // Show the verification code input screen
+          setShowVerificationInput(true);
+          setVerificationError(null);
+          setVerificationCode('');
+        }
       }
     } catch (error) {
       console.error('Auth error:', error);
@@ -361,7 +424,13 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
     setUsernameValidation(null);
     setUsernameTouched(false);
     setShowForgotPassword(false);
-    setResetEmailSent(false);
+    setShowResetCodeInput(false);
+    setResetCode('');
+    setNewPassword('');
+    setResetError(null);
+    setShowSecondFactor(false);
+    setSecondFactorCode('');
+    setSecondFactorError(null);
   };
 
   const handleEmailChange = (text: string) => {
@@ -385,53 +454,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
     }
   };
 
-  const handleResendConfirmation = async () => {
-    if (!email.trim()) {
-      Alert.alert('Error', 'Please enter your email address');
-      return;
-    }
-
-    setResendingConfirmation(true);
-    try {
-      const result = await resendConfirmation(email.trim());
-      if (result.error) {
-        Alert.alert('Error', result.error);
-      } else {
-        Alert.alert(
-          'Success',
-          'Confirmation email sent! Please check your inbox.',
-        );
-      }
-    } catch (error) {
-      Alert.alert(
-        'Error',
-        'Failed to resend confirmation email. Please try again.',
-      );
-    } finally {
-      setResendingConfirmation(false);
-    }
-  };
-
-  const handleCheckConfirmation = async () => {
-    try {
-      const confirmed = await checkEmailConfirmation();
-      if (confirmed) {
-        Alert.alert('Success', 'Email confirmed! You can now access the app.');
-        setShowEmailConfirmation(false);
-      } else {
-        Alert.alert(
-          'Not Confirmed',
-          'Email has not been confirmed yet. Please check your inbox and click the confirmation link.',
-        );
-      }
-    } catch (error) {
-      Alert.alert(
-        'Error',
-        'Failed to check confirmation status. Please try again.',
-      );
-    }
-  };
-
+  // US-006: Send Clerk password reset code
   const handleForgotPassword = async () => {
     if (!email.trim()) {
       Alert.alert('Error', 'Please enter your email address');
@@ -444,22 +467,220 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
     }
 
     setLoading(true);
+    setResetError(null);
     try {
-      const result = await resetPassword(email.trim());
+      const result = await resetPasswordWithClerk(email.trim());
       if (result.error) {
         Alert.alert('Error', result.error);
-      } else {
-        setResetEmailSent(true);
-        Alert.alert(
-          'Reset Email Sent!',
-          'Please check your email for instructions to reset your password.',
-        );
+      } else if (result.needsCode) {
+        // Show the code verification + new password input screen
+        setShowResetCodeInput(true);
+        setResetCode('');
+        setNewPassword('');
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to send reset email. Please try again.');
+      Alert.alert('Error', 'Failed to send reset code. Please try again.');
     } finally {
       setLoading(false);
     }
+  };
+
+  // US-006: Verify reset code and set new password
+  const handleResetPasswordVerify = async () => {
+    if (resetCode.length !== 6) {
+      setResetError('Please enter the 6-digit code from your email.');
+      return;
+    }
+
+    if (!newPassword || newPassword.length < 8) {
+      setResetError('New password must be at least 8 characters long.');
+      return;
+    }
+
+    const passwordCheck = validatePassword(newPassword);
+    if (!passwordCheck.isValid) {
+      setResetError(
+        passwordCheck.feedback[0] || 'Please choose a stronger password.',
+      );
+      return;
+    }
+
+    setResettingPassword(true);
+    setResetError(null);
+
+    try {
+      const result = await verifyPasswordResetCode(resetCode, newPassword);
+      if (result.error) {
+        setResetError(result.error);
+      }
+      // On success, verifyPasswordResetCode activates the Clerk session.
+      // The auth state change will automatically navigate away from AuthScreen.
+    } catch (error) {
+      setResetError('An unexpected error occurred. Please try again.');
+    } finally {
+      setResettingPassword(false);
+    }
+  };
+
+  // US-006: Resend password reset code
+  const handleResendResetCode = async () => {
+    setLoading(true);
+    setResetError(null);
+    try {
+      const result = await resetPasswordWithClerk(email.trim());
+      if (result.error) {
+        setResetError(result.error);
+      } else {
+        Alert.alert(
+          'Code Sent',
+          'A new reset code has been sent to your email.',
+        );
+      }
+    } catch (error) {
+      setResetError('Failed to resend code. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // US-006: Go back from reset code input to email entry
+  const handleBackFromResetCode = () => {
+    setShowResetCodeInput(false);
+    setResetCode('');
+    setNewPassword('');
+    setResetError(null);
+  };
+
+  // Handle sign-in second factor verification
+  const handleVerifySecondFactor = async () => {
+    if (secondFactorCode.length !== 6) {
+      setSecondFactorError('Please enter the 6-digit code from your email.');
+      return;
+    }
+
+    setVerifyingSecondFactor(true);
+    setSecondFactorError(null);
+
+    try {
+      const result = await verifySignInSecondFactor(secondFactorCode);
+      if (result.error) {
+        setSecondFactorError(result.error);
+      }
+      // On success, the Clerk session is activated and auth state
+      // will automatically navigate away from AuthScreen.
+    } catch (error) {
+      setSecondFactorError('An unexpected error occurred. Please try again.');
+    } finally {
+      setVerifyingSecondFactor(false);
+    }
+  };
+
+  // Handle back from second factor to sign-in screen
+  const handleBackFromSecondFactor = () => {
+    setShowSecondFactor(false);
+    setSecondFactorCode('');
+    setSecondFactorError(null);
+  };
+
+  // US-004: Handle verification code submission
+  const handleVerifyCode = async () => {
+    if (verificationCode.length !== 6) {
+      setVerificationError('Please enter the 6-digit code from your email.');
+      return;
+    }
+
+    setVerifyingCode(true);
+    setVerificationError(null);
+
+    try {
+      const result = await verifyEmailCode(verificationCode);
+      if (result.error) {
+        setVerificationError(result.error);
+      }
+      // On success, verifyEmailCode activates the Clerk session and
+      // creates the Convex profile. The auth state change will automatically
+      // navigate away from AuthScreen via the navigation listener.
+    } catch (error) {
+      setVerificationError('An unexpected error occurred. Please try again.');
+    } finally {
+      setVerifyingCode(false);
+    }
+  };
+
+  // US-004: Handle resending verification code
+  const handleResendCode = async () => {
+    setResendingCode(true);
+    setVerificationError(null);
+
+    try {
+      const result = await resendClerkVerificationCode();
+      if (result.error) {
+        setVerificationError(result.error);
+      } else {
+        Alert.alert(
+          'Code Sent',
+          'A new verification code has been sent to your email.',
+        );
+      }
+    } catch (error) {
+      setVerificationError('Failed to resend code. Please try again.');
+    } finally {
+      setResendingCode(false);
+    }
+  };
+
+  // US-004: Handle going back from verification to sign-up form
+  const handleBackFromVerification = () => {
+    setShowVerificationInput(false);
+    setVerificationCode('');
+    setVerificationError(null);
+  };
+
+  // Handle submitting a new password during migration
+  const handleMigrationNewPassword = async () => {
+    // Client-side validation
+    const validation = validatePassword(migrationNewPassword);
+    setMigrationNewPasswordValidation(validation);
+    if (!validation.isValid) {
+      setMigrationNewPasswordError(
+        validation.feedback[0] || 'Password does not meet requirements.',
+      );
+      return;
+    }
+
+    setSubmittingMigrationPassword(true);
+    setMigrationNewPasswordError(null);
+
+    try {
+      const result = await resumeMigrationWithNewPassword(migrationNewPassword);
+      if (result.error) {
+        setMigrationNewPasswordError(result.error);
+      } else if (result.needsVerification) {
+        // Transition to verification code screen
+        setShowMigrationNewPassword(false);
+        setShowVerificationInput(true);
+        setVerificationError(null);
+        setVerificationCode('');
+      }
+      // If neither error nor needsVerification, migration completed directly
+      // (existing Clerk account path) — session activates automatically
+    } catch (error) {
+      console.error('❌ [AuthScreen] Migration new password error:', error);
+      setMigrationNewPasswordError(
+        'An unexpected error occurred. Please try again.',
+      );
+    } finally {
+      setSubmittingMigrationPassword(false);
+    }
+  };
+
+  // Handle going back from migration new password to sign-in form
+  const handleBackFromMigrationPassword = () => {
+    setShowMigrationNewPassword(false);
+    setMigrationNewPassword('');
+    setMigrationNewPasswordError(null);
+    setMigrationNewPasswordValidation(null);
+    setShowMigrationPassword(false);
   };
 
   const getEmailInputStyle = () => {
@@ -514,8 +735,8 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
     return [styles.textInput, styles.textInputValid];
   };
 
-  // If user needs email confirmation, show confirmation screen
-  if (showEmailConfirmation) {
+  // Migration: Choose a new password screen (when original was rejected by Clerk)
+  if (showMigrationNewPassword) {
     return (
       <KeyboardAvoidingView
         style={styles.container}
@@ -524,52 +745,321 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
         <ScrollView contentContainerStyle={styles.scrollContainer}>
           <View style={styles.content}>
             <View style={styles.headerSection}>
-              <Text style={styles.appTitle}>📧 Confirm Your Email</Text>
+              <Text style={styles.appTitle}>Choose New Password</Text>
               <Text style={styles.appSubtitle}>
-                We've sent a confirmation link to your email
+                Your current password has appeared in a known data breach and
+                cannot be used with our new system.
               </Text>
             </View>
 
             <View style={styles.formSection}>
-              <Text style={styles.formTitle}>Almost There!</Text>
+              <Text style={styles.formTitle}>Create a New Password</Text>
               <Text style={styles.formSubtitle}>
-                Please check your email and click the confirmation link to
-                complete your registration.
+                Your account data has been saved. Please choose a strong, unique
+                password to continue the migration.
               </Text>
 
               <View style={styles.emailConfirmationInfo}>
-                <Text style={styles.emailLabel}>Email sent to:</Text>
+                <Text style={styles.emailLabel}>Account:</Text>
                 <Text style={styles.emailAddress}>{email}</Text>
               </View>
 
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>New Password</Text>
+                <View style={styles.passwordInputWrapper}>
+                  <TextInput
+                    style={styles.passwordInput}
+                    value={migrationNewPassword}
+                    onChangeText={text => {
+                      setMigrationNewPassword(text);
+                      setMigrationNewPasswordValidation(validatePassword(text));
+                      if (migrationNewPasswordError)
+                        setMigrationNewPasswordError(null);
+                    }}
+                    placeholder="Enter a strong new password"
+                    secureTextEntry={!showMigrationPassword}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    textContentType="newPassword"
+                    editable={!submittingMigrationPassword}
+                    autoFocus
+                  />
+                  <TouchableOpacity
+                    style={styles.passwordToggle}
+                    onPress={() =>
+                      setShowMigrationPassword(!showMigrationPassword)
+                    }
+                  >
+                    <Text style={styles.passwordToggleText}>
+                      {showMigrationPassword ? 'Hide' : 'Show'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {migrationNewPasswordValidation &&
+                migrationNewPassword.length > 0 && (
+                  <View style={styles.passwordStrengthContainer}>
+                    <View style={styles.passwordStrengthBar}>
+                      <View
+                        style={[
+                          styles.passwordStrengthFill,
+                          {
+                            width: `${
+                              (migrationNewPasswordValidation.score / 5) * 100
+                            }%`,
+                            backgroundColor: PasswordValidator.getStrengthColor(
+                              migrationNewPasswordValidation.score,
+                            ),
+                          },
+                        ]}
+                      />
+                    </View>
+                    <Text
+                      style={[
+                        styles.passwordStrengthText,
+                        {
+                          color: PasswordValidator.getStrengthColor(
+                            migrationNewPasswordValidation.score,
+                          ),
+                        },
+                      ]}
+                    >
+                      {PasswordValidator.getStrengthLabel(
+                        migrationNewPasswordValidation.score,
+                      )}
+                    </Text>
+                  </View>
+                )}
+
+              {migrationNewPasswordError && (
+                <View style={styles.validationFeedback}>
+                  <Text style={styles.errorText}>
+                    {migrationNewPasswordError}
+                  </Text>
+                </View>
+              )}
+
               <TouchableOpacity
-                style={styles.authButton}
-                onPress={handleCheckConfirmation}
-                disabled={loading}
+                style={[
+                  styles.authButton,
+                  (submittingMigrationPassword || !migrationNewPassword) &&
+                    styles.disabledButton,
+                ]}
+                onPress={handleMigrationNewPassword}
+                disabled={submittingMigrationPassword || !migrationNewPassword}
               >
-                <Text style={styles.authButtonText}>
-                  I've Confirmed My Email
-                </Text>
+                {submittingMigrationPassword ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.authButtonText}>Continue Migration</Text>
+                )}
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.secondaryButton]}
-                onPress={handleResendConfirmation}
-                disabled={resendingConfirmation}
+                style={styles.secondaryButton}
+                onPress={handleBackFromMigrationPassword}
+                disabled={submittingMigrationPassword}
               >
-                <Text style={styles.secondaryButtonText}>
-                  {resendingConfirmation
-                    ? 'Sending...'
-                    : 'Resend Confirmation Email'}
-                </Text>
+                <Text style={styles.secondaryButtonText}>Back to Sign In</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // Sign-in second factor verification screen
+  if (showSecondFactor) {
+    return (
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContainer}>
+          <View style={styles.content}>
+            <View style={styles.headerSection}>
+              <Text style={styles.appTitle}>Verify Identity</Text>
+              <Text style={styles.appSubtitle}>
+                Enter the 6-digit code sent to your email
+              </Text>
+            </View>
+
+            <View style={styles.formSection}>
+              <Text style={styles.formTitle}>Additional Verification</Text>
+              <Text style={styles.formSubtitle}>
+                For security, please enter the verification code we sent to your
+                email.
+              </Text>
+
+              <View style={styles.emailConfirmationInfo}>
+                <Text style={styles.emailLabel}>Code sent to:</Text>
+                <Text style={styles.emailAddress}>{email}</Text>
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Verification Code</Text>
+                <TextInput
+                  style={[
+                    styles.verificationCodeInput,
+                    secondFactorError && styles.textInputError,
+                  ]}
+                  value={secondFactorCode}
+                  onChangeText={text => {
+                    const cleaned = text.replace(/[^0-9]/g, '').slice(0, 6);
+                    setSecondFactorCode(cleaned);
+                    if (secondFactorError) setSecondFactorError(null);
+                  }}
+                  placeholder="000000"
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  autoFocus
+                  editable={!verifyingSecondFactor}
+                  textContentType="oneTimeCode"
+                />
+              </View>
+
+              {secondFactorError && (
+                <View style={styles.validationFeedback}>
+                  <Text style={styles.errorText}>{secondFactorError}</Text>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={[
+                  styles.authButton,
+                  (verifyingSecondFactor || secondFactorCode.length !== 6) &&
+                    styles.disabledButton,
+                ]}
+                onPress={handleVerifySecondFactor}
+                disabled={
+                  verifyingSecondFactor || secondFactorCode.length !== 6
+                }
+              >
+                {verifyingSecondFactor ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text style={styles.authButtonText}>Verify</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={handleBackFromSecondFactor}
+                disabled={verifyingSecondFactor}
+              >
+                <Text style={styles.backButtonText}>Back to Sign In</Text>
               </TouchableOpacity>
 
               <View style={styles.helpSection}>
                 <Text style={styles.helpText}>
-                  💡 Check your spam folder if you don't see the email
+                  Check your spam folder if you don't see the email
                 </Text>
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // US-004: If user needs to enter Clerk verification code, show verification screen
+  if (showVerificationInput) {
+    return (
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContainer}>
+          <View style={styles.content}>
+            <View style={styles.headerSection}>
+              <Text style={styles.appTitle}>Verify Email</Text>
+              <Text style={styles.appSubtitle}>
+                Enter the 6-digit code sent to your email
+              </Text>
+            </View>
+
+            <View style={styles.formSection}>
+              <Text style={styles.formTitle}>Check Your Inbox</Text>
+              <Text style={styles.formSubtitle}>
+                We sent a verification code to complete your registration.
+              </Text>
+
+              <View style={styles.emailConfirmationInfo}>
+                <Text style={styles.emailLabel}>Code sent to:</Text>
+                <Text style={styles.emailAddress}>{email}</Text>
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Verification Code</Text>
+                <TextInput
+                  style={[
+                    styles.verificationCodeInput,
+                    verificationError && styles.textInputError,
+                  ]}
+                  value={verificationCode}
+                  onChangeText={text => {
+                    // Only allow digits, max 6
+                    const cleaned = text.replace(/[^0-9]/g, '').slice(0, 6);
+                    setVerificationCode(cleaned);
+                    if (verificationError) setVerificationError(null);
+                  }}
+                  placeholder="000000"
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  autoFocus
+                  editable={!verifyingCode}
+                  textContentType="oneTimeCode"
+                />
+              </View>
+
+              {verificationError && (
+                <View style={styles.validationFeedback}>
+                  <Text style={styles.errorText}>{verificationError}</Text>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={[
+                  styles.authButton,
+                  (verifyingCode || verificationCode.length !== 6) &&
+                    styles.disabledButton,
+                ]}
+                onPress={handleVerifyCode}
+                disabled={verifyingCode || verificationCode.length !== 6}
+              >
+                {verifyingCode ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text style={styles.authButtonText}>Verify</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.secondaryButton,
+                  resendingCode && styles.disabledButton,
+                ]}
+                onPress={handleResendCode}
+                disabled={resendingCode}
+              >
+                <Text style={styles.secondaryButtonText}>
+                  {resendingCode ? 'Sending...' : 'Resend Code'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={handleBackFromVerification}
+                disabled={verifyingCode}
+              >
+                <Text style={styles.backButtonText}>Back to Sign Up</Text>
+              </TouchableOpacity>
+
+              <View style={styles.helpSection}>
                 <Text style={styles.helpText}>
-                  📧 Make sure {email} is correct
+                  Check your spam folder if you don't see the email
                 </Text>
               </View>
             </View>
@@ -581,6 +1071,121 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
 
   // If user is on forgot password screen, show forgot password form
   if (showForgotPassword) {
+    // US-006: Step 2 — Enter reset code and new password
+    if (showResetCodeInput) {
+      return (
+        <KeyboardAvoidingView
+          style={styles.container}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <ScrollView contentContainerStyle={styles.scrollContainer}>
+            <View style={styles.content}>
+              <View style={styles.headerSection}>
+                <Text style={styles.appTitle}>🔑 Reset Password</Text>
+                <Text style={styles.appSubtitle}>
+                  Enter the code sent to {email}
+                </Text>
+              </View>
+
+              <View style={styles.formSection}>
+                <Text style={styles.formTitle}>Enter Reset Code</Text>
+                <Text style={styles.formSubtitle}>
+                  We sent a 6-digit code to your email. Enter it below along
+                  with your new password.
+                </Text>
+
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>Verification Code</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={resetCode}
+                    onChangeText={text =>
+                      setResetCode(text.replace(/[^0-9]/g, '').slice(0, 6))
+                    }
+                    placeholder="Enter 6-digit code"
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    textContentType="oneTimeCode"
+                    editable={!resettingPassword}
+                  />
+                </View>
+
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>New Password</Text>
+                  <View style={styles.passwordInputWrapper}>
+                    <TextInput
+                      style={styles.passwordInput}
+                      value={newPassword}
+                      onChangeText={setNewPassword}
+                      placeholder="Enter new password"
+                      secureTextEntry={!showNewPassword}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      textContentType="newPassword"
+                      editable={!resettingPassword}
+                    />
+                    <TouchableOpacity
+                      style={styles.passwordToggle}
+                      onPress={() => setShowNewPassword(!showNewPassword)}
+                    >
+                      <Text style={styles.passwordToggleText}>
+                        {showNewPassword ? 'Hide' : 'Show'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {resetError && (
+                  <View style={styles.validationFeedback}>
+                    <Text style={styles.errorText}>{resetError}</Text>
+                  </View>
+                )}
+
+                <TouchableOpacity
+                  style={[
+                    styles.authButton,
+                    (resettingPassword ||
+                      resetCode.length !== 6 ||
+                      !newPassword) &&
+                      styles.disabledButton,
+                  ]}
+                  onPress={handleResetPasswordVerify}
+                  disabled={
+                    resettingPassword || resetCode.length !== 6 || !newPassword
+                  }
+                >
+                  {resettingPassword ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.authButtonText}>Reset Password</Text>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.secondaryButton}
+                  onPress={handleResendResetCode}
+                  disabled={loading || resettingPassword}
+                >
+                  <Text style={styles.secondaryButtonText}>
+                    {loading ? 'Sending...' : 'Resend Code'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.secondaryButton}
+                  onPress={handleBackFromResetCode}
+                  disabled={resettingPassword}
+                >
+                  <Text style={styles.secondaryButtonText}>Back</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      );
+    }
+
+    // US-006: Step 1 — Enter email to receive reset code
     return (
       <KeyboardAvoidingView
         style={styles.container}
@@ -591,15 +1196,15 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
             <View style={styles.headerSection}>
               <Text style={styles.appTitle}>🔑 Reset Password</Text>
               <Text style={styles.appSubtitle}>
-                Enter your email to receive reset instructions
+                Enter your email to receive a reset code
               </Text>
             </View>
 
             <View style={styles.formSection}>
               <Text style={styles.formTitle}>Forgot Your Password?</Text>
               <Text style={styles.formSubtitle}>
-                No worries! Enter your email address and we'll send you
-                instructions to reset your password.
+                No worries! Enter your email address and we'll send you a code
+                to reset your password.
               </Text>
 
               <View style={styles.inputContainer}>
@@ -627,19 +1232,19 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
                   <View style={styles.validationFeedback}>
                     {emailValidation.errors.map((error, index) => (
                       <Text key={`error-${index}`} style={styles.errorText}>
-                        ❌ {error}
+                        {error}
                       </Text>
                     ))}
                     {emailValidation.warnings.map((warning, index) => (
                       <Text key={`warning-${index}`} style={styles.warningText}>
-                        ⚠️ {warning}
+                        {warning}
                       </Text>
                     ))}
                     {emailValidation.isValid &&
                       emailValidation.errors.length === 0 &&
                       emailValidation.warnings.length === 0 && (
                         <Text style={styles.successText}>
-                          ✅ Email looks good!
+                          Email looks good!
                         </Text>
                       )}
                   </View>
@@ -662,28 +1267,21 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
                 }
               >
                 <Text style={styles.authButtonText}>
-                  {loading ? 'Sending...' : 'Send Reset Email'}
+                  {loading ? 'Sending...' : 'Send Reset Code'}
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.secondaryButton}
-                onPress={() => setShowForgotPassword(false)}
+                onPress={() => {
+                  setShowForgotPassword(false);
+                  setShowResetCodeInput(false);
+                  setResetError(null);
+                }}
                 disabled={loading}
               >
                 <Text style={styles.secondaryButtonText}>Back to Sign In</Text>
               </TouchableOpacity>
-
-              {resetEmailSent && (
-                <View style={styles.helpSection}>
-                  <Text style={styles.helpText}>
-                    📧 Check your email for reset instructions
-                  </Text>
-                  <Text style={styles.helpText}>
-                    💡 Don't forget to check your spam folder
-                  </Text>
-                </View>
-              )}
             </View>
           </View>
         </ScrollView>
@@ -1071,7 +1669,9 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
               }
             >
               <Text style={styles.authButtonText}>
-                {loading
+                {isMigrating
+                  ? 'Upgrading account...'
+                  : loading
                   ? 'Please wait...'
                   : isLogin
                   ? 'Sign In'
@@ -1530,6 +2130,28 @@ const styles = StyleSheet.create({
   linkText: {
     color: '#4CAF50',
     fontWeight: '600',
+  },
+  // US-004: Verification code input styles
+  verificationCodeInput: {
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    paddingHorizontal: 15,
+    paddingVertical: 14,
+    fontSize: 28,
+    backgroundColor: '#f8f9fa',
+    textAlign: 'center',
+    letterSpacing: 12,
+    fontWeight: '600',
+  },
+  backButton: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  backButtonText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
   },
 });
 

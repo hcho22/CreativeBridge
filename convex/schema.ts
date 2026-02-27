@@ -122,6 +122,32 @@ export const downloadMethodValidator = v.union(
   v.literal('clipboard'),
 );
 
+/**
+ * Migration event types.
+ * Tracks the lifecycle of a Supabase → Clerk user migration.
+ */
+export const migrationEventTypeValidator = v.union(
+  v.literal('migration_started'),
+  v.literal('migration_completed'),
+  v.literal('migration_failed'),
+);
+
+/**
+ * Migration step identifiers.
+ * Tracks which phase/step of the migration pipeline triggered the event.
+ */
+export const migrationStepValidator = v.union(
+  v.literal('supabase_auth'),
+  v.literal('profile_fetch'),
+  v.literal('clerk_account'),
+  v.literal('email_verification'),
+  v.literal('profile'),
+  v.literal('stats'),
+  v.literal('sessions'),
+  v.literal('supabase_signout'),
+  v.literal('full_migration'),
+);
+
 export default defineSchema({
   /**
    * User Profiles Table (US-003)
@@ -398,4 +424,36 @@ export default defineSchema({
     .index('by_user', ['userId'])
     .index('by_clerk_user', ['clerkUserId'])
     .index('by_session', ['storySessionId']),
+
+  /**
+   * Migration Events Table (US-018)
+   *
+   * Tracks Supabase → Clerk migration lifecycle events for funnel analytics.
+   * Events are logged at each step so admins can identify where users
+   * drop off and diagnose migration failures.
+   *
+   * @index by_event_type - Filter events by type for dashboard stats
+   * @index by_clerk_user - Lookup migration history for a specific user
+   */
+  migrationEvents: defineTable({
+    // Event Classification
+    eventType: migrationEventTypeValidator,
+    step: migrationStepValidator,
+
+    // User References (both optional — user may not yet have a Clerk account)
+    clerkUserId: v.optional(v.string()),
+    supabaseUserId: v.optional(v.string()),
+    email: v.optional(v.string()),
+
+    // Error Information (populated only for migration_failed events)
+    error: v.optional(v.string()),
+
+    // Timing
+    timestamp: v.string(), // ISO 8601
+
+    // Flexible Metadata (session count, batch info, etc.)
+    metadata: v.optional(v.any()),
+  })
+    .index('by_event_type', ['eventType'])
+    .index('by_clerk_user', ['clerkUserId']),
 });

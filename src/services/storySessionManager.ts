@@ -1,49 +1,20 @@
 // Story Session Management Service for CreativeBridge
 // Handles story persistence, progress tracking, and session resumption
-// Now uses Supabase database for persistent storage
+// Uses Convex as the primary database (US-013: Supabase fallbacks removed)
 //
 // Key Features:
-// - Creates sessions in Supabase game_sessions table
+// - Creates sessions in Convex gameSessions table
 // - Updates sessions in real-time with story progress
-// - Provides offline fallback with local caching
+// - Provides offline fallback with local caching (AsyncStorage)
 // - Tracks word count, sentences, XP, and scores
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from './supabase';
-import {
-  GradeLevel,
-  GameSession,
-  GameSessionInsert,
-  GameSessionUpdate,
-  StorySource,
-} from '../types';
+import { GradeLevel, StorySource } from '../types';
 import { ChallengeService } from './challengeService';
 
-// Convex imports for database migration (US-018)
+// Convex imports - primary database
 import { getConvexClient, api, isConvexReady } from './convex';
 import type { Doc, Id } from '../../convex/_generated/dataModel';
-
-// ============================================================================
-// DUAL-WRITE CONFIGURATION (US-031: DISABLED)
-// ============================================================================
-// Migration complete: Convex is now the ONLY data store
-// Dual-write has been disabled per US-031
-const ENABLE_DUAL_WRITE = false;
-
-/**
- * Detect if an ID is a Supabase UUID or a Convex ID.
- * Supabase UUIDs follow pattern: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
- * Convex IDs are alphanumeric strings without dashes.
- * Email/password users have Supabase UUIDs, OAuth users have Clerk IDs (user_xxx).
- */
-const isSupabaseUUID = (id: string): boolean =>
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-
-/**
- * Detect if a user ID is a Clerk user ID (OAuth users) vs Supabase UUID (email/password users).
- * Clerk user IDs start with "user_".
- */
-const isClerkUserId = (userId: string): boolean => userId.startsWith('user_');
 
 /**
  * Convert Convex game session to legacy StorySession format.
@@ -82,9 +53,9 @@ export interface StoryContribution {
   wordCount: number;
 }
 
-// Extended StorySession that includes both Supabase GameSession data and local enhancements
+// Extended StorySession that includes database fields and local enhancements
 export interface StorySession {
-  // Core Supabase GameSession fields
+  // Core GameSession fields
   id: string;
   user_id: string;
   created_at: string;
@@ -109,7 +80,7 @@ export interface StorySession {
   // NEW: Story completion tracking
   current_round: number; // 1-5, story completes at round 5
 
-  // NEW: Image persistence fields (Supabase Storage)
+  // Image persistence fields (storage URL)
   supabase_image_url?: string;
   image_upload_status?: 'pending' | 'uploaded' | 'failed';
   image_upload_attempts?: number;
@@ -158,7 +129,7 @@ class StorySessionManager {
   private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache TTL
   private readonly MAX_CACHE_SIZE = 10; // Keep 10 most recent sessions in memory
 
-  // Create a new story session (Convex PRIMARY, Supabase SECONDARY for dual-write)
+  // Create a new story session (Convex only - US-013)
   public async createSession(
     userId: string,
     gradeLevel: GradeLevel,
@@ -167,60 +138,26 @@ class StorySessionManager {
     try {
       console.log('Creating new session for user:', userId);
 
-      let sessionId: string;
-      let createdAt: string;
-
-      // Check if this is a Clerk user ID (OAuth users) or Supabase UUID (email/password users)
-      // Clerk user IDs start with "user_", Supabase UUIDs are standard UUIDs
-      const isClerkUserId = userId.startsWith('user_');
-
-      // PRIMARY: Create session in Convex (US-018) - only for OAuth/Clerk users
-      if (isConvexReady() && isClerkUserId) {
-        const convexClient = getConvexClient();
-        if (convexClient) {
-          console.log('📝 Creating session in Convex (PRIMARY) for Clerk user');
-          const convexSessionId = await convexClient.mutation(
-            api.gameSessions.createSession,
-            {
-              clerkUserId: userId, // Clerk user ID for OAuth users
-              gradeLevel: gradeLevel,
-              storyMetadata: metadata || {},
-            },
-          );
-          sessionId = convexSessionId;
-          createdAt = new Date().toISOString();
-          console.log('✅ Convex session created:', sessionId);
-        } else {
-          throw new Error('Convex client not available');
-        }
-      } else {
-        // Fallback to Supabase for email/password users or if Convex not ready
-        console.log(
-          isClerkUserId
-            ? '⚠️ Convex not ready, falling back to Supabase'
-            : '📝 Email/password user detected, using Supabase directly',
-        );
-        const { data: gameSession, error } = await supabase
-          .from('game_sessions')
-          .insert({
-            user_id: userId,
-            grade_level: gradeLevel,
-            final_score: 0,
-            words_written: 0,
-            sentences_completed: 0,
-            challenges_completed: 0,
-            xp_earned: 0,
-            story_content: '',
-          } as any)
-          .select()
-          .single();
-
-        if (error) {
-          throw new Error(`Failed to create session: ${error.message}`);
-        }
-        sessionId = (gameSession as any).id;
-        createdAt = (gameSession as any).created_at;
+      if (!isConvexReady()) {
+        throw new Error('Convex is not ready');
       }
+
+      const convexClient = getConvexClient();
+      if (!convexClient) {
+        throw new Error('Convex client not available');
+      }
+
+      console.log('📝 Creating session in Convex');
+      const sessionId = await convexClient.mutation(
+        api.gameSessions.createSession,
+        {
+          clerkUserId: userId,
+          gradeLevel: gradeLevel,
+          storyMetadata: metadata || {},
+        },
+      );
+      const createdAt = new Date().toISOString();
+      console.log('✅ Convex session created:', sessionId);
 
       // Convert to enhanced StorySession format
       const newSession: StorySession = {
@@ -296,7 +233,7 @@ class StorySessionManager {
     }
     session.contributions.push(contribution);
 
-    // Update Supabase fields - append to existing story content instead of rebuilding
+    // Update fields - append to existing story content instead of rebuilding
     if (session.story_content) {
       session.story_content = session.story_content + ' ' + content.trim();
     } else {
@@ -344,12 +281,12 @@ class StorySessionManager {
         new Date(session.created_at).getTime()
       : Date.now() - new Date(session.created_at).getTime();
 
-    // Update session in Supabase
+    // Update session in Convex
     const updatedSession = await this.updateSession(session);
     return updatedSession;
   }
 
-  // Get a specific session (Convex PRIMARY, Supabase/local cache fallback)
+  // Get a specific session (Convex with local cache fallback)
   public async getSession(
     sessionId: string,
     preserveContributions: boolean = false,
@@ -380,15 +317,12 @@ class StorySessionManager {
 
       let session: StorySession | null = null;
 
-      // Detect if this is a Supabase UUID (email/password users) or Convex ID (OAuth users)
-      const isSessionSupabaseUUID = isSupabaseUUID(sessionId);
-
-      // PRIMARY: Try Convex first (US-018) - only for Convex session IDs (OAuth users)
-      if (isConvexReady() && !isSessionSupabaseUUID) {
+      // PRIMARY: Try Convex (US-013: Convex only)
+      if (isConvexReady()) {
         const convexClient = getConvexClient();
         if (convexClient) {
           try {
-            console.log('📖 Fetching session from Convex (PRIMARY)');
+            console.log('📖 Fetching session from Convex');
             const convexSession = await convexClient.query(
               api.gameSessions.getSession,
               { sessionId: sessionId as Id<'gameSessions'> },
@@ -415,80 +349,22 @@ class StorySessionManager {
             }
           } catch (convexError) {
             console.warn(
-              '⚠️ Convex query failed, falling back to Supabase:',
+              '⚠️ Convex query failed, falling back to local cache:',
               convexError,
             );
           }
         }
       }
 
-      // FALLBACK: Try Supabase if Convex didn't return a session
+      // FALLBACK: Try local cache if Convex didn't return a session
       if (!session) {
-        console.log('📖 Fetching session from Supabase (FALLBACK)');
-        const { data: gameSession, error } = await supabase
-          .from('game_sessions')
-          .select('*')
-          .eq('id', sessionId)
-          .single();
-
-        if (error) {
-          console.log(
-            'Session not found in Supabase, checking local cache:',
-            error.message,
-          );
-          // Fallback to local cache
-          const sessionsData = await AsyncStorage.getItem(this.SESSIONS_KEY);
-          if (!sessionsData) return null;
-
+        console.log('📖 Checking local cache for session');
+        const sessionsData = await AsyncStorage.getItem(this.SESSIONS_KEY);
+        if (sessionsData) {
           const sessions: Record<string, StorySession> =
             JSON.parse(sessionsData);
-          return sessions[sessionId] || null;
+          session = sessions[sessionId] || null;
         }
-
-        // Convert Supabase GameSession to enhanced StorySession
-        const dbSession = gameSession as any;
-        console.log('🔍 [DEBUG] Converting DB session to StorySession:', {
-          id: dbSession.id,
-          generated_image_url: dbSession.generated_image_url,
-          image_generation_timestamp: dbSession.image_generation_timestamp,
-          image_generation_cost: dbSession.image_generation_cost,
-        });
-
-        session = {
-          id: dbSession.id,
-          user_id: dbSession.user_id,
-          created_at: dbSession.created_at,
-          completed_at: dbSession.completed_at,
-          grade_level: dbSession.grade_level,
-          final_score: dbSession.final_score || 0,
-          words_written: dbSession.words_written || 0,
-          sentences_completed: dbSession.sentences_completed || 0,
-          challenges_completed: dbSession.challenges_completed || 0,
-          xp_earned: dbSession.xp_earned || 0,
-          story_content: dbSession.story_content || '',
-          story_source: dbSession.story_source || 'New',
-          generated_image_url: dbSession.generated_image_url,
-          image_generation_timestamp: dbSession.image_generation_timestamp,
-          image_generation_cost: dbSession.image_generation_cost,
-          current_round: dbSession.current_round || 1,
-          supabase_image_url: dbSession.supabase_image_url,
-          image_upload_status: dbSession.image_upload_status,
-          image_upload_attempts: dbSession.image_upload_attempts,
-          image_upload_error: dbSession.image_upload_error,
-          isCompleted: !!dbSession.completed_at,
-          contributions: existingContributions,
-          sessionStats: {
-            userWords: dbSession.words_written || 0,
-            aiWords: 0,
-            totalWords: dbSession.words_written || 0,
-            sessionDuration: dbSession.completed_at
-              ? new Date(dbSession.completed_at).getTime() -
-                new Date(dbSession.created_at).getTime()
-              : Date.now() - new Date(dbSession.created_at).getTime(),
-            contributionCount: dbSession.sentences_completed || 0,
-          },
-          metadata: {},
-        };
       }
 
       // If we have existing contributions, recalculate AI words properly
@@ -547,113 +423,66 @@ class StorySessionManager {
     }
   }
 
-  // Get all sessions for a user (Convex PRIMARY, Supabase FALLBACK)
+  // Get all sessions for a user (Convex only - US-013)
   public async getUserSessions(userId: string): Promise<SessionSummary[]> {
     try {
       console.log('Fetching user sessions for user:', userId);
 
-      // Detect if this is a Clerk user ID (OAuth) or Supabase UUID (email/password)
-      const isUserClerkId = isClerkUserId(userId);
-
-      // PRIMARY: Try Convex first (US-018) - only for Clerk/OAuth users
-      if (isConvexReady() && isUserClerkId) {
-        const convexClient = getConvexClient();
-        if (convexClient) {
-          try {
-            console.log('📖 Fetching sessions from Convex (PRIMARY)');
-            const result = await convexClient.query(
-              api.gameSessions.getUserSessions,
-              { clerkUserId: userId, limit: 100 },
-            );
-
-            if (result && result.sessions) {
-              console.log(
-                `✅ Found ${result.sessions.length} sessions in Convex`,
-              );
-              return result.sessions
-                .map(session => ({
-                  id: session._id,
-                  title: this.generateSessionTitle(
-                    session.storyContent || 'Untitled Story',
-                  ),
-                  gradeLevel: session.gradeLevel as GradeLevel,
-                  lastUpdated: session.completedAt
-                    ? new Date(session.completedAt).getTime()
-                    : session._creationTime,
-                  isCompleted: !!session.completedAt,
-                  wordCount: session.wordsWritten,
-                  duration: session.completedAt
-                    ? new Date(session.completedAt).getTime() -
-                      session._creationTime
-                    : 0,
-                }))
-                .sort((a, b) => b.lastUpdated - a.lastUpdated);
-            }
-          } catch (convexError) {
-            console.warn(
-              '⚠️ Convex query failed, falling back to Supabase:',
-              convexError,
-            );
-          }
-        }
-      }
-
-      // FALLBACK: Try Supabase
-      console.log('📖 Fetching sessions from Supabase (FALLBACK)');
-      const { data: gameSessions, error } = await supabase
-        .from('game_sessions')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching user sessions:', error);
+      if (!isConvexReady()) {
+        console.warn('⚠️ Convex not ready, returning empty sessions');
         return [];
       }
 
-      return (gameSessions as any[])
-        .map(session => ({
-          id: session.id,
-          title: this.generateSessionTitle(
-            session.story_content || 'Untitled Story',
-          ),
-          gradeLevel: session.grade_level,
-          lastUpdated: new Date(
-            session.completed_at || session.created_at,
-          ).getTime(),
-          isCompleted: !!session.completed_at,
-          wordCount: session.words_written,
-          duration: session.completed_at
-            ? new Date(session.completed_at).getTime() -
-              new Date(session.created_at).getTime()
-            : 0,
-        }))
-        .sort((a, b) => b.lastUpdated - a.lastUpdated);
+      const convexClient = getConvexClient();
+      if (!convexClient) {
+        console.warn(
+          '⚠️ Convex client not available, returning empty sessions',
+        );
+        return [];
+      }
+
+      console.log('📖 Fetching sessions from Convex');
+      const result = await convexClient.query(
+        api.gameSessions.getUserSessions,
+        { clerkUserId: userId, limit: 100 },
+      );
+
+      if (result && result.sessions) {
+        console.log(`✅ Found ${result.sessions.length} sessions in Convex`);
+        return result.sessions
+          .map(session => ({
+            id: session._id,
+            title: this.generateSessionTitle(
+              session.storyContent || 'Untitled Story',
+            ),
+            gradeLevel: session.gradeLevel as GradeLevel,
+            lastUpdated: session.completedAt
+              ? new Date(session.completedAt).getTime()
+              : session._creationTime,
+            isCompleted: !!session.completedAt,
+            wordCount: session.wordsWritten,
+            duration: session.completedAt
+              ? new Date(session.completedAt).getTime() - session._creationTime
+              : 0,
+          }))
+          .sort((a, b) => b.lastUpdated - a.lastUpdated);
+      }
+
+      return [];
     } catch (error) {
       console.error('Error getting user sessions:', error);
       return [];
     }
   }
 
-  // Update session (Convex PRIMARY, Supabase SECONDARY for dual-write)
+  // Update session (Convex only - US-013)
   public async updateSession(
     session: StorySession,
   ): Promise<StorySession | null> {
     try {
       console.log('Updating session:', session.id);
 
-      // Debug: Log values before rounding to catch type mismatches
-      console.log('🔍 [DEBUG] Session values before database update:', {
-        words_written: session.words_written,
-        sentences_completed: session.sentences_completed,
-        final_score: session.final_score,
-        xp_earned: session.xp_earned,
-        image_generation_cost: session.image_generation_cost,
-        current_round: session.current_round,
-        image_upload_attempts: session.image_upload_attempts,
-      });
-
-      // Prepare update data for both databases
+      // Prepare update data for Convex
       const convexUpdateData = {
         storyContent: session.story_content,
         wordsWritten: Math.round(session.words_written),
@@ -665,83 +494,26 @@ class StorySessionManager {
         storyMetadata: session.metadata || {},
       };
 
-      const supabaseUpdateData = {
-        story_content: session.story_content,
-        words_written: Math.round(session.words_written),
-        sentences_completed: Math.round(session.sentences_completed),
-        final_score: Math.round(session.final_score),
-        xp_earned: Math.round(session.xp_earned),
-        completed_at:
-          session.completed_at ||
-          (session.isCompleted ? new Date().toISOString() : null),
-        generated_image_url: session.generated_image_url || null,
-        image_generation_timestamp: session.image_generation_timestamp || null,
-        image_generation_cost: session.image_generation_cost
-          ? Math.round(session.image_generation_cost)
-          : null,
-        current_round: Math.round(session.current_round),
-        supabase_image_url: session.supabase_image_url || null,
-        image_upload_status: session.image_upload_status || null,
-        image_upload_attempts: session.image_upload_attempts
-          ? Math.round(session.image_upload_attempts)
-          : 0,
-        image_upload_error: session.image_upload_error || null,
-      } as any;
-
-      let updateSucceeded = false;
-
-      // Detect if this is a Supabase UUID (email/password users) or Convex ID (OAuth users)
-      const isSessionSupabaseUUID = isSupabaseUUID(session.id);
-
-      // PRIMARY: Update in Convex (US-018) - only for Convex session IDs (OAuth users)
-      if (isConvexReady() && !isSessionSupabaseUUID) {
+      // Update in Convex
+      if (isConvexReady()) {
         const convexClient = getConvexClient();
         if (convexClient) {
           try {
-            console.log('📝 Updating session in Convex (PRIMARY)');
+            console.log('📝 Updating session in Convex');
             await convexClient.mutation(api.gameSessions.updateSession, {
               sessionId: session.id as Id<'gameSessions'>,
               updates: convexUpdateData,
             });
             console.log('✅ Convex session update successful');
-            updateSucceeded = true;
           } catch (convexError) {
-            console.error('❌ Convex update failed:', convexError);
-            // Fall through to Supabase
-          }
-        }
-      } else if (isSessionSupabaseUUID) {
-        console.log(
-          '📝 Supabase UUID detected, skipping Convex update (email/password user)',
-        );
-      }
-
-      // Fallback to Supabase for email/password users (Supabase UUIDs) or when Convex fails
-      if (!updateSucceeded || isSessionSupabaseUUID) {
-        const logPrefix = isSessionSupabaseUUID
-          ? '📝 Primary (UUID):'
-          : '📝 Fallback:';
-        console.log(`${logPrefix} Updating session in Supabase`);
-
-        const { data: updatedSession, error } = await supabase
-          .from('game_sessions')
-          .update(supabaseUpdateData)
-          .eq('id', session.id)
-          .select()
-          .single();
-
-        if (error) {
-          if (!updateSucceeded) {
-            // Both Convex and Supabase failed
-            console.error('❌ Both Convex and Supabase updates failed:', error);
+            console.error(
+              '❌ Convex update failed, caching locally:',
+              convexError,
+            );
             await this.cacheSessionLocally(session);
             this.addToCache(session);
             return session;
           }
-          // Convex succeeded but Supabase failed (acceptable during migration)
-          console.warn('⚠️ Supabase dual-write failed (non-blocking):', error);
-        } else {
-          console.log('✅ Supabase update successful');
         }
       }
 
@@ -802,7 +574,7 @@ class StorySessionManager {
     session.sessionStats.sessionDuration =
       Date.now() - new Date(session.created_at).getTime();
 
-    // Update session in Supabase with completion
+    // Update session in Convex with completion
     const updatedSession = await this.updateSession(session);
 
     // Clear current session if this was the active one
@@ -833,15 +605,12 @@ class StorySessionManager {
       localPath,
     });
 
-    // Detect if this is a Supabase UUID (email/password users) or Convex ID (OAuth users)
-    const isSessionSupabaseUUID = isSupabaseUUID(sessionId);
-
-    // PRIMARY: Update image in Convex using dedicated mutation (US-018) - only for OAuth users
-    if (isConvexReady() && !isSessionSupabaseUUID) {
+    // Update image in Convex using dedicated mutation
+    if (isConvexReady()) {
       const convexClient = getConvexClient();
       if (convexClient) {
         try {
-          console.log('📸 Updating image in Convex (PRIMARY)');
+          console.log('📸 Updating image in Convex');
           await convexClient.mutation(
             api.gameSessions.updateStoryGeneratedImage,
             {
@@ -866,7 +635,7 @@ class StorySessionManager {
       session.local_image_path = localPath;
     }
 
-    // Update session (includes Supabase dual-write)
+    // Update session in Convex and cache
     const updatedSession = await this.updateSession(session);
     return updatedSession;
   }
@@ -886,12 +655,12 @@ class StorySessionManager {
       localPath,
     });
 
-    // Update session in Supabase and local cache
+    // Update session in Convex and local cache
     const updatedSession = await this.updateSession(session);
     return updatedSession;
   }
 
-  // Update session with image upload status (Convex PRIMARY)
+  // Update session with image upload status (Convex only - US-013)
   public async updateSessionWithSupabaseImage(
     sessionId: string,
     supabaseUrl: string,
@@ -909,15 +678,12 @@ class StorySessionManager {
       hasError: !!error,
     });
 
-    // Detect if this is a Supabase UUID (email/password users) or Convex ID (OAuth users)
-    const isSessionSupabaseUUID = isSupabaseUUID(sessionId);
-
-    // PRIMARY: Update upload status in Convex (US-018) - only for OAuth users
-    if (isConvexReady() && !isSessionSupabaseUUID) {
+    // Update upload status in Convex
+    if (isConvexReady()) {
       const convexClient = getConvexClient();
       if (convexClient) {
         try {
-          console.log('📤 Updating upload status in Convex (PRIMARY)');
+          console.log('📤 Updating upload status in Convex');
           await convexClient.mutation(
             api.gameSessions.updateImageUploadStatus,
             {
@@ -941,7 +707,7 @@ class StorySessionManager {
     session.image_upload_attempts = attempts;
     session.image_upload_error = error;
 
-    // Update session (includes Supabase dual-write)
+    // Update session in Convex
     const updatedSession = await this.updateSession(session);
     return updatedSession;
   }
@@ -1155,7 +921,7 @@ class StorySessionManager {
         ...session,
         // Ensure image URLs are cached for offline access
         generated_image_url: session.generated_image_url,
-        supabase_image_url: session.supabase_image_url, // Cache Supabase URL for offline viewing
+        supabase_image_url: session.supabase_image_url, // Cache storage URL for offline viewing
         image_upload_status: session.image_upload_status,
       };
 
@@ -1252,8 +1018,7 @@ class StorySessionManager {
   }
 
   /**
-   * Update user statistics when a story is completed
-   * Uses Convex for OAuth users (Clerk IDs) and Supabase RPC for email/password users (UUIDs)
+   * Update user statistics when a story is completed (Convex only - US-013)
    */
   private async updateUserStatisticsOnCompletion(
     session: StorySession,
@@ -1267,55 +1032,30 @@ class StorySessionManager {
         finalScore: session.final_score,
       });
 
-      // Check if this is a Clerk user ID (OAuth) or Supabase UUID (email/password)
-      const isUserClerkId = isClerkUserId(session.user_id);
-
-      // PRIMARY: Use Convex for OAuth/Clerk users (US-018)
-      if (isConvexReady() && isUserClerkId) {
-        const convexClient = getConvexClient();
-        if (convexClient) {
-          try {
-            console.log('📊 Updating user statistics via Convex (PRIMARY)');
-            const result = await convexClient.mutation(
-              api.userProfiles.completeGameSession,
-              {
-                clerkUserId: session.user_id,
-                xpEarned: Math.floor(session.xp_earned || 0),
-                wordsWritten: Math.floor(session.words_written || 0),
-                finalScore: Math.floor(session.final_score || 0),
-              },
-            );
-            console.log('✅ Convex user statistics updated:', result);
-            return;
-          } catch (convexError) {
-            console.error('❌ Convex stats update failed:', convexError);
-            // Fall through to try Supabase (will likely fail for Clerk IDs too)
-          }
-        }
+      if (!isConvexReady()) {
+        console.warn('⚠️ Convex not ready, cannot update user statistics');
+        return;
       }
 
-      // FALLBACK: Use Supabase RPC for email/password users (UUID format)
-      // This only works for users with Supabase UUIDs, not Clerk IDs
-      if (!isUserClerkId) {
-        console.log('📊 Updating user statistics via Supabase RPC (FALLBACK)');
-        const { error } = await (supabase.rpc as any)('complete_game_session', {
-          user_uuid: session.user_id,
-          xp_earned: Math.floor(session.xp_earned || 0),
-          words_written: Math.floor(session.words_written || 0),
-          final_score: Math.floor(session.final_score || 0),
-        });
-
-        if (error) {
-          console.error('❌ Failed to update user statistics:', error);
-          // Don't throw - we don't want to block story completion if stats update fails
-        } else {
-          console.log('✅ Supabase user statistics updated successfully');
-        }
-      } else {
+      const convexClient = getConvexClient();
+      if (!convexClient) {
         console.warn(
-          '⚠️ Cannot update user statistics: Convex unavailable and Clerk ID not compatible with Supabase UUID',
+          '⚠️ Convex client not available, cannot update user statistics',
         );
+        return;
       }
+
+      console.log('📊 Updating user statistics via Convex');
+      const result = await convexClient.mutation(
+        api.userProfiles.completeGameSession,
+        {
+          clerkUserId: session.user_id,
+          xpEarned: Math.floor(session.xp_earned || 0),
+          wordsWritten: Math.floor(session.words_written || 0),
+          finalScore: Math.floor(session.final_score || 0),
+        },
+      );
+      console.log('✅ Convex user statistics updated:', result);
     } catch (error) {
       console.error('💥 Exception updating user statistics:', error);
       // Non-blocking error - stats update failure shouldn't prevent story completion

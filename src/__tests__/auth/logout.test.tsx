@@ -1,48 +1,109 @@
 import { renderHook, act } from '@testing-library/react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthProvider, useAuth } from '../../context/AuthContext';
-import { supabase } from '../../services/supabase';
 
-// Mock AsyncStorage
-jest.mock('@react-native-async-storage/async-storage', () => ({
-  getAllKeys: jest.fn(() =>
-    Promise.resolve([
-      '@CreativeBridge:currentSession',
-      '@CreativeBridge:analytics_events',
-      '@CreativeBridge:storyCache',
-      '@CreativeBridge:rememberMe',
-      '@CreativeBridge:userEmail',
-      'otherApp:data',
-    ]),
-  ),
-  multiRemove: jest.fn(() => Promise.resolve()),
-  removeItem: jest.fn(() => Promise.resolve()),
-  setItem: jest.fn(() => Promise.resolve()),
-  getItem: jest.fn(() => Promise.resolve(null)),
+// Mock asyncStorageWrapper (what AuthContext actually imports)
+// Define mock inline in factory to avoid Jest hoisting issues
+jest.mock('../../utils/asyncStorageWrapper', () => ({
+  __esModule: true,
+  default: {
+    getAllKeys: jest.fn(() =>
+      Promise.resolve([
+        '@CreativeBridge:currentSession',
+        '@CreativeBridge:analytics_events',
+        '@CreativeBridge:storyCache',
+        '@CreativeBridge:rememberMe',
+        '@CreativeBridge:userEmail',
+        'otherApp:data',
+      ]),
+    ),
+    multiRemove: jest.fn(() => Promise.resolve()),
+    removeItem: jest.fn(() => Promise.resolve()),
+    setItem: jest.fn(() => Promise.resolve()),
+    getItem: jest.fn(() => Promise.resolve(null)),
+    multiGet: jest.fn(() => Promise.resolve([])),
+    multiSet: jest.fn(() => Promise.resolve()),
+    clear: jest.fn(() => Promise.resolve()),
+  },
 }));
 
-// Mock Supabase
+// Get reference to the mock AFTER mock is registered
+const mockAsyncStorage = require('../../utils/asyncStorageWrapper').default;
+
+// Mock Supabase (still needed for migrateFromSupabase)
 jest.mock('../../services/supabase', () => ({
   supabase: {
     auth: {
       signOut: jest.fn(() => Promise.resolve({ error: null })),
-      getSession: jest.fn(() =>
-        Promise.resolve({ data: { session: null }, error: null }),
-      ),
-      onAuthStateChange: jest.fn(() => ({
-        data: { subscription: { unsubscribe: jest.fn() } },
-      })),
-      getUser: jest.fn(() =>
-        Promise.resolve({ data: { user: null }, error: null }),
+      signInWithPassword: jest.fn(() =>
+        Promise.resolve({ data: {}, error: null }),
       ),
     },
     from: jest.fn(() => ({
-      select: jest.fn(() => ({
-        eq: jest.fn(() => ({
-          single: jest.fn(() => Promise.resolve({ data: null, error: null })),
-        })),
-      })),
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockResolvedValue({ data: [], error: null }),
+      single: jest.fn(() => Promise.resolve({ data: null, error: null })),
     })),
+  },
+}));
+
+// Mock Clerk hooks
+jest.mock('../../hooks/useSafeClerkAuth', () => ({
+  useSafeClerkAuth: () => ({
+    clerkAuth: {
+      isSignedIn: false,
+      userId: null,
+      signOut: jest.fn(),
+      getToken: jest.fn(),
+    },
+    clerkUser: null,
+    clerkSSO: null,
+    clerkSignIn: null,
+    clerkSignUp: null,
+  }),
+}));
+
+jest.mock('convex/react', () => ({
+  useQuery: jest.fn().mockReturnValue(null),
+  useMutation: jest.fn().mockReturnValue(jest.fn()),
+  useConvex: jest.fn().mockReturnValue({ query: jest.fn() }),
+}));
+
+jest.mock('../../services/convex', () => ({
+  api: {
+    userProfiles: {
+      getProfileByClerkId: 'getProfileByClerkId',
+      createOAuthProfile: 'createOAuthProfile',
+      updateProfile: 'updateProfile',
+      addUserXp: 'addUserXp',
+      deductUserXp: 'deductUserXp',
+      refundUserXp: 'refundUserXp',
+      migrateUserStats: 'migrateUserStats',
+    },
+    migration: {
+      migrateUserGameSessions: 'migrateUserGameSessions',
+    },
+  },
+}));
+
+jest.mock('../../utils/clerkTokenCache', () => ({
+  clearAllClerkTokens: jest.fn().mockResolvedValue(undefined),
+  clearAndVerifyTokens: jest.fn().mockResolvedValue(true),
+  hasClerkTokens: jest.fn().mockResolvedValue(false),
+  clerkTokenCache: { clearToken: jest.fn() },
+}));
+
+jest.mock('expo-web-browser', () => ({
+  maybeCompleteAuthSession: jest.fn(),
+}));
+
+jest.mock('../../services/xpEventTracker', () => ({
+  xpEventTracker: {
+    trackXPDeduction: jest.fn(),
+    trackXPRefund: jest.fn(),
+    trackXPValidation: jest.fn(),
+    calculateXPCost: jest.fn().mockReturnValue(1000),
+    createImageGenerationEvent: jest.fn().mockResolvedValue({ success: true }),
   },
 }));
 
@@ -58,9 +119,22 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
   <AuthProvider>{children}</AuthProvider>
 );
 
-describe('Logout Functionality', () => {
+describe('Logout Functionality (US-016)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Reset default mock return values after clearAllMocks
+    mockAsyncStorage.getAllKeys.mockResolvedValue([
+      '@CreativeBridge:currentSession',
+      '@CreativeBridge:analytics_events',
+      '@CreativeBridge:storyCache',
+      '@CreativeBridge:rememberMe',
+      '@CreativeBridge:userEmail',
+      'otherApp:data',
+    ]);
+    mockAsyncStorage.multiRemove.mockResolvedValue(undefined);
+    mockAsyncStorage.removeItem.mockResolvedValue(undefined);
+    mockAsyncStorage.setItem.mockResolvedValue(undefined);
+    mockAsyncStorage.getItem.mockResolvedValue(null);
   });
 
   it('should clear all app data during logout', async () => {
@@ -70,14 +144,11 @@ describe('Logout Functionality', () => {
       await result.current.signOut();
     });
 
-    // Verify Supabase signOut was called
-    expect(supabase.auth.signOut).toHaveBeenCalled();
-
     // Verify getAllKeys was called to get storage keys
-    expect(AsyncStorage.getAllKeys).toHaveBeenCalled();
+    expect(mockAsyncStorage.getAllKeys).toHaveBeenCalled();
 
-    // Verify multiRemove was called with CreativeBridge keys (including remember me when disabled)
-    expect(AsyncStorage.multiRemove).toHaveBeenCalledWith([
+    // Verify multiRemove was called with CreativeBridge keys
+    expect(mockAsyncStorage.multiRemove).toHaveBeenCalledWith([
       '@CreativeBridge:currentSession',
       '@CreativeBridge:analytics_events',
       '@CreativeBridge:storyCache',
@@ -85,8 +156,7 @@ describe('Logout Functionality', () => {
       '@CreativeBridge:userEmail',
     ]);
 
-    // Verify auth state is cleared
-    expect(result.current.session).toBeNull();
+    // Verify auth state is cleared (US-016: no session in interface)
     expect(result.current.user).toBeNull();
     expect(result.current.userProfile).toBeNull();
     expect(result.current.emailConfirmed).toBe(false);
@@ -105,7 +175,7 @@ describe('Logout Functionality', () => {
     });
 
     // Verify multiRemove excludes remember me keys
-    expect(AsyncStorage.multiRemove).toHaveBeenCalledWith([
+    expect(mockAsyncStorage.multiRemove).toHaveBeenCalledWith([
       '@CreativeBridge:currentSession',
       '@CreativeBridge:analytics_events',
       '@CreativeBridge:storyCache',
@@ -115,31 +185,9 @@ describe('Logout Functionality', () => {
     expect(mockRememberMeStorage.clearRememberMe).not.toHaveBeenCalled();
   });
 
-  it('should handle logout errors gracefully', async () => {
-    // Mock Supabase signOut to fail
-    const mockSupabase = supabase as any;
-    mockSupabase.auth.signOut.mockRejectedValue(new Error('Network error'));
-
-    const { result } = renderHook(() => useAuth(), { wrapper });
-
-    await act(async () => {
-      await result.current.signOut();
-    });
-
-    // Even with error, state should be cleared
-    expect(result.current.session).toBeNull();
-    expect(result.current.user).toBeNull();
-    expect(result.current.userProfile).toBeNull();
-
-    // AsyncStorage should still be cleared
-    expect(AsyncStorage.multiRemove).toHaveBeenCalled();
-  });
-
   it('should handle AsyncStorage errors gracefully', async () => {
     // Mock AsyncStorage to fail
-    (AsyncStorage.getAllKeys as jest.Mock).mockRejectedValue(
-      new Error('Storage error'),
-    );
+    mockAsyncStorage.getAllKeys.mockRejectedValue(new Error('Storage error'));
 
     const { result } = renderHook(() => useAuth(), { wrapper });
 
@@ -147,8 +195,7 @@ describe('Logout Functionality', () => {
       await result.current.signOut();
     });
 
-    // Logout should still complete
-    expect(supabase.auth.signOut).toHaveBeenCalled();
-    expect(result.current.session).toBeNull();
+    // Logout should still complete — state cleared
+    expect(result.current.user).toBeNull();
   });
 });

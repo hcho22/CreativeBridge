@@ -255,7 +255,7 @@ export class EmailValidator {
   // Comprehensive validation combining all checks
   static async validateEmail(
     email: string,
-    checkAvailability = false,
+    _checkAvailability = false,
   ): Promise<EmailValidationResult> {
     // Start with format validation
     const formatResult = this.validateFormat(email);
@@ -275,16 +275,10 @@ export class EmailValidator {
       suggestions: formatResult.suggestions,
     };
 
-    // Check availability if requested
-    if (checkAvailability && combinedResult.isValid) {
-      const availabilityResult = await this.checkEmailAvailability(email);
-      if (!availabilityResult.isAvailable) {
-        combinedResult.isValid = false;
-        combinedResult.errors.push(
-          availabilityResult.error || 'Email is not available',
-        );
-      }
-    }
+    // Note: Supabase availability check removed (US-004).
+    // Sign-ups now go through Clerk, which returns its own "email taken" error
+    // via signUpWithClerk() in AuthContext. The legacy Supabase check was causing
+    // false positives for emails that exist in Supabase but not in Clerk.
 
     return combinedResult;
   }
@@ -309,7 +303,7 @@ export const checkEmailAvailability = async (
 
 export const validateEmail = async (
   email: string,
-  checkAvailability = false,
+  _checkAvailability = false,
 ): Promise<EmailValidationResult> => {
-  return EmailValidator.validateEmail(email, checkAvailability);
+  return EmailValidator.validateEmail(email, _checkAvailability);
 };

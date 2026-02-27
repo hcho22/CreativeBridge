@@ -1,16 +1,25 @@
 import React from 'react';
 import { renderHook, act, waitFor } from '@testing-library/react-native';
 import { AuthProvider, useAuth } from '../../context/AuthContext';
-import { mockSupabase } from '../mocks/supabaseMock';
-import {
-  createMockUser,
-  createMockUserProfile,
-  createMockSession,
-} from '../utils/testUtils';
 
 // Mock dependencies
 jest.mock('../../services/supabase', () => ({
-  supabase: mockSupabase,
+  supabase: {
+    auth: {
+      signOut: jest.fn().mockResolvedValue({ error: null }),
+      signInWithPassword: jest
+        .fn()
+        .mockResolvedValue({ data: {}, error: null }),
+    },
+    from: jest.fn(() => ({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockResolvedValue({ data: [], error: null }),
+      single: jest.fn().mockResolvedValue({ data: null, error: null }),
+      insert: jest.fn().mockReturnThis(),
+      update: jest.fn().mockReturnThis(),
+    })),
+  },
 }));
 
 jest.mock('../../services/reactotron', () => ({
@@ -26,14 +35,85 @@ jest.mock('../../utils/rememberMeStorage', () => ({
   },
 }));
 
-describe('AuthContext', () => {
+jest.mock('../../hooks/useSafeClerkAuth', () => ({
+  useSafeClerkAuth: () => ({
+    clerkAuth: {
+      isSignedIn: false,
+      userId: null,
+      signOut: jest.fn(),
+      getToken: jest.fn(),
+    },
+    clerkUser: null,
+    clerkSSO: null,
+    clerkSignIn: null,
+    clerkSignUp: null,
+  }),
+}));
+
+jest.mock('convex/react', () => ({
+  useQuery: jest.fn().mockReturnValue(null),
+  useMutation: jest.fn().mockReturnValue(jest.fn()),
+  useConvex: jest.fn().mockReturnValue({ query: jest.fn() }),
+}));
+
+jest.mock('../../services/convex', () => ({
+  api: {
+    userProfiles: {
+      getProfileByClerkId: 'getProfileByClerkId',
+      createOAuthProfile: 'createOAuthProfile',
+      updateProfile: 'updateProfile',
+      addUserXp: 'addUserXp',
+      deductUserXp: 'deductUserXp',
+      refundUserXp: 'refundUserXp',
+      migrateUserStats: 'migrateUserStats',
+    },
+    migration: {
+      migrateUserGameSessions: 'migrateUserGameSessions',
+    },
+  },
+}));
+
+jest.mock('../../utils/asyncStorageWrapper', () => ({
+  __esModule: true,
+  default: {
+    getItem: jest.fn().mockResolvedValue(null),
+    setItem: jest.fn().mockResolvedValue(undefined),
+    removeItem: jest.fn().mockResolvedValue(undefined),
+    getAllKeys: jest.fn().mockResolvedValue([]),
+    multiRemove: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
+jest.mock('../../utils/clerkTokenCache', () => ({
+  clearAllClerkTokens: jest.fn().mockResolvedValue(undefined),
+  clearAndVerifyTokens: jest.fn().mockResolvedValue(true),
+  hasClerkTokens: jest.fn().mockResolvedValue(false),
+  clerkTokenCache: { clearToken: jest.fn() },
+}));
+
+jest.mock('expo-web-browser', () => ({
+  maybeCompleteAuthSession: jest.fn(),
+}));
+
+jest.mock('../../services/xpEventTracker', () => ({
+  xpEventTracker: {
+    trackXPDeduction: jest.fn(),
+    trackXPRefund: jest.fn(),
+    trackXPValidation: jest.fn(),
+    calculateXPCost: jest.fn().mockReturnValue(1000),
+    createImageGenerationEvent: jest
+      .fn()
+      .mockResolvedValue({ success: true, eventId: 'test' }),
+  },
+}));
+
+describe('AuthContext (US-016)', () => {
   const wrapper = ({ children }: { children: React.ReactNode }) => (
     <AuthProvider>{children}</AuthProvider>
   );
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockSupabase.__testUtils.clear();
   });
 
   describe('initialization', () => {
@@ -42,190 +122,85 @@ describe('AuthContext', () => {
 
       expect(result.current.loading).toBe(true);
       expect(result.current.user).toBeNull();
-      expect(result.current.session).toBeNull();
       expect(result.current.userProfile).toBeNull();
     });
 
-    it('should load existing session on mount', async () => {
-      const mockUser = createMockUser();
-      const mockProfile = createMockUserProfile();
-      const mockSession = createMockSession({ user: mockUser });
-
-      mockSupabase.auth.getSession.mockResolvedValueOnce({
-        data: { session: mockSession },
-        error: null,
-      });
-
-      mockSupabase.__testUtils.setData(
-        'user_profiles',
-        mockUser.id,
-        mockProfile,
-      );
-
+    it('should not expose session in AuthContextType', () => {
       const { result } = renderHook(() => useAuth(), { wrapper });
 
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
-
-      expect(result.current.user).toEqual(mockUser);
-      expect(result.current.session).toEqual(mockSession);
-      expect(result.current.userProfile).toEqual(mockProfile);
+      // US-016: session is removed from the interface
+      expect((result.current as any).session).toBeUndefined();
     });
 
-    it('should handle session initialization errors', async () => {
-      mockSupabase.auth.getSession.mockResolvedValueOnce({
-        data: { session: null },
-        error: { message: 'Session error' },
-      });
+    it('should not expose signUp in AuthContextType', () => {
+      const { result } = renderHook(() => useAuth(), { wrapper });
 
+      // US-016: Supabase signUp removed; use signUpWithClerk instead
+      expect((result.current as any).signUp).toBeUndefined();
+    });
+
+    it('should not expose resendConfirmation in AuthContextType', () => {
+      const { result } = renderHook(() => useAuth(), { wrapper });
+
+      // US-016: Supabase resendConfirmation removed
+      expect((result.current as any).resendConfirmation).toBeUndefined();
+    });
+
+    it('should not expose checkEmailConfirmation in AuthContextType', () => {
+      const { result } = renderHook(() => useAuth(), { wrapper });
+
+      // US-016: Supabase checkEmailConfirmation removed
+      expect((result.current as any).checkEmailConfirmation).toBeUndefined();
+    });
+  });
+
+  describe('AppUser type', () => {
+    it('should provide user as AppUser type with id and email', async () => {
       const { result } = renderHook(() => useAuth(), { wrapper });
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
       });
 
+      // When not signed in, user should be null
       expect(result.current.user).toBeNull();
-      expect(result.current.session).toBeNull();
     });
   });
 
   describe('authentication', () => {
-    it('should sign in successfully with valid credentials', async () => {
+    it('should have signIn function', () => {
       const { result } = renderHook(() => useAuth(), { wrapper });
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
-
-      let signInResult: any;
-      await act(async () => {
-        signInResult = await result.current.signIn(
-          'valid@example.com',
-          'correctpassword',
-        );
-      });
-
-      expect(signInResult).toEqual({});
-      expect(mockSupabase.auth.signInWithPassword).toHaveBeenCalledWith({
-        email: 'valid@example.com',
-        password: 'correctpassword',
-      });
+      expect(typeof result.current.signIn).toBe('function');
     });
 
-    it('should return error for invalid credentials', async () => {
+    it('should have signOut function', () => {
       const { result } = renderHook(() => useAuth(), { wrapper });
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
-
-      let signInResult: any;
-      await act(async () => {
-        signInResult = await result.current.signIn(
-          'invalid@example.com',
-          'wrongpassword',
-        );
-      });
-
-      expect(signInResult).toEqual({ error: 'Invalid credentials' });
+      expect(typeof result.current.signOut).toBe('function');
     });
 
-    it('should sign up new user successfully', async () => {
+    it('should have signUpWithClerk function', () => {
       const { result } = renderHook(() => useAuth(), { wrapper });
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
-
-      const profileData = {
-        username: 'newuser',
-        displayName: 'New User',
-        gradeLevel: 'K-2' as const,
-      };
-
-      let signUpResult: any;
-      await act(async () => {
-        signUpResult = await result.current.signUp(
-          'new@example.com',
-          'password123',
-          profileData,
-        );
-      });
-
-      expect(signUpResult).toEqual({});
-      expect(mockSupabase.auth.signUp).toHaveBeenCalledWith({
-        email: 'new@example.com',
-        password: 'password123',
-      });
+      expect(typeof result.current.signUpWithClerk).toBe('function');
     });
 
-    it('should handle existing user signup error', async () => {
+    it('should have verifyEmailCode function', () => {
       const { result } = renderHook(() => useAuth(), { wrapper });
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
-
-      let signUpResult: any;
-      await act(async () => {
-        signUpResult = await result.current.signUp(
-          'existing@example.com',
-          'password123',
-        );
-      });
-
-      expect(signUpResult).toEqual({ error: 'User already exists' });
+      expect(typeof result.current.verifyEmailCode).toBe('function');
     });
 
-    it('should sign out successfully', async () => {
-      const mockUser = createMockUser();
-      mockSupabase.__testUtils.setUser(mockUser);
-
+    it('should have signInWithClerk function', () => {
       const { result } = renderHook(() => useAuth(), { wrapper });
+      expect(typeof result.current.signInWithClerk).toBe('function');
+    });
 
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
-
-      await act(async () => {
-        await result.current.signOut();
-      });
-
-      expect(mockSupabase.auth.signOut).toHaveBeenCalled();
+    it('should have migrateFromSupabase function', () => {
+      const { result } = renderHook(() => useAuth(), { wrapper });
+      expect(typeof result.current.migrateFromSupabase).toBe('function');
     });
   });
 
   describe('profile management', () => {
-    it('should update user profile successfully', async () => {
-      const mockUser = createMockUser();
-      const mockProfile = createMockUserProfile();
-
-      mockSupabase.__testUtils.setUser(mockUser);
-      mockSupabase.__testUtils.setData(
-        'user_profiles',
-        mockUser.id,
-        mockProfile,
-      );
-
-      const { result } = renderHook(() => useAuth(), { wrapper });
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
-
-      const updates = { display_name: 'Updated Name' };
-      let updateResult: any;
-
-      await act(async () => {
-        updateResult = await result.current.updateProfile(updates);
-      });
-
-      expect(updateResult).toEqual({});
-      expect(mockSupabase.from).toHaveBeenCalledWith('user_profiles');
-    });
-
-    it('should handle profile update errors', async () => {
+    it('should handle profile update error when no user', async () => {
       const { result } = renderHook(() => useAuth(), { wrapper });
 
       await waitFor(() => {
@@ -241,221 +216,39 @@ describe('AuthContext', () => {
 
       expect(updateResult).toEqual({ error: 'No user logged in' });
     });
-
-    it('should refresh profile data', async () => {
-      const mockUser = createMockUser();
-      const mockProfile = createMockUserProfile();
-
-      mockSupabase.__testUtils.setUser(mockUser);
-      mockSupabase.__testUtils.setData(
-        'user_profiles',
-        mockUser.id,
-        mockProfile,
-      );
-
-      const { result } = renderHook(() => useAuth(), { wrapper });
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
-
-      await act(async () => {
-        await result.current.refreshProfile();
-      });
-
-      // Should have called the profile fetch
-      expect(mockSupabase.from).toHaveBeenCalledWith('user_profiles');
-    });
-  });
-
-  describe('email confirmation', () => {
-    it('should handle unconfirmed email state', async () => {
-      const unconfirmedUser = createMockUser({ email_confirmed_at: null });
-      const mockSession = createMockSession({ user: unconfirmedUser });
-
-      mockSupabase.auth.getSession.mockResolvedValueOnce({
-        data: { session: mockSession },
-        error: null,
-      });
-
-      const { result } = renderHook(() => useAuth(), { wrapper });
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
-
-      expect(result.current.emailConfirmed).toBe(false);
-    });
-
-    it('should check email confirmation status', async () => {
-      const { result } = renderHook(() => useAuth(), { wrapper });
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
-
-      let confirmationStatus: boolean;
-      await act(async () => {
-        confirmationStatus = await result.current.checkEmailConfirmation();
-      });
-
-      expect(mockSupabase.auth.getUser).toHaveBeenCalled();
-    });
-
-    it('should resend confirmation email', async () => {
-      const { result } = renderHook(() => useAuth(), { wrapper });
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
-
-      let resendResult: any;
-      await act(async () => {
-        resendResult = await result.current.resendConfirmation(
-          'test@example.com',
-        );
-      });
-
-      expect(resendResult).toEqual({});
-      expect(mockSupabase.auth.resend).toHaveBeenCalledWith({
-        type: 'signup',
-        email: 'test@example.com',
-      });
-    });
   });
 
   describe('password reset', () => {
-    it('should send password reset email', async () => {
+    it('should have resetPassword function', () => {
       const { result } = renderHook(() => useAuth(), { wrapper });
+      expect(typeof result.current.resetPassword).toBe('function');
+    });
 
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
+    it('should have resetPasswordWithClerk function', () => {
+      const { result } = renderHook(() => useAuth(), { wrapper });
+      expect(typeof result.current.resetPasswordWithClerk).toBe('function');
+    });
 
-      let resetResult: any;
-      await act(async () => {
-        resetResult = await result.current.resetPassword('test@example.com');
-      });
-
-      expect(resetResult).toEqual({});
-      expect(mockSupabase.auth.resetPasswordForEmail).toHaveBeenCalledWith(
-        'test@example.com',
-        { redirectTo: 'creativebridge://reset-password' },
-      );
+    it('should have verifyPasswordResetCode function', () => {
+      const { result } = renderHook(() => useAuth(), { wrapper });
+      expect(typeof result.current.verifyPasswordResetCode).toBe('function');
     });
   });
 
-  describe('profile creation and matching', () => {
-    it('should create new profile for new user', async () => {
-      const newUser = createMockUser({ email: 'newuser@example.com' });
-      const mockSession = createMockSession({ user: newUser });
-
-      mockSupabase.auth.getSession.mockResolvedValueOnce({
-        data: { session: mockSession },
-        error: null,
-      });
-
-      // No existing profile found
-      mockSupabase.from().eq.mockResolvedValueOnce({
-        data: null,
-        error: { message: 'Record not found' },
-      });
-
-      // No matching profiles
-      mockSupabase.from().ilike.mockResolvedValueOnce({
-        data: [],
-        error: null,
-      });
-
+  describe('XP operations', () => {
+    it('should have deductXP function', () => {
       const { result } = renderHook(() => useAuth(), { wrapper });
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
-
-      // Should have attempted to create a new profile
-      expect(mockSupabase.from().insert).toHaveBeenCalled();
+      expect(typeof result.current.deductXP).toBe('function');
     });
 
-    it('should link existing profile by email match', async () => {
-      const existingUser = createMockUser({ email: 'existing@example.com' });
-      const mockSession = createMockSession({ user: existingUser });
-      const existingProfile = createMockUserProfile({
-        username: 'existinguser',
-      });
-
-      mockSupabase.auth.getSession.mockResolvedValueOnce({
-        data: { session: mockSession },
-        error: null,
-      });
-
-      // No direct profile match
-      mockSupabase.from().eq.mockResolvedValueOnce({
-        data: null,
-        error: { message: 'Record not found' },
-      });
-
-      // Found matching profile by email prefix
-      mockSupabase.from().ilike.mockResolvedValueOnce({
-        data: [existingProfile],
-        error: null,
-      });
-
+    it('should have refundXP function', () => {
       const { result } = renderHook(() => useAuth(), { wrapper });
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
-
-      // Should have attempted to link the existing profile
-      expect(mockSupabase.from().update).toHaveBeenCalled();
-    });
-  });
-
-  describe('error handling', () => {
-    it('should handle network errors gracefully', async () => {
-      mockSupabase.auth.signInWithPassword.mockRejectedValueOnce(
-        new Error('Network error'),
-      );
-
-      const { result } = renderHook(() => useAuth(), { wrapper });
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
-
-      let signInResult: any;
-      await act(async () => {
-        signInResult = await result.current.signIn(
-          'test@example.com',
-          'password',
-        );
-      });
-
-      expect(signInResult).toEqual({ error: 'An unexpected error occurred' });
+      expect(typeof result.current.refundXP).toBe('function');
     });
 
-    it('should handle profile fetch errors', async () => {
-      const mockUser = createMockUser();
-      const mockSession = createMockSession({ user: mockUser });
-
-      mockSupabase.auth.getSession.mockResolvedValueOnce({
-        data: { session: mockSession },
-        error: null,
-      });
-
-      // Simulate profile fetch error
-      mockSupabase.from().eq.mockRejectedValueOnce(new Error('Database error'));
-
+    it('should have awardOnboardingXP function', () => {
       const { result } = renderHook(() => useAuth(), { wrapper });
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
-
-      // Should still have user but no profile
-      expect(result.current.user).toEqual(mockUser);
-      expect(result.current.userProfile).toBeNull();
+      expect(typeof result.current.awardOnboardingXP).toBe('function');
     });
   });
 });

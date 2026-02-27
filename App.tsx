@@ -19,7 +19,7 @@ import {
   handleClerkCallback,
 } from './src/utils/clerkDeepLink';
 import { useSafeClerkAuth } from './src/hooks/useSafeClerkAuth';
-import { supabase } from './src/services/supabase';
+// Note (US-016): Supabase import removed — auth handled by Clerk only
 
 // Import expo-web-browser with error handling for native module linking
 let WebBrowser: any = null;
@@ -45,14 +45,7 @@ const LoadingScreen: React.FC = () => (
 );
 
 const MainApp: React.FC = () => {
-  const {
-    session,
-    loading,
-    emailConfirmed,
-    checkEmailConfirmation,
-    needsProfileCompletion,
-    refreshProfile,
-  } = useAuth();
+  const { loading, needsProfileCompletion, refreshProfile } = useAuth();
   const { clerkUser, clerkAuth } = useSafeClerkAuth();
   const appState = useRef(AppState.currentState);
   const clerkCallbackProcessed = useRef(false);
@@ -60,7 +53,7 @@ const MainApp: React.FC = () => {
   // ALL useEffect hooks must be called at the top level, before any returns
   useEffect(() => {
     /**
-     * Handle deep links for email confirmation and OAuth callbacks
+     * Handle deep links for OAuth callbacks.
      *
      * Clerk OAuth Deep Linking Flow:
      * 1. User initiates OAuth via signInWithGoogle/Apple in AuthContext
@@ -70,13 +63,8 @@ const MainApp: React.FC = () => {
      * 5. This deep link handler receives the callback URL
      * 6. ClerkProvider automatically processes the redirect URL
      * 7. AuthContext monitors Clerk auth state changes via useEffect
-     * 8. When clerkAuth.isSignedIn becomes true, AuthContext calls handleClerkOAuthCompletion
-     * 9. handleClerkOAuthCompletion:
-     *    - Retrieves Clerk JWT using getToken()
-     *    - Sends Clerk JWT to Supabase for verification via completeOAuthFlow
-     *    - Creates Supabase session using Clerk user ID
-     *    - Updates auth state (session, user, userProfile)
-     *    - Checks if profile completion is needed
+     * 8. When clerkAuth.isSignedIn becomes true, AuthContext calls handleClerkAuthComplete
+     * 9. handleClerkAuthComplete sets AppUser + checks profile completion
      */
     const handleDeepLink = async (url: string) => {
       console.log('🔗 [App] Deep link received:', url);
@@ -147,12 +135,8 @@ const MainApp: React.FC = () => {
                 console.log(
                   '✅ [App] Clerk user is signed in after callback - AuthContext will complete OAuth flow',
                 );
-                // AuthContext's useEffect will detect this and call handleClerkOAuthCompletion
-                // which will:
-                // 1. Retrieve Clerk JWT using getToken()
-                // 2. Send Clerk JWT to Supabase for verification
-                // 3. Handle Supabase session creation using Clerk user ID
-                // 4. Update auth state
+                // AuthContext's useEffect will detect this and call handleClerkAuthComplete
+                // which will set AppUser and check profile completion
               } else {
                 console.log(
                   '⏳ [App] Waiting for Clerk to complete authentication...',
@@ -170,97 +154,8 @@ const MainApp: React.FC = () => {
         return; // Don't process as Supabase callback
       }
 
-      // Check if it's a Supabase auth callback (email confirmation or OAuth)
-      // OAuth callbacks typically come as: creativebridge://auth/callback#access_token=...&refresh_token=...
-      // Email confirmation comes as: creativebridge://auth/callback?token=...&type=...
-      if (
-        url.includes('#access_token=') ||
-        url.includes('?access_token=') ||
-        url.includes('access_token=') ||
-        url.includes('auth/callback')
-      ) {
-        try {
-          console.log(
-            '✅ Auth callback detected via deep link (email confirmation or OAuth)',
-          );
-
-          // Parse the URL to extract tokens
-          // Supabase OAuth callbacks use hash fragments: #access_token=...&refresh_token=...
-          const hashMatch = url.match(/#(.+)/);
-          const queryMatch = url.match(/\?(.+)/);
-
-          if (hashMatch) {
-            // Parse hash fragment (OAuth callback)
-            const hashParams = new URLSearchParams(hashMatch[1]);
-            const accessToken = hashParams.get('access_token');
-            const refreshToken = hashParams.get('refresh_token');
-            const errorParam = hashParams.get('error');
-            const errorDescription = hashParams.get('error_description');
-
-            if (errorParam) {
-              console.error(
-                '❌ OAuth error in callback:',
-                errorParam,
-                errorDescription,
-              );
-              return;
-            }
-
-            if (accessToken && refreshToken) {
-              console.log('🔐 Setting OAuth session from callback...');
-
-              // Set the session manually since detectSessionInUrl is false
-              const { error } = await supabase.auth.setSession({
-                access_token: accessToken,
-                refresh_token: refreshToken,
-              });
-
-              if (error) {
-                console.error('❌ Error setting OAuth session:', error);
-                console.error(
-                  '❌ Error details:',
-                  JSON.stringify(error, null, 2),
-                );
-              } else {
-                console.log('✅ OAuth session set successfully');
-                // The auth state change listener in AuthContext will handle the rest
-                // Give it a moment to process
-                setTimeout(async () => {
-                  await checkEmailConfirmation();
-                }, 500);
-              }
-            } else {
-              console.warn('⚠️ OAuth callback missing required tokens');
-              console.warn('⚠️ URL received:', url.substring(0, 200));
-            }
-          } else if (queryMatch) {
-            // Parse query params (email confirmation)
-            const queryParams = new URLSearchParams(queryMatch[1]);
-            const token = queryParams.get('token');
-            const type = queryParams.get('type');
-
-            if (token && type === 'recovery') {
-              // Password reset - handled elsewhere
-              console.log('📧 Password reset token detected');
-            } else if (token) {
-              // Email confirmation - Supabase handles this automatically
-              console.log('📧 Email confirmation token detected');
-              // Give Supabase a moment to process
-              setTimeout(async () => {
-                await checkEmailConfirmation();
-              }, 1000);
-            }
-          } else {
-            // Fallback: Let Supabase try to detect the session
-            console.log('🔄 Attempting to detect session from URL...');
-            setTimeout(async () => {
-              await checkEmailConfirmation();
-            }, 1000);
-          }
-        } catch (error) {
-          console.error('❌ Error handling auth callback:', error);
-        }
-      }
+      // Note (US-016): Supabase auth callback handling removed.
+      // Clerk handles all auth callbacks via ClerkProvider.
     };
 
     // Handle app launch with deep link
@@ -303,7 +198,7 @@ const MainApp: React.FC = () => {
       linkingSubscription?.remove();
       appStateSubscription?.remove();
     };
-  }, [checkEmailConfirmation, clerkAuth, clerkUser]);
+  }, [clerkAuth, clerkUser]);
 
   // Now handle the conditional rendering AFTER all hooks
   if (loading) {
@@ -312,35 +207,16 @@ const MainApp: React.FC = () => {
 
   // Debug auth state
   console.log('🔍 [App] Auth state check:', {
-    hasSession: !!session,
-    emailConfirmed,
     clerkIsSignedIn: clerkAuth?.isSignedIn,
     clerkUserId: clerkAuth?.userId,
     hasClerkUser: !!clerkUser,
   });
 
-  // Show auth screen if:
-  // 1. No Supabase session AND no Clerk session (not authenticated at all)
-  // 2. OR if Supabase user exists but email is not confirmed (and not an OAuth user)
-  const isClerkAuthenticated = clerkAuth?.isSignedIn === true;
-  const isSupabaseAuthenticated = !!session;
-  const isAuthenticated = isClerkAuthenticated || isSupabaseAuthenticated;
+  // US-016: Clerk is the sole auth provider
+  const isAuthenticated = clerkAuth?.isSignedIn === true;
 
-  // For OAuth users (Clerk), email is always confirmed
-  // For email/password users (Supabase), check emailConfirmed state
-  const needsEmailConfirmation =
-    isSupabaseAuthenticated &&
-    session?.user &&
-    !emailConfirmed &&
-    !isClerkAuthenticated;
-
-  if (!isAuthenticated || needsEmailConfirmation) {
-    console.log('🔍 [App] Showing auth screen:', {
-      isAuthenticated,
-      needsEmailConfirmation,
-      isClerkAuthenticated,
-      isSupabaseAuthenticated,
-    });
+  if (!isAuthenticated) {
+    console.log('🔍 [App] Not authenticated, showing auth screen');
     return <AuthScreen />;
   }
 

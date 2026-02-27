@@ -531,6 +531,38 @@ export const getSession = query({
 });
 
 /**
+ * Delete a game session.
+ *
+ * Replaces: Supabase DELETE from game_sessions
+ *
+ * Authorization check ensures users can only delete their own sessions.
+ *
+ * @param sessionId - The Convex ID of the session to delete
+ * @returns Success indicator
+ */
+export const deleteSession = mutation({
+  args: {
+    sessionId: v.id('gameSessions'),
+  },
+  handler: async (ctx, args) => {
+    const authClerkId = await getClerkUserId(ctx);
+
+    const session = await ctx.db.get(args.sessionId);
+    if (!session) {
+      throw new Error('Session not found.');
+    }
+
+    if (session.clerkUserId !== authClerkId) {
+      throw new Error('Not authorized to delete this session.');
+    }
+
+    await ctx.db.delete(args.sessionId);
+
+    return { success: true };
+  },
+});
+
+/**
  * Get user's session history with pagination.
  *
  * Returns completed and in-progress sessions ordered by creation time.

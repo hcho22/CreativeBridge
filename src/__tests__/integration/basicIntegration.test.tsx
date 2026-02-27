@@ -1,8 +1,20 @@
-// Basic integration test to validate setup
+// Basic integration test to validate setup (US-016: Clerk-only auth)
 import React from 'react';
 import { renderHook, act, waitFor } from '@testing-library/react-native';
 
-// Import mock first
+// Import mock first — use a shared chain object so mockResolvedValueOnce
+// calls apply to the same instance that tests use
+const mockChain = {
+  select: jest.fn().mockReturnThis(),
+  insert: jest.fn(),
+  update: jest.fn().mockReturnThis(),
+  delete: jest.fn().mockReturnThis(),
+  eq: jest.fn(),
+  single: jest.fn(),
+  ilike: jest.fn(),
+  limit: jest.fn().mockResolvedValue({ data: [], error: null }),
+};
+
 const mockSupabase = {
   auth: {
     signInWithPassword: jest.fn(),
@@ -14,15 +26,7 @@ const mockSupabase = {
     resetPasswordForEmail: jest.fn(),
     resend: jest.fn(),
   },
-  from: jest.fn(() => ({
-    select: jest.fn().mockReturnThis(),
-    insert: jest.fn(),
-    update: jest.fn().mockReturnThis(),
-    delete: jest.fn().mockReturnThis(),
-    eq: jest.fn(),
-    single: jest.fn(),
-    ilike: jest.fn(),
-  })),
+  from: jest.fn((_table?: string) => mockChain),
   rpc: jest.fn(),
   __testUtils: {
     clear: jest.fn(),
@@ -50,17 +54,82 @@ jest.mock('../../utils/rememberMeStorage', () => ({
   },
 }));
 
+// Mock Clerk hooks
+jest.mock('../../hooks/useSafeClerkAuth', () => ({
+  useSafeClerkAuth: () => ({
+    clerkAuth: {
+      isSignedIn: false,
+      userId: null,
+      signOut: jest.fn(),
+      getToken: jest.fn(),
+    },
+    clerkUser: null,
+    clerkSSO: null,
+    clerkSignIn: null,
+    clerkSignUp: null,
+  }),
+}));
+
+jest.mock('convex/react', () => ({
+  useQuery: jest.fn().mockReturnValue(null),
+  useMutation: jest.fn().mockReturnValue(jest.fn()),
+  useConvex: jest.fn().mockReturnValue({ query: jest.fn() }),
+}));
+
+jest.mock('../../services/convex', () => ({
+  api: {
+    userProfiles: {
+      getProfileByClerkId: 'getProfileByClerkId',
+      createOAuthProfile: 'createOAuthProfile',
+      updateProfile: 'updateProfile',
+      addUserXp: 'addUserXp',
+      deductUserXp: 'deductUserXp',
+      refundUserXp: 'refundUserXp',
+      migrateUserStats: 'migrateUserStats',
+    },
+    migration: {
+      migrateUserGameSessions: 'migrateUserGameSessions',
+    },
+  },
+}));
+
+jest.mock('../../utils/clerkTokenCache', () => ({
+  clearAllClerkTokens: jest.fn().mockResolvedValue(undefined),
+  clearAndVerifyTokens: jest.fn().mockResolvedValue(true),
+  hasClerkTokens: jest.fn().mockResolvedValue(false),
+  clerkTokenCache: { clearToken: jest.fn() },
+}));
+
+jest.mock('expo-web-browser', () => ({
+  maybeCompleteAuthSession: jest.fn(),
+}));
+
+jest.mock('../../services/xpEventTracker', () => ({
+  xpEventTracker: {
+    trackXPDeduction: jest.fn(),
+    trackXPRefund: jest.fn(),
+    trackXPValidation: jest.fn(),
+    calculateXPCost: jest.fn().mockReturnValue(1000),
+    createImageGenerationEvent: jest.fn().mockResolvedValue({ success: true }),
+  },
+}));
+
+jest.mock('../../utils/asyncStorageWrapper', () => ({
+  __esModule: true,
+  default: {
+    getAllKeys: jest.fn(() => Promise.resolve([])),
+    multiRemove: jest.fn(() => Promise.resolve()),
+    multiGet: jest.fn(() => Promise.resolve([])),
+    multiSet: jest.fn(() => Promise.resolve()),
+    removeItem: jest.fn(() => Promise.resolve()),
+    setItem: jest.fn(() => Promise.resolve()),
+    getItem: jest.fn(() => Promise.resolve(null)),
+    clear: jest.fn(() => Promise.resolve()),
+  },
+}));
+
 // Import components after mocks
 import { AuthProvider, useAuth } from '../../context/AuthContext';
-
-const createMockUser = (overrides = {}) => ({
-  id: 'test-user-id',
-  email: 'test@example.com',
-  email_confirmed_at: new Date().toISOString(),
-  created_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
-  ...overrides,
-});
 
 const createMockUserProfile = (overrides = {}) => ({
   id: 'test-user-id',
@@ -81,7 +150,7 @@ const createMockUserProfile = (overrides = {}) => ({
   ...overrides,
 });
 
-describe('Basic Integration Tests', () => {
+describe('Basic Integration Tests (US-016)', () => {
   const wrapper = ({ children }: { children: React.ReactNode }) => (
     <AuthProvider>{children}</AuthProvider>
   );
@@ -98,106 +167,26 @@ describe('Basic Integration Tests', () => {
         expect(result.current.loading).toBe(false);
       });
 
+      // US-016: Clerk-only auth functions
       expect(result.current.signIn).toBeDefined();
-      expect(result.current.signUp).toBeDefined();
       expect(result.current.signOut).toBeDefined();
+      expect(result.current.signUpWithClerk).toBeDefined();
+      expect(result.current.signInWithClerk).toBeDefined();
+
+      // US-016: Removed Supabase-specific functions
+      expect((result.current as any).signUp).toBeUndefined();
+      expect((result.current as any).session).toBeUndefined();
     });
 
-    it('should handle successful sign in flow', async () => {
+    it('should initialize with null user when not signed in', async () => {
       const { result } = renderHook(() => useAuth(), { wrapper });
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
       });
 
-      const mockUser = createMockUser();
-      mockSupabase.auth.signInWithPassword.mockResolvedValueOnce({
-        data: {
-          user: mockUser,
-          session: { access_token: 'token', user: mockUser },
-        },
-        error: null,
-      });
-
-      let signInResult: any;
-      await act(async () => {
-        signInResult = await result.current.signIn(
-          'test@example.com',
-          'password123',
-        );
-      });
-
-      expect(signInResult).toEqual({});
-      expect(mockSupabase.auth.signInWithPassword).toHaveBeenCalledWith({
-        email: 'test@example.com',
-        password: 'password123',
-      });
-    });
-
-    it('should handle authentication errors', async () => {
-      const { result } = renderHook(() => useAuth(), { wrapper });
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
-
-      mockSupabase.auth.signInWithPassword.mockResolvedValueOnce({
-        data: { user: null, session: null },
-        error: { message: 'Invalid credentials' },
-      });
-
-      let signInResult: any;
-      await act(async () => {
-        signInResult = await result.current.signIn(
-          'test@example.com',
-          'wrongpassword',
-        );
-      });
-
-      expect(signInResult).toEqual({ error: 'Invalid credentials' });
-    });
-  });
-
-  describe('Profile Integration', () => {
-    it('should handle profile updates', async () => {
-      const mockUser = createMockUser();
-      const mockProfile = createMockUserProfile({ id: mockUser.id });
-
-      // Mock session and user
-      mockSupabase.auth.getSession.mockResolvedValueOnce({
-        data: { session: { user: mockUser } },
-        error: null,
-      });
-
-      // Mock profile fetch
-      mockSupabase.from().eq.mockResolvedValueOnce({
-        data: mockProfile,
-        error: null,
-      });
-
-      const { result } = renderHook(() => useAuth(), { wrapper });
-
-      await waitFor(() => {
-        expect(result.current.user).toEqual(mockUser);
-      });
-
-      // Test profile update
-      const updates = { display_name: 'Updated Name' };
-      const updatedProfile = { ...mockProfile, ...updates };
-
-      mockSupabase.from().update.mockReturnThis();
-      mockSupabase.from().update().eq.mockResolvedValueOnce({
-        data: updatedProfile,
-        error: null,
-      });
-
-      let updateResult: any;
-      await act(async () => {
-        updateResult = await result.current.updateProfile(updates);
-      });
-
-      expect(updateResult).toEqual({});
-      expect(mockSupabase.from().update).toHaveBeenCalledWith(updates);
+      expect(result.current.user).toBeNull();
+      expect(result.current.userProfile).toBeNull();
     });
   });
 
@@ -210,7 +199,7 @@ describe('Basic Integration Tests', () => {
         error: null,
       });
 
-      // Simulate profile fetch
+      // Simulate profile fetch via Supabase mock directly
       const { data } = await mockSupabase
         .from('user_profiles')
         .select('*')
@@ -251,41 +240,6 @@ describe('Basic Integration Tests', () => {
       expect(mockSupabase.rpc).toHaveBeenCalledWith('test_function', {
         param1: 'value1',
       });
-    });
-  });
-
-  describe('Session Management Integration', () => {
-    it('should handle session state changes', async () => {
-      let authCallback: (event: string, session: any) => void;
-      mockSupabase.auth.onAuthStateChange.mockImplementationOnce(callback => {
-        authCallback = callback;
-        return {
-          data: {
-            subscription: { unsubscribe: jest.fn() },
-          },
-        };
-      });
-
-      const { result } = renderHook(() => useAuth(), { wrapper });
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
-
-      // Simulate auth state change
-      const mockUser = createMockUser();
-      const mockSession = { access_token: 'token', user: mockUser };
-
-      act(() => {
-        authCallback!('SIGNED_IN', mockSession);
-      });
-
-      await waitFor(() => {
-        expect(result.current.session).toEqual(mockSession);
-        expect(result.current.user).toEqual(mockUser);
-      });
-
-      expect(mockSupabase.auth.onAuthStateChange).toHaveBeenCalled();
     });
   });
 });

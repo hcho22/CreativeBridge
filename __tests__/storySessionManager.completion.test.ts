@@ -1,83 +1,106 @@
 // Story Completion Tracking Tests
 // Tests for Task 3.1: Round tracking and auto-completion logic
+//
+// Updated for US-013: All tests now use Convex mocks (Supabase removed).
 
 import {
   storySessionManager,
   StorySession,
 } from '../src/services/storySessionManager';
-import { supabase } from '../src/services/supabase';
 import { GradeLevel } from '../src/types';
 
 // Mock AsyncStorage
 jest.mock('@react-native-async-storage/async-storage', () => ({
-  getItem: jest.fn(),
-  setItem: jest.fn(),
-  removeItem: jest.fn(),
-  multiRemove: jest.fn(),
+  getItem: jest.fn(() => Promise.resolve(JSON.stringify({}))),
+  setItem: jest.fn(() => Promise.resolve()),
+  removeItem: jest.fn(() => Promise.resolve()),
+  multiRemove: jest.fn(() => Promise.resolve()),
 }));
 
-// Mock Supabase
-jest.mock('../src/services/supabase', () => ({
-  supabase: {
-    from: jest.fn(),
+// Mock Convex client
+const mockConvexClient = {
+  mutation: jest.fn(),
+  query: jest.fn(),
+};
+
+jest.mock('../src/services/convex', () => ({
+  getConvexClient: jest.fn(() => mockConvexClient),
+  isConvexReady: jest.fn(() => true),
+  api: {
+    gameSessions: {
+      createSession: 'gameSessions:createSession',
+      getSession: 'gameSessions:getSession',
+      getUserSessions: 'gameSessions:getUserSessions',
+      updateSession: 'gameSessions:updateSession',
+      updateStoryGeneratedImage: 'gameSessions:updateStoryGeneratedImage',
+      updateImageUploadStatus: 'gameSessions:updateImageUploadStatus',
+    },
+    userProfiles: {
+      completeGameSession: 'userProfiles:completeGameSession',
+    },
   },
 }));
 
+const { isConvexReady, getConvexClient } = require('../src/services/convex');
+
+// Mock ChallengeService for completion calculations
+jest.mock('../src/services/challengeService', () => ({
+  ChallengeService: {
+    getInstance: jest.fn(() => ({
+      calculateXPRewards: jest.fn(() => ({
+        baseXP: 100,
+        challengeXP: 50,
+        completionXP: 100,
+        timeBonus: 25,
+      })),
+      getTotalXP: jest.fn(() => 275),
+    })),
+  },
+}));
+
+function mockConvexSession(overrides: Record<string, any> = {}) {
+  return {
+    _id: 'test-session-123',
+    _creationTime: Date.now(),
+    userId: 'user_test123',
+    clerkUserId: 'user_test123',
+    gradeLevel: 'K-2',
+    storyContent: '',
+    wordsWritten: 0,
+    sentencesCompleted: 0,
+    challengesCompleted: 0,
+    currentRound: 1,
+    xpEarned: 0,
+    finalScore: 0,
+    completedAt: undefined,
+    storySource: 'New',
+    storyMetadata: {},
+    generatedImageUrl: undefined,
+    imageGenerationTimestamp: undefined,
+    imageGenerationCost: undefined,
+    imageUploadStatus: undefined,
+    imageUploadAttempts: undefined,
+    imageUploadError: undefined,
+    ...overrides,
+  };
+}
+
 describe('Story Completion Tracking - Task 3.1', () => {
-  const mockUserId = 'test-user-uuid';
+  const mockUserId = 'user_test123';
   const mockGradeLevel: GradeLevel = 'K-2';
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (isConvexReady as jest.Mock).mockReturnValue(true);
+    (getConvexClient as jest.Mock).mockReturnValue(mockConvexClient);
+    mockConvexClient.mutation.mockResolvedValue(undefined);
+    storySessionManager.clearCache();
   });
 
-  // Test 1: Round increments after each AI response
   describe('Round Increment Logic', () => {
     it('should increment current_round after AI contribution', async () => {
-      // Mock session creation
-      const mockSessionId = 'test-session-123';
-      const mockCreatedSession = {
-        id: mockSessionId,
-        user_id: mockUserId,
-        grade_level: mockGradeLevel,
-        created_at: new Date().toISOString(),
-        current_round: 1,
-        final_score: 0,
-        words_written: 0,
-        sentences_completed: 0,
-        challenges_completed: 0,
-        xp_earned: 0,
-        story_content: '',
-      };
-
-      (supabase.from as jest.Mock).mockReturnValue({
-        insert: jest.fn().mockReturnValue({
-          select: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({
-              data: mockCreatedSession,
-              error: null,
-            }),
-          }),
-        }),
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({
-              data: mockCreatedSession,
-              error: null,
-            }),
-          }),
-        }),
-        update: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            select: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: { ...mockCreatedSession, current_round: 2 },
-                error: null,
-              }),
-            }),
-          }),
-        }),
-      });
+      // Create session
+      mockConvexClient.mutation.mockResolvedValueOnce('test-session-123');
 
       const session = await storySessionManager.createSession(
         mockUserId,
@@ -85,25 +108,7 @@ describe('Story Completion Tracking - Task 3.1', () => {
       );
       expect(session.current_round).toBe(1);
 
-      // Mock for user contribution (round should stay at 1)
-      (supabase.from as jest.Mock).mockReturnValue({
-        update: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            select: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: {
-                  ...mockCreatedSession,
-                  current_round: 1, // User contribution doesn't change round
-                  sentences_completed: 1,
-                  story_content: 'Once upon a time',
-                },
-                error: null,
-              }),
-            }),
-          }),
-        }),
-      });
-
+      // User contribution - round stays at 1
       const afterUser = await storySessionManager.addContribution(
         session.id,
         'user',
@@ -112,27 +117,7 @@ describe('Story Completion Tracking - Task 3.1', () => {
       );
       expect(afterUser?.current_round).toBe(1);
 
-      // Mock for AI contribution (round should increment to 2)
-      const mockUpdatedSession = {
-        ...mockCreatedSession,
-        current_round: 2,
-        sentences_completed: 2,
-        story_content: 'Once upon a time there was a brave knight.',
-      };
-
-      (supabase.from as jest.Mock).mockReturnValue({
-        update: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            select: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: mockUpdatedSession,
-                error: null,
-              }),
-            }),
-          }),
-        }),
-      });
-
+      // AI contribution - round increments to 2
       const afterAI = await storySessionManager.addContribution(
         session.id,
         'ai',
@@ -169,56 +154,25 @@ describe('Story Completion Tracking - Task 3.1', () => {
         metadata: {},
       };
 
-      // Simulate 3 full rounds
+      // Simulate 3 full rounds of AI contributions
+      let currentSession = mockSession;
       for (let round = 1; round <= 3; round++) {
-        // User contribution
-        mockSession.contributions.push({
-          type: 'user',
-          content: `User input ${round}`,
-          timestamp: Date.now(),
-          wordCount: 3,
-        });
-
-        // AI contribution - this should increment the round
-        mockSession.contributions.push({
-          type: 'ai',
-          content: `AI response ${round}`,
-          timestamp: Date.now(),
-          wordCount: 3,
-        });
-
-        // Mock the update for AI response
-        const expectedRound = round + 1;
-        (supabase.from as jest.Mock).mockReturnValue({
-          update: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              select: jest.fn().mockReturnValue({
-                single: jest.fn().mockResolvedValue({
-                  data: { ...mockSession, current_round: expectedRound },
-                  error: null,
-                }),
-              }),
-            }),
-          }),
-        });
-
         const updated = await storySessionManager.addContribution(
-          mockSession.id,
+          currentSession.id,
           'ai',
           `AI response ${round}`,
-          mockSession,
+          currentSession,
         );
 
-        expect(updated?.current_round).toBe(expectedRound);
-        mockSession.current_round = expectedRound;
+        expect(updated?.current_round).toBe(round + 1);
+        currentSession = updated!;
       }
 
-      // After 3 rounds, should be at round 4
-      expect(mockSession.current_round).toBe(4);
+      // After 3 AI contributions, should be at round 4
+      expect(currentSession.current_round).toBe(4);
     });
   });
 
-  // Test 2: Story marked complete at round 5
   describe('Auto-Completion at MAX_ROUNDS', () => {
     it('should mark story as complete when reaching MAX_ROUNDS (5)', async () => {
       const mockSession: StorySession = {
@@ -226,7 +180,7 @@ describe('Story Completion Tracking - Task 3.1', () => {
         user_id: mockUserId,
         grade_level: mockGradeLevel,
         created_at: new Date().toISOString(),
-        current_round: 4, // Starting at round 4, next AI response will complete
+        current_round: 4,
         final_score: 0,
         words_written: 50,
         sentences_completed: 8,
@@ -245,25 +199,6 @@ describe('Story Completion Tracking - Task 3.1', () => {
         },
         metadata: {},
       };
-
-      // Mock the final AI contribution that should complete the story
-      const completedAt = new Date().toISOString();
-      (supabase.from as jest.Mock).mockReturnValue({
-        update: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            select: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: {
-                  ...mockSession,
-                  current_round: 5,
-                  completed_at: completedAt,
-                },
-                error: null,
-              }),
-            }),
-          }),
-        }),
-      });
 
       const completed = await storySessionManager.addContribution(
         mockSession.id,
@@ -284,7 +219,7 @@ describe('Story Completion Tracking - Task 3.1', () => {
         id: 'test-session-timestamp',
         user_id: mockUserId,
         grade_level: mockGradeLevel,
-        created_at: new Date(beforeCompletion - 300000).toISOString(), // 5 min ago
+        created_at: new Date(beforeCompletion - 300000).toISOString(),
         current_round: 4,
         final_score: 0,
         words_written: 40,
@@ -305,24 +240,6 @@ describe('Story Completion Tracking - Task 3.1', () => {
         metadata: {},
       };
 
-      const completedAt = new Date().toISOString();
-      (supabase.from as jest.Mock).mockReturnValue({
-        update: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            select: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: {
-                  ...mockSession,
-                  current_round: 5,
-                  completed_at: completedAt,
-                },
-                error: null,
-              }),
-            }),
-          }),
-        }),
-      });
-
       const completed = await storySessionManager.addContribution(
         mockSession.id,
         'ai',
@@ -339,7 +256,6 @@ describe('Story Completion Tracking - Task 3.1', () => {
     });
   });
 
-  // Test 3: Round doesn't exceed MAX_ROUNDS
   describe('MAX_ROUNDS Boundary', () => {
     it('should cap current_round at MAX_ROUNDS (5)', async () => {
       const mockSession: StorySession = {
@@ -347,7 +263,7 @@ describe('Story Completion Tracking - Task 3.1', () => {
         user_id: mockUserId,
         grade_level: mockGradeLevel,
         created_at: new Date().toISOString(),
-        current_round: 5, // Already at max
+        current_round: 5,
         final_score: 0,
         words_written: 60,
         sentences_completed: 10,
@@ -368,23 +284,6 @@ describe('Story Completion Tracking - Task 3.1', () => {
         metadata: {},
       };
 
-      // Try to add another AI contribution (shouldn't increase round beyond 5)
-      (supabase.from as jest.Mock).mockReturnValue({
-        update: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            select: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: {
-                  ...mockSession,
-                  current_round: 5, // Should stay at 5
-                },
-                error: null,
-              }),
-            }),
-          }),
-        }),
-      });
-
       const afterExtraContribution = await storySessionManager.addContribution(
         mockSession.id,
         'ai',
@@ -392,42 +291,26 @@ describe('Story Completion Tracking - Task 3.1', () => {
         mockSession,
       );
 
-      expect(afterExtraContribution?.current_round).toBe(5); // Should not exceed 5
+      expect(afterExtraContribution?.current_round).toBe(5);
     });
   });
 
-  // Test 4: Existing sessions default to round 1
   describe('Backward Compatibility', () => {
-    it('should default to round 1 for existing sessions without current_round', async () => {
-      const mockOldSession = {
-        id: 'old-session-123',
-        user_id: mockUserId,
-        grade_level: mockGradeLevel,
-        created_at: new Date().toISOString(),
-        // Note: current_round is missing (old session)
-        final_score: 0,
-        words_written: 20,
-        sentences_completed: 4,
-        challenges_completed: 0,
-        xp_earned: 0,
-        story_content: 'Existing story...',
-      };
-
-      (supabase.from as jest.Mock).mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({
-              data: mockOldSession,
-              error: null,
-            }),
-          }),
-        }),
+    it('should handle sessions loaded from Convex correctly', async () => {
+      const convexSession = mockConvexSession({
+        _id: 'old-session-123',
+        storyContent: 'Existing story...',
+        wordsWritten: 20,
+        sentencesCompleted: 4,
+        currentRound: 1,
       });
+
+      mockConvexClient.query.mockResolvedValueOnce(convexSession);
 
       const session = await storySessionManager.getSession('old-session-123');
 
       expect(session).toBeTruthy();
-      expect(session?.current_round).toBe(1); // Should default to 1
+      expect(session?.current_round).toBe(1);
     });
 
     it('should preserve current_round when updating existing session', async () => {
@@ -436,7 +319,7 @@ describe('Story Completion Tracking - Task 3.1', () => {
         user_id: mockUserId,
         grade_level: mockGradeLevel,
         created_at: new Date().toISOString(),
-        current_round: 3, // Mid-story
+        current_round: 3,
         final_score: 0,
         words_written: 30,
         sentences_completed: 6,
@@ -456,22 +339,6 @@ describe('Story Completion Tracking - Task 3.1', () => {
         metadata: {},
       };
 
-      (supabase.from as jest.Mock).mockReturnValue({
-        update: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            select: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: {
-                  ...mockSession,
-                  words_written: 40, // Only words changed
-                },
-                error: null,
-              }),
-            }),
-          }),
-        }),
-      });
-
       mockSession.words_written = 40;
       const updated = await storySessionManager.updateSession(mockSession);
 
@@ -479,9 +346,8 @@ describe('Story Completion Tracking - Task 3.1', () => {
     });
   });
 
-  // Test 5: Database persistence verification
   describe('Database Persistence', () => {
-    it('should persist current_round to database on update', async () => {
+    it('should persist current_round to Convex on update', async () => {
       const mockSession: StorySession = {
         id: 'test-session-persist',
         user_id: mockUserId,
@@ -507,27 +373,15 @@ describe('Story Completion Tracking - Task 3.1', () => {
         metadata: {},
       };
 
-      const updateMock = jest.fn().mockReturnValue({
-        eq: jest.fn().mockReturnValue({
-          select: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({
-              data: mockSession,
-              error: null,
-            }),
-          }),
-        }),
-      });
-
-      (supabase.from as jest.Mock).mockReturnValue({
-        update: updateMock,
-      });
-
       await storySessionManager.updateSession(mockSession);
 
-      // Verify that update was called with current_round
-      expect(updateMock).toHaveBeenCalledWith(
+      expect(mockConvexClient.mutation).toHaveBeenCalledWith(
+        'gameSessions:updateSession',
         expect.objectContaining({
-          current_round: 2,
+          sessionId: 'test-session-persist',
+          updates: expect.objectContaining({
+            currentRound: 2,
+          }),
         }),
       );
     });

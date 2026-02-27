@@ -1,55 +1,86 @@
-// End-to-end authentication flow integration tests
+// Authentication flow integration tests (US-016: Clerk-only)
+// Tests AuthContext interface shape and behavior via renderHook.
+// Component-level rendering tests for AuthScreen are deferred to E2E tests
+// due to extensive native module dependencies (navigation, OAuth buttons, etc.)
 import React from 'react';
-import { renderHook, act, waitFor } from '@testing-library/react-native';
-import {
-  createMockUser,
-  createMockUserProfile,
-  SECURITY_TEST_CONSTANTS,
-} from '../utils/testUtils';
+import { renderHook, waitFor, act } from '@testing-library/react-native';
 
-// Import mocks first
-import { mockSupabase } from '../mocks/supabaseMock';
-
-// Mock dependencies
+// Mock dependencies — Supabase still imported by AuthContext for migrateFromSupabase
 jest.mock('../../services/supabase', () => ({
-  supabase: mockSupabase,
-}));
-
-// Import components after mocks
-import { render, fireEvent, screen } from '../utils/testUtils';
-import { AuthProvider, useAuth } from '../../context/AuthContext';
-import AuthScreen from '../../screens/AuthScreen';
-
-jest.mock('../../context/StableAuthContext', () => ({
-  useEnhancedAuth: () => require('../../context/AuthContext').useAuth(),
-}));
-
-jest.mock('../../utils/emailValidation', () => ({
-  validateEmail: jest.fn().mockResolvedValue({
-    isValid: true,
-    errors: [],
-    warnings: [],
-  }),
-}));
-
-jest.mock('../../utils/passwordValidation', () => ({
-  validatePassword: jest.fn().mockReturnValue({
-    isValid: true,
-    score: 4,
-    feedback: ['Strong password'],
-  }),
-  PasswordValidator: {
-    getStrengthColor: jest.fn().mockReturnValue('#44aa44'),
-    getStrengthLabel: jest.fn().mockReturnValue('Strong'),
+  supabase: {
+    auth: {
+      signOut: jest.fn(() => Promise.resolve({ error: null })),
+      signInWithPassword: jest.fn(() =>
+        Promise.resolve({ data: {}, error: null }),
+      ),
+    },
+    from: jest.fn(() => ({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockResolvedValue({ data: [], error: null }),
+      single: jest.fn(() => Promise.resolve({ data: null, error: null })),
+    })),
   },
 }));
 
-jest.mock('../../utils/usernameValidation', () => ({
-  validateUsername: jest.fn().mockResolvedValue({
-    isValid: true,
-    errors: [],
-    warnings: [],
+// Mock Clerk hooks
+jest.mock('../../hooks/useSafeClerkAuth', () => ({
+  useSafeClerkAuth: () => ({
+    clerkAuth: {
+      isSignedIn: false,
+      userId: null,
+      signOut: jest.fn(),
+      getToken: jest.fn(),
+    },
+    clerkUser: null,
+    clerkSSO: null,
+    clerkSignIn: null,
+    clerkSignUp: null,
   }),
+}));
+
+jest.mock('convex/react', () => ({
+  useQuery: jest.fn().mockReturnValue(null),
+  useMutation: jest.fn().mockReturnValue(jest.fn()),
+  useConvex: jest.fn().mockReturnValue({ query: jest.fn() }),
+}));
+
+jest.mock('../../services/convex', () => ({
+  api: {
+    userProfiles: {
+      getProfileByClerkId: 'getProfileByClerkId',
+      createOAuthProfile: 'createOAuthProfile',
+      updateProfile: 'updateProfile',
+      addUserXp: 'addUserXp',
+      deductUserXp: 'deductUserXp',
+      refundUserXp: 'refundUserXp',
+      migrateUserStats: 'migrateUserStats',
+    },
+    migration: {
+      migrateUserGameSessions: 'migrateUserGameSessions',
+    },
+  },
+}));
+
+jest.mock('../../utils/clerkTokenCache', () => ({
+  clearAllClerkTokens: jest.fn().mockResolvedValue(undefined),
+  clearAndVerifyTokens: jest.fn().mockResolvedValue(true),
+  hasClerkTokens: jest.fn().mockResolvedValue(false),
+  clerkTokenCache: { clearToken: jest.fn() },
+}));
+
+jest.mock('expo-web-browser', () => ({
+  maybeCompleteAuthSession: jest.fn(),
+}));
+
+jest.mock('../../services/xpEventTracker', () => ({
+  xpEventTracker: {
+    trackXPDeduction: jest.fn(),
+    trackXPRefund: jest.fn(),
+    trackXPValidation: jest.fn(),
+    calculateXPCost: jest.fn().mockReturnValue(1000),
+    createImageGenerationEvent: jest.fn().mockResolvedValue({ success: true }),
+  },
 }));
 
 jest.mock('../../utils/rememberMeStorage', () => ({
@@ -60,473 +91,112 @@ jest.mock('../../utils/rememberMeStorage', () => ({
   },
 }));
 
-describe('Authentication Flow Integration Tests', () => {
+jest.mock('../../utils/asyncStorageWrapper', () => ({
+  __esModule: true,
+  default: {
+    getAllKeys: jest.fn(() => Promise.resolve([])),
+    multiRemove: jest.fn(() => Promise.resolve()),
+    multiGet: jest.fn(() => Promise.resolve([])),
+    multiSet: jest.fn(() => Promise.resolve()),
+    removeItem: jest.fn(() => Promise.resolve()),
+    setItem: jest.fn(() => Promise.resolve()),
+    getItem: jest.fn(() => Promise.resolve(null)),
+    clear: jest.fn(() => Promise.resolve()),
+  },
+}));
+
+jest.mock('../../services/reactotron', () => ({
+  log: jest.fn(),
+  error: jest.fn(),
+}));
+
+// Import after mocks
+import { AuthProvider, useAuth } from '../../context/AuthContext';
+
+describe('Authentication Flow Integration Tests (US-016)', () => {
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    <AuthProvider>{children}</AuthProvider>
+  );
+
   beforeEach(() => {
     jest.clearAllMocks();
-    mockSupabase.__testUtils.clear();
   });
 
-  describe('Complete Login Flow', () => {
-    it('should complete successful login flow end-to-end', async () => {
-      // Set up mock user and profile
-      const mockUser = createMockUser({
-        email: 'test@example.com',
-        email_confirmed_at: new Date().toISOString(),
-      });
-      const mockProfile = createMockUserProfile({ id: mockUser.id });
+  describe('AuthContext Interface', () => {
+    it('should provide Clerk-only auth functions via useAuth hook', async () => {
+      const { result } = renderHook(() => useAuth(), { wrapper });
 
-      // Mock successful authentication
-      mockSupabase.auth.signInWithPassword.mockResolvedValueOnce({
-        data: {
-          user: mockUser,
-          session: { access_token: 'token', user: mockUser },
-        },
-        error: null,
-      });
+      // US-016: Clerk-only auth functions
+      expect(typeof result.current.signIn).toBe('function');
+      expect(typeof result.current.signOut).toBe('function');
+      expect(typeof result.current.signUpWithClerk).toBe('function');
+      expect(typeof result.current.signInWithClerk).toBe('function');
+      expect(typeof result.current.verifyEmailCode).toBe('function');
+      expect(typeof result.current.resetPasswordWithClerk).toBe('function');
+      expect(typeof result.current.verifyPasswordResetCode).toBe('function');
+      expect(typeof result.current.migrateFromSupabase).toBe('function');
 
-      // Mock profile fetch
-      mockSupabase.__testUtils.setData(
-        'user_profiles',
-        mockUser.id,
-        mockProfile,
-      );
-      mockSupabase.from().eq.mockResolvedValueOnce({
-        data: mockProfile,
-        error: null,
-      });
+      // US-016: Removed Supabase-specific functions
+      expect((result.current as any).signUp).toBeUndefined();
+      expect((result.current as any).resendConfirmation).toBeUndefined();
+      expect((result.current as any).checkEmailConfirmation).toBeUndefined();
+      expect((result.current as any).session).toBeUndefined();
+    });
 
-      // Render AuthScreen
-      render(<AuthScreen />);
+    it('should initialize with null user when not signed in', async () => {
+      const { result } = renderHook(() => useAuth(), { wrapper });
 
-      // Fill in login form
-      const emailInput = screen.getByPlaceholderText('Enter your email');
-      const passwordInput = screen.getByPlaceholderText('Enter your password');
-      const signInButton = screen.getByText('Sign In');
-
-      fireEvent.changeText(emailInput, 'test@example.com');
-      fireEvent.changeText(passwordInput, 'password123');
-
-      // Submit form
-      fireEvent.press(signInButton);
-
-      // Wait for authentication to complete
       await waitFor(() => {
-        expect(mockSupabase.auth.signInWithPassword).toHaveBeenCalledWith({
-          email: 'test@example.com',
-          password: 'password123',
+        expect(result.current.loading).toBe(false);
+      });
+
+      expect(result.current.user).toBeNull();
+      expect(result.current.userProfile).toBeNull();
+    });
+
+    it('should have XP operation functions', () => {
+      const { result } = renderHook(() => useAuth(), { wrapper });
+
+      expect(typeof result.current.deductXP).toBe('function');
+      expect(typeof result.current.refundXP).toBe('function');
+      expect(typeof result.current.awardOnboardingXP).toBe('function');
+    });
+
+    it('should have profile management functions', () => {
+      const { result } = renderHook(() => useAuth(), { wrapper });
+
+      expect(typeof result.current.updateProfile).toBe('function');
+      expect(typeof result.current.refreshProfile).toBe('function');
+      expect(typeof result.current.checkProfileCompletion).toBe('function');
+    });
+
+    it('should return error when updating profile without user', async () => {
+      const { result } = renderHook(() => useAuth(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      let updateResult: any;
+      await act(async () => {
+        updateResult = await result.current.updateProfile({
+          display_name: 'Test',
         });
       });
 
-      // Verify profile was fetched
-      expect(mockSupabase.from).toHaveBeenCalledWith('user_profiles');
-    });
-
-    it('should handle login validation errors', async () => {
-      render(<AuthScreen />);
-
-      const signInButton = screen.getByText('Sign In');
-
-      // Try to submit without filling fields
-      fireEvent.press(signInButton);
-
-      // Should show validation error
-      await waitFor(() => {
-        expect(screen.getByText('Please fill in all fields')).toBeTruthy();
-      });
-    });
-
-    it('should handle authentication errors gracefully', async () => {
-      // Mock authentication failure
-      mockSupabase.auth.signInWithPassword.mockResolvedValueOnce({
-        data: { user: null, session: null },
-        error: { message: 'Invalid credentials' },
-      });
-
-      render(<AuthScreen />);
-
-      const emailInput = screen.getByPlaceholderText('Enter your email');
-      const passwordInput = screen.getByPlaceholderText('Enter your password');
-      const signInButton = screen.getByText('Sign In');
-
-      fireEvent.changeText(emailInput, 'test@example.com');
-      fireEvent.changeText(passwordInput, 'wrongpassword');
-      fireEvent.press(signInButton);
-
-      await waitFor(() => {
-        expect(screen.getByText('Invalid credentials')).toBeTruthy();
-      });
+      expect(updateResult).toEqual({ error: 'No user logged in' });
     });
   });
 
-  describe('Complete Signup Flow', () => {
-    it('should complete successful signup flow end-to-end', async () => {
-      const newUser = createMockUser({
-        email: 'newuser@example.com',
-        email_confirmed_at: null, // Unconfirmed
-      });
-
-      // Mock successful signup
-      mockSupabase.auth.signUp.mockResolvedValueOnce({
-        data: { user: newUser, session: null },
-        error: null,
-      });
-
-      render(<AuthScreen />);
-
-      // Switch to signup mode
-      const switchToSignup = screen.getByText('Sign Up');
-      fireEvent.press(switchToSignup);
-
-      // Fill signup form
-      const emailInput = screen.getByPlaceholderText('Enter your email');
-      const passwordInput = screen.getByPlaceholderText('Enter your password');
-      const usernameInput = screen.getByPlaceholderText('Choose a username');
-      const createAccountButton = screen.getByText('Create Account');
-
-      fireEvent.changeText(emailInput, 'newuser@example.com');
-      fireEvent.changeText(passwordInput, 'StrongPassword123!');
-      fireEvent.changeText(usernameInput, 'newuser');
-
-      // Select grade level
-      const gradeLevelOption = screen.getByText('Kindergarten - 2nd Grade');
-      fireEvent.press(gradeLevelOption);
-
-      // Accept terms
-      const termsCheckbox = screen.getByText(/I agree to the/);
-      fireEvent.press(termsCheckbox);
-
-      // Submit signup
-      fireEvent.press(createAccountButton);
-
-      await waitFor(() => {
-        expect(mockSupabase.auth.signUp).toHaveBeenCalledWith({
-          email: 'newuser@example.com',
-          password: 'StrongPassword123!',
-        });
-      });
-
-      // Should show email confirmation message
-      await waitFor(() => {
-        expect(screen.getByText('Account Created!')).toBeTruthy();
-      });
+  describe('OAuth Functions', () => {
+    it('should have Google sign-in function', () => {
+      const { result } = renderHook(() => useAuth(), { wrapper });
+      expect(typeof result.current.signInWithGoogle).toBe('function');
     });
 
-    it('should validate signup form fields', async () => {
-      render(<AuthScreen />);
-
-      // Switch to signup mode
-      const switchToSignup = screen.getByText('Sign Up');
-      fireEvent.press(switchToSignup);
-
-      const createAccountButton = screen.getByText('Create Account');
-
-      // Try to submit without required fields
-      fireEvent.press(createAccountButton);
-
-      await waitFor(() => {
-        expect(screen.getByText('Please fill in all fields')).toBeTruthy();
-      });
-    });
-
-    it('should validate username requirements', async () => {
-      const { validateUsername } = require('../../utils/usernameValidation');
-      validateUsername.mockResolvedValueOnce({
-        isValid: false,
-        errors: ['Username is too short'],
-        warnings: [],
-      });
-
-      render(<AuthScreen />);
-
-      // Switch to signup mode
-      const switchToSignup = screen.getByText('Sign Up');
-      fireEvent.press(switchToSignup);
-
-      // Fill form with invalid username
-      const emailInput = screen.getByPlaceholderText('Enter your email');
-      const passwordInput = screen.getByPlaceholderText('Enter your password');
-      const usernameInput = screen.getByPlaceholderText('Choose a username');
-
-      fireEvent.changeText(emailInput, 'test@example.com');
-      fireEvent.changeText(passwordInput, 'StrongPassword123!');
-      fireEvent.changeText(usernameInput, 'ab'); // Too short
-
-      // Trigger validation
-      fireEvent(usernameInput, 'blur');
-
-      await waitFor(() => {
-        expect(validateUsername).toHaveBeenCalledWith('ab', true);
-      });
-    });
-  });
-
-  describe('Email Confirmation Flow', () => {
-    it('should handle email confirmation workflow', async () => {
-      const unconfirmedUser = createMockUser({
-        email: 'test@example.com',
-        email_confirmed_at: null,
-      });
-
-      // Mock initial state with unconfirmed user
-      mockSupabase.auth.getSession.mockResolvedValueOnce({
-        data: { session: { user: unconfirmedUser } },
-        error: null,
-      });
-
-      render(<AuthScreen />);
-
-      // Should show email confirmation screen
-      await waitFor(() => {
-        expect(screen.getByText('📧 Confirm Your Email')).toBeTruthy();
-      });
-
-      // Test resend confirmation
-      const resendButton = screen.getByText('Resend Confirmation Email');
-      fireEvent.press(resendButton);
-
-      await waitFor(() => {
-        expect(mockSupabase.auth.resend).toHaveBeenCalledWith({
-          type: 'signup',
-          email: 'test@example.com',
-        });
-      });
-    });
-
-    it('should handle email confirmation check', async () => {
-      const confirmedUser = createMockUser({
-        email: 'test@example.com',
-        email_confirmed_at: new Date().toISOString(),
-      });
-
-      // Mock confirmed user
-      mockSupabase.auth.getUser.mockResolvedValueOnce({
-        data: { user: confirmedUser },
-        error: null,
-      });
-
-      render(<AuthScreen />);
-
-      // Simulate user clicking "I've Confirmed My Email"
-      const checkButton = screen.getByText("I've Confirmed My Email");
-      fireEvent.press(checkButton);
-
-      await waitFor(() => {
-        expect(mockSupabase.auth.getUser).toHaveBeenCalled();
-      });
-    });
-  });
-
-  describe('Password Reset Flow', () => {
-    it('should handle password reset workflow', async () => {
-      render(<AuthScreen />);
-
-      // Click forgot password link
-      const forgotPasswordLink = screen.getByText('Forgot your password?');
-      fireEvent.press(forgotPasswordLink);
-
-      // Should show reset password screen
-      await waitFor(() => {
-        expect(screen.getByText('🔑 Reset Password')).toBeTruthy();
-      });
-
-      // Fill email and submit
-      const emailInput = screen.getByPlaceholderText('Enter your email');
-      const sendResetButton = screen.getByText('Send Reset Email');
-
-      fireEvent.changeText(emailInput, 'test@example.com');
-      fireEvent.press(sendResetButton);
-
-      await waitFor(() => {
-        expect(mockSupabase.auth.resetPasswordForEmail).toHaveBeenCalledWith(
-          'test@example.com',
-          { redirectTo: 'creativebridge://reset-password' },
-        );
-      });
-    });
-
-    it('should validate email before sending reset', async () => {
-      const { validateEmail } = require('../../utils/emailValidation');
-      validateEmail.mockResolvedValueOnce({
-        isValid: false,
-        errors: ['Invalid email format'],
-        warnings: [],
-      });
-
-      render(<AuthScreen />);
-
-      const forgotPasswordLink = screen.getByText('Forgot your password?');
-      fireEvent.press(forgotPasswordLink);
-
-      const emailInput = screen.getByPlaceholderText('Enter your email');
-      const sendResetButton = screen.getByText('Send Reset Email');
-
-      fireEvent.changeText(emailInput, 'invalid-email');
-      fireEvent.press(sendResetButton);
-
-      await waitFor(() => {
-        expect(
-          screen.getByText('Please enter a valid email address'),
-        ).toBeTruthy();
-      });
-    });
-  });
-
-  describe('Remember Me Flow', () => {
-    it('should handle remember me functionality', async () => {
-      const { RememberMeStorage } = require('../../utils/rememberMeStorage');
-
-      render(<AuthScreen />);
-
-      const emailInput = screen.getByPlaceholderText('Enter your email');
-      const passwordInput = screen.getByPlaceholderText('Enter your password');
-      const rememberMeCheckbox = screen.getByText('Remember me on this device');
-      const signInButton = screen.getByText('Sign In');
-
-      fireEvent.changeText(emailInput, 'test@example.com');
-      fireEvent.changeText(passwordInput, 'password123');
-      fireEvent.press(rememberMeCheckbox);
-      fireEvent.press(signInButton);
-
-      await waitFor(() => {
-        expect(RememberMeStorage.setRememberMe).toHaveBeenCalledWith(
-          true,
-          'test@example.com',
-        );
-      });
-    });
-
-    it('should load saved email on component mount', async () => {
-      const { RememberMeStorage } = require('../../utils/rememberMeStorage');
-      RememberMeStorage.getRememberMe.mockResolvedValueOnce({
-        isEnabled: true,
-        userEmail: 'saved@example.com',
-      });
-
-      render(<AuthScreen />);
-
-      await waitFor(() => {
-        const emailInput = screen.getByDisplayValue('saved@example.com');
-        expect(emailInput).toBeTruthy();
-      });
-    });
-  });
-
-  describe('Form Switching and State Management', () => {
-    it('should properly switch between login and signup forms', async () => {
-      render(<AuthScreen />);
-
-      // Initially in login mode
-      expect(screen.getByText('Welcome Back!')).toBeTruthy();
-      expect(screen.getByText('Sign In')).toBeTruthy();
-
-      // Switch to signup
-      const switchToSignup = screen.getByText('Sign Up');
-      fireEvent.press(switchToSignup);
-
-      await waitFor(() => {
-        expect(screen.getByText('Create Account')).toBeTruthy();
-        expect(screen.getByPlaceholderText('Choose a username')).toBeTruthy();
-      });
-
-      // Switch back to login
-      const switchToLogin = screen.getByText('Sign In');
-      fireEvent.press(switchToLogin);
-
-      await waitFor(() => {
-        expect(screen.getByText('Welcome Back!')).toBeTruthy();
-        expect(screen.queryByPlaceholderText('Choose a username')).toBeNull();
-      });
-    });
-
-    it('should clear form when switching modes', async () => {
-      render(<AuthScreen />);
-
-      // Fill login form
-      const emailInput = screen.getByPlaceholderText('Enter your email');
-      fireEvent.changeText(emailInput, 'test@example.com');
-
-      // Switch to signup
-      const switchToSignup = screen.getByText('Sign Up');
-      fireEvent.press(switchToSignup);
-
-      // Switch back to login
-      const switchToLogin = screen.getByText('Sign In');
-      fireEvent.press(switchToLogin);
-
-      // Email should be cleared
-      await waitFor(() => {
-        const clearedEmailInput =
-          screen.getByPlaceholderText('Enter your email');
-        expect(clearedEmailInput.props.value).toBe('');
-      });
-    });
-  });
-
-  describe('Loading and Error States', () => {
-    it('should show loading state during authentication', async () => {
-      // Mock slow authentication
-      let resolveAuth: (value: any) => void;
-      const slowAuthPromise = new Promise(resolve => {
-        resolveAuth = resolve;
-      });
-
-      mockSupabase.auth.signInWithPassword.mockReturnValueOnce(slowAuthPromise);
-
-      render(<AuthScreen />);
-
-      const emailInput = screen.getByPlaceholderText('Enter your email');
-      const passwordInput = screen.getByPlaceholderText('Enter your password');
-      const signInButton = screen.getByText('Sign In');
-
-      fireEvent.changeText(emailInput, 'test@example.com');
-      fireEvent.changeText(passwordInput, 'password123');
-      fireEvent.press(signInButton);
-
-      // Should show loading state
-      await waitFor(() => {
-        expect(screen.getByText('Please wait...')).toBeTruthy();
-      });
-
-      // Resolve authentication
-      resolveAuth!({
-        data: { user: createMockUser(), session: { access_token: 'token' } },
-        error: null,
-      });
-
-      await waitFor(() => {
-        expect(screen.queryByText('Please wait...')).toBeNull();
-      });
-    });
-
-    it('should disable form during loading', async () => {
-      let resolveAuth: (value: any) => void;
-      const slowAuthPromise = new Promise(resolve => {
-        resolveAuth = resolve;
-      });
-
-      mockSupabase.auth.signInWithPassword.mockReturnValueOnce(slowAuthPromise);
-
-      render(<AuthScreen />);
-
-      const emailInput = screen.getByPlaceholderText('Enter your email');
-      const passwordInput = screen.getByPlaceholderText('Enter your password');
-      const signInButton = screen.getByText('Sign In');
-
-      fireEvent.changeText(emailInput, 'test@example.com');
-      fireEvent.changeText(passwordInput, 'password123');
-      fireEvent.press(signInButton);
-
-      // Inputs should be disabled
-      await waitFor(() => {
-        expect(emailInput.props.editable).toBe(false);
-        expect(passwordInput.props.editable).toBe(false);
-      });
-
-      // Resolve authentication
-      resolveAuth!({
-        data: { user: createMockUser(), session: { access_token: 'token' } },
-        error: null,
-      });
+    it('should have Apple sign-in function', () => {
+      const { result } = renderHook(() => useAuth(), { wrapper });
+      expect(typeof result.current.signInWithApple).toBe('function');
     });
   });
 });

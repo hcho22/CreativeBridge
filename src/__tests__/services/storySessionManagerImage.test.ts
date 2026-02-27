@@ -1,6 +1,8 @@
 /**
  * StorySessionManager Image Storage Test Suite
  * Tests for Tasks 6.3: Image storage linking to specific stories
+ *
+ * Updated for US-013: All tests now use Convex mocks (Supabase removed).
  */
 
 import { storySessionManager } from '../../services/storySessionManager';
@@ -14,86 +16,75 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   multiRemove: jest.fn(),
 }));
 
-// Mock Supabase
-jest.mock('../../services/supabase', () => ({
-  supabase: {
-    from: jest.fn(() => ({
-      insert: jest.fn(() => ({
-        select: jest.fn(() => ({
-          single: jest.fn(() => ({
-            data: {
-              id: 'test-session-123',
-              user_id: 'user-123',
-              created_at: '2024-01-01T00:00:00Z',
-              grade_level: 'K-2',
-              final_score: 0,
-              words_written: 0,
-              sentences_completed: 0,
-              challenges_completed: 0,
-              xp_earned: 0,
-              story_content: '',
-            },
-            error: null,
-          })),
-        })),
-      })),
-      select: jest.fn(() => ({
-        eq: jest.fn(() => ({
-          single: jest.fn(() => ({
-            data: {
-              id: 'test-session-123',
-              user_id: 'user-123',
-              created_at: '2024-01-01T00:00:00Z',
-              grade_level: 'K-2',
-              final_score: 0,
-              words_written: 0,
-              sentences_completed: 0,
-              challenges_completed: 0,
-              xp_earned: 0,
-              story_content: 'Test story content',
-              generated_image_url: null,
-              image_generation_timestamp: null,
-              image_generation_cost: null,
-            },
-            error: null,
-          })),
-        })),
-      })),
-      update: jest.fn(() => ({
-        eq: jest.fn(() => ({
-          select: jest.fn(() => ({
-            single: jest.fn(() => ({
-              data: {
-                id: 'test-session-123',
-                user_id: 'user-123',
-                created_at: '2024-01-01T00:00:00Z',
-                grade_level: 'K-2',
-                final_score: 0,
-                words_written: 50,
-                sentences_completed: 0,
-                challenges_completed: 0,
-                xp_earned: 0,
-                story_content: 'Test story content',
-                generated_image_url: 'https://example.com/image.jpg',
-                image_generation_timestamp: '2024-01-01T01:00:00Z',
-                image_generation_cost: 1000,
-              },
-              error: null,
-            })),
-          })),
-        })),
-      })),
-    })),
+// Mock Convex client
+const mockConvexClient = {
+  mutation: jest.fn(),
+  query: jest.fn(),
+};
+
+jest.mock('../../services/convex', () => ({
+  getConvexClient: jest.fn(() => mockConvexClient),
+  isConvexReady: jest.fn(() => true),
+  api: {
+    gameSessions: {
+      createSession: 'gameSessions:createSession',
+      getSession: 'gameSessions:getSession',
+      getUserSessions: 'gameSessions:getUserSessions',
+      updateSession: 'gameSessions:updateSession',
+      updateStoryGeneratedImage: 'gameSessions:updateStoryGeneratedImage',
+      updateImageUploadStatus: 'gameSessions:updateImageUploadStatus',
+    },
+    userProfiles: {
+      completeGameSession: 'userProfiles:completeGameSession',
+    },
   },
 }));
 
+const { isConvexReady, getConvexClient } = require('../../services/convex');
+
 const mockAsyncStorage = AsyncStorage as jest.Mocked<typeof AsyncStorage>;
+
+/**
+ * Helper to create a mock Convex game session document.
+ */
+function mockConvexSession(overrides: Record<string, any> = {}) {
+  return {
+    _id: 'test-session-123',
+    _creationTime: new Date('2024-01-01T00:00:00Z').getTime(),
+    userId: 'user_test123',
+    clerkUserId: 'user_test123',
+    gradeLevel: 'K-2',
+    storyContent: 'Test story content',
+    wordsWritten: 0,
+    sentencesCompleted: 0,
+    challengesCompleted: 0,
+    currentRound: 1,
+    xpEarned: 0,
+    finalScore: 0,
+    completedAt: undefined,
+    storySource: 'New',
+    storyMetadata: {},
+    generatedImageUrl: undefined,
+    imageGenerationTimestamp: undefined,
+    imageGenerationCost: undefined,
+    imageUploadStatus: undefined,
+    imageUploadAttempts: undefined,
+    imageUploadError: undefined,
+    ...overrides,
+  };
+}
 
 describe('StorySessionManager Image Storage - Task 6.3', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockAsyncStorage.getItem.mockResolvedValue(null);
+    (isConvexReady as jest.Mock).mockReturnValue(true);
+    (getConvexClient as jest.Mock).mockReturnValue(mockConvexClient);
+    mockAsyncStorage.getItem.mockResolvedValue(JSON.stringify({}));
     mockAsyncStorage.setItem.mockResolvedValue(undefined);
+    mockConvexClient.mutation.mockResolvedValue(undefined);
+    // Return a valid session for getSession queries
+    mockConvexClient.query.mockResolvedValue(mockConvexSession());
+    storySessionManager.clearCache();
   });
 
   describe('updateSessionWithImage', () => {
@@ -132,6 +123,9 @@ describe('StorySessionManager Image Storage - Task 6.3', () => {
     });
 
     test('should return null for non-existent session', async () => {
+      // Return null for non-existent session
+      mockConvexClient.query.mockResolvedValueOnce(null);
+
       const result = await storySessionManager.updateSessionWithImage(
         'non-existent-session',
         'https://example.com/image.jpg',
@@ -156,6 +150,8 @@ describe('StorySessionManager Image Storage - Task 6.3', () => {
     });
 
     test('should return null for non-existent session', async () => {
+      mockConvexClient.query.mockResolvedValueOnce(null);
+
       const result = await storySessionManager.updateSessionWithLocalImage(
         'non-existent-session',
         '/path/to/image.jpg',
@@ -185,6 +181,14 @@ describe('StorySessionManager Image Storage - Task 6.3', () => {
         1000,
       );
 
+      // Return session with image data for subsequent query
+      mockConvexClient.query.mockResolvedValueOnce(
+        mockConvexSession({
+          generatedImageUrl: 'https://example.com/image.jpg',
+          imageGenerationCost: 1000,
+        }),
+      );
+
       const result = await storySessionManager.getSessionWithImage(
         'test-session-123',
       );
@@ -200,6 +204,8 @@ describe('StorySessionManager Image Storage - Task 6.3', () => {
         '/local/path/image.jpg',
       );
 
+      // The local path is stored in local cache, which getSessionWithImage reads from
+      // The in-memory cache should have the updated session
       const result = await storySessionManager.getSessionWithImage(
         'test-session-123',
       );
@@ -209,6 +215,8 @@ describe('StorySessionManager Image Storage - Task 6.3', () => {
     });
 
     test('should return proper structure for non-existent session', async () => {
+      mockConvexClient.query.mockResolvedValueOnce(null);
+
       const result = await storySessionManager.getSessionWithImage(
         'non-existent',
       );
@@ -238,7 +246,7 @@ describe('StorySessionManager Image Storage - Task 6.3', () => {
         localPath,
       );
 
-      // Get final session state
+      // Get final session state - should have both from in-memory cache
       const result = await storySessionManager.getSessionWithImage(
         'test-session-123',
       );
@@ -258,6 +266,16 @@ describe('StorySessionManager Image Storage - Task 6.3', () => {
       );
 
       // Then add a story contribution (this should not affect image data)
+      // Clear cache to force re-fetch, then return session with image
+      storySessionManager.clearCache();
+      mockConvexClient.query.mockResolvedValueOnce(
+        mockConvexSession({
+          generatedImageUrl: 'https://example.com/image.jpg',
+          imageGenerationCost: 1000,
+          storyContent: 'Test story content',
+        }),
+      );
+
       await storySessionManager.addContribution(
         'test-session-123',
         'user',
@@ -309,12 +327,8 @@ describe('StorySessionManager Image Storage - Task 6.3', () => {
       const afterUpdate = new Date().toISOString();
 
       expect(result?.image_generation_timestamp).toBeDefined();
-      expect(result?.image_generation_timestamp).toBeGreaterThanOrEqual(
-        beforeUpdate,
-      );
-      expect(result?.image_generation_timestamp).toBeLessThanOrEqual(
-        afterUpdate,
-      );
+      expect(result?.image_generation_timestamp! >= beforeUpdate).toBeTruthy();
+      expect(result?.image_generation_timestamp! <= afterUpdate).toBeTruthy();
     });
   });
 });

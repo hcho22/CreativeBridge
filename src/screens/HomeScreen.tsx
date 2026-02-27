@@ -58,7 +58,6 @@ import {
 } from '../components/onboarding';
 import { onboardingMilestoneTracker } from '../services/onboardingMilestoneTracker';
 import { onboardingService } from '../services/onboardingService';
-import { supabase } from '../services/supabase';
 
 type HomeScreenNavigationProp = BottomTabNavigationProp<TabParamList, 'Home'>;
 
@@ -82,14 +81,13 @@ interface GenerationError {
 }
 
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
-  const { userProfile, user, refreshProfile, awardOnboardingXP } = useAuth();
+  const { userProfile, refreshProfile, awardOnboardingXP } = useAuth();
   const { clerkAuth } = useSafeClerkAuth();
   const route = useRoute<RouteProp<HomeStackParamList, 'Home'>>();
 
-  // Use user profile ID (Supabase UUID) for database operations when available
-  // This ensures OAuth users use proper UUIDs instead of Clerk user IDs for Supabase operations
-  const effectiveUserId = userProfile?.id || user?.id || clerkAuth?.userId;
-  const isAuthenticated = !!user || clerkAuth?.isSignedIn;
+  // All users authenticate via Clerk — use Clerk user ID for all operations
+  const effectiveUserId = clerkAuth?.userId || userProfile?.clerk_user_id;
+  const isAuthenticated = !!clerkAuth?.isSignedIn;
 
   const [isGameActive, setIsGameActive] = useState(false);
   const [currentSession, setCurrentSession] = useState<StorySession | null>(
@@ -286,10 +284,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           );
 
           // Auto-fix database: set onboarding_completed = true for existing users
-          // Use clerk_user_id for OAuth users (Convex-migrated) or id for legacy Supabase users
-          // The onboardingService handles the correct field to query based on ID format
-          const autoFixUserId =
-            userProfile.clerk_user_id || clerkAuth?.userId || userProfile.id;
+          // All users use Clerk user ID for Convex operations
+          const autoFixUserId = clerkAuth?.userId || userProfile.clerk_user_id;
           if (!onboardingCompleted && autoFixUserId) {
             console.log(
               '🔧 [BugFix] Auto-fixing onboarding status with userId:',
@@ -871,7 +867,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       }
     };
 
-    if (user && !ttsInitializedRef.current) {
+    if (isAuthenticated && !ttsInitializedRef.current) {
       ttsInitializedRef.current = true;
       initializeAudio();
       // Check service availability on mount
@@ -882,9 +878,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       textToSpeechService.removeAllListeners();
       ttsInitializedRef.current = false;
     };
-    // Only depend on user to initialize once when user logs in
+    // Only depend on isAuthenticated to initialize once when user logs in
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [isAuthenticated]);
 
   // Update TTS grade level options when gradeLevel changes (separate from init)
   useEffect(() => {
@@ -1566,7 +1562,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       isAuthenticated,
       effectiveUserId,
       userProfileId: userProfile?.id,
-      userId: user?.id,
       clerkUserId: clerkAuth?.userId,
     });
 
@@ -1578,77 +1573,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       return;
     }
 
-    // Check if effectiveUserId is a valid UUID for database operations
-    // Clerk user IDs start with "user_" and are not valid UUIDs for Supabase
-    const isClerkUserId = effectiveUserId.startsWith('user_');
-    let resolvedProfileId = userProfile?.id;
-
-    if (isClerkUserId && !resolvedProfileId) {
-      console.log(
-        '📖 handleStartNewGame: Clerk user detected without profile ID, fetching from database...',
-      );
-
-      // Directly fetch the profile from database - it may have been created but not loaded into context yet
-      try {
-        const { data: profiles, error: fetchError } = await supabase
-          .from('user_profiles')
-          .select('id')
-          .eq('clerk_user_id', effectiveUserId)
-          .limit(1);
-
-        if (!fetchError && profiles && profiles.length > 0) {
-          resolvedProfileId = profiles[0].id;
-          console.log(
-            '📖 handleStartNewGame: Found profile in database:',
-            resolvedProfileId,
-          );
-
-          // Also trigger a background refresh to update the context
-          refreshProfile().catch(err =>
-            console.error(
-              '📖 handleStartNewGame: Background refresh failed:',
-              err,
-            ),
-          );
-        } else {
-          console.log(
-            '📖 handleStartNewGame: No profile found in database',
-            fetchError,
-          );
-        }
-      } catch (error) {
-        console.error('📖 handleStartNewGame: Error fetching profile:', error);
-      }
-
-      // If still no profile after database check, show the alert
-      if (!resolvedProfileId) {
-        console.log('📖 handleStartNewGame: No profile found, showing alert');
-        Alert.alert(
-          'Profile Setup Required',
-          'Please complete your profile setup before starting a story. This ensures your progress is properly saved.',
-          [
-            {
-              text: 'Complete Profile',
-              onPress: () => navigation.navigate('Profile'),
-            },
-          ],
-        );
-        return;
-      }
-    }
-
-    // Determine the user ID for session creation
-    // For OAuth users (Clerk): use clerk_user_id for Convex operations
-    // For email/password users (Supabase-only): use Supabase UUID, which falls back to Supabase storage
-    const clerkUserIdForSession =
-      userProfile?.clerk_user_id || clerkAuth?.userId;
-    const supabaseUserId = userProfile?.id || user?.id;
-
-    // Use Clerk user ID if available (OAuth users), otherwise use Supabase UUID (email/password users)
-    const userIdForSession = clerkUserIdForSession || supabaseUserId;
-
-    if (!userIdForSession) {
-      console.log('📖 handleStartNewGame: No user ID available for session');
+    // All users should have a profile loaded via Convex reactive query
+    if (!userProfile) {
+      console.log('📖 handleStartNewGame: No profile loaded yet');
       Alert.alert(
         'Profile Setup Required',
         'Please complete your profile setup before starting a story. This ensures your progress is properly saved.',
@@ -1662,13 +1589,27 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       return;
     }
 
-    const isEmailPasswordUser = !clerkUserIdForSession && !!supabaseUserId;
+    // All users use Clerk user ID for Convex session operations
+    const userIdForSession = clerkAuth?.userId || userProfile?.clerk_user_id;
+
+    if (!userIdForSession) {
+      console.log('📖 handleStartNewGame: No Clerk user ID available');
+      Alert.alert(
+        'Profile Setup Required',
+        'Please complete your profile setup before starting a story. This ensures your progress is properly saved.',
+        [
+          {
+            text: 'Complete Profile',
+            onPress: () => navigation.navigate('Profile'),
+          },
+        ],
+      );
+      return;
+    }
+
     console.log(
-      '📖 handleStartNewGame: Using user ID for session:',
+      '📖 handleStartNewGame: Using Clerk user ID for session:',
       userIdForSession,
-      isEmailPasswordUser
-        ? '(email/password user - Supabase fallback)'
-        : '(OAuth user - Convex)',
     );
 
     // Check if first story guidance should be shown (US-012)

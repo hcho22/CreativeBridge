@@ -7,20 +7,11 @@ import React, {
   useRef,
   useMemo,
 } from 'react';
-import { Session, User } from '@supabase/supabase-js';
 import AsyncStorage from '../utils/asyncStorageWrapper';
 import { supabase } from '../services/supabase';
 import { useSafeClerkAuth } from '../hooks/useSafeClerkAuth';
-import {
-  completeOAuthFlow,
-  type ClerkAuthMethods,
-  type ClerkUser,
-} from '../services/oauthService';
-import type {
-  UserProfile,
-  UserProfileInsert,
-  GradeLevel,
-} from '../types/database';
+// Note (US-016): completeOAuthFlow, ClerkAuthMethods, ClerkUser removed — no longer needed
+import type { UserProfile, GradeLevel } from '../types/database';
 import { RememberMeStorage } from '../utils/rememberMeStorage';
 import { xpEventTracker } from '../services/xpEventTracker';
 import {
@@ -35,19 +26,14 @@ import { useQuery, useMutation, useConvex } from 'convex/react';
 import { api } from '../services/convex';
 import type { Doc } from '../../convex/_generated/dataModel';
 
-// Verify supabase is properly imported
-if (!supabase) {
-  console.error(
-    '❌ CRITICAL: Supabase client is not initialized at module load time',
-  );
-}
-
 /**
- * Migration Complete (US-031)
- *
- * Convex is now the PRIMARY data store for OAuth users
- * Supabase remains as FALLBACK for email/password users (UUID-based)
+ * Simplified user type for auth context (US-016).
+ * Replaces Supabase `User` — consumers only need id and email.
  */
+export interface AppUser {
+  id: string;
+  email: string;
+}
 
 /**
  * Helper to convert Convex userProfile to legacy UserProfile type
@@ -88,9 +74,77 @@ interface SignUpData {
   gradeLevel: GradeLevel;
 }
 
+/**
+ * Pending profile data stored in AsyncStorage during Clerk email/password sign-up.
+ * This data is stored after sign-up but before email verification,
+ * and used to create the Convex profile after verification completes.
+ */
+interface PendingClerkProfile {
+  username: string;
+  displayName: string;
+  gradeLevel: GradeLevel;
+  email: string;
+  createdAt: string;
+}
+
+// AsyncStorage key for pending Clerk profile data (US-002)
+const PENDING_CLERK_PROFILE_KEY = '@CreativeBridge:pendingClerkProfile';
+
+// AsyncStorage key for pending migration data (US-007)
+const PENDING_MIGRATION_KEY = '@CreativeBridge:pendingMigration';
+
+/**
+ * Data stored in AsyncStorage during Supabase → Clerk migration (US-007).
+ * Persisted between Phase A (create Clerk account) and Phase B (post-verification data transfer).
+ */
+interface PendingMigrationData {
+  supabaseUserId: string;
+  email: string;
+  // Profile stats to migrate
+  totalXp: number;
+  currentStreak: number;
+  longestStreak: number;
+  bestScore: number;
+  totalGamesPlayed: number;
+  totalStoriesCompleted: number;
+  totalWordsWritten: number;
+  lastActivityDate: string;
+  preferredGradeLevel: GradeLevel;
+  onboardingCompleted: boolean;
+  onboardingProgress: {
+    create_account: boolean;
+    first_story: boolean;
+    first_image: boolean;
+    first_voice: boolean;
+    first_streak: boolean;
+  };
+  firstStoryCompletedAt?: string;
+  firstImageGeneratedAt?: string;
+  firstVoiceInputAt?: string;
+  firstStreakAchievedAt?: string;
+  // Game sessions to migrate
+  gameSessions: Array<{
+    completedAt?: string;
+    gradeLevel: string;
+    finalScore: number;
+    wordsWritten: number;
+    sentencesCompleted: number;
+    challengesCompleted: number;
+    xpEarned: number;
+    storyContent?: string;
+    importedStoryContent?: string;
+    storySource: string;
+    originalCreationDate?: string;
+    storyMetadata?: Record<string, unknown>;
+    generatedImageUrl?: string;
+    imageGenerationTimestamp?: string;
+    imageGenerationCost?: number;
+    currentRound: number;
+  }>;
+}
+
 interface AuthContextType {
-  session: Session | null;
-  user: User | null;
+  user: AppUser | null;
   userProfile: UserProfile | null;
   loading: boolean;
   emailConfirmed: boolean;
@@ -100,17 +154,14 @@ interface AuthContextType {
     email: string,
     password: string,
     rememberMe?: boolean,
-  ) => Promise<{ error?: string }>;
-  signUp: (
-    email: string,
-    password: string,
-    profileData?: SignUpData,
-  ) => Promise<{ error?: string }>;
+  ) => Promise<{
+    error?: string;
+    needsMigration?: boolean;
+    needsSecondFactor?: boolean;
+  }>;
   signOut: () => Promise<void>;
   updateProfile: (profile: Partial<UserProfile>) => Promise<{ error?: string }>;
   refreshProfile: () => Promise<void>;
-  resendConfirmation: (email: string) => Promise<{ error?: string }>;
-  checkEmailConfirmation: () => Promise<boolean>;
   resetPassword: (email: string) => Promise<{ error?: string }>;
   deductXP: (
     amount: number,
@@ -165,6 +216,47 @@ interface AuthContextType {
   }>;
   checkProfileCompletion: () => Promise<void>;
   clearOAuthError: () => void;
+  // Clerk email/password authentication (US-002)
+  signUpWithClerk: (
+    email: string,
+    password: string,
+    profileData: SignUpData,
+  ) => Promise<{ needsVerification?: boolean; error?: string }>;
+  // Clerk email verification (US-003)
+  verifyEmailCode: (code: string) => Promise<{ error?: string }>;
+  // Clerk resend verification code (US-004)
+  resendClerkVerificationCode: () => Promise<{ error?: string }>;
+  // Clerk email/password sign-in (US-005)
+  signInWithClerk: (
+    email: string,
+    password: string,
+  ) => Promise<{
+    needsMigration?: boolean;
+    needsSecondFactor?: boolean;
+    error?: string;
+  }>;
+  // Clerk sign-in second factor verification
+  verifySignInSecondFactor: (code: string) => Promise<{ error?: string }>;
+  // Clerk password reset (US-006)
+  resetPasswordWithClerk: (
+    email: string,
+  ) => Promise<{ needsCode?: boolean; error?: string }>;
+  verifyPasswordResetCode: (
+    code: string,
+    newPassword: string,
+  ) => Promise<{ error?: string }>;
+  // Supabase → Clerk/Convex migration (US-007)
+  migrateFromSupabase: (
+    email: string,
+    password: string,
+  ) => Promise<{
+    needsVerification?: boolean;
+    needsNewPassword?: boolean;
+    error?: string;
+  }>;
+  resumeMigrationWithNewPassword: (
+    newPassword: string,
+  ) => Promise<{ needsVerification?: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -183,8 +275,7 @@ interface AuthProviderProps {
 
 // Internal component that uses Clerk hooks - only rendered when ClerkProvider is present
 const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
-  const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [emailConfirmed, setEmailConfirmed] = useState(false);
@@ -218,6 +309,11 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
   const convexAddXp = useMutation(api.userProfiles.addUserXp);
   const convexDeductXp = useMutation(api.userProfiles.deductUserXp);
   const convexRefundXp = useMutation(api.userProfiles.refundUserXp);
+  const convexMigrateStats = useMutation(api.userProfiles.migrateUserStats);
+  const convexMigrateGameSessions = useMutation(
+    api.migration.migrateUserGameSessions,
+  );
+  const convexLogMigrationEvent = useMutation(api.migration.logMigrationEvent);
 
   // Convex reactive query for current user's profile
   // This will automatically update when the profile changes in the database
@@ -261,543 +357,57 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, [convexProfile, clerkUserId]);
 
-  // Track if we've already attempted Supabase fallback for this session
-  const supabaseFallbackAttemptedRef = useRef<string | null>(null);
+  // Note (US-016): Supabase fallback and migration effects removed.
+  // Convex reactive query (above) is the sole profile data source.
 
-  // Fallback effect: Load profile from Supabase when Convex query fails/unavailable
-  // This handles the case where the Convex JWT template is not configured in Clerk
-  // or when Convex auth is otherwise unavailable.
-  useEffect(() => {
-    const loadSupabaseFallback = async () => {
-      // Skip if:
-      // - No Clerk user ID (not logged in)
-      // - Convex profile exists (no fallback needed)
-      // - userProfile already loaded (no fallback needed)
-      // - Already attempted fallback for this user
-      // - convexProfile is undefined (still loading - wait for it to resolve)
-      if (
-        !clerkUserId ||
-        convexProfile !== null ||
-        userProfile !== null ||
-        supabaseFallbackAttemptedRef.current === clerkUserId
-      ) {
-        return;
-      }
-
-      // Check if convexProfile query has settled (null = not found, undefined = loading)
-      // We need a timeout to detect when Convex auth is failing and never resolving
-      // After 3 seconds, if still undefined and no userProfile, try Supabase fallback
-      if (convexProfile === undefined) {
-        // Set up a delayed fallback check
-        const timeoutId = setTimeout(async () => {
-          // Double-check conditions after timeout
-          if (
-            clerkUserId &&
-            convexProfile === undefined &&
-            userProfile === null &&
-            supabaseFallbackAttemptedRef.current !== clerkUserId
-          ) {
-            console.log(
-              '⚠️ [AuthContext] Convex query stuck (auth token issue?), attempting Supabase fallback...',
-            );
-            supabaseFallbackAttemptedRef.current = clerkUserId;
-
-            try {
-              const { data: profiles, error } = await supabase
-                .from('user_profiles')
-                .select('*')
-                .eq('clerk_user_id', clerkUserId)
-                .limit(1);
-
-              if (error) {
-                console.error(
-                  '❌ [AuthContext] Supabase fallback query error:',
-                  error,
-                );
-                return;
-              }
-
-              const profile =
-                profiles && profiles.length > 0 ? profiles[0] : null;
-
-              if (profile) {
-                console.log(
-                  '✅ [AuthContext] Loaded profile from Supabase fallback:',
-                  {
-                    username: profile.username,
-                    clerkUserId: profile.clerk_user_id,
-                  },
-                );
-                setUserProfile(profile);
-              } else {
-                console.log(
-                  '📋 [AuthContext] No Supabase profile found for Clerk user (new user)',
-                );
-              }
-            } catch (fallbackError) {
-              console.error(
-                '❌ [AuthContext] Supabase fallback failed:',
-                fallbackError,
-              );
-            }
-          }
-        }, 3000); // Wait 3 seconds before fallback
-
-        return () => clearTimeout(timeoutId);
-      }
-
-      // convexProfile is null (query completed, profile not found)
-      // The migration effect will handle creating the Convex profile if Supabase has one
-      // But we should also load the Supabase profile into context for immediate use
-      if (convexProfile === null) {
-        supabaseFallbackAttemptedRef.current = clerkUserId;
-        console.log(
-          '🔍 [AuthContext] Convex profile is null, loading Supabase profile into context...',
-        );
-
-        try {
-          const { data: profiles, error } = await supabase
-            .from('user_profiles')
-            .select('*')
-            .eq('clerk_user_id', clerkUserId)
-            .limit(1);
-
-          if (error) {
-            console.error(
-              '❌ [AuthContext] Supabase profile query error:',
-              error,
-            );
-            return;
-          }
-
-          const profile = profiles && profiles.length > 0 ? profiles[0] : null;
-
-          if (profile && !userProfile) {
-            console.log(
-              '✅ [AuthContext] Loaded Supabase profile while waiting for Convex migration:',
-              {
-                username: profile.username,
-                clerkUserId: profile.clerk_user_id,
-              },
-            );
-            setUserProfile(profile);
-          }
-        } catch (queryError) {
-          console.error(
-            '❌ [AuthContext] Failed to load Supabase profile:',
-            queryError,
-          );
-        }
-      }
-    };
-
-    loadSupabaseFallback();
-  }, [clerkUserId, convexProfile, userProfile]);
-
-  // Track if we've already attempted migration for this session
-  const migrationAttemptedRef = useRef<string | null>(null);
-
-  // Effect to migrate Supabase profile to Convex if needed
-  // This handles existing users who have a Supabase profile but no Convex profile
-  useEffect(() => {
-    const migrateProfileIfNeeded = async () => {
-      // Skip if:
-      // - No clerk user ID (not logged in)
-      // - convexProfile is undefined (still loading - not null)
-      // - convexProfile exists (no migration needed)
-      // - Already attempted migration for this user
-      // - Currently signing out
-      if (
-        !clerkUserId ||
-        convexProfile === undefined ||
-        convexProfile !== null ||
-        migrationAttemptedRef.current === clerkUserId ||
-        isSigningOut.current
-      ) {
-        return;
-      }
-
-      // Mark that we've attempted migration for this user
-      migrationAttemptedRef.current = clerkUserId;
-
-      console.log(
-        '🔍 [Convex Migration] Convex profile is null, checking for Supabase profile to migrate...',
-      );
-
-      try {
-        // Check if there's a Supabase profile for this Clerk user
-        const { data: supabaseProfiles, error } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('clerk_user_id', clerkUserId)
-          .limit(1);
-
-        if (error) {
-          console.error(
-            '❌ [Convex Migration] Error checking Supabase profile:',
-            error,
-          );
-          return;
-        }
-
-        const supabaseProfile =
-          supabaseProfiles && supabaseProfiles.length > 0
-            ? supabaseProfiles[0]
-            : null;
-
-        if (!supabaseProfile) {
-          console.log(
-            '📋 [Convex Migration] No Supabase profile found - user needs to complete profile setup',
-          );
-          return;
-        }
-
-        console.log(
-          '📦 [Convex Migration] Found Supabase profile to migrate:',
-          {
-            clerkUserId: supabaseProfile.clerk_user_id,
-            username: supabaseProfile.username,
-            displayName: supabaseProfile.display_name,
-            totalXp: supabaseProfile.total_xp,
-          },
-        );
-
-        // Create Convex profile from Supabase profile data
-        const convexProfileId = await convexCreateProfile({
-          clerkUserId,
-          username: supabaseProfile.username,
-          displayName: supabaseProfile.display_name,
-          preferredGradeLevel: (supabaseProfile.preferred_grade_level ||
-            'K-2') as GradeLevel,
-          speechEnabled: supabaseProfile.speech_enabled ?? true,
-        });
-
-        console.log(
-          '✅ [Convex Migration] Convex profile created from Supabase migration:',
-          convexProfileId,
-        );
-
-        // The convexProfile reactive query will automatically pick up the new profile
-      } catch (migrationError) {
-        console.error(
-          '❌ [Convex Migration] Failed to migrate profile:',
-          migrationError,
-        );
-        // Reset migration attempt so user can retry
-        migrationAttemptedRef.current = null;
-      }
-    };
-
-    migrateProfileIfNeeded();
-  }, [clerkUserId, convexProfile, convexCreateProfile]);
-
-  const fetchUserProfile = async (
-    userId: string,
-  ): Promise<UserProfile | null> => {
-    try {
-      console.log('Fetching user profile for ID:', userId);
-
-      // For OAuth users, the userId is actually the Clerk user ID
-      // We need to check if this is a Clerk user ID (starts with 'user_')
-      // and query by clerk_user_id field instead of id field
-      const isClerkUserId = userId.startsWith('user_');
-
-      if (isClerkUserId) {
-        console.log(
-          '🔍 Detected Clerk user ID, querying by clerk_user_id field',
-        );
-
-        // Query by clerk_user_id for OAuth users
-        const { data: profiles, error: clerkError } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('clerk_user_id', userId)
-          .limit(1);
-
-        console.log('Profile query result (by clerk_user_id):', {
-          profiles,
-          error: clerkError,
-        });
-
-        if (clerkError) {
-          console.error(
-            '❌ Error fetching profile by clerk_user_id:',
-            clerkError,
-          );
-          return null;
-        }
-
-        const existingProfile =
-          profiles && profiles.length > 0 ? profiles[0] : null;
-
-        if (existingProfile) {
-          console.log('✅ Found OAuth user profile:', existingProfile.username);
-          return existingProfile;
-        }
-
-        // No profile found for OAuth user - will be created during profile completion
-        console.log('📋 No profile found for OAuth user');
-        return null;
-      }
-
-      // For regular email/password users, query by id field
-      console.log('🔍 Regular user ID, querying by id field');
-      const { data: existingProfile, error } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      console.log('Profile query result:', { existingProfile, error });
-
-      if (existingProfile && !error) {
-        // Check if it's the old hcho22 profile that needs updating
-        if (
-          existingProfile.username === 'hcho22' &&
-          existingProfile.total_xp === 0
-        ) {
-          // Update the profile to match StoryQuest data
-          const { data: updatedProfile, error: updateError } = await supabase
-            .from('user_profiles')
-            .update({
-              username: 'chotog22',
-              display_name: 'Chotog22',
-              total_xp: 7108,
-              current_streak: 16,
-              longest_streak: 16,
-              last_activity_date: new Date().toISOString().split('T')[0],
-              total_games_played: 16,
-              total_stories_completed: 16,
-              total_words_written: 7635,
-              best_score: 0,
-              preferred_grade_level: 'K-2' as GradeLevel,
-              speech_enabled: true,
-            })
-            .eq('id', userId)
-            .select('*')
-            .single();
-
-          if (updatedProfile && !updateError) {
-            return updatedProfile;
-          }
-        }
-
-        return existingProfile;
-      }
-
-      // Get user email to check for potential matches
-      const {
-        data: { user: currentUser },
-      } = await supabase.auth.getUser();
-
-      if (!currentUser?.email) {
-        return null;
-      }
-
-      const emailPrefix = currentUser.email.split('@')[0];
-
-      // Strategy 2: Look for profiles containing the email prefix
-      const { data: matchingProfiles, error: searchError } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .ilike('username', `%${emailPrefix}%`);
-
-      if (matchingProfiles && matchingProfiles.length > 0 && !searchError) {
-        // Take the profile with the highest XP (most likely to be the main profile)
-        const bestProfile = matchingProfiles.reduce((best, current) =>
-          (current.total_xp || 0) > (best.total_xp || 0) ? current : best,
-        );
-
-        // Link this profile to the current user
-        const { data: linkedProfile, error: linkError } = await supabase
-          .from('user_profiles')
-          .update({ id: userId })
-          .eq('username', bestProfile.username)
-          .select('*')
-          .single();
-
-        if (linkedProfile && !linkError) {
-          return linkedProfile;
-        }
-      }
-
-      return null;
-    } catch (error) {
-      console.error('Unexpected error fetching profile:', error);
-      return null;
-    }
-  };
-
-  const createUserProfile = async (
-    userParam: User,
-  ): Promise<UserProfile | null> => {
-    try {
-      console.log(
-        'Creating new profile for user ID:',
-        userParam.id,
-        'Email:',
-        userParam.email,
-      );
-
-      // Generate unique username - avoid default 'user' which causes duplicates
-      // Try to extract email from userParam.email or clerkUser.user.emailAddresses
-      const email =
-        userParam.email || clerkUser?.user?.emailAddresses?.[0]?.emailAddress;
-
-      let emailPrefix: string;
-      if (email) {
-        emailPrefix = email.split('@')[0];
-        console.log(
-          '📧 [createUserProfile] Extracting username from email:',
-          emailPrefix,
-          'from',
-          email,
-        );
-      } else {
-        // For users without email, create unique username using user ID suffix
-        const uniqueSuffix = userParam.id.slice(-8);
-        emailPrefix = `user_${uniqueSuffix}`;
-        console.log(
-          '🆔 [createUserProfile] No email available, using user ID suffix:',
-          uniqueSuffix,
-        );
-      }
-
-      const displayName =
-        emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
-
-      const newProfile: UserProfileInsert = {
-        username: emailPrefix,
-        display_name: displayName,
-        total_xp: 0,
-        current_streak: 0,
-        longest_streak: 0,
-        last_activity_date: new Date().toISOString().split('T')[0], // Today's date
-        best_score: 0,
-        total_games_played: 0,
-        total_stories_completed: 0,
-        total_words_written: 0,
-        preferred_grade_level: 'K-2' as GradeLevel,
-        speech_enabled: true,
-      };
-
-      console.log('Inserting profile data:', newProfile);
-
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .insert({ ...newProfile, id: userParam.id })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error creating user profile:', error);
-        console.error(
-          'Error details:',
-          error.message,
-          error.details,
-          error.hint,
-        );
-        return null;
-      }
-
-      console.log('Successfully created profile:', data);
-      return data;
-    } catch (error) {
-      console.error('Unexpected error creating profile:', error);
-      return null;
-    }
-  };
+  // Note (US-016): fetchUserProfile and createUserProfile removed.
+  // Profile data comes from Convex reactive query; creation via convexCreateProfile mutation.
 
   const signIn = async (
     email: string,
     password: string,
     rememberMe = false,
-  ): Promise<{ error?: string }> => {
+  ): Promise<{
+    error?: string;
+    needsMigration?: boolean;
+    needsSecondFactor?: boolean;
+  }> => {
     try {
-      console.log('🔐 Attempting sign in', { email, rememberMe });
+      console.log('🔐 Attempting sign in (Clerk-first)', { email, rememberMe });
 
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      // US-005: Try Clerk sign-in first
+      const clerkResult = await signInWithClerk(email, password);
 
-      if (error) {
-        console.error('❌ Sign in failed', error.message);
-        return { error: error.message };
+      if (clerkResult.needsSecondFactor) {
+        // Second factor required — email code already sent by signInWithClerk
+        console.log('🔐 Sign-in requires second factor verification');
+        // Store rememberMe for after second factor completes
+        await RememberMeStorage.setRememberMe(rememberMe, email);
+        return { needsSecondFactor: true };
       }
 
-      // Save remember me preference
-      await RememberMeStorage.setRememberMe(rememberMe, email);
+      if (!clerkResult.error && !clerkResult.needsMigration) {
+        // Clerk sign-in successful
+        await RememberMeStorage.setRememberMe(rememberMe, email);
+        console.log('✅ Sign in successful via Clerk', { rememberMe });
+        return {};
+      }
 
-      console.log('✅ Sign in successful', { rememberMe });
-      return {};
+      if (clerkResult.needsMigration) {
+        // User not found in Clerk — legacy Supabase user needs migration
+        console.log('🔄 User not in Clerk — needs migration (US-007)');
+        return { needsMigration: true };
+      }
+
+      // Clerk returned an error (e.g., wrong password, OAuth-only account)
+      return { error: clerkResult.error };
     } catch (error) {
       console.error('💥 Sign in exception', error);
       return { error: 'An unexpected error occurred' };
     }
   };
 
-  const signUp = async (
-    email: string,
-    password: string,
-    profileData?: SignUpData,
-  ): Promise<{ error?: string }> => {
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-
-      if (error) {
-        return { error: error.message };
-      }
-
-      // Check if user needs email confirmation
-      if (data.user && !data.user.email_confirmed_at) {
-        setEmailConfirmed(false);
-      }
-
-      // Create user profile if signup was successful and profile data provided
-      if (data.user && profileData) {
-        try {
-          const newProfile: Omit<UserProfile, 'created_at' | 'updated_at'> = {
-            id: data.user.id,
-            username: profileData.username,
-            display_name: profileData.displayName || profileData.username,
-            total_xp: 0,
-            current_streak: 0,
-            longest_streak: 0,
-            last_activity_date: new Date().toISOString().split('T')[0],
-            total_games_played: 0,
-            total_stories_completed: 0,
-            total_words_written: 0,
-            best_score: 0,
-            preferred_grade_level: profileData.gradeLevel,
-            speech_enabled: true,
-          };
-
-          const { error: profileError } = await supabase
-            .from('user_profiles')
-            .insert(newProfile as any);
-
-          if (profileError) {
-            console.error('❌ Profile creation failed', profileError);
-            // Don't return error here as the user account was created successfully
-            // They can complete their profile later
-          } else {
-            console.log('✅ User profile created');
-          }
-        } catch (profileError) {
-          console.error('💥 Profile creation exception', profileError);
-          // Don't return error here as the user account was created successfully
-        }
-      }
-
-      return {};
-    } catch (error) {
-      return { error: 'An unexpected error occurred' };
-    }
-  };
+  // Note (US-016): Supabase signUp removed. Use signUpWithClerk instead.
 
   // Clear all app-related AsyncStorage data during logout
   const clearAllAppData = async (
@@ -861,7 +471,6 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       // Clear local state immediately (before signouts)
       console.log('🧹 Clearing local state...');
       setLoading(true); // Show loading during logout
-      setSession(null);
       setUser(null);
       setUserProfile(null);
       setEmailConfirmed(false);
@@ -940,16 +549,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
             // Still try to clear tokens on error
             await clearAndVerifyTokens();
           }
-          // Continue with Supabase signout even if Clerk fails
+          // Continue with logout even if Clerk fails
         }
       }
-
-      // Sign out from Supabase (this will trigger the auth state change listener)
-      console.log('🔐 Signing out from Supabase...');
-      await supabase.auth.signOut();
-
-      // Give a moment for the auth state change to propagate
-      await new Promise(resolve => setTimeout(resolve, 100));
 
       // Ensure loading is false after logout
       setLoading(false);
@@ -965,7 +567,6 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Force clear state even if signout fails
       console.log('🆘 Forcing logout state clear...');
-      setSession(null);
       setUser(null);
       setUserProfile(null);
       setEmailConfirmed(false);
@@ -1009,16 +610,6 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         }
       }
 
-      // Force sign out from Supabase even if there's an error
-      try {
-        await supabase.auth.signOut();
-      } catch (forceSignOutError) {
-        console.error(
-          '❌ Force Supabase sign out also failed:',
-          forceSignOutError,
-        );
-      }
-
       // Clear signing out flag
       isSigningOut.current = false;
     } finally {
@@ -1039,310 +630,173 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
   const updateProfile = async (
     profile: Partial<UserProfile>,
   ): Promise<{ error?: string }> => {
-    if (!user) {
+    // US-016: Guard on clerkUserId instead of user object
+    const activeClerkUserId = clerkUserId || clerkAuth?.userId;
+    if (!activeClerkUserId) {
       return { error: 'No user logged in' };
     }
 
     try {
-      // Get Clerk user ID if available (for OAuth users)
-      // clerkUser from useClerkUser() returns UseUserReturn which has id, emailAddresses, etc. when loaded
-      // Using optional chaining to safely access id property
-      const clerkUserId: string | undefined =
-        (clerkUser as any)?.id || user.user_metadata?.clerk_user_id;
-
-      // For OAuth users, check if profile exists in database first
-      // Don't rely on userProfile context state as it may be stale
-      if (clerkUserId) {
+      // Check if profile exists in Convex
+      if (userProfile) {
         console.log(
-          '📋 [AuthContext] Checking for existing profile for Clerk user ID:',
-          clerkUserId,
+          '✅ [AuthContext] Found existing profile, updating it:',
+          userProfile.id,
         );
 
-        const { data: existingProfiles, error: fetchError } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('clerk_user_id', clerkUserId)
-          .limit(1);
+        // Build update object for Convex (camelCase)
+        const convexUpdates: {
+          username?: string;
+          displayName?: string;
+          preferredGradeLevel?: 'K-2' | '3-5' | '6-8' | '9-12';
+          speechEnabled?: boolean;
+          avatarUrl?: string;
+          bio?: string;
+        } = {};
 
-        if (fetchError) {
-          console.error(
-            '❌ [AuthContext] Error checking for existing profile:',
-            fetchError,
-          );
-          return { error: 'Failed to check profile status' };
-        }
+        if (profile.username !== undefined)
+          convexUpdates.username = profile.username;
+        if (profile.display_name !== undefined)
+          convexUpdates.displayName = profile.display_name;
+        if (profile.preferred_grade_level !== undefined)
+          convexUpdates.preferredGradeLevel = profile.preferred_grade_level;
+        if (profile.speech_enabled !== undefined)
+          convexUpdates.speechEnabled = profile.speech_enabled;
+        if (profile.avatar_url !== undefined)
+          convexUpdates.avatarUrl = profile.avatar_url;
+        if (profile.bio !== undefined) convexUpdates.bio = profile.bio;
 
-        const existingProfile =
-          existingProfiles && existingProfiles.length > 0
-            ? existingProfiles[0]
-            : null;
-
-        // Profile exists - update it
-        // US-017: Convex PRIMARY, Supabase FALLBACK for UUID users
-        if (existingProfile) {
-          console.log(
-            '✅ [AuthContext] Found existing profile, updating it:',
-            existingProfile.id,
-          );
-
-          // Build update object for Convex (camelCase)
-          const convexUpdates: {
-            username?: string;
-            displayName?: string;
-            preferredGradeLevel?: 'K-2' | '3-5' | '6-8' | '9-12';
-            speechEnabled?: boolean;
-            avatarUrl?: string;
-            bio?: string;
-          } = {};
-
-          if (profile.username !== undefined)
-            convexUpdates.username = profile.username;
-          if (profile.display_name !== undefined)
-            convexUpdates.displayName = profile.display_name;
-          if (profile.preferred_grade_level !== undefined)
-            convexUpdates.preferredGradeLevel = profile.preferred_grade_level;
-          if (profile.speech_enabled !== undefined)
-            convexUpdates.speechEnabled = profile.speech_enabled;
-          if (profile.avatar_url !== undefined)
-            convexUpdates.avatarUrl = profile.avatar_url;
-          if (profile.bio !== undefined) convexUpdates.bio = profile.bio;
-
-          // PRIMARY: Update in Convex
-          console.log('📝 [Convex] Updating profile for:', clerkUserId);
-          try {
-            await convexUpdateProfile({
-              clerkUserId,
-              updates: convexUpdates,
-            });
-            console.log('✅ [Convex] Profile updated successfully');
-
-            // Fetch updated profile from Convex
-            const updatedConvexProfile = await convex.query(
-              api.userProfiles.getProfileByClerkId,
-              { clerkUserId },
-            );
-
-            if (updatedConvexProfile) {
-              const legacyProfile =
-                convertConvexProfileToLegacy(updatedConvexProfile);
-              setUserProfile(legacyProfile);
-            }
-          } catch (convexError) {
-            console.error('❌ [Convex] Failed to update profile:', convexError);
-            return {
-              error:
-                convexError instanceof Error
-                  ? convexError.message
-                  : 'Failed to update profile',
-            };
-          }
-
-          return {};
-        }
-
-        // Profile doesn't exist - create one using RPC function that bypasses RLS
-        console.log(
-          '📋 [AuthContext] No existing profile found, creating new profile for OAuth user',
-        );
-
-        // Generate unique username for OAuth users
-        // If no email or username provided, generate one using Clerk user ID suffix
-        const generateUniqueUsername = () => {
-          if (profile.username) return profile.username;
-
-          // Try to extract username from email (check both user.email and clerkUser emailAddresses)
-          // clerkUser is UseUserReturn type, use type assertion to access properties
-          const email =
-            user.email || (clerkUser as any)?.emailAddresses?.[0]?.emailAddress;
-          if (email) {
-            const emailPrefix = email.split('@')[0];
-            console.log(
-              '📧 [AuthContext] Extracting username from email:',
-              emailPrefix,
-              'from',
-              email,
-            );
-            return emailPrefix;
-          }
-
-          // For users without email (e.g., Apple "Hide My Email"), create unique username
-          // Using last 8 characters of Clerk user ID for uniqueness
-          const uniqueSuffix = clerkUserId.slice(-8);
-          console.log(
-            '🆔 [AuthContext] No email available, using Clerk user ID suffix:',
-            uniqueSuffix,
-          );
-          return `user_${uniqueSuffix}`;
-        };
-
-        const generateDisplayName = () => {
-          if (profile.display_name) return profile.display_name;
-          if (profile.username) return profile.username;
-
-          // Try to extract display name from email (check both user.email and clerkUser emailAddresses)
-          // clerkUser is UseUserReturn type, use type assertion to access properties
-          const email =
-            user.email || (clerkUser as any)?.emailAddresses?.[0]?.emailAddress;
-          if (email) {
-            const emailPrefix = email.split('@')[0];
-            const displayName =
-              emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
-            console.log(
-              '📧 [AuthContext] Extracting display name from email:',
-              displayName,
-            );
-            return displayName;
-          }
-
-          // For users without email, use a friendly default with unique suffix
-          const uniqueSuffix = clerkUserId.slice(-8);
-          console.log(
-            '🆔 [AuthContext] No email available, using default display name with suffix:',
-            uniqueSuffix,
-          );
-          return `User ${uniqueSuffix}`;
-        };
-
-        // US-017: Convex PRIMARY, Supabase FALLBACK for UUID users
-        const username = generateUniqueUsername();
-        const displayName = generateDisplayName();
-        const preferredGradeLevel = (profile.preferred_grade_level ||
-          'K-2') as GradeLevel;
-        const speechEnabled = profile.speech_enabled ?? true;
-
-        // PRIMARY: Create profile in Convex
-        console.log(
-          '📝 [Convex] Creating profile for OAuth user:',
-          clerkUserId,
-        );
+        // Update in Convex
+        console.log('📝 [Convex] Updating profile for:', activeClerkUserId);
         try {
-          const convexProfileId = await convexCreateProfile({
-            clerkUserId,
-            username,
-            displayName,
-            preferredGradeLevel,
-            speechEnabled,
+          await convexUpdateProfile({
+            clerkUserId: activeClerkUserId,
+            updates: convexUpdates,
           });
+          console.log('✅ [Convex] Profile updated successfully');
 
-          console.log(
-            '✅ [Convex] Profile created successfully:',
-            convexProfileId,
-          );
-
-          // Fetch the created profile to get full data
-          const createdConvexProfile = await convex.query(
+          // Fetch updated profile from Convex
+          const updatedConvexProfile = await convex.query(
             api.userProfiles.getProfileByClerkId,
-            { clerkUserId },
+            { clerkUserId: activeClerkUserId },
           );
 
-          if (createdConvexProfile) {
+          if (updatedConvexProfile) {
             const legacyProfile =
-              convertConvexProfileToLegacy(createdConvexProfile);
+              convertConvexProfileToLegacy(updatedConvexProfile);
             setUserProfile(legacyProfile);
-            setNeedsProfileCompletion(false);
-
-            // Update the synthetic user's ID to match the generated profile ID
-            if (user.id !== legacyProfile.id) {
-              console.log(
-                '🔗 [AuthContext] Updating synthetic user ID to match profile ID:',
-                legacyProfile.id,
-              );
-              setUser({
-                ...user,
-                id: legacyProfile.id,
-              });
-            }
           }
         } catch (convexError) {
-          console.error('❌ [Convex] Failed to create profile:', convexError);
+          console.error('❌ [Convex] Failed to update profile:', convexError);
           return {
             error:
               convexError instanceof Error
                 ? convexError.message
-                : 'Failed to create profile',
+                : 'Failed to update profile',
           };
         }
 
         return {};
       }
 
-      // For non-OAuth users with profile in context, update it directly
-      if (userProfile?.id) {
-        const { data: updatedProfile, error } = await supabase
-          .from('user_profiles')
-          .update(profile as any)
-          .eq('id', userProfile.id)
-          .select()
-          .single();
+      // Profile doesn't exist - create one using RPC function that bypasses RLS
+      console.log(
+        '📋 [AuthContext] No existing profile found, creating new profile for OAuth user',
+      );
 
-        if (error) {
-          return { error: error.message };
+      // Generate unique username
+      const generateUniqueUsername = () => {
+        if (profile.username) return profile.username;
+
+        const userEmail =
+          user?.email || clerkUser?.user?.emailAddresses?.[0]?.emailAddress;
+        if (userEmail) {
+          return userEmail.split('@')[0];
         }
 
-        setUserProfile(updatedProfile);
-        return {};
+        const uniqueSuffix = activeClerkUserId.slice(-8);
+        return `user_${uniqueSuffix}`;
+      };
+
+      const generateDisplayName = () => {
+        if (profile.display_name) return profile.display_name;
+        if (profile.username) return profile.username;
+
+        const userEmail =
+          user?.email || clerkUser?.user?.emailAddresses?.[0]?.emailAddress;
+        if (userEmail) {
+          const emailPrefix = userEmail.split('@')[0];
+          return emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
+        }
+
+        const uniqueSuffix = activeClerkUserId.slice(-8);
+        return `User ${uniqueSuffix}`;
+      };
+
+      const username = generateUniqueUsername();
+      const displayName = generateDisplayName();
+      const preferredGradeLevel = (profile.preferred_grade_level ||
+        'K-2') as GradeLevel;
+      const speechEnabled = profile.speech_enabled ?? true;
+
+      // Create profile in Convex
+      console.log('📝 [Convex] Creating profile for user:', activeClerkUserId);
+      try {
+        const convexProfileId = await convexCreateProfile({
+          clerkUserId: activeClerkUserId,
+          username,
+          displayName,
+          preferredGradeLevel,
+          speechEnabled,
+        });
+
+        console.log(
+          '✅ [Convex] Profile created successfully:',
+          convexProfileId,
+        );
+
+        // Fetch the created profile to get full data
+        const createdConvexProfile = await convex.query(
+          api.userProfiles.getProfileByClerkId,
+          { clerkUserId: activeClerkUserId },
+        );
+
+        if (createdConvexProfile) {
+          const legacyProfile =
+            convertConvexProfileToLegacy(createdConvexProfile);
+          setUserProfile(legacyProfile);
+          setNeedsProfileCompletion(false);
+        }
+      } catch (convexError) {
+        console.error('❌ [Convex] Failed to create profile:', convexError);
+        return {
+          error:
+            convexError instanceof Error
+              ? convexError.message
+              : 'Failed to create profile',
+        };
       }
 
-      // No Clerk user ID and no profile in context - shouldn't happen
-      console.error(
-        '❌ [AuthContext] Cannot update profile - no user identification available',
-      );
-      return { error: 'Unable to identify user profile' };
+      return {};
     } catch (error) {
       console.error('💥 [AuthContext] Profile update/create error:', error);
       return { error: 'An unexpected error occurred' };
     }
   };
 
-  const resendConfirmation = async (
-    email: string,
-  ): Promise<{ error?: string }> => {
-    try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: email,
-      });
-
-      if (error) {
-        return { error: error.message };
-      }
-
-      return {};
-    } catch (error) {
-      return { error: 'An unexpected error occurred' };
-    }
-  };
-
-  const checkEmailConfirmation = async (): Promise<boolean> => {
-    try {
-      const {
-        data: { user: currentUser },
-      } = await supabase.auth.getUser();
-
-      if (currentUser?.email_confirmed_at) {
-        setEmailConfirmed(true);
-        return true;
-      }
-
-      setEmailConfirmed(false);
-      return false;
-    } catch (error) {
-      console.error('Error checking email confirmation:', error);
-      setEmailConfirmed(false);
-      return false;
-    }
-  };
+  // Note (US-016): resendConfirmation and checkEmailConfirmation removed.
+  // Clerk handles email verification via verifyEmailCode/resendClerkVerificationCode.
 
   const resetPassword = async (email: string): Promise<{ error?: string }> => {
+    // US-006: Use Clerk password reset (sends 6-digit code)
+    // The caller should check for needsCode in the result from resetPasswordWithClerk
+    // to show the code verification UI. This wrapper maintains backward compatibility.
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'creativebridge://reset-password',
-      });
-
-      if (error) {
-        return { error: error.message };
+      const result = await resetPasswordWithClerk(email);
+      if (result.error) {
+        return { error: result.error };
       }
-
+      // Success — the caller will handle the code input UI
       return {};
     } catch (error) {
       return { error: 'An unexpected error occurred' };
@@ -1524,6 +978,1394 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // ============================================================================
+  // SUPABASE → CLERK/CONVEX MIGRATION (US-007)
+  // ============================================================================
+
+  /**
+   * Fire-and-forget migration event logger (US-018).
+   * Never blocks or fails the migration flow — errors are silently caught.
+   */
+  const logMigrationEvent = (params: {
+    eventType: 'migration_started' | 'migration_completed' | 'migration_failed';
+    step:
+      | 'supabase_auth'
+      | 'profile_fetch'
+      | 'clerk_account'
+      | 'email_verification'
+      | 'profile'
+      | 'stats'
+      | 'sessions'
+      | 'supabase_signout'
+      | 'full_migration';
+    clerkUserId?: string;
+    supabaseUserId?: string;
+    email?: string;
+    error?: string;
+    metadata?: Record<string, unknown>;
+  }) => {
+    convexLogMigrationEvent(params).catch((err: unknown) => {
+      console.warn(
+        '⚠️ [AuthContext] Failed to log migration event (non-fatal):',
+        err,
+      );
+    });
+  };
+
+  /**
+   * Complete migration directly when the Clerk account already exists (US-007).
+   *
+   * This handles the case where a user previously started migration (Phase A)
+   * but didn't complete verification, and their Clerk account was already created.
+   * We sign into the existing Clerk account and port all data to Convex.
+   */
+  const completeMigrationDirectly = async (
+    migrationData: PendingMigrationData,
+  ): Promise<void> => {
+    const currentClerkUserId = clerkAuth?.userId;
+    if (!currentClerkUserId) {
+      throw new Error('Clerk user ID not available after sign-in');
+    }
+
+    console.log(
+      '🔄 [AuthContext] Completing migration directly for:',
+      currentClerkUserId,
+    );
+
+    const eventCtx = {
+      clerkUserId: currentClerkUserId,
+      supabaseUserId: migrationData.supabaseUserId,
+      email: migrationData.email,
+    };
+
+    logMigrationEvent({
+      eventType: 'migration_started',
+      step: 'full_migration',
+      ...eventCtx,
+    });
+
+    // 1. Create Convex profile (idempotent — createOAuthProfile checks for existing)
+    await convexCreateProfile({
+      clerkUserId: currentClerkUserId,
+      username: migrationData.email.split('@')[0],
+      displayName: migrationData.email.split('@')[0],
+      preferredGradeLevel: migrationData.preferredGradeLevel,
+    });
+    logMigrationEvent({
+      eventType: 'migration_completed',
+      step: 'profile',
+      ...eventCtx,
+    });
+
+    // 2. Migrate stats
+    await convexMigrateStats({
+      clerkUserId: currentClerkUserId,
+      totalXp: migrationData.totalXp,
+      currentStreak: migrationData.currentStreak,
+      longestStreak: migrationData.longestStreak,
+      bestScore: migrationData.bestScore,
+      totalGamesPlayed: migrationData.totalGamesPlayed,
+      totalStoriesCompleted: migrationData.totalStoriesCompleted,
+      totalWordsWritten: migrationData.totalWordsWritten,
+      lastActivityDate: migrationData.lastActivityDate,
+      onboardingCompleted: migrationData.onboardingCompleted,
+      onboardingProgress: migrationData.onboardingProgress,
+      firstStoryCompletedAt: migrationData.firstStoryCompletedAt,
+      firstImageGeneratedAt: migrationData.firstImageGeneratedAt,
+      firstVoiceInputAt: migrationData.firstVoiceInputAt,
+      firstStreakAchievedAt: migrationData.firstStreakAchievedAt,
+    });
+    logMigrationEvent({
+      eventType: 'migration_completed',
+      step: 'stats',
+      ...eventCtx,
+    });
+
+    // 3. Migrate game sessions in batches of 50
+    const sessions = migrationData.gameSessions;
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < sessions.length; i += BATCH_SIZE) {
+      const batch = sessions.slice(i, i + BATCH_SIZE);
+      await convexMigrateGameSessions({
+        clerkUserId: currentClerkUserId,
+        sessions: batch,
+      });
+    }
+    logMigrationEvent({
+      eventType: 'migration_completed',
+      step: 'sessions',
+      ...eventCtx,
+      metadata: { sessionCount: sessions.length },
+    });
+
+    // 4. Sign out of Supabase (no longer needed)
+    await supabase.auth.signOut();
+
+    // 5. Clear migration data from AsyncStorage
+    await AsyncStorage.removeItem(PENDING_MIGRATION_KEY);
+    await AsyncStorage.removeItem(PENDING_CLERK_PROFILE_KEY);
+
+    logMigrationEvent({
+      eventType: 'migration_completed',
+      step: 'full_migration',
+      ...eventCtx,
+    });
+    console.log(
+      '✅ [AuthContext] Migration completed directly for:',
+      currentClerkUserId,
+    );
+  };
+
+  /**
+   * Phase A of Supabase → Clerk migration (US-007).
+   *
+   * 1. Verifies Supabase credentials
+   * 2. Fetches all user data (profile + sessions) from Supabase
+   * 3. Creates a Clerk account (or signs into existing one)
+   * 4. If new account: sends verification email, stores migration data
+   * 5. If existing account: completes migration directly
+   *
+   * @param email - User's email address (same in Supabase and Clerk)
+   * @param password - User's password (same for both)
+   * @returns { needsVerification: true } if email verification needed,
+   *          {} if migration completed directly, or { error } on failure
+   */
+  const migrateFromSupabase = async (
+    email: string,
+    password: string,
+  ): Promise<{
+    needsVerification?: boolean;
+    needsNewPassword?: boolean;
+    error?: string;
+  }> => {
+    try {
+      console.log('🔄 [AuthContext] Starting Supabase → Clerk migration...');
+      logMigrationEvent({
+        eventType: 'migration_started',
+        step: 'full_migration',
+        email,
+      });
+
+      // Step 1: Verify Supabase credentials
+      const { data: authData, error: authError } =
+        await supabase.auth.signInWithPassword({ email, password });
+
+      if (authError || !authData.user) {
+        console.error(
+          '❌ [AuthContext] Supabase auth failed during migration:',
+          authError?.message,
+        );
+        logMigrationEvent({
+          eventType: 'migration_failed',
+          step: 'supabase_auth',
+          email,
+          error: authError?.message || 'Could not verify credentials',
+        });
+        return {
+          error: authError?.message || 'Could not verify your credentials.',
+        };
+      }
+
+      const supabaseUserId = authData.user.id;
+      console.log(
+        '🔄 [AuthContext] Supabase auth verified, userId:',
+        supabaseUserId,
+      );
+      logMigrationEvent({
+        eventType: 'migration_completed',
+        step: 'supabase_auth',
+        supabaseUserId,
+        email,
+      });
+
+      // Step 2: Fetch user profile from Supabase
+      const { data: profileRaw, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', supabaseUserId)
+        .single();
+      // Cast to any — Supabase client lacks typed schema in this project
+      const profileData = profileRaw as any;
+
+      if (profileError || !profileRaw) {
+        console.error(
+          '❌ [AuthContext] Failed to fetch Supabase profile:',
+          profileError?.message,
+        );
+        logMigrationEvent({
+          eventType: 'migration_failed',
+          step: 'profile_fetch',
+          supabaseUserId,
+          email,
+          error: profileError?.message || 'Profile not found',
+        });
+        return {
+          error: 'Could not fetch your profile data. Please try again.',
+        };
+      }
+
+      // Step 3: Fetch game sessions from Supabase (non-fatal if fails)
+      let gameSessions: PendingMigrationData['gameSessions'] = [];
+      try {
+        const { data: sessionsRaw } = await supabase
+          .from('game_sessions')
+          .select('*')
+          .eq('user_id', supabaseUserId);
+        // Cast to any[] — Supabase client lacks typed schema in this project
+        const sessionsData = sessionsRaw as any[];
+
+        if (sessionsData) {
+          gameSessions = sessionsData.map((s: any) => ({
+            completedAt: s.completed_at ?? undefined,
+            gradeLevel: s.grade_level,
+            finalScore: s.final_score ?? 0,
+            wordsWritten: s.words_written ?? 0,
+            sentencesCompleted: s.sentences_completed ?? 0,
+            challengesCompleted: s.challenges_completed ?? 0,
+            xpEarned: s.xp_earned ?? 0,
+            storyContent: s.story_content ?? undefined,
+            importedStoryContent: s.imported_story_content ?? undefined,
+            storySource: s.story_source ?? 'New',
+            originalCreationDate: s.original_creation_date ?? undefined,
+            storyMetadata: s.story_metadata ?? undefined,
+            generatedImageUrl: s.generated_image_url ?? undefined,
+            imageGenerationTimestamp: s.image_generation_timestamp ?? undefined,
+            imageGenerationCost: s.image_generation_cost ?? undefined,
+            currentRound: s.current_round ?? 1,
+          }));
+        }
+        console.log(
+          `🔄 [AuthContext] Fetched ${gameSessions.length} game sessions`,
+        );
+      } catch (sessionsError) {
+        console.warn(
+          '⚠️ [AuthContext] Failed to fetch game sessions (non-fatal):',
+          sessionsError,
+        );
+      }
+
+      logMigrationEvent({
+        eventType: 'migration_completed',
+        step: 'profile_fetch',
+        supabaseUserId,
+        email,
+        metadata: { sessionCount: gameSessions.length },
+      });
+
+      // Build migration data
+      const migrationData: PendingMigrationData = {
+        supabaseUserId,
+        email,
+        totalXp: profileData.total_xp ?? 0,
+        currentStreak: profileData.current_streak ?? 0,
+        longestStreak: profileData.longest_streak ?? 0,
+        bestScore: profileData.best_score ?? 0,
+        totalGamesPlayed: profileData.total_games_played ?? 0,
+        totalStoriesCompleted: profileData.total_stories_completed ?? 0,
+        totalWordsWritten: profileData.total_words_written ?? 0,
+        lastActivityDate:
+          profileData.last_activity_date ??
+          new Date().toISOString().split('T')[0],
+        preferredGradeLevel:
+          (profileData.preferred_grade_level as GradeLevel) ?? 'K-2',
+        onboardingCompleted: profileData.onboarding_completed ?? false,
+        onboardingProgress: profileData.onboarding_progress ?? {
+          create_account: true,
+          first_story: false,
+          first_image: false,
+          first_voice: false,
+          first_streak: false,
+        },
+        firstStoryCompletedAt:
+          profileData.first_story_completed_at ?? undefined,
+        firstImageGeneratedAt:
+          profileData.first_image_generated_at ?? undefined,
+        firstVoiceInputAt: profileData.first_voice_input_at ?? undefined,
+        firstStreakAchievedAt:
+          profileData.first_streak_achieved_at ?? undefined,
+        gameSessions,
+      };
+
+      // Step 4: Persist migration data BEFORE Clerk account creation
+      // This ensures the expensive Supabase data fetch is preserved if Clerk
+      // rejects the password (e.g., breached password, too weak).
+      await AsyncStorage.setItem(
+        PENDING_MIGRATION_KEY,
+        JSON.stringify(migrationData),
+      );
+
+      // Step 5: Create Clerk account
+      if (!clerkSignUp?.signUp) {
+        return {
+          error: 'Clerk is not available. Please try again or restart the app.',
+        };
+      }
+
+      const { signUp: clerkSignUpResource } = clerkSignUp;
+
+      try {
+        await clerkSignUpResource.create({
+          emailAddress: email,
+          password,
+        });
+      } catch (clerkError: any) {
+        // Check if the account already exists in Clerk
+        const clerkErrors = clerkError?.errors || [];
+        const firstError = clerkErrors[0];
+
+        if (
+          firstError?.code === 'form_identifier_exists' ||
+          firstError?.message?.toLowerCase().includes('taken')
+        ) {
+          console.log(
+            '🔄 [AuthContext] Clerk account already exists, signing in directly...',
+          );
+
+          // Sign into existing Clerk account and complete migration
+          const signInResult = await signInWithClerk(email, password);
+          if (signInResult.error) {
+            return { error: signInResult.error };
+          }
+
+          // Complete migration directly (Clerk session is now active)
+          await completeMigrationDirectly(migrationData);
+          return {};
+        }
+
+        // Check if the password was rejected by Clerk's security policies
+        if (
+          firstError?.code === 'form_password_pwned' ||
+          firstError?.code === 'form_password_not_strong_enough' ||
+          firstError?.code === 'form_password_length_too_short'
+        ) {
+          console.log(
+            '🔑 [AuthContext] Password rejected by Clerk policy, user needs new password',
+          );
+          logMigrationEvent({
+            eventType: 'migration_failed',
+            step: 'clerk_account',
+            supabaseUserId,
+            email,
+            error: `Password policy: ${firstError.code}`,
+            metadata: { requiresNewPassword: true },
+          });
+          // Migration data already saved to AsyncStorage above
+          return { needsNewPassword: true };
+        }
+
+        // Re-throw unexpected Clerk errors
+        logMigrationEvent({
+          eventType: 'migration_failed',
+          step: 'clerk_account',
+          supabaseUserId,
+          email,
+          error:
+            clerkError?.errors?.[0]?.message || 'Clerk account creation failed',
+        });
+        throw clerkError;
+      }
+
+      logMigrationEvent({
+        eventType: 'migration_completed',
+        step: 'clerk_account',
+        supabaseUserId,
+        email,
+      });
+
+      // Step 6: Prepare email verification
+      await clerkSignUpResource.prepareEmailAddressVerification({
+        strategy: 'email_code',
+      });
+
+      // Step 7: Store pending Clerk profile so verifyEmailCode creates the Convex profile
+      // (Migration data was already saved in Step 4 above)
+      const pendingProfile: PendingClerkProfile = {
+        username: email.split('@')[0],
+        displayName: email.split('@')[0],
+        gradeLevel: migrationData.preferredGradeLevel,
+        email,
+        createdAt: new Date().toISOString(),
+      };
+      await AsyncStorage.setItem(
+        PENDING_CLERK_PROFILE_KEY,
+        JSON.stringify(pendingProfile),
+      );
+
+      logMigrationEvent({
+        eventType: 'migration_completed',
+        step: 'email_verification',
+        supabaseUserId,
+        email,
+      });
+      console.log(
+        '✅ [AuthContext] Migration Phase A complete, verification email sent',
+      );
+      return { needsVerification: true };
+    } catch (error) {
+      console.error('❌ [AuthContext] Migration failed:', error);
+
+      let errorMessage = 'Migration failed. Please try again.';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+
+      logMigrationEvent({
+        eventType: 'migration_failed',
+        step: 'full_migration',
+        email,
+        error: errorMessage,
+      });
+      return { error: errorMessage };
+    }
+  };
+
+  /**
+   * Resume a migration after the user's original password was rejected by Clerk.
+   * Reads the cached migration data from AsyncStorage and creates a Clerk account
+   * with the user's chosen new password.
+   */
+  const resumeMigrationWithNewPassword = async (
+    newPassword: string,
+  ): Promise<{ needsVerification?: boolean; error?: string }> => {
+    try {
+      // Step 1: Read cached migration data
+      const migrationJson = await AsyncStorage.getItem(PENDING_MIGRATION_KEY);
+      if (!migrationJson) {
+        return {
+          error:
+            'Migration data not found. Please start the sign-in process again.',
+        };
+      }
+      const migrationData: PendingMigrationData = JSON.parse(migrationJson);
+      const { email } = migrationData;
+
+      console.log(
+        '🔑 [AuthContext] Resuming migration with new password for:',
+        email,
+      );
+
+      // Step 2: Create Clerk account with the new password
+      if (!clerkSignUp?.signUp) {
+        return {
+          error: 'Clerk is not available. Please try again or restart the app.',
+        };
+      }
+
+      const { signUp: clerkSignUpResource } = clerkSignUp;
+
+      try {
+        await clerkSignUpResource.create({
+          emailAddress: email,
+          password: newPassword,
+        });
+      } catch (clerkError: any) {
+        const clerkErrors = clerkError?.errors || [];
+        const firstError = clerkErrors[0];
+
+        // Account already exists — sign in directly and complete migration
+        if (
+          firstError?.code === 'form_identifier_exists' ||
+          firstError?.message?.toLowerCase().includes('taken')
+        ) {
+          console.log(
+            '🔄 [AuthContext] Clerk account already exists, signing in directly...',
+          );
+          const signInResult = await signInWithClerk(email, newPassword);
+          if (signInResult.error) {
+            return { error: signInResult.error };
+          }
+          await completeMigrationDirectly(migrationData);
+          return {};
+        }
+
+        // Password still rejected — let user try again
+        if (
+          firstError?.code === 'form_password_pwned' ||
+          firstError?.code === 'form_password_not_strong_enough' ||
+          firstError?.code === 'form_password_length_too_short'
+        ) {
+          const message =
+            firstError.code === 'form_password_pwned'
+              ? 'This password has also been found in a data breach. Please choose a different password.'
+              : firstError.longMessage ||
+                firstError.message ||
+                'Password does not meet security requirements.';
+          return { error: message };
+        }
+
+        // Unexpected error
+        return {
+          error:
+            firstError?.longMessage ||
+            firstError?.message ||
+            'Failed to create account. Please try again.',
+        };
+      }
+
+      // Step 3: Prepare email verification
+      await clerkSignUpResource.prepareEmailAddressVerification({
+        strategy: 'email_code',
+      });
+
+      // Step 4: Store pending Clerk profile for post-verification profile creation
+      const pendingProfile: PendingClerkProfile = {
+        username: email.split('@')[0],
+        displayName: email.split('@')[0],
+        gradeLevel: migrationData.preferredGradeLevel,
+        email,
+        createdAt: new Date().toISOString(),
+      };
+      await AsyncStorage.setItem(
+        PENDING_CLERK_PROFILE_KEY,
+        JSON.stringify(pendingProfile),
+      );
+
+      logMigrationEvent({
+        eventType: 'migration_completed',
+        step: 'clerk_account',
+        supabaseUserId: migrationData.supabaseUserId,
+        email,
+        metadata: { resumedWithNewPassword: true },
+      });
+
+      console.log(
+        '✅ [AuthContext] Migration resumed, verification email sent',
+      );
+      return { needsVerification: true };
+    } catch (error) {
+      console.error(
+        '❌ [AuthContext] Resume migration with new password failed:',
+        error,
+      );
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'Failed to resume migration. Please try again.';
+      return { error: errorMessage };
+    }
+  };
+
+  // ============================================================================
+  // CLERK EMAIL/PASSWORD AUTHENTICATION (US-002)
+  // ============================================================================
+
+  /**
+   * Sign up a new user with email and password via Clerk.
+   *
+   * This function:
+   * 1. Creates a Clerk sign-up with email/password
+   * 2. Triggers email verification code flow
+   * 3. Stores pending profile data in AsyncStorage for post-verification
+   *
+   * @param email - User's email address
+   * @param password - User's password (min 8 chars, mixed case, numbers per Clerk config)
+   * @param profileData - Username, displayName, and gradeLevel for profile creation
+   * @returns { needsVerification: true } on success, { error: string } on failure
+   */
+  const signUpWithClerk = async (
+    email: string,
+    password: string,
+    profileData: SignUpData,
+  ): Promise<{ needsVerification?: boolean; error?: string }> => {
+    try {
+      console.log(
+        '📧 [AuthContext] Initiating Clerk email/password sign-up...',
+      );
+
+      // Check if Clerk signUp is available
+      if (!clerkSignUp?.signUp) {
+        const error =
+          'Clerk is not configured or not available. Please configure Clerk to use email/password authentication.';
+        console.error('❌ [AuthContext]', error);
+        return { error };
+      }
+
+      const { signUp } = clerkSignUp;
+
+      // Step 1: Create Clerk sign-up with email and password
+      console.log('📧 [AuthContext] Creating Clerk sign-up...');
+      await signUp.create({
+        emailAddress: email,
+        password,
+      });
+
+      // Step 2: Trigger email verification code flow
+      console.log('📧 [AuthContext] Preparing email verification...');
+      await signUp.prepareEmailAddressVerification({
+        strategy: 'email_code',
+      });
+
+      // Step 3: Store pending profile data in AsyncStorage
+      // This will be used after email verification to create the Convex profile
+      const pendingProfile: PendingClerkProfile = {
+        username: profileData.username,
+        displayName: profileData.displayName || profileData.username,
+        gradeLevel: profileData.gradeLevel,
+        email,
+        createdAt: new Date().toISOString(),
+      };
+
+      console.log('📧 [AuthContext] Storing pending profile data...');
+      await AsyncStorage.setItem(
+        PENDING_CLERK_PROFILE_KEY,
+        JSON.stringify(pendingProfile),
+      );
+
+      console.log(
+        '✅ [AuthContext] Clerk sign-up successful, verification email sent',
+      );
+      return { needsVerification: true };
+    } catch (error) {
+      console.error('❌ [AuthContext] Clerk sign-up failed:', error);
+
+      // Parse Clerk error messages for user-friendly display
+      let errorMessage = 'An unexpected error occurred during sign-up';
+
+      if (error instanceof Error) {
+        const message = error.message.toLowerCase();
+
+        // Handle common Clerk errors
+        if (message.includes('email_address') && message.includes('taken')) {
+          errorMessage =
+            'This email address is already registered. Please sign in instead.';
+        } else if (message.includes('password') && message.includes('breach')) {
+          errorMessage =
+            'This password has appeared in a known data breach. Please choose a different, unique password for your security.';
+        } else if (message.includes('password') && message.includes('weak')) {
+          errorMessage =
+            'Password is too weak. Please use at least 8 characters with mixed case and numbers.';
+        } else if (message.includes('password') && message.includes('short')) {
+          errorMessage = 'Password must be at least 8 characters long.';
+        } else if (message.includes('invalid') && message.includes('email')) {
+          errorMessage = 'Please enter a valid email address.';
+        } else if (message.includes('rate') || message.includes('limit')) {
+          errorMessage =
+            'Too many sign-up attempts. Please wait a moment and try again.';
+        } else {
+          // Use the original error message if it's descriptive enough
+          errorMessage = error.message;
+        }
+      }
+
+      return { error: errorMessage };
+    }
+  };
+
+  /**
+   * Verify email code for Clerk email/password sign-up (US-003).
+   *
+   * Completes the email verification flow started by signUpWithClerk().
+   * On success: activates the Clerk session, creates a Convex profile
+   * from the pending profile stored in AsyncStorage, and clears the pending data.
+   *
+   * @param code - 6-digit verification code from the user's email
+   * @returns {} on success, { error: string } on failure
+   */
+  const verifyEmailCode = async (code: string): Promise<{ error?: string }> => {
+    try {
+      console.log('📧 [AuthContext] Verifying email code...');
+
+      // Check if Clerk signUp hook is available
+      if (!clerkSignUp?.signUp || !clerkSignUp?.setActive) {
+        const error =
+          'Clerk is not available. Please try again or restart the app.';
+        console.error('❌ [AuthContext]', error);
+        return { error };
+      }
+
+      const { signUp, setActive } = clerkSignUp;
+
+      // Step 1: Attempt email address verification with the provided code
+      console.log('📧 [AuthContext] Attempting email verification...');
+      const result = await signUp.attemptEmailAddressVerification({ code });
+
+      if (result.status !== 'complete') {
+        console.warn(
+          '⚠️ [AuthContext] Verification incomplete, status:',
+          result.status,
+        );
+        return {
+          error:
+            'Verification is not complete. Please check your code and try again.',
+        };
+      }
+
+      // Step 2: Activate the Clerk session
+      if (!result.createdSessionId) {
+        console.error('❌ [AuthContext] No session created after verification');
+        return {
+          error:
+            'Account verified but session could not be created. Please try signing in.',
+        };
+      }
+
+      console.log('📧 [AuthContext] Activating Clerk session...');
+      await setActive({ session: result.createdSessionId });
+
+      // Step 3: Retrieve pending profile from AsyncStorage
+      console.log('📧 [AuthContext] Retrieving pending profile data...');
+      const pendingProfileJson = await AsyncStorage.getItem(
+        PENDING_CLERK_PROFILE_KEY,
+      );
+
+      if (!pendingProfileJson) {
+        console.warn(
+          '⚠️ [AuthContext] No pending profile found in AsyncStorage. Profile will need to be created manually.',
+        );
+        // Session is active but no profile data — not a fatal error.
+        // The user is authenticated; profile creation can happen via other flows.
+        return {};
+      }
+
+      const pendingProfile: PendingClerkProfile =
+        JSON.parse(pendingProfileJson);
+
+      // Step 4: Create Convex profile via createOAuthProfile mutation
+      // Use the Clerk user ID from the completed sign-up
+      const clerkUserId = result.createdUserId;
+
+      if (!clerkUserId) {
+        console.error(
+          '❌ [AuthContext] No Clerk user ID available after verification',
+        );
+        // Session is active but we can't create the profile without a user ID
+        await AsyncStorage.removeItem(PENDING_CLERK_PROFILE_KEY);
+        return {
+          error:
+            'Account verified but profile could not be created. Please complete your profile in settings.',
+        };
+      }
+
+      console.log(
+        '📧 [AuthContext] Creating Convex profile for user:',
+        clerkUserId,
+      );
+      await convexCreateProfile({
+        clerkUserId,
+        username: pendingProfile.username,
+        displayName: pendingProfile.displayName,
+        preferredGradeLevel: pendingProfile.gradeLevel,
+      });
+
+      // Step 5 (US-007): Check for pending migration data and complete Phase B
+      try {
+        const migrationJson = await AsyncStorage.getItem(PENDING_MIGRATION_KEY);
+
+        if (migrationJson) {
+          console.log(
+            '🔄 [AuthContext] Pending migration found — completing Phase B...',
+          );
+          const migrationData: PendingMigrationData = JSON.parse(migrationJson);
+
+          const phaseBCtx = {
+            clerkUserId,
+            supabaseUserId: migrationData.supabaseUserId,
+            email: migrationData.email,
+          };
+
+          // Migrate stats
+          await convexMigrateStats({
+            clerkUserId,
+            totalXp: migrationData.totalXp,
+            currentStreak: migrationData.currentStreak,
+            longestStreak: migrationData.longestStreak,
+            bestScore: migrationData.bestScore,
+            totalGamesPlayed: migrationData.totalGamesPlayed,
+            totalStoriesCompleted: migrationData.totalStoriesCompleted,
+            totalWordsWritten: migrationData.totalWordsWritten,
+            lastActivityDate: migrationData.lastActivityDate,
+            onboardingCompleted: migrationData.onboardingCompleted,
+            onboardingProgress: migrationData.onboardingProgress,
+            firstStoryCompletedAt: migrationData.firstStoryCompletedAt,
+            firstImageGeneratedAt: migrationData.firstImageGeneratedAt,
+            firstVoiceInputAt: migrationData.firstVoiceInputAt,
+            firstStreakAchievedAt: migrationData.firstStreakAchievedAt,
+          });
+          logMigrationEvent({
+            eventType: 'migration_completed',
+            step: 'stats',
+            ...phaseBCtx,
+          });
+
+          // Migrate game sessions in batches of 50
+          const sessions = migrationData.gameSessions;
+          const BATCH_SIZE = 50;
+          for (let i = 0; i < sessions.length; i += BATCH_SIZE) {
+            const batch = sessions.slice(i, i + BATCH_SIZE);
+            await convexMigrateGameSessions({
+              clerkUserId,
+              sessions: batch,
+            });
+          }
+          logMigrationEvent({
+            eventType: 'migration_completed',
+            step: 'sessions',
+            ...phaseBCtx,
+            metadata: { sessionCount: sessions.length },
+          });
+
+          // Sign out of Supabase (legacy session no longer needed)
+          await supabase.auth.signOut();
+
+          // Clear migration data
+          await AsyncStorage.removeItem(PENDING_MIGRATION_KEY);
+
+          logMigrationEvent({
+            eventType: 'migration_completed',
+            step: 'full_migration',
+            ...phaseBCtx,
+          });
+          console.log(
+            '✅ [AuthContext] Migration Phase B complete — stats and sessions migrated',
+          );
+        }
+      } catch (migrationError) {
+        // Migration failure is non-fatal — Clerk session is still active.
+        // PENDING_MIGRATION_KEY is kept so migration can be retried later.
+        console.error(
+          '⚠️ [AuthContext] Migration Phase B failed (non-fatal):',
+          migrationError,
+        );
+        logMigrationEvent({
+          eventType: 'migration_failed',
+          step: 'full_migration',
+          clerkUserId,
+          error:
+            migrationError instanceof Error
+              ? migrationError.message
+              : 'Phase B failed',
+        });
+      }
+
+      // Step 6: Clear pending profile from AsyncStorage
+      console.log('📧 [AuthContext] Clearing pending profile data...');
+      await AsyncStorage.removeItem(PENDING_CLERK_PROFILE_KEY);
+
+      console.log(
+        '✅ [AuthContext] Email verification complete, session active, profile created',
+      );
+      return {};
+    } catch (error) {
+      console.error('❌ [AuthContext] Email verification failed:', error);
+
+      let errorMessage = 'Verification failed. Please try again.';
+
+      if (error instanceof Error) {
+        const message = error.message.toLowerCase();
+
+        if (
+          message.includes('incorrect') ||
+          message.includes('invalid') ||
+          message.includes('code')
+        ) {
+          errorMessage =
+            'Invalid verification code. Please check and try again.';
+        } else if (message.includes('expired')) {
+          errorMessage =
+            'Verification code has expired. Please request a new code.';
+        } else if (message.includes('rate') || message.includes('limit')) {
+          errorMessage =
+            'Too many attempts. Please wait a moment and try again.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+
+      return { error: errorMessage };
+    }
+  };
+
+  /**
+   * Resend the email verification code for Clerk email/password sign-up (US-004).
+   *
+   * Re-triggers the email_code verification strategy on the current sign-up attempt.
+   * This is safe to call multiple times — Clerk handles rate limiting.
+   */
+  const resendClerkVerificationCode = async (): Promise<{
+    error?: string;
+  }> => {
+    try {
+      console.log('📧 [AuthContext] Resending Clerk verification code...');
+
+      if (!clerkSignUp?.signUp) {
+        return {
+          error: 'Clerk is not available. Please restart the sign-up process.',
+        };
+      }
+
+      const { signUp } = clerkSignUp;
+
+      await signUp.prepareEmailAddressVerification({
+        strategy: 'email_code',
+      });
+
+      console.log('✅ [AuthContext] Verification code resent successfully');
+      return {};
+    } catch (error) {
+      console.error(
+        '❌ [AuthContext] Failed to resend verification code:',
+        error,
+      );
+
+      let errorMessage =
+        'Failed to resend verification code. Please try again.';
+
+      if (error instanceof Error) {
+        const message = error.message.toLowerCase();
+        if (message.includes('rate') || message.includes('limit')) {
+          errorMessage =
+            'Too many attempts. Please wait a moment before requesting a new code.';
+        }
+      }
+
+      return { error: errorMessage };
+    }
+  };
+
+  /**
+   * Sign in with Clerk using email and password (US-005).
+   *
+   * Attempts to authenticate the user via Clerk's email/password flow.
+   * Returns { needsMigration: true } when the user is not found in Clerk,
+   * indicating they may be a legacy Supabase user who needs to migrate.
+   *
+   * @param email - User's email address
+   * @param password - User's password
+   * @returns {} on success, { needsMigration: true } if not in Clerk, { error } on failure
+   */
+  const signInWithClerk = async (
+    email: string,
+    password: string,
+  ): Promise<{
+    needsMigration?: boolean;
+    needsSecondFactor?: boolean;
+    error?: string;
+  }> => {
+    try {
+      console.log(
+        '🔐 [AuthContext] Attempting Clerk email/password sign-in...',
+      );
+
+      // Check if Clerk signIn hook is available
+      if (!clerkSignIn?.signIn || !clerkSignIn?.setActive) {
+        const error =
+          'Clerk is not available. Please try again or restart the app.';
+        console.error('❌ [AuthContext]', error);
+        return { error };
+      }
+
+      const { signIn: clerkSignInResource, setActive } = clerkSignIn;
+
+      // Attempt Clerk sign-in with email and password
+      const result = await clerkSignInResource.create({
+        identifier: email,
+        password,
+      });
+
+      if (result.status === 'complete') {
+        // Activate the Clerk session
+        console.log('📧 [AuthContext] Activating Clerk session...');
+        await setActive({ session: result.createdSessionId });
+        console.log('✅ [AuthContext] Clerk sign-in successful');
+        return {};
+      }
+
+      // Handle needs_second_factor: prepare email code and signal UI
+      if (result.status === 'needs_second_factor') {
+        console.log(
+          '🔐 [AuthContext] Sign-in needs second factor. Supported:',
+          result.supportedSecondFactors?.map((f: any) => f.strategy),
+        );
+
+        // Check if email_code is a supported second factor
+        const hasEmailCode = result.supportedSecondFactors?.some(
+          (f: any) => f.strategy === 'email_code',
+        );
+
+        if (hasEmailCode) {
+          // Prepare the email code second factor — this sends the code
+          await clerkSignInResource.prepareSecondFactor({
+            strategy: 'email_code',
+          });
+          console.log(
+            '📧 [AuthContext] Second factor email code sent, awaiting verification',
+          );
+          return { needsSecondFactor: true };
+        }
+
+        // No supported second factor strategy we can handle
+        console.warn(
+          '⚠️ [AuthContext] No supported second factor strategy available',
+        );
+        return {
+          error:
+            'Your account requires two-factor authentication that is not yet supported in this app.',
+        };
+      }
+
+      // Handle other incomplete statuses
+      console.warn(
+        '⚠️ [AuthContext] Clerk sign-in incomplete, status:',
+        result.status,
+      );
+      return {
+        error: 'Sign-in incomplete. Additional verification may be required.',
+      };
+    } catch (error: any) {
+      console.error('❌ [AuthContext] Clerk sign-in failed:', error);
+
+      // Parse Clerk structured error codes
+      const clerkErrors = error?.errors || [];
+      const firstError = clerkErrors[0];
+
+      if (firstError) {
+        const code = firstError.code;
+
+        if (code === 'form_identifier_not_found') {
+          // User doesn't exist in Clerk — likely a legacy Supabase user
+          console.log(
+            '📋 [AuthContext] User not found in Clerk, may need migration',
+          );
+          return { needsMigration: true };
+        }
+
+        if (code === 'form_password_incorrect') {
+          return { error: 'Invalid credentials' };
+        }
+
+        if (code === 'strategy_for_user_invalid') {
+          // User exists in Clerk but only has OAuth — no password set
+          return {
+            error:
+              'This account uses social sign-in (Google/Apple). Please use the appropriate sign-in button.',
+          };
+        }
+      }
+
+      // Generic error handling
+      let errorMessage = 'An unexpected error occurred during sign-in';
+
+      if (error instanceof Error) {
+        const message = error.message.toLowerCase();
+
+        if (message.includes('rate') || message.includes('limit')) {
+          errorMessage =
+            'Too many sign-in attempts. Please wait a moment and try again.';
+        } else if (message.includes('network') || message.includes('fetch')) {
+          errorMessage =
+            'Network error. Please check your connection and try again.';
+        }
+      }
+
+      return { error: errorMessage };
+    }
+  };
+
+  /**
+   * Verify second factor during sign-in.
+   *
+   * Called after `signInWithClerk` returns `{ needsSecondFactor: true }`.
+   * The email code has already been sent by `prepareSecondFactor` inside
+   * `signInWithClerk`. This function verifies the 6-digit code and
+   * activates the Clerk session.
+   *
+   * @param code - 6-digit verification code from email
+   * @returns {} on success, { error: string } on failure
+   */
+  const verifySignInSecondFactor = async (
+    code: string,
+  ): Promise<{ error?: string }> => {
+    try {
+      console.log('🔐 [AuthContext] Verifying sign-in second factor...');
+
+      if (!clerkSignIn?.signIn || !clerkSignIn?.setActive) {
+        return {
+          error: 'Clerk is not available. Please try signing in again.',
+        };
+      }
+
+      const { signIn: clerkSignInResource, setActive } = clerkSignIn;
+
+      const result = await clerkSignInResource.attemptSecondFactor({
+        strategy: 'email_code',
+        code,
+      });
+
+      if (result.status === 'complete') {
+        console.log('📧 [AuthContext] Activating Clerk session after 2FA...');
+        await setActive({ session: result.createdSessionId });
+        console.log('✅ [AuthContext] Sign-in with second factor successful');
+        return {};
+      }
+
+      console.warn(
+        '⚠️ [AuthContext] Second factor verification incomplete, status:',
+        result.status,
+      );
+      return {
+        error: 'Verification incomplete. Please try again.',
+      };
+    } catch (error: any) {
+      console.error(
+        '❌ [AuthContext] Second factor verification failed:',
+        error,
+      );
+
+      const clerkErrors = error?.errors || [];
+      const firstError = clerkErrors[0];
+
+      if (firstError) {
+        const errCode = firstError.code;
+
+        if (errCode === 'form_code_incorrect' || errCode === 'form_param_nil') {
+          return {
+            error: 'Invalid verification code. Please check and try again.',
+          };
+        }
+
+        if (errCode === 'verification_expired') {
+          return {
+            error:
+              'Verification code has expired. Please sign in again to get a new code.',
+          };
+        }
+      }
+
+      return { error: 'Failed to verify code. Please try again.' };
+    }
+  };
+
+  /**
+   * Initiate Clerk password reset flow (US-006).
+   *
+   * Sends a 6-digit reset code to the user's email using Clerk's
+   * `reset_password_email_code` strategy. The user then enters the code
+   * along with a new password via `verifyPasswordResetCode()`.
+   *
+   * @param email - User's email address
+   * @returns { needsCode: true } on success, { error: string } on failure
+   */
+  const resetPasswordWithClerk = async (
+    email: string,
+  ): Promise<{ needsCode?: boolean; error?: string }> => {
+    try {
+      console.log('🔑 [AuthContext] Initiating Clerk password reset...');
+
+      if (!clerkSignIn?.signIn) {
+        return {
+          error: 'Clerk is not available. Please try again or restart the app.',
+        };
+      }
+
+      const { signIn: clerkSignInResource } = clerkSignIn;
+
+      // Create a sign-in attempt with the reset_password_email_code strategy
+      await clerkSignInResource.create({
+        strategy: 'reset_password_email_code',
+        identifier: email,
+      });
+
+      console.log('✅ [AuthContext] Password reset code sent to', email);
+      return { needsCode: true };
+    } catch (error: any) {
+      console.error('❌ [AuthContext] Password reset request failed:', error);
+
+      // Parse Clerk structured error codes
+      const clerkErrors = error?.errors || [];
+      const firstError = clerkErrors[0];
+
+      if (firstError) {
+        const code = firstError.code;
+
+        if (code === 'form_identifier_not_found') {
+          return {
+            error:
+              'No account found with this email. Please check the address or sign up.',
+          };
+        }
+
+        if (code === 'strategy_for_user_invalid') {
+          return {
+            error:
+              'This account uses social sign-in (Google/Apple). Password reset is not available for social accounts.',
+          };
+        }
+      }
+
+      let errorMessage = 'An unexpected error occurred. Please try again.';
+
+      if (error instanceof Error) {
+        const message = error.message.toLowerCase();
+
+        if (message.includes('rate') || message.includes('limit')) {
+          errorMessage =
+            'Too many reset attempts. Please wait a moment and try again.';
+        } else if (message.includes('network') || message.includes('fetch')) {
+          errorMessage =
+            'Network error. Please check your connection and try again.';
+        }
+      }
+
+      return { error: errorMessage };
+    }
+  };
+
+  /**
+   * Verify password reset code and set new password (US-006).
+   *
+   * Completes the password reset flow started by `resetPasswordWithClerk()`.
+   * Uses Clerk's two-step flow:
+   *   1. `attemptFirstFactor` verifies the 6-digit code → status: `needs_new_password`
+   *   2. `resetPassword` sets the new password → status: `complete`
+   *
+   * @param code - 6-digit verification code from email
+   * @param newPassword - The new password to set
+   * @returns {} on success, { error: string } on failure
+   */
+  const verifyPasswordResetCode = async (
+    code: string,
+    newPassword: string,
+  ): Promise<{ error?: string }> => {
+    try {
+      console.log('🔑 [AuthContext] Verifying password reset code...');
+
+      if (!clerkSignIn?.signIn || !clerkSignIn?.setActive) {
+        return {
+          error:
+            'Clerk is not available. Please restart the password reset process.',
+        };
+      }
+
+      const { signIn: clerkSignInResource, setActive } = clerkSignIn;
+
+      // Step 1: Verify the 6-digit code (first factor only — no password here)
+      const firstFactorResult = await clerkSignInResource.attemptFirstFactor({
+        strategy: 'reset_password_email_code',
+        code,
+      });
+
+      console.log(
+        '🔑 [AuthContext] First factor result status:',
+        firstFactorResult.status,
+      );
+
+      // Step 2: Set the new password via resetPassword()
+      if (firstFactorResult.status === 'needs_new_password') {
+        const resetResult = await clerkSignInResource.resetPassword({
+          password: newPassword,
+          signOutOfOtherSessions: true,
+        });
+
+        if (resetResult.status === 'complete') {
+          console.log(
+            '🔑 [AuthContext] Activating session after password reset...',
+          );
+          await setActive({ session: resetResult.createdSessionId });
+          console.log('✅ [AuthContext] Password reset and sign-in successful');
+          return {};
+        }
+
+        // Unexpected status after resetPassword
+        console.warn(
+          '⚠️ [AuthContext] Unexpected status after resetPassword:',
+          resetResult.status,
+        );
+        return {
+          error:
+            'Password reset incomplete. Please try signing in with your new password.',
+        };
+      }
+
+      // If attemptFirstFactor returned 'complete' directly (e.g., password was
+      // already set via optional param in some Clerk versions)
+      if (firstFactorResult.status === 'complete') {
+        console.log(
+          '🔑 [AuthContext] Activating session after password reset...',
+        );
+        await setActive({ session: firstFactorResult.createdSessionId });
+        console.log('✅ [AuthContext] Password reset and sign-in successful');
+        return {};
+      }
+
+      // Handle needs_second_factor — user has 2FA enabled
+      if (firstFactorResult.status === 'needs_second_factor') {
+        console.warn(
+          '⚠️ [AuthContext] Password reset requires second factor (2FA)',
+        );
+        return {
+          error:
+            'Your account has two-factor authentication enabled. Please disable 2FA first or contact support to reset your password.',
+        };
+      }
+
+      // Handle any other incomplete status
+      console.warn(
+        '⚠️ [AuthContext] Password reset incomplete, status:',
+        firstFactorResult.status,
+      );
+      return {
+        error: 'Password reset incomplete. Please try again.',
+      };
+    } catch (error: any) {
+      console.error(
+        '❌ [AuthContext] Password reset verification failed:',
+        error,
+      );
+
+      const clerkErrors = error?.errors || [];
+      const firstError = clerkErrors[0];
+
+      if (firstError) {
+        const code_str = firstError.code;
+
+        if (
+          code_str === 'form_code_incorrect' ||
+          code_str === 'form_param_nil'
+        ) {
+          return {
+            error: 'Invalid verification code. Please check and try again.',
+          };
+        }
+
+        if (code_str === 'verification_expired') {
+          return {
+            error: 'Verification code has expired. Please request a new one.',
+          };
+        }
+
+        if (
+          code_str === 'form_password_pwned' ||
+          code_str === 'form_password_not_strong_enough'
+        ) {
+          return {
+            error:
+              'Password is too weak or has appeared in a data breach. Please choose a stronger password.',
+          };
+        }
+
+        if (code_str === 'form_password_length_too_short') {
+          return { error: 'Password must be at least 8 characters long.' };
+        }
+      }
+
+      let errorMessage = 'Failed to reset password. Please try again.';
+
+      if (error instanceof Error) {
+        const message = error.message.toLowerCase();
+
+        if (message.includes('rate') || message.includes('limit')) {
+          errorMessage =
+            'Too many attempts. Please wait a moment and try again.';
+        } else if (message.includes('network') || message.includes('fetch')) {
+          errorMessage =
+            'Network error. Please check your connection and try again.';
+        }
+      }
+
+      return { error: errorMessage };
+    }
+  };
+
   const signInWithGoogle = async (): Promise<{
     error?: string;
     showSessionHelp?: boolean;
@@ -1603,7 +2445,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         console.log(
           '🧹 [AuthContext] Final safeguard: directly clearing primary JWT token...',
         );
-        clerkTokenCache.clearToken('__clerk_client_jwt');
+        clerkTokenCache.clearToken?.('__clerk_client_jwt');
 
         console.log(
           '✅ [AuthContext] Deep cleanup complete, proceeding with Google OAuth',
@@ -1976,12 +2818,12 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         console.log('✅ [AuthContext] Post-activation verification passed');
       }
 
-      // Sync with Supabase after successful OAuth
-      const syncResult = await syncClerkWithSupabase();
-      if (!syncResult.success) {
+      // Complete auth after successful OAuth
+      const authResult = await handleClerkAuthComplete();
+      if (!authResult.success) {
         console.warn(
-          '⚠️ [AuthContext] OAuth succeeded but Supabase sync failed:',
-          syncResult.error,
+          '⚠️ [AuthContext] OAuth succeeded but auth completion failed:',
+          authResult.error,
         );
       }
 
@@ -2011,28 +2853,31 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (isAlreadySignedIn) {
         console.log(
-          '🔄 [AuthContext] User already signed in with Clerk, attempting to sync with Supabase...',
+          '🔄 [AuthContext] User already signed in with Clerk, completing auth...',
         );
         try {
-          const syncResult = await syncClerkWithSupabase();
-          console.log('🔍 [AuthContext] Sync result:', syncResult);
-          if (syncResult.success) {
+          const authResult = await handleClerkAuthComplete();
+          console.log('🔍 [AuthContext] Auth result:', authResult);
+          if (authResult.success) {
             console.log(
-              '✅ [AuthContext] Synced existing Clerk session with Supabase',
+              '✅ [AuthContext] Completed auth for existing Clerk session',
             );
-            return {}; // Success - user is now fully authenticated
+            return {};
           } else {
             console.error(
-              '❌ [AuthContext] Failed to sync existing Clerk session:',
-              syncResult.error,
+              '❌ [AuthContext] Failed to complete auth:',
+              authResult.error,
             );
             return {
-              error: syncResult.error || 'Failed to sync authentication',
+              error: authResult.error || 'Failed to complete authentication',
             };
           }
-        } catch (syncError) {
-          console.error('💥 [AuthContext] Error during sync:', syncError);
-          return { error: 'Failed to sync authentication' };
+        } catch (authError) {
+          console.error(
+            '💥 [AuthContext] Error during auth completion:',
+            authError,
+          );
+          return { error: 'Failed to complete authentication' };
         }
       }
 
@@ -2123,7 +2968,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         console.log(
           '🧹 [AuthContext] Final safeguard: directly clearing primary JWT token...',
         );
-        clerkTokenCache.clearToken('__clerk_client_jwt');
+        clerkTokenCache.clearToken?.('__clerk_client_jwt');
 
         console.log(
           '✅ [AuthContext] Deep cleanup complete, proceeding with Apple OAuth',
@@ -2404,12 +3249,12 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         console.log('✅ [AuthContext] Post-activation completed');
       }
 
-      // Sync with Supabase after successful OAuth
-      const syncResult = await syncClerkWithSupabase();
-      if (!syncResult.success) {
+      // Complete auth after successful OAuth
+      const authResult = await handleClerkAuthComplete();
+      if (!authResult.success) {
         console.warn(
-          '⚠️ [AuthContext] OAuth succeeded but Supabase sync failed:',
-          syncResult.error,
+          '⚠️ [AuthContext] OAuth succeeded but auth completion failed:',
+          authResult.error,
         );
       }
 
@@ -2436,28 +3281,31 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (isAlreadySignedIn) {
         console.log(
-          '🔄 [AuthContext] User already signed in with Clerk, attempting to sync with Supabase...',
+          '🔄 [AuthContext] User already signed in with Clerk, completing auth...',
         );
         try {
-          const syncResult = await syncClerkWithSupabase();
-          console.log('🔍 [AuthContext] Sync result:', syncResult);
-          if (syncResult.success) {
+          const authResult = await handleClerkAuthComplete();
+          console.log('🔍 [AuthContext] Auth result:', authResult);
+          if (authResult.success) {
             console.log(
-              '✅ [AuthContext] Synced existing Clerk session with Supabase',
+              '✅ [AuthContext] Completed auth for existing Clerk session',
             );
-            return {}; // Success - user is now fully authenticated
+            return {};
           } else {
             console.error(
-              '❌ [AuthContext] Failed to sync existing Clerk session:',
-              syncResult.error,
+              '❌ [AuthContext] Failed to complete auth:',
+              authResult.error,
             );
             return {
-              error: syncResult.error || 'Failed to sync authentication',
+              error: authResult.error || 'Failed to complete authentication',
             };
           }
-        } catch (syncError) {
-          console.error('💥 [AuthContext] Error during sync:', syncError);
-          return { error: 'Failed to sync authentication' };
+        } catch (authError) {
+          console.error(
+            '💥 [AuthContext] Error during auth completion:',
+            authError,
+          );
+          return { error: 'Failed to complete authentication' };
         }
       }
 
@@ -2889,64 +3737,12 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         return;
       }
 
-      // No profile in context - check Supabase directly using Clerk user ID
+      // No profile in context — Convex reactive query hasn't loaded yet or no profile exists
+      // Mark as needing completion; Convex reactive query will update when profile loads
+      setNeedsProfileCompletion(true);
       console.log(
-        '📋 [AuthContext] Checking profile completion for Clerk user ID:',
-        clerkUserId,
+        '📋 [AuthContext] No profile in context - profile completion needed',
       );
-
-      const { data: profiles, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('clerk_user_id', clerkUserId)
-        .limit(1);
-
-      if (profileError) {
-        console.error(
-          '❌ [AuthContext] Error checking profile:',
-          profileError.message,
-        );
-        // On error, assume profile needs completion
-        setNeedsProfileCompletion(true);
-        return;
-      }
-
-      // Handle case where query returns array
-      const profile = profiles && profiles.length > 0 ? profiles[0] : null;
-
-      // Log warning if multiple profiles found (data integrity issue)
-      if (profiles && profiles.length > 1) {
-        console.warn(
-          '⚠️ [AuthContext] Multiple profiles found for Clerk user ID. Using oldest profile.',
-          `Found ${profiles.length} profiles for clerk_user_id: ${clerkUserId}`,
-        );
-      }
-
-      if (profile) {
-        // Profile exists in DB - check if it's complete
-        const isComplete =
-          profile.username &&
-          profile.username.trim().length > 0 &&
-          profile.preferred_grade_level;
-
-        setNeedsProfileCompletion(!isComplete);
-        console.log(
-          `📋 [AuthContext] Profile found in DB: ${
-            isComplete ? 'Complete' : 'Incomplete'
-          }`,
-        );
-
-        // Update context with profile if it exists
-        if (!userProfile) {
-          setUserProfile(profile);
-        }
-      } else {
-        // No profile found - needs completion
-        setNeedsProfileCompletion(true);
-        console.log(
-          '📋 [AuthContext] No profile found - profile completion needed',
-        );
-      }
     } catch (error) {
       console.error(
         '❌ [AuthContext] Error checking profile completion:',
@@ -2955,356 +3751,89 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       // On error, assume profile needs completion to be safe
       setNeedsProfileCompletion(true);
     }
-  }, [clerkUser?.user?.id, session, emailConfirmed, userProfile]);
+  }, [clerkUser?.user?.id, emailConfirmed, userProfile]);
 
   /**
-   * Sync Clerk auth state with Supabase
-   * This can be called:
-   * 1. After OAuth flow completes
-   * 2. On app initialization when Clerk is signed in but Supabase isn't
-   * 3. When we get "already signed in" error during OAuth attempt
+   * Handle Clerk auth completion (US-016).
+   *
+   * Replaces the old syncClerkWithSupabase (~330 lines). This simplified version:
+   * 1. Sets AppUser from Clerk data
+   * 2. Sets emailConfirmed = true (Clerk handles email verification)
+   * 3. Checks profile completion (Convex reactive query handles profile loading)
    */
-  const syncClerkWithSupabase = useCallback(async (): Promise<{
+  const handleClerkAuthComplete = useCallback(async (): Promise<{
     success: boolean;
     error?: string;
   }> => {
     if (!clerkAuth?.isSignedIn || !clerkAuth) {
-      console.log('⚠️ [AuthContext] Cannot sync: Clerk user is not signed in');
+      console.log(
+        '⚠️ [AuthContext] Cannot complete auth: Clerk user is not signed in',
+      );
       return { success: false, error: 'User is not signed in with Clerk' };
     }
 
     // Clear signing out flag if it's stuck - this is a new sign-in operation
     if (isSigningOut.current) {
       console.log(
-        '🔄 [AuthContext] Clearing stuck isSigningOut flag for new OAuth sign-in',
+        '🔄 [AuthContext] Clearing stuck isSigningOut flag for new sign-in',
       );
       isSigningOut.current = false;
     }
 
     try {
-      console.log('🔄 [AuthContext] Syncing Clerk auth with Supabase...');
-
-      // Convert Clerk auth to the interface expected by oauthService
-      const clerkAuthMethods: ClerkAuthMethods = {
-        getToken: clerkAuth.getToken.bind(clerkAuth),
-        userId: clerkAuth.userId,
-        isSignedIn: clerkAuth.isSignedIn,
-      };
-
-      // Convert Clerk user to the interface expected by oauthService
-      // Note: clerkUser from useUser() returns { isLoaded, isSignedIn, user }
-      // The actual user object with id, emailAddresses etc. is in clerkUser.user
-      const clerkUserData: ClerkUser | null = clerkUser?.user
-        ? {
-            id: clerkUser.user.id,
-            emailAddresses: clerkUser.user.emailAddresses || [],
-            firstName: clerkUser.user.firstName,
-            lastName: clerkUser.user.lastName,
-          }
-        : null;
-
-      // Complete OAuth flow: get JWT and sync with Supabase
-      const oauthResult = await completeOAuthFlow(
-        clerkAuthMethods,
-        clerkUserData,
-      );
-
-      if (!oauthResult.success) {
-        const errorMessage =
-          oauthResult.error || 'Unknown error during OAuth completion';
-        const errorType = oauthResult.errorType || 'UNKNOWN';
-
-        console.error(
-          '❌ [AuthContext] Failed to complete OAuth flow:',
-          errorMessage,
-        );
-        console.error('❌ [AuthContext] Error type:', errorType);
-
-        // Log account linking errors for monitoring
-        if (
-          errorType === 'ACCOUNT_LINKING_CONFLICT' ||
-          errorType === 'DATABASE_ERROR'
-        ) {
-          console.error(
-            '⚠️ [AuthContext] Account linking error detected - user will see error message',
-          );
-          const errorContext = {
-            errorType,
-            errorMessage,
-            clerkUserId:
-              clerkUserData?.id || clerkAuthMethods.userId || 'unknown',
-            timestamp: new Date().toISOString(),
-          };
-          console.error(
-            '📊 [AuthContext] Account linking error context for monitoring:',
-            errorContext,
-          );
-        }
-
-        isProcessingOAuth.current = false;
-
-        // Log error for monitoring and debugging
-        console.error(
-          '❌ [AuthContext] OAuth completion error details:',
-          JSON.stringify(
-            {
-              errorMessage,
-              errorType,
-              clerkUserId:
-                clerkUserData?.id || clerkAuthMethods.userId || 'unknown',
-              timestamp: new Date().toISOString(),
-            },
-            null,
-            2,
-          ),
-        );
-
-        // Store error for display to user
-        // Use error handler to get user-friendly message
-        try {
-          const { handleOAuthError } = require('../utils/oauthErrorHandler');
-          const errorResult = handleOAuthError(errorMessage, {
-            provider: 'google', // Default, will be refined based on actual provider
-            attemptNumber: 1,
-          });
-
-          if (errorResult.shouldShowError) {
-            setOAuthError(errorResult.userMessage);
-            // Clear error after 10 seconds
-            setTimeout(() => {
-              setOAuthError(null);
-            }, 10000);
-          }
-        } catch (importError) {
-          // Fallback if error handler import fails
-          console.error('Error importing oauthErrorHandler:', importError);
-          setOAuthError(errorMessage);
-          setTimeout(() => {
-            setOAuthError(null);
-          }, 10000);
-        }
-
-        // Note: Error from OAuth completion is not directly returned to button components
-        // because the OAuth flow is asynchronous (initiation → callback → completion)
-        // If completion fails, the user won't be signed in and can try again
-        // The button components handle errors from the initiation phase
-        return;
-      }
-
-      console.log('✅ [AuthContext] OAuth flow completed successfully');
+      console.log('🔄 [AuthContext] Completing Clerk auth...');
 
       // CRITICAL: Mark OAuth processing as complete BEFORE any state updates
-      // This prevents infinite re-render loops where useEffect fires on `user` change
-      // and re-enters this flow because isProcessingOAuth.current is still true
       isProcessingOAuth.current = false;
 
       // Track that we've successfully synced this Clerk user ID
-      // Do this early to prevent re-sync attempts during state updates
-      if (oauthResult.clerkUserId) {
-        lastSyncedClerkUserId.current = oauthResult.clerkUserId;
+      const currentClerkUserId = clerkAuth.userId;
+      if (currentClerkUserId) {
+        lastSyncedClerkUserId.current = currentClerkUserId;
       }
 
       // Clear any previous OAuth errors on success
       setOAuthError(null);
 
-      // OAuth users bypass email confirmation (handled by Clerk)
-      // This applies to both Google and Apple OAuth users
+      // Clerk handles email verification — always confirmed for active sessions
       setEmailConfirmed(true);
-      console.log(
-        '✅ [AuthContext] Email confirmed automatically for OAuth user (bypassed email confirmation)',
-      );
 
-      // Create a synthetic user object for OAuth users
-      // This is needed because components like HomeScreen check for `user` to allow actions
-      // Since we don't create a Supabase session for OAuth users, we create a user-like object
-      const oauthUserId = oauthResult.clerkUserId || clerkAuth?.userId;
-      if (oauthUserId) {
-        const syntheticUser = {
-          id: oauthUserId,
-          email:
-            oauthResult.userEmail ||
-            clerkUser?.user?.emailAddresses?.[0]?.emailAddress ||
-            '',
-          email_confirmed_at: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          app_metadata: { provider: 'clerk_oauth' },
-          user_metadata: {
-            clerk_user_id: oauthUserId,
-            full_name:
-              clerkUser?.user?.firstName && clerkUser?.user?.lastName
-                ? `${clerkUser.user.firstName} ${clerkUser.user.lastName}`
-                : clerkUser?.user?.firstName || '',
-          },
-          aud: 'authenticated',
-          role: 'authenticated',
-        } as User;
+      // Set AppUser from Clerk data
+      const userId = currentClerkUserId || '';
+      const email = clerkUser?.user?.emailAddresses?.[0]?.emailAddress || '';
 
-        console.log('👤 [AuthContext] Created synthetic user for OAuth:', {
-          id: syntheticUser.id,
-          email: syntheticUser.email,
-        });
+      console.log('👤 [AuthContext] Setting user from Clerk:', {
+        id: userId,
+        email,
+      });
 
-        setUser(syntheticUser);
-      }
+      setUser({ id: userId, email });
 
-      // Handle Apple private relay email mapping
-      // Clerk provides the email (whether real or private relay) in oauthResult.userEmail
-      if (oauthResult.userEmail) {
-        console.log(
-          '📧 [AuthContext] User email from OAuth:',
-          oauthResult.userEmail,
-        );
+      // Check if profile completion is needed
+      // Convex reactive query handles profile data loading automatically
+      await checkProfileCompletion();
 
-        // Log if this appears to be an Apple private relay email
-        if (
-          oauthResult.userEmail.includes('privaterelay') ||
-          oauthResult.userEmail.includes('icloud.com')
-        ) {
-          console.log(
-            '🍎 [AuthContext] Apple private relay email detected - this is normal for Apple Sign In users who choose to hide their email',
-          );
-          console.log(
-            'ℹ️ [AuthContext] Private relay emails are stable per user and can be used for account identification',
-          );
-        }
-      }
-
-      // Update user profile if available
-      // Note: Account linking is handled automatically by syncClerkUserIdToProfile
-      // which checks for existing Supabase profiles and links them to the Clerk user ID
-      if (oauthResult.clerkUserId) {
-        console.log(
-          '👤 [AuthContext] Looking up user profile with Clerk user ID:',
-          oauthResult.clerkUserId,
-        );
-        console.log(
-          '🔗 [AuthContext] Account linking was handled during OAuth completion',
-        );
-
-        // Find profile with Clerk user ID (account linking should have already happened)
-        const { data: profiles, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('clerk_user_id', oauthResult.clerkUserId)
-          .limit(1);
-
-        if (profileError) {
-          console.error(
-            '❌ [AuthContext] Error finding profile:',
-            profileError.message,
-          );
-        }
-
-        // Handle case where query returns array
-        const profile = profiles && profiles.length > 0 ? profiles[0] : null;
-
-        // Log warning if multiple profiles found (data integrity issue)
-        if (profiles && profiles.length > 1) {
-          console.warn(
-            '⚠️ [AuthContext] Multiple profiles found for Clerk user ID. Using oldest profile.',
-            `Found ${profiles.length} profiles for clerk_user_id: ${oauthResult.clerkUserId}`,
-          );
-        }
-
-        if (profile) {
-          console.log('✅ [AuthContext] User profile found and loaded');
-          console.log(
-            '✅ [AuthContext] Profile ID:',
-            profile.id,
-            'Username:',
-            profile.username,
-          );
-          setUserProfile(profile);
-
-          // US-017 Migration: Ensure Convex profile exists for existing Supabase users
-          // Check if Convex profile exists - if not, migrate the Supabase profile
-          try {
-            const existingConvexProfile = await convex.query(
-              api.userProfiles.getProfileByClerkId,
-              { clerkUserId: oauthResult.clerkUserId! },
-            );
-
-            if (!existingConvexProfile) {
-              console.log(
-                '📦 [AuthContext] No Convex profile found - migrating from Supabase...',
-              );
-              console.log('📦 [AuthContext] Supabase profile to migrate:', {
-                clerkUserId: profile.clerk_user_id,
-                username: profile.username,
-                displayName: profile.display_name,
-                totalXp: profile.total_xp,
-              });
-
-              // Create Convex profile from Supabase profile data
-              const convexProfileId = await convexCreateProfile({
-                clerkUserId: oauthResult.clerkUserId!,
-                username: profile.username,
-                displayName: profile.display_name,
-                preferredGradeLevel: (profile.preferred_grade_level ||
-                  'K-2') as GradeLevel,
-                speechEnabled: profile.speech_enabled ?? true,
-              });
-
-              console.log(
-                '✅ [AuthContext] Convex profile created from Supabase migration:',
-                convexProfileId,
-              );
-
-              // Note: XP and other stats will be synced via the convexProfile reactive query
-              // The full profile with XP is already in Supabase; Convex starts fresh but
-              // the reactive query will load the authoritative data
-            } else {
-              console.log(
-                '✅ [AuthContext] Convex profile already exists - no migration needed',
-              );
-            }
-          } catch (convexMigrationError) {
-            // Log but don't fail - the user can still use the app with Supabase
-            console.warn(
-              '⚠️ [AuthContext] Convex profile migration failed (non-fatal):',
-              convexMigrationError,
-            );
-          }
-        } else {
-          // Profile will be created during profile completion (Task 5.1)
-          console.log(
-            '📋 [AuthContext] Profile not found. Will be created during profile completion',
-          );
-          console.log(
-            'ℹ️ [AuthContext] This is normal for new OAuth users or if account linking did not find a matching profile',
-          );
-        }
-
-        // Check if profile completion is needed after OAuth
-        await checkProfileCompletion();
-      }
-
-      // Note: isProcessingOAuth.current and lastSyncedClerkUserId.current
-      // are set early (before setUser) to prevent infinite re-render loops
-
+      console.log('✅ [AuthContext] Clerk auth completion successful');
       return { success: true };
     } catch (error) {
-      console.error(
-        '💥 [AuthContext] Error syncing Clerk with Supabase:',
-        error,
-      );
+      console.error('❌ [AuthContext] Error completing Clerk auth:', error);
       isProcessingOAuth.current = false;
       const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error during sync';
+        error instanceof Error
+          ? error.message
+          : 'Unknown error during auth completion';
       return { success: false, error: errorMessage };
     }
-  }, [clerkAuth, clerkUser]);
+  }, [clerkAuth, clerkUser, checkProfileCompletion]);
 
-  // Handle Clerk OAuth completion after callback (wraps syncClerkWithSupabase)
+  // Handle Clerk OAuth completion after callback
   const handleClerkOAuthCompletion = useCallback(async () => {
-    // Only process if we're in the middle of an OAuth flow and Clerk user is signed in
     if (!isProcessingOAuth.current || !clerkAuth?.isSignedIn) {
       return;
     }
 
-    await syncClerkWithSupabase();
-  }, [clerkAuth?.isSignedIn, syncClerkWithSupabase]);
+    await handleClerkAuthComplete();
+  }, [clerkAuth?.isSignedIn, handleClerkAuthComplete]);
 
   // Monitor Clerk auth state changes to detect OAuth completion or existing session
   useEffect(() => {
@@ -3312,7 +3841,6 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('🔍 [AuthContext] Clerk auth state changed:', {
         isSignedIn: clerkAuth?.isSignedIn,
         userId: clerkAuth?.userId,
-        hasSession: !!session,
         hasUser: !!user,
         isProcessingOAuth: isProcessingOAuth.current,
         isSigningOut: isSigningOut.current,
@@ -3324,29 +3852,20 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         return;
       }
 
-      // If Clerk is signed in but we don't have a session or user, try to sync
-      // Check if we've already synced this Clerk user ID to prevent infinite loops
+      // If Clerk is signed in but we don't have a user, try to complete auth
       const currentClerkUserId = clerkAuth?.userId;
       const alreadySynced =
         currentClerkUserId === lastSyncedClerkUserId.current;
 
-      if (
-        clerkAuth?.isSignedIn &&
-        !session &&
-        !user &&
-        !loading &&
-        !alreadySynced
-      ) {
+      if (clerkAuth?.isSignedIn && !user && !loading && !alreadySynced) {
         console.log(
-          '🔄 [AuthContext] Clerk signed in but no session/user - attempting sync...',
+          '🔄 [AuthContext] Clerk signed in but no user - completing auth...',
         );
-        const syncResult = await syncClerkWithSupabase();
-        if (syncResult.success) {
-          console.log(
-            '✅ [AuthContext] Auto-synced Clerk session with Supabase',
-          );
+        const authResult = await handleClerkAuthComplete();
+        if (authResult.success) {
+          console.log('✅ [AuthContext] Auto-completed Clerk auth');
         } else {
-          console.error('❌ [AuthContext] Auto-sync failed:', syncResult.error);
+          console.error('❌ [AuthContext] Auto-auth failed:', authResult.error);
         }
       } else if (alreadySynced && clerkAuth?.isSignedIn && !user) {
         console.log(
@@ -3360,7 +3879,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     checkAndSync();
-  }, [clerkAuth?.isSignedIn, clerkAuth?.userId, session, user, loading]);
+  }, [clerkAuth?.isSignedIn, clerkAuth?.userId, user, loading]);
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -3405,79 +3924,6 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           }
         }
 
-        // Ensure supabase is initialized before use
-        if (!supabase) {
-          console.error('❌ Supabase client is not initialized');
-          setLoading(false);
-          return;
-        }
-
-        if (!supabase.auth) {
-          console.error('❌ Supabase auth is not available');
-          setLoading(false);
-          return;
-        }
-
-        // Get initial session with error handling
-        const {
-          data: { session: initialSession },
-          error,
-        } = await supabase.auth.getSession();
-
-        if (error) {
-          // Handle invalid refresh token by clearing the stale session data
-          // This is a known/expected error when session expires, so we log as warn not error
-          if (
-            error.code === 'refresh_token_not_found' ||
-            error.message?.includes('Refresh Token Not Found')
-          ) {
-            console.warn(
-              '⚠️ Session expired (refresh token not found) - clearing stale data...',
-            );
-            try {
-              // Sign out to clear the invalid session data
-              await supabase.auth.signOut();
-              console.log('✅ Cleared invalid session data');
-            } catch (signOutError) {
-              console.error('❌ Error clearing session:', signOutError);
-            }
-          } else {
-            // Log other session errors normally
-            console.error('❌ Error getting session:', error);
-          }
-
-          // Continue initialization with no session (treat as logged out)
-          setSession(null);
-          setUser(null);
-          // Don't set loading false yet - continue to check for Clerk auth below
-        } else {
-          // No error - process the session normally
-          console.log('✅ Session retrieved:', !!initialSession);
-          setSession(initialSession);
-          setUser(initialSession?.user ?? null);
-
-          if (initialSession?.user) {
-            console.log('👤 User found, checking email confirmation...');
-            setEmailConfirmed(!!initialSession.user.email_confirmed_at);
-
-            console.log('📋 Fetching user profile...');
-            try {
-              let profile = await fetchUserProfile(initialSession.user.id);
-              if (!profile) {
-                console.log(
-                  'Creating new profile for user:',
-                  initialSession.user.email,
-                );
-                profile = await createUserProfile(initialSession.user);
-              }
-              setUserProfile(profile);
-            } catch (profileError) {
-              console.error('Profile fetch/create error:', profileError);
-              setUserProfile(null);
-            }
-          }
-        }
-
         // Debug Clerk auth state
         console.log('🔍 [AuthContext] Clerk auth state on init:', {
           isSignedIn: clerkAuth?.isSignedIn,
@@ -3486,25 +3932,23 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           clerkUserId: clerkUser?.user?.id,
         });
 
-        // Check if Clerk user is signed in but Supabase session is missing
-        // This can happen if OAuth completed but sync failed, or app was killed mid-flow, or refresh token was invalid
-        if (clerkAuth?.isSignedIn && !initialSession) {
+        // If Clerk is signed in, set user from Clerk data
+        if (clerkAuth?.isSignedIn && clerkAuth?.userId) {
           console.log(
-            '🔐 [AuthContext] Clerk user is signed in but no Supabase session found. Syncing...',
+            '🔐 [AuthContext] Clerk user is signed in, setting user...',
           );
-          const syncResult = await syncClerkWithSupabase();
-          if (syncResult.success) {
-            console.log(
-              '✅ [AuthContext] Successfully synced Clerk session with Supabase on init',
-            );
-          } else {
-            console.error(
-              '❌ [AuthContext] Failed to sync Clerk session on init:',
-              syncResult.error,
-            );
-          }
+
+          const userId = clerkAuth.userId;
+          const email =
+            clerkUser?.user?.emailAddresses?.[0]?.emailAddress || '';
+
+          setUser({ id: userId, email });
+          setEmailConfirmed(true);
+
+          // Check profile completion
+          await checkProfileCompletion();
         }
-        // Also handle case where we're in the middle of OAuth processing
+        // Handle case where we're in the middle of OAuth processing
         else if (
           clerkAuth?.isSignedIn &&
           clerkUser &&
@@ -3513,13 +3957,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           console.log(
             '🔐 [AuthContext] Clerk user is signed in, checking for OAuth completion...',
           );
-          // This will trigger the OAuth completion handler
           await handleClerkOAuthCompletion();
-        }
-
-        // Check profile completion after initialization
-        if (initialSession?.user && emailConfirmed) {
-          await checkProfileCompletion();
         }
 
         console.log('🎉 Auth initialization complete!');
@@ -3548,157 +3986,16 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
     initializeAuth();
 
-    let authSubscription: { unsubscribe: () => void } | null = null;
-
-    const setupAuthListener = async () => {
-      // Skip setting up listener if we're signing out
-      if (isSigningOut.current) {
-        console.log(
-          '⏭️ [AuthContext] Skipping auth listener setup - signing out in progress',
-        );
-        return;
-      }
-
-      try {
-        // Ensure Supabase is ready before setting up listener
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        // Ensure supabase is initialized before use
-        if (!supabase || !supabase.auth) {
-          console.error(
-            '❌ Supabase client is not initialized, cannot setup auth listener',
-          );
-          return;
-        }
-
-        // Listen for auth changes
-        const {
-          data: { subscription },
-        } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-          console.log(
-            'Auth state changed:',
-            event,
-            currentSession?.user?.email,
-            'isSigningOut:',
-            isSigningOut.current,
-          );
-
-          // Handle sign out event specifically
-          if (event === 'SIGNED_OUT') {
-            console.log('🔐 Handling SIGNED_OUT event');
-            setSession(null);
-            setUser(null);
-            setUserProfile(null);
-            setEmailConfirmed(false);
-            setLoading(false);
-            return;
-          }
-
-          // US-008: Skip processing auth changes during logout to prevent race conditions
-          // We check both the in-memory ref (for in-session logouts) and the persistent
-          // AsyncStorage flag (for interrupted logouts that may have restarted the app)
-          if (isSigningOut.current) {
-            console.log(
-              '⏭️ [AuthContext] Skipping auth state change - isSigningOut.current is true',
-            );
-            return;
-          }
-
-          // US-008: Also check AsyncStorage for __logout_in_progress flag
-          // This catches edge cases where the app restarted during logout but
-          // the auth state change fires before initializeAuth can complete cleanup
-          try {
-            const logoutInProgress = await AsyncStorage.getItem(
-              '__logout_in_progress',
-            );
-            if (logoutInProgress === 'true') {
-              console.log(
-                '⏭️ [AuthContext] Skipping auth state change - __logout_in_progress flag detected in AsyncStorage',
-              );
-              return;
-            }
-          } catch (flagCheckError) {
-            // If we can't check the flag, continue with caution (log but don't block)
-            console.warn(
-              '⚠️ [AuthContext] Failed to check __logout_in_progress flag:',
-              flagCheckError,
-            );
-          }
-
-          setSession(currentSession);
-          setUser(currentSession?.user ?? null);
-
-          if (currentSession?.user) {
-            // Check email confirmation status
-            const isEmailConfirmed = !!currentSession.user.email_confirmed_at;
-            setEmailConfirmed(isEmailConfirmed);
-
-            // Fetch or create user profile
-            let profile = await fetchUserProfile(currentSession.user.id);
-            if (!profile) {
-              console.log(
-                'No existing profile found, creating new profile for user:',
-                currentSession.user.email,
-              );
-              profile = await createUserProfile(currentSession.user);
-            }
-            setUserProfile(profile);
-
-            // Check profile completion after profile is loaded (for OAuth users)
-            // Note: clerkUser from useUser() returns { isLoaded, isSignedIn, user }
-            if (isEmailConfirmed && clerkUser?.user?.id) {
-              // Use setTimeout to ensure state is updated before checking
-              setTimeout(async () => {
-                await checkProfileCompletion();
-              }, 100);
-            }
-          } else {
-            setUserProfile(null);
-            setEmailConfirmed(false);
-            setNeedsProfileCompletion(false);
-          }
-
-          setLoading(false);
-        });
-
-        authSubscription = subscription;
-      } catch (error) {
-        console.error('Error setting up auth listener:', error);
-      }
-    };
-
-    // Note: initializeAuth() is already called at line 1736, don't call twice
-    setupAuthListener();
-
-    return () => {
-      if (authSubscription) {
-        authSubscription.unsubscribe();
-      }
-    };
+    // Note (US-016): Supabase auth listener (onAuthStateChange) removed.
+    // Clerk auth state is monitored by the useEffect above.
   }, []);
 
   const refreshProfile = useCallback(async (): Promise<void> => {
-    if (user?.id) {
-      const profile = await fetchUserProfile(user.id);
-      setUserProfile(profile);
-      // Check profile completion after refresh
-      await checkProfileCompletion();
-    } else if (
-      clerkUser?.user &&
-      'id' in clerkUser.user &&
-      typeof clerkUser.user.id === 'string'
-    ) {
-      // Fallback for OAuth users if user.id is not set yet
-      // Note: clerkUser from useUser() returns { isLoaded, isSignedIn, user }
-      console.log(
-        '🔄 [AuthContext] Refreshing profile using Clerk user ID:',
-        clerkUser.user.id,
-      );
-      const profile = await fetchUserProfile(clerkUser.user.id);
-      setUserProfile(profile);
-      await checkProfileCompletion();
-    }
-  }, [user?.id, clerkUser, checkProfileCompletion]);
+    // Convex reactive query handles profile data automatically.
+    // This function just triggers a profile completion re-check.
+    console.log('🔄 [AuthContext] Refreshing profile (checking completion)...');
+    await checkProfileCompletion();
+  }, [checkProfileCompletion]);
 
   const clearOAuthError = useCallback(() => {
     setOAuthError(null);
@@ -3708,7 +4005,6 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
   // Only include state values in deps - callbacks are stable via useCallback
   const value: AuthContextType = useMemo(
     () => ({
-      session,
       user,
       userProfile,
       loading,
@@ -3716,12 +4012,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       needsProfileCompletion,
       oauthError,
       signIn,
-      signUp,
       signOut,
       updateProfile,
       refreshProfile,
-      resendConfirmation,
-      checkEmailConfirmation,
       resetPassword,
       deductXP,
       refundXP,
@@ -3735,9 +4028,17 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       signInWithApple,
       checkProfileCompletion,
       clearOAuthError,
+      signUpWithClerk,
+      verifyEmailCode,
+      resendClerkVerificationCode,
+      signInWithClerk,
+      verifySignInSecondFactor,
+      resetPasswordWithClerk,
+      verifyPasswordResetCode,
+      migrateFromSupabase,
+      resumeMigrationWithNewPassword,
     }),
     [
-      session,
       user,
       userProfile,
       loading,
@@ -3745,12 +4046,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       needsProfileCompletion,
       oauthError,
       signIn,
-      signUp,
       signOut,
       updateProfile,
       refreshProfile,
-      resendConfirmation,
-      checkEmailConfirmation,
       resetPassword,
       deductXP,
       refundXP,
@@ -3764,6 +4062,15 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       signInWithApple,
       checkProfileCompletion,
       clearOAuthError,
+      signUpWithClerk,
+      verifyEmailCode,
+      resendClerkVerificationCode,
+      signInWithClerk,
+      verifySignInSecondFactor,
+      resetPasswordWithClerk,
+      verifyPasswordResetCode,
+      migrateFromSupabase,
+      resumeMigrationWithNewPassword,
     ],
   );
 

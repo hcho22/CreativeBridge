@@ -37,6 +37,8 @@ import {
 } from './_generated/server';
 import { v } from 'convex/values';
 import { Id } from './_generated/dataModel';
+import { requireAuth, getCurrentUser } from './auth';
+import { migrationEventTypeValidator, migrationStepValidator } from './schema';
 
 // ============================================================================
 // Types
@@ -3511,5 +3513,176 @@ export const clearMigratedTable = mutation({
       deletedCount,
       timestamp: new Date().toISOString(),
     };
+  },
+});
+
+// ============================================================================
+// Per-User Migration (US-007): Supabase → Clerk/Convex
+// ============================================================================
+
+/**
+ * Migrate a single user's game sessions from Supabase to Convex (US-007).
+ *
+ * Called during Supabase → Clerk migration after profile + stats are created.
+ * Uses fingerprint deduplication (`completedAt|wordsWritten|gradeLevel|currentRound`)
+ * to prevent duplicate inserts on retry.
+ *
+ * Sessions are sent in batches of 50 from the client to stay within Convex
+ * mutation size limits.
+ *
+ * @param clerkUserId - Clerk user ID of the migrated user
+ * @param sessions - Array of game session objects (camelCase, from client transform)
+ */
+export const migrateUserGameSessions = mutation({
+  args: {
+    clerkUserId: v.string(),
+    sessions: v.array(
+      v.object({
+        completedAt: v.optional(v.string()),
+        gradeLevel: v.string(),
+        finalScore: v.number(),
+        wordsWritten: v.number(),
+        sentencesCompleted: v.number(),
+        challengesCompleted: v.number(),
+        xpEarned: v.number(),
+        storyContent: v.optional(v.string()),
+        importedStoryContent: v.optional(v.string()),
+        storySource: v.string(),
+        originalCreationDate: v.optional(v.string()),
+        storyMetadata: v.optional(v.any()),
+        generatedImageUrl: v.optional(v.string()),
+        imageGenerationTimestamp: v.optional(v.string()),
+        imageGenerationCost: v.optional(v.number()),
+        currentRound: v.number(),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx);
+
+    // Look up the user's Convex profile
+    const profile = await ctx.db
+      .query('userProfiles')
+      .withIndex('by_clerk_user_id', q => q.eq('clerkUserId', args.clerkUserId))
+      .first();
+
+    if (!profile) {
+      throw new Error(`Profile not found for clerkUserId: ${args.clerkUserId}`);
+    }
+
+    // Fetch existing sessions for this user to build a dedup set
+    const existingSessions = await ctx.db
+      .query('gameSessions')
+      .withIndex('by_clerk_user', q => q.eq('clerkUserId', args.clerkUserId))
+      .collect();
+
+    // Build fingerprint set: "completedAt|wordsWritten|gradeLevel|currentRound"
+    const existingFingerprints = new Set(
+      existingSessions.map(
+        s =>
+          `${s.completedAt ?? ''}|${s.wordsWritten}|${s.gradeLevel}|${
+            s.currentRound
+          }`,
+      ),
+    );
+
+    let insertedCount = 0;
+    let skippedCount = 0;
+
+    for (const session of args.sessions) {
+      const fingerprint = `${session.completedAt ?? ''}|${
+        session.wordsWritten
+      }|${session.gradeLevel}|${session.currentRound}`;
+
+      if (existingFingerprints.has(fingerprint)) {
+        skippedCount++;
+        continue;
+      }
+
+      await ctx.db.insert('gameSessions', {
+        userId: profile._id,
+        clerkUserId: args.clerkUserId,
+        completedAt: session.completedAt,
+        gradeLevel: session.gradeLevel as 'K-2' | '3-5' | '6-8' | '9-12',
+        finalScore: session.finalScore,
+        wordsWritten: session.wordsWritten,
+        sentencesCompleted: session.sentencesCompleted,
+        challengesCompleted: session.challengesCompleted,
+        xpEarned: session.xpEarned,
+        storyContent: session.storyContent,
+        importedStoryContent: session.importedStoryContent,
+        storySource:
+          (session.storySource as
+            | 'New'
+            | 'CreativeBridge'
+            | 'Story_Quest'
+            | 'File') || 'New',
+        originalCreationDate: session.originalCreationDate,
+        storyMetadata: session.storyMetadata ?? null,
+        generatedImageUrl: session.generatedImageUrl,
+        imageGenerationTimestamp: session.imageGenerationTimestamp,
+        imageGenerationCost: session.imageGenerationCost,
+        currentRound: session.currentRound,
+      });
+
+      existingFingerprints.add(fingerprint);
+      insertedCount++;
+    }
+
+    return {
+      success: true,
+      insertedCount,
+      skippedCount,
+      totalExisting: existingSessions.length,
+    };
+  },
+});
+
+// ============================================================================
+// MIGRATION EVENT TRACKING (US-018)
+// ============================================================================
+
+/**
+ * Log a migration lifecycle event for analytics and debugging.
+ *
+ * Uses optional auth — migration events may be logged before the user
+ * has a Clerk session (e.g., during Phase A when they're still on Supabase).
+ * The clerkUserId is passed explicitly from the client when available.
+ *
+ * @param eventType - 'migration_started' | 'migration_completed' | 'migration_failed'
+ * @param step - Which pipeline step triggered this event
+ * @param clerkUserId - Clerk user ID (optional, may not exist yet)
+ * @param supabaseUserId - Supabase user ID (optional)
+ * @param email - User's email for cross-referencing (optional)
+ * @param error - Error message if eventType is 'migration_failed'
+ * @param metadata - Additional context (session counts, batch info, etc.)
+ */
+export const logMigrationEvent = mutation({
+  args: {
+    eventType: migrationEventTypeValidator,
+    step: migrationStepValidator,
+    clerkUserId: v.optional(v.string()),
+    supabaseUserId: v.optional(v.string()),
+    email: v.optional(v.string()),
+    error: v.optional(v.string()),
+    metadata: v.optional(v.any()),
+  },
+  handler: async (ctx, args) => {
+    // Optional auth — caller may not be authenticated yet
+    const identity = await getCurrentUser(ctx);
+
+    // Use explicitly provided clerkUserId or fall back to JWT subject
+    const clerkUserId = args.clerkUserId ?? identity?.subject;
+
+    return await ctx.db.insert('migrationEvents', {
+      eventType: args.eventType,
+      step: args.step,
+      clerkUserId,
+      supabaseUserId: args.supabaseUserId,
+      email: args.email,
+      error: args.error,
+      timestamp: new Date().toISOString(),
+      metadata: args.metadata,
+    });
   },
 });
