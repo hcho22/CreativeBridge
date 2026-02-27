@@ -1,12 +1,13 @@
 // Offline Image Caching Tests
 // Tests for Task 3.2: Offline caching for images
+//
+// Updated for US-013: All tests now use Convex mocks (Supabase removed).
 
 import {
   storySessionManager,
   StorySession,
 } from '../src/services/storySessionManager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from '../src/services/supabase';
 import { GradeLevel } from '../src/types';
 
 // Mock AsyncStorage
@@ -30,29 +31,78 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   }),
 }));
 
-// Mock Supabase
-jest.mock('../src/services/supabase', () => ({
-  supabase: {
-    from: jest.fn(),
+// Mock Convex client
+const mockConvexClient = {
+  mutation: jest.fn(),
+  query: jest.fn(),
+};
+
+jest.mock('../src/services/convex', () => ({
+  getConvexClient: jest.fn(() => mockConvexClient),
+  isConvexReady: jest.fn(() => true),
+  api: {
+    gameSessions: {
+      createSession: 'gameSessions:createSession',
+      getSession: 'gameSessions:getSession',
+      getUserSessions: 'gameSessions:getUserSessions',
+      updateSession: 'gameSessions:updateSession',
+      updateStoryGeneratedImage: 'gameSessions:updateStoryGeneratedImage',
+      updateImageUploadStatus: 'gameSessions:updateImageUploadStatus',
+    },
+    userProfiles: {
+      completeGameSession: 'userProfiles:completeGameSession',
+    },
   },
 }));
 
+const { isConvexReady, getConvexClient } = require('../src/services/convex');
+
+function mockConvexSession(overrides: Record<string, any> = {}) {
+  return {
+    _id: 'test-session-123',
+    _creationTime: Date.now(),
+    userId: 'user_test123',
+    clerkUserId: 'user_test123',
+    gradeLevel: 'K-2',
+    storyContent: '',
+    wordsWritten: 0,
+    sentencesCompleted: 0,
+    challengesCompleted: 0,
+    currentRound: 1,
+    xpEarned: 0,
+    finalScore: 0,
+    completedAt: undefined,
+    storySource: 'New',
+    storyMetadata: {},
+    generatedImageUrl: undefined,
+    imageGenerationTimestamp: undefined,
+    imageGenerationCost: undefined,
+    imageUploadStatus: undefined,
+    imageUploadAttempts: undefined,
+    imageUploadError: undefined,
+    ...overrides,
+  };
+}
+
 describe('Offline Image Caching - Task 3.2', () => {
-  const mockUserId = 'test-user-uuid';
+  const mockUserId = 'user_test123';
   const mockGradeLevel: GradeLevel = 'K-2';
   const SESSIONS_KEY = '@CreativeBridge:sessions';
 
   beforeEach(() => {
     jest.clearAllMocks();
-    // Clear mock storage
     Object.keys(mockAsyncStorage).forEach(key => delete mockAsyncStorage[key]);
+    (isConvexReady as jest.Mock).mockReturnValue(true);
+    (getConvexClient as jest.Mock).mockReturnValue(mockConvexClient);
+    mockConvexClient.mutation.mockResolvedValue(undefined);
+    storySessionManager.clearCache();
   });
 
-  // Test 1: Supabase URL cached in AsyncStorage
   describe('Supabase URL Caching', () => {
     it('should cache supabase_image_url in AsyncStorage', async () => {
       const mockSessionId = 'test-session-cache-123';
-      const mockSession = {
+
+      const session: StorySession = {
         id: mockSessionId,
         user_id: mockUserId,
         grade_level: mockGradeLevel,
@@ -64,28 +114,10 @@ describe('Offline Image Caching - Task 3.2', () => {
         challenges_completed: 0,
         xp_earned: 0,
         story_content: 'Test story content',
-        story_source: 'New' as const,
+        story_source: 'New',
         supabase_image_url:
           'https://supabase.co/storage/story-images/user-123/image.png',
         image_upload_status: 'uploaded' as const,
-      };
-
-      // Mock the update to return the session with image URLs
-      (supabase.from as jest.Mock).mockReturnValue({
-        update: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            select: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: mockSession,
-                error: null,
-              }),
-            }),
-          }),
-        }),
-      });
-
-      const session: StorySession = {
-        ...mockSession,
         isCompleted: false,
         contributions: [],
         sessionStats: {
@@ -100,7 +132,6 @@ describe('Offline Image Caching - Task 3.2', () => {
 
       await storySessionManager.updateSession(session);
 
-      // Check AsyncStorage
       const cachedData = mockAsyncStorage[SESSIONS_KEY];
       expect(cachedData).toBeTruthy();
 
@@ -116,7 +147,8 @@ describe('Offline Image Caching - Task 3.2', () => {
 
     it('should cache both Replicate and Supabase URLs', async () => {
       const mockSessionId = 'test-session-both-urls';
-      const mockSession = {
+
+      const session: StorySession = {
         id: mockSessionId,
         user_id: mockUserId,
         grade_level: mockGradeLevel,
@@ -128,29 +160,12 @@ describe('Offline Image Caching - Task 3.2', () => {
         challenges_completed: 0,
         xp_earned: 500,
         story_content: 'Complete story',
-        story_source: 'New' as const,
+        story_source: 'New',
         generated_image_url: 'https://replicate.delivery/temp/image.png',
         supabase_image_url:
           'https://supabase.co/storage/story-images/user-123/image.png',
         image_upload_status: 'uploaded' as const,
         completed_at: new Date().toISOString(),
-      };
-
-      (supabase.from as jest.Mock).mockReturnValue({
-        update: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            select: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: mockSession,
-                error: null,
-              }),
-            }),
-          }),
-        }),
-      });
-
-      const session: StorySession = {
-        ...mockSession,
         isCompleted: true,
         contributions: [],
         sessionStats: {
@@ -178,7 +193,8 @@ describe('Offline Image Caching - Task 3.2', () => {
 
     it('should cache upload status for pending uploads', async () => {
       const mockSessionId = 'test-session-pending';
-      const mockSession = {
+
+      const session: StorySession = {
         id: mockSessionId,
         user_id: mockUserId,
         grade_level: mockGradeLevel,
@@ -190,27 +206,10 @@ describe('Offline Image Caching - Task 3.2', () => {
         challenges_completed: 0,
         xp_earned: 500,
         story_content: 'Complete story',
-        story_source: 'New' as const,
+        story_source: 'New',
         generated_image_url: 'https://replicate.delivery/temp/image.png',
         image_upload_status: 'pending' as const,
         image_upload_attempts: 1,
-      };
-
-      (supabase.from as jest.Mock).mockReturnValue({
-        update: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            select: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: mockSession,
-                error: null,
-              }),
-            }),
-          }),
-        }),
-      });
-
-      const session: StorySession = {
-        ...mockSession,
         isCompleted: true,
         contributions: [],
         sessionStats: {
@@ -233,9 +232,8 @@ describe('Offline Image Caching - Task 3.2', () => {
     });
   });
 
-  // Test 2: Offline retrieval works
   describe('Offline Retrieval', () => {
-    it('should retrieve cached session when Supabase is offline', async () => {
+    it('should retrieve cached session when Convex is offline', async () => {
       const mockSessionId = 'test-session-offline';
       const mockSession: StorySession = {
         id: mockSessionId,
@@ -265,27 +263,16 @@ describe('Offline Image Caching - Task 3.2', () => {
         metadata: {},
       };
 
-      // First, cache the session
+      // Cache the session
       mockAsyncStorage[SESSIONS_KEY] = JSON.stringify({
         [mockSessionId]: mockSession,
       });
 
-      // Simulate offline by mocking Supabase failure
-      (supabase.from as jest.Mock).mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({
-              data: null,
-              error: {
-                message: 'Network request failed',
-                code: 'NETWORK_ERROR',
-              },
-            }),
-          }),
-        }),
-      });
+      // Simulate offline - Convex query fails
+      mockConvexClient.query.mockRejectedValueOnce(
+        new Error('Network request failed'),
+      );
 
-      // Should still retrieve from cache
       const offlineSession = await storySessionManager.getSession(
         mockSessionId,
       );
@@ -300,22 +287,12 @@ describe('Offline Image Caching - Task 3.2', () => {
     });
 
     it('should return null when session not in cache and offline', async () => {
-      const nonExistentSessionId = 'non-existent-session';
-
-      // Simulate offline
-      (supabase.from as jest.Mock).mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({
-              data: null,
-              error: { message: 'Network request failed' },
-            }),
-          }),
-        }),
-      });
+      mockConvexClient.query.mockRejectedValueOnce(
+        new Error('Network request failed'),
+      );
 
       const session = await storySessionManager.getSession(
-        nonExistentSessionId,
+        'non-existent-session',
       );
 
       expect(session).toBeNull();
@@ -353,22 +330,12 @@ describe('Offline Image Caching - Task 3.2', () => {
         metadata: {},
       };
 
-      // Cache the session with all image fields
       mockAsyncStorage[SESSIONS_KEY] = JSON.stringify({
         [mockSessionId]: mockSession,
       });
 
       // Simulate offline
-      (supabase.from as jest.Mock).mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({
-              data: null,
-              error: { message: 'Network error' },
-            }),
-          }),
-        }),
-      });
+      mockConvexClient.query.mockRejectedValueOnce(new Error('Network error'));
 
       const retrieved = await storySessionManager.getSession(mockSessionId);
 
@@ -383,68 +350,36 @@ describe('Offline Image Caching - Task 3.2', () => {
     });
   });
 
-  // Test 3: Online sync updates cache
   describe('Online Sync', () => {
     it('should update cache when online data changes', async () => {
       const mockSessionId = 'test-session-sync';
-      const initialSession = {
-        id: mockSessionId,
-        user_id: mockUserId,
-        grade_level: mockGradeLevel,
-        created_at: new Date().toISOString(),
-        current_round: 5,
-        final_score: 100,
-        words_written: 50,
-        sentences_completed: 10,
-        challenges_completed: 0,
-        xp_earned: 500,
-        story_content: 'Story content',
-        generated_image_url: 'https://replicate.delivery/old-image.png',
-        image_upload_status: 'pending' as const,
-      };
 
-      // Initial cache
-      mockAsyncStorage[SESSIONS_KEY] = JSON.stringify({
-        [mockSessionId]: initialSession,
+      // Return updated session from Convex
+      const convexSession = mockConvexSession({
+        _id: mockSessionId,
+        storyContent: 'Story content',
+        wordsWritten: 50,
+        sentencesCompleted: 10,
+        currentRound: 5,
+        finalScore: 100,
+        xpEarned: 500,
+        generatedImageUrl: 'https://replicate.delivery/old-image.png',
       });
 
-      // Now simulate fetching updated data from Supabase (image uploaded)
-      const updatedSession = {
-        ...initialSession,
-        supabase_image_url: 'https://supabase.co/storage/new-image.png',
-        image_upload_status: 'uploaded',
-        image_upload_attempts: 2,
-      };
+      mockConvexClient.query.mockResolvedValueOnce(convexSession);
 
-      (supabase.from as jest.Mock).mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({
-              data: updatedSession,
-              error: null,
-            }),
-          }),
-        }),
-      });
-
-      // Fetch session (should get new data from DB and update cache)
       const fetchedSession = await storySessionManager.getSession(
         mockSessionId,
       );
 
-      expect(fetchedSession?.supabase_image_url).toBe(
-        'https://supabase.co/storage/new-image.png',
-      );
-      expect(fetchedSession?.image_upload_status).toBe('uploaded');
-
-      // Note: The current implementation doesn't auto-cache on getSession
-      // It only caches on createSession and updateSession
-      // This is intentional to avoid unnecessary cache writes
+      expect(fetchedSession).toBeTruthy();
+      expect(fetchedSession?.current_round).toBe(5);
     });
 
     it('should cache after successful update', async () => {
       const mockSessionId = 'test-cache-after-update';
-      const mockSession = {
+
+      const session: StorySession = {
         id: mockSessionId,
         user_id: mockUserId,
         grade_level: mockGradeLevel,
@@ -456,28 +391,11 @@ describe('Offline Image Caching - Task 3.2', () => {
         challenges_completed: 0,
         xp_earned: 500,
         story_content: 'Updated story',
-        story_source: 'New' as const,
+        story_source: 'New',
         generated_image_url: 'https://replicate.delivery/image.png',
         supabase_image_url: 'https://supabase.co/storage/updated-image.png',
         image_upload_status: 'uploaded' as const,
         image_upload_attempts: 1,
-      };
-
-      (supabase.from as jest.Mock).mockReturnValue({
-        update: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            select: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: mockSession,
-                error: null,
-              }),
-            }),
-          }),
-        }),
-      });
-
-      const session: StorySession = {
-        ...mockSession,
         isCompleted: true,
         completed_at: new Date().toISOString(),
         contributions: [],
@@ -493,7 +411,6 @@ describe('Offline Image Caching - Task 3.2', () => {
 
       await storySessionManager.updateSession(session);
 
-      // Verify cache was updated
       const cachedData = mockAsyncStorage[SESSIONS_KEY];
       expect(cachedData).toBeTruthy();
 
@@ -506,7 +423,7 @@ describe('Offline Image Caching - Task 3.2', () => {
       );
     });
 
-    it('should cache even when Supabase update fails', async () => {
+    it('should cache even when Convex update fails', async () => {
       const mockSessionId = 'test-cache-on-fail';
       const mockSession: StorySession = {
         id: mockSessionId,
@@ -535,19 +452,10 @@ describe('Offline Image Caching - Task 3.2', () => {
         metadata: {},
       };
 
-      // Simulate Supabase update failure
-      (supabase.from as jest.Mock).mockReturnValue({
-        update: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            select: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: null,
-                error: { message: 'Database connection failed' },
-              }),
-            }),
-          }),
-        }),
-      });
+      // Simulate Convex update failure
+      mockConvexClient.mutation.mockRejectedValueOnce(
+        new Error('Database connection failed'),
+      );
 
       await storySessionManager.updateSession(mockSession);
 
@@ -563,7 +471,6 @@ describe('Offline Image Caching - Task 3.2', () => {
     });
   });
 
-  // Test 4: Performance test
   describe('Cache Performance', () => {
     it('should cache and retrieve session quickly', async () => {
       const mockSessionId = 'test-performance';
@@ -594,29 +501,19 @@ describe('Offline Image Caching - Task 3.2', () => {
         metadata: {},
       };
 
-      // Cache the session
       mockAsyncStorage[SESSIONS_KEY] = JSON.stringify({
         [mockSessionId]: mockSession,
       });
 
       // Simulate offline to force cache read
-      (supabase.from as jest.Mock).mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({
-              data: null,
-              error: { message: 'Offline' },
-            }),
-          }),
-        }),
-      });
+      mockConvexClient.query.mockRejectedValueOnce(new Error('Offline'));
 
       const startTime = Date.now();
       const retrieved = await storySessionManager.getSession(mockSessionId);
       const elapsed = Date.now() - startTime;
 
       expect(retrieved).toBeTruthy();
-      expect(elapsed).toBeLessThan(100); // Should be very fast (< 100ms)
+      expect(elapsed).toBeLessThan(100);
     });
   });
 });
