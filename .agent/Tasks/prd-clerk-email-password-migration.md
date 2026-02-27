@@ -469,18 +469,31 @@ Migrate all email/password authentication from Supabase to Clerk, unifying all u
 - [x] Add admin screen or logging to view these stats
 - [x] Typecheck passes
 
-#### US-018: Add Migration Event Tracking
+#### US-018: Add Migration Event Tracking ✅ COMPLETED
 
 **Description:** As an administrator, I want migration events tracked so I can analyze the migration funnel.
 
+**Completion Date:** 2026-02-26
+
+**Implementation Notes:**
+
+- Added `migrationEvents` table to `convex/schema.ts` with validators `migrationEventTypeValidator` (started/completed/failed) and `migrationStepValidator` (9 step types covering the full pipeline)
+- Table fields: `eventType`, `step`, `clerkUserId` (optional), `supabaseUserId` (optional), `email` (optional), `error` (optional), `timestamp` (ISO 8601), `metadata` (flexible JSONB)
+- Indexed by `by_event_type` (dashboard analytics) and `by_clerk_user` (per-user migration history)
+- Added `logMigrationEvent` mutation to `convex/migration.ts` using `getCurrentUser` (optional auth) since events fire before Clerk session exists
+- Fire-and-forget wrapper in `AuthContext.tsx` — `.catch()` ensures logging failures never block the migration flow
+- Instrumented 3 functions: `migrateFromSupabase` (Phase A: 6 events), `verifyEmailCode` (Phase B: 4 events), `completeMigrationDirectly` (5 events)
+- Events queryable via `npx convex run` or Convex Dashboard for funnel analysis
+- Convex typecheck passes, no new TypeScript errors introduced
+
 **Acceptance Criteria:**
 
-- [ ] Add `migrationEvents` table to Convex schema
-- [ ] Track events: migration_started, migration_completed, migration_failed
-- [ ] Store: timestamp, userId (optional), step (profile/stats/sessions), error (if failed)
-- [ ] Add `logMigrationEvent` mutation
-- [ ] Call mutation at each migration step in AuthContext
-- [ ] Typecheck passes
+- [x] Add `migrationEvents` table to Convex schema
+- [x] Track events: migration_started, migration_completed, migration_failed
+- [x] Store: timestamp, userId (optional), step (profile/stats/sessions), error (if failed)
+- [x] Add `logMigrationEvent` mutation
+- [x] Call mutation at each migration step in AuthContext
+- [x] Typecheck passes
 
 ---
 

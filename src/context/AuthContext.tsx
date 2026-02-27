@@ -309,6 +309,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
   const convexMigrateGameSessions = useMutation(
     api.migration.migrateUserGameSessions,
   );
+  const convexLogMigrationEvent = useMutation(api.migration.logMigrationEvent);
 
   // Convex reactive query for current user's profile
   // This will automatically update when the profile changes in the database
@@ -978,6 +979,36 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
   // ============================================================================
 
   /**
+   * Fire-and-forget migration event logger (US-018).
+   * Never blocks or fails the migration flow — errors are silently caught.
+   */
+  const logMigrationEvent = (params: {
+    eventType: 'migration_started' | 'migration_completed' | 'migration_failed';
+    step:
+      | 'supabase_auth'
+      | 'profile_fetch'
+      | 'clerk_account'
+      | 'email_verification'
+      | 'profile'
+      | 'stats'
+      | 'sessions'
+      | 'supabase_signout'
+      | 'full_migration';
+    clerkUserId?: string;
+    supabaseUserId?: string;
+    email?: string;
+    error?: string;
+    metadata?: Record<string, unknown>;
+  }) => {
+    convexLogMigrationEvent(params).catch((err: unknown) => {
+      console.warn(
+        '⚠️ [AuthContext] Failed to log migration event (non-fatal):',
+        err,
+      );
+    });
+  };
+
+  /**
    * Complete migration directly when the Clerk account already exists (US-007).
    *
    * This handles the case where a user previously started migration (Phase A)
@@ -997,12 +1028,29 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       currentClerkUserId,
     );
 
+    const eventCtx = {
+      clerkUserId: currentClerkUserId,
+      supabaseUserId: migrationData.supabaseUserId,
+      email: migrationData.email,
+    };
+
+    logMigrationEvent({
+      eventType: 'migration_started',
+      step: 'full_migration',
+      ...eventCtx,
+    });
+
     // 1. Create Convex profile (idempotent — createOAuthProfile checks for existing)
     await convexCreateProfile({
       clerkUserId: currentClerkUserId,
       username: migrationData.email.split('@')[0],
       displayName: migrationData.email.split('@')[0],
       preferredGradeLevel: migrationData.preferredGradeLevel,
+    });
+    logMigrationEvent({
+      eventType: 'migration_completed',
+      step: 'profile',
+      ...eventCtx,
     });
 
     // 2. Migrate stats
@@ -1023,6 +1071,11 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       firstVoiceInputAt: migrationData.firstVoiceInputAt,
       firstStreakAchievedAt: migrationData.firstStreakAchievedAt,
     });
+    logMigrationEvent({
+      eventType: 'migration_completed',
+      step: 'stats',
+      ...eventCtx,
+    });
 
     // 3. Migrate game sessions in batches of 50
     const sessions = migrationData.gameSessions;
@@ -1034,6 +1087,12 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         sessions: batch,
       });
     }
+    logMigrationEvent({
+      eventType: 'migration_completed',
+      step: 'sessions',
+      ...eventCtx,
+      metadata: { sessionCount: sessions.length },
+    });
 
     // 4. Sign out of Supabase (no longer needed)
     await supabase.auth.signOut();
@@ -1042,6 +1101,11 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     await AsyncStorage.removeItem(PENDING_MIGRATION_KEY);
     await AsyncStorage.removeItem(PENDING_CLERK_PROFILE_KEY);
 
+    logMigrationEvent({
+      eventType: 'migration_completed',
+      step: 'full_migration',
+      ...eventCtx,
+    });
     console.log(
       '✅ [AuthContext] Migration completed directly for:',
       currentClerkUserId,
@@ -1068,6 +1132,11 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
   ): Promise<{ needsVerification?: boolean; error?: string }> => {
     try {
       console.log('🔄 [AuthContext] Starting Supabase → Clerk migration...');
+      logMigrationEvent({
+        eventType: 'migration_started',
+        step: 'full_migration',
+        email,
+      });
 
       // Step 1: Verify Supabase credentials
       const { data: authData, error: authError } =
@@ -1078,6 +1147,12 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           '❌ [AuthContext] Supabase auth failed during migration:',
           authError?.message,
         );
+        logMigrationEvent({
+          eventType: 'migration_failed',
+          step: 'supabase_auth',
+          email,
+          error: authError?.message || 'Could not verify credentials',
+        });
         return {
           error: authError?.message || 'Could not verify your credentials.',
         };
@@ -1088,6 +1163,12 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         '🔄 [AuthContext] Supabase auth verified, userId:',
         supabaseUserId,
       );
+      logMigrationEvent({
+        eventType: 'migration_completed',
+        step: 'supabase_auth',
+        supabaseUserId,
+        email,
+      });
 
       // Step 2: Fetch user profile from Supabase
       const { data: profileRaw, error: profileError } = await supabase
@@ -1103,6 +1184,13 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           '❌ [AuthContext] Failed to fetch Supabase profile:',
           profileError?.message,
         );
+        logMigrationEvent({
+          eventType: 'migration_failed',
+          step: 'profile_fetch',
+          supabaseUserId,
+          email,
+          error: profileError?.message || 'Profile not found',
+        });
         return {
           error: 'Could not fetch your profile data. Please try again.',
         };
@@ -1147,6 +1235,14 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           sessionsError,
         );
       }
+
+      logMigrationEvent({
+        eventType: 'migration_completed',
+        step: 'profile_fetch',
+        supabaseUserId,
+        email,
+        metadata: { sessionCount: gameSessions.length },
+      });
 
       // Build migration data
       const migrationData: PendingMigrationData = {
@@ -1221,8 +1317,23 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         }
 
         // Re-throw unexpected Clerk errors
+        logMigrationEvent({
+          eventType: 'migration_failed',
+          step: 'clerk_account',
+          supabaseUserId,
+          email,
+          error:
+            clerkError?.errors?.[0]?.message || 'Clerk account creation failed',
+        });
         throw clerkError;
       }
+
+      logMigrationEvent({
+        eventType: 'migration_completed',
+        step: 'clerk_account',
+        supabaseUserId,
+        email,
+      });
 
       // Step 5: Prepare email verification
       await clerkSignUpResource.prepareEmailAddressVerification({
@@ -1248,6 +1359,12 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         JSON.stringify(pendingProfile),
       );
 
+      logMigrationEvent({
+        eventType: 'migration_completed',
+        step: 'email_verification',
+        supabaseUserId,
+        email,
+      });
       console.log(
         '✅ [AuthContext] Migration Phase A complete, verification email sent',
       );
@@ -1260,6 +1377,12 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         errorMessage = error.message;
       }
 
+      logMigrationEvent({
+        eventType: 'migration_failed',
+        step: 'full_migration',
+        email,
+        error: errorMessage,
+      });
       return { error: errorMessage };
     }
   };
@@ -1476,6 +1599,12 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           );
           const migrationData: PendingMigrationData = JSON.parse(migrationJson);
 
+          const phaseBCtx = {
+            clerkUserId,
+            supabaseUserId: migrationData.supabaseUserId,
+            email: migrationData.email,
+          };
+
           // Migrate stats
           await convexMigrateStats({
             clerkUserId,
@@ -1494,6 +1623,11 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
             firstVoiceInputAt: migrationData.firstVoiceInputAt,
             firstStreakAchievedAt: migrationData.firstStreakAchievedAt,
           });
+          logMigrationEvent({
+            eventType: 'migration_completed',
+            step: 'stats',
+            ...phaseBCtx,
+          });
 
           // Migrate game sessions in batches of 50
           const sessions = migrationData.gameSessions;
@@ -1505,6 +1639,12 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
               sessions: batch,
             });
           }
+          logMigrationEvent({
+            eventType: 'migration_completed',
+            step: 'sessions',
+            ...phaseBCtx,
+            metadata: { sessionCount: sessions.length },
+          });
 
           // Sign out of Supabase (legacy session no longer needed)
           await supabase.auth.signOut();
@@ -1512,6 +1652,11 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           // Clear migration data
           await AsyncStorage.removeItem(PENDING_MIGRATION_KEY);
 
+          logMigrationEvent({
+            eventType: 'migration_completed',
+            step: 'full_migration',
+            ...phaseBCtx,
+          });
           console.log(
             '✅ [AuthContext] Migration Phase B complete — stats and sessions migrated',
           );
@@ -1523,6 +1668,15 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           '⚠️ [AuthContext] Migration Phase B failed (non-fatal):',
           migrationError,
         );
+        logMigrationEvent({
+          eventType: 'migration_failed',
+          step: 'full_migration',
+          clerkUserId,
+          error:
+            migrationError instanceof Error
+              ? migrationError.message
+              : 'Phase B failed',
+        });
       }
 
       // Step 6: Clear pending profile from AsyncStorage

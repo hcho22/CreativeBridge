@@ -37,7 +37,8 @@ import {
 } from './_generated/server';
 import { v } from 'convex/values';
 import { Id } from './_generated/dataModel';
-import { requireAuth } from './auth';
+import { requireAuth, getCurrentUser } from './auth';
+import { migrationEventTypeValidator, migrationStepValidator } from './schema';
 
 // ============================================================================
 // Types
@@ -3634,5 +3635,54 @@ export const migrateUserGameSessions = mutation({
       skippedCount,
       totalExisting: existingSessions.length,
     };
+  },
+});
+
+// ============================================================================
+// MIGRATION EVENT TRACKING (US-018)
+// ============================================================================
+
+/**
+ * Log a migration lifecycle event for analytics and debugging.
+ *
+ * Uses optional auth — migration events may be logged before the user
+ * has a Clerk session (e.g., during Phase A when they're still on Supabase).
+ * The clerkUserId is passed explicitly from the client when available.
+ *
+ * @param eventType - 'migration_started' | 'migration_completed' | 'migration_failed'
+ * @param step - Which pipeline step triggered this event
+ * @param clerkUserId - Clerk user ID (optional, may not exist yet)
+ * @param supabaseUserId - Supabase user ID (optional)
+ * @param email - User's email for cross-referencing (optional)
+ * @param error - Error message if eventType is 'migration_failed'
+ * @param metadata - Additional context (session counts, batch info, etc.)
+ */
+export const logMigrationEvent = mutation({
+  args: {
+    eventType: migrationEventTypeValidator,
+    step: migrationStepValidator,
+    clerkUserId: v.optional(v.string()),
+    supabaseUserId: v.optional(v.string()),
+    email: v.optional(v.string()),
+    error: v.optional(v.string()),
+    metadata: v.optional(v.any()),
+  },
+  handler: async (ctx, args) => {
+    // Optional auth — caller may not be authenticated yet
+    const identity = await getCurrentUser(ctx);
+
+    // Use explicitly provided clerkUserId or fall back to JWT subject
+    const clerkUserId = args.clerkUserId ?? identity?.subject;
+
+    return await ctx.db.insert('migrationEvents', {
+      eventType: args.eventType,
+      step: args.step,
+      clerkUserId,
+      supabaseUserId: args.supabaseUserId,
+      email: args.email,
+      error: args.error,
+      timestamp: new Date().toISOString(),
+      metadata: args.metadata,
+    });
   },
 });
