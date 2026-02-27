@@ -42,11 +42,6 @@ interface AuthScreenProps {
 const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
   const {
     signIn,
-    signUp,
-    user,
-    emailConfirmed,
-    resendConfirmation,
-    checkEmailConfirmation,
     oauthError,
     clearOAuthError,
     signUpWithClerk,
@@ -76,8 +71,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
   const [usernameValidation, setUsernameValidation] =
     useState<UsernameValidationResult | null>(null);
   const [usernameTouched, setUsernameTouched] = useState(false);
-  const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
-  const [resendingConfirmation, setResendingConfirmation] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   // US-006: Clerk password reset code flow state
@@ -183,16 +176,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
 
     loadSavedPreferences();
   }, []);
-
-  // Check if user needs email confirmation
-  useEffect(() => {
-    if (user && !emailConfirmed) {
-      setShowEmailConfirmation(true);
-      setEmail(user.email || '');
-    } else if (user && emailConfirmed) {
-      setShowEmailConfirmation(false);
-    }
-  }, [user, emailConfirmed]);
 
   // Real-time email validation
   useEffect(() => {
@@ -426,53 +409,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
     setUsername(text);
     if (!usernameTouched) {
       setUsernameTouched(true);
-    }
-  };
-
-  const handleResendConfirmation = async () => {
-    if (!email.trim()) {
-      Alert.alert('Error', 'Please enter your email address');
-      return;
-    }
-
-    setResendingConfirmation(true);
-    try {
-      const result = await resendConfirmation(email.trim());
-      if (result.error) {
-        Alert.alert('Error', result.error);
-      } else {
-        Alert.alert(
-          'Success',
-          'Confirmation email sent! Please check your inbox.',
-        );
-      }
-    } catch (error) {
-      Alert.alert(
-        'Error',
-        'Failed to resend confirmation email. Please try again.',
-      );
-    } finally {
-      setResendingConfirmation(false);
-    }
-  };
-
-  const handleCheckConfirmation = async () => {
-    try {
-      const confirmed = await checkEmailConfirmation();
-      if (confirmed) {
-        Alert.alert('Success', 'Email confirmed! You can now access the app.');
-        setShowEmailConfirmation(false);
-      } else {
-        Alert.alert(
-          'Not Confirmed',
-          'Email has not been confirmed yet. Please check your inbox and click the confirmation link.',
-        );
-      }
-    } catch (error) {
-      Alert.alert(
-        'Error',
-        'Failed to check confirmation status. Please try again.',
-      );
     }
   };
 
@@ -900,71 +836,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
               <View style={styles.helpSection}>
                 <Text style={styles.helpText}>
                   Check your spam folder if you don't see the email
-                </Text>
-              </View>
-            </View>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    );
-  }
-
-  // If user needs email confirmation, show confirmation screen
-  if (showEmailConfirmation) {
-    return (
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <ScrollView contentContainerStyle={styles.scrollContainer}>
-          <View style={styles.content}>
-            <View style={styles.headerSection}>
-              <Text style={styles.appTitle}>📧 Confirm Your Email</Text>
-              <Text style={styles.appSubtitle}>
-                We've sent a confirmation link to your email
-              </Text>
-            </View>
-
-            <View style={styles.formSection}>
-              <Text style={styles.formTitle}>Almost There!</Text>
-              <Text style={styles.formSubtitle}>
-                Please check your email and click the confirmation link to
-                complete your registration.
-              </Text>
-
-              <View style={styles.emailConfirmationInfo}>
-                <Text style={styles.emailLabel}>Email sent to:</Text>
-                <Text style={styles.emailAddress}>{email}</Text>
-              </View>
-
-              <TouchableOpacity
-                style={styles.authButton}
-                onPress={handleCheckConfirmation}
-                disabled={loading}
-              >
-                <Text style={styles.authButtonText}>
-                  I've Confirmed My Email
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.secondaryButton]}
-                onPress={handleResendConfirmation}
-                disabled={resendingConfirmation}
-              >
-                <Text style={styles.secondaryButtonText}>
-                  {resendingConfirmation
-                    ? 'Sending...'
-                    : 'Resend Confirmation Email'}
-                </Text>
-              </TouchableOpacity>
-
-              <View style={styles.helpSection}>
-                <Text style={styles.helpText}>
-                  💡 Check your spam folder if you don't see the email
-                </Text>
-                <Text style={styles.helpText}>
-                  📧 Make sure {email} is correct
                 </Text>
               </View>
             </View>

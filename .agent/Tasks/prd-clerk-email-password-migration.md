@@ -444,17 +444,30 @@ Migrate all email/password authentication from Supabase to Clerk, unifying all u
 
 ### Phase 5: Admin Tooling
 
-#### US-017: Create Migration Progress Dashboard
+#### US-017: Create Migration Progress Dashboard ✅ COMPLETED
 
 **Description:** As an administrator, I want to view migration progress so I can track adoption and identify users who haven't migrated.
 
+**Completion Date:** 2026-02-26
+
+**Implementation Notes:**
+
+- Created `convex/adminAnalytics.ts` with 4 functions: 1 internal query, 1 public query, 2 actions
+- `_getConvexUserProfiles` (internalQuery): Fetches all Convex user profiles for cross-referencing by actions
+- `getConvexMigrationOverview` (query): Convex-only stats — user counts, activity breakdown (7/30 day), session stats, onboarding completion. No Supabase credentials needed.
+- `getMigrationStats` (action): Full cross-referenced migration stats — fetches Supabase user_profiles via REST API, categorizes OAuth vs email/password users, cross-references by username with Convex to detect migrated users, calculates migration percentage and 95% cutover readiness
+- `getPendingMigrationUsers` (action): Paginated list of unmigrated users sorted by total_xp descending (highest-value users first) — uses PostgREST `clerk_user_id=is.null` filter to fetch only email/password users, then excludes those already matched in Convex
+- Follows existing `migration.ts` patterns: string-based `ctx.runQuery('module:function' as any, {})` with type casts, Supabase REST API with service role key headers
+- All functions callable via `npx convex run adminAnalytics:<functionName>` from CLI or Convex Dashboard
+- Convex typecheck passes (`npx convex typecheck`), no new TypeScript errors introduced
+
 **Acceptance Criteria:**
 
-- [ ] Create `convex/adminAnalytics.ts` with migration queries
-- [ ] Query: `getMigrationStats` returns total Supabase users, migrated count, pending count
-- [ ] Query: `getPendingMigrationUsers` returns list of emails/usernames not yet migrated
-- [ ] Add admin screen or logging to view these stats
-- [ ] Typecheck passes
+- [x] Create `convex/adminAnalytics.ts` with migration queries
+- [x] Query: `getMigrationStats` returns total Supabase users, migrated count, pending count
+- [x] Query: `getPendingMigrationUsers` returns list of emails/usernames not yet migrated
+- [x] Add admin screen or logging to view these stats
+- [x] Typecheck passes
 
 #### US-018: Add Migration Event Tracking
 
