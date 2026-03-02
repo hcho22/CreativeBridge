@@ -115,17 +115,24 @@ grep -c "storyInput:" src/screens/HomeScreen.tsx  # Should be 0
 
 **Acceptance Criteria:**
 
-- [ ] Floating input bar is an `Animated.View` with `position: 'absolute'`, `bottom: 8`, `left: 8`, `right: 8`
-- [ ] Bar has white background, `borderRadius: 16`, subtle shadow, `zIndex: 100`
-- [ ] Bar bottom position animated by `keyboardHeight` (rises with keyboard)
-- [ ] Contains editable multiline `TextInput` with placeholder "Continue the story..."
-- [ ] TextInput has no border (card provides visual boundary), serif font, `minHeight: 36`
-- [ ] `testID="story-input"` preserved on TextInput
-- [ ] `inputDebouncer.handleInput(text)` still called in `onChangeText`
-- [ ] Bar is hidden when `showCompletionOptions` is true
-- [ ] `storyScrollContent.paddingBottom` increased to `120` to prevent content hiding behind the bar
-- [ ] Typecheck passes
+- [x] Floating input bar is an `Animated.View` with `position: 'absolute'`, `bottom: 8`, `left: 8`, `right: 8`
+- [x] Bar has white background, `borderRadius: 16`, subtle shadow, `zIndex: 100`
+- [x] Bar bottom position animated by `keyboardHeight` (rises with keyboard)
+- [x] Contains editable multiline `TextInput` with placeholder "Continue the story..."
+- [x] TextInput has no border (card provides visual boundary), serif font, `minHeight: 36`
+- [x] `testID="story-input"` preserved on TextInput
+- [x] `inputDebouncer.handleInput(text)` still called in `onChangeText`
+- [x] Bar is hidden when `showCompletionOptions` is true
+- [x] `storyScrollContent.paddingBottom` increased to `120` to prevent content hiding behind the bar
+- [x] Typecheck passes
 - [ ] Verify visually in simulator: card floats over story, content scrolls underneath
+
+**Implementation Notes (2026-03-02):**
+
+- Fixed `Animated.add(8, keyboardHeight)` — replaced raw number `8` with `useMemo`-wrapped `Animated.add(new Animated.Value(8), keyboardHeight)` to avoid creating new animated nodes per render and satisfy TypeScript types
+- Removed extra `!isGameCompleted` condition from floating bar visibility — PRD specifies hiding only on `showCompletionOptions`, keeping bar visible when game ends allows speaker/mic button access on completed stories
+- Added missing US-006 banner styles (`loadingBanner*`, `errorBanner*`) that were blocking typecheck — banner JSX was already integrated into the floating bar
+- Pre-existing TypeScript errors (lines 62, 2374, 2567) are unrelated to US-004
 
 **Validation Test:**
 
@@ -154,13 +161,13 @@ npx tsc --noEmit
 
 **Acceptance Criteria:**
 
-- [ ] Button row inside the card with `flexDirection: 'row'`
-- [ ] Button order (left to right): **Mic → Speaker → flex spacer → Submit**
-- [ ] **Mic button**: Uses existing `VoiceInput` component with compact icon style; `voiceButtonContainerRef` wraps it; `onSpeechResult={handleVoiceResult}`, `isEnabled` logic unchanged
-- [ ] **Speaker button**: Compact icon button (no background); shows 🔊 (idle) / ⏹️ (speaking); uses `canUseSpeaker` from US-001; `testID="speaker-button"` preserved; same press/longPress handlers
-- [ ] **Submit button**: Circular green (#4CAF50) button, 36×36; shows `↑` arrow or `ActivityIndicator` when generating; `testID="continue-story-button"` preserved; triggers `handleContinueStory`; disabled when `!userInput.trim()` or `isGenerating` or `isGameCompleted`
-- [ ] All buttons have proper `accessibilityLabel` and `accessibilityRole`
-- [ ] Typecheck passes
+- [x] Button row inside the card with `flexDirection: 'row'`
+- [x] Button order (left to right): **Mic → Speaker → flex spacer → Submit**
+- [x] **Mic button**: Uses existing `VoiceInput` component with compact icon style; `voiceButtonContainerRef` wraps it; `onSpeechResult={handleVoiceResult}`, `isEnabled` logic unchanged
+- [x] **Speaker button**: Compact icon button (no background); shows 🔊 (idle) / ⏹️ (speaking); uses `canUseSpeaker` from US-001; `testID="speaker-button"` preserved; same press/longPress handlers
+- [x] **Submit button**: Circular green (#4CAF50) button, 36×36; shows `↑` arrow or `ActivityIndicator` when generating; `testID="continue-story-button"` preserved; triggers `handleContinueStory`; disabled when `!userInput.trim()` or `isGenerating` or `isGameCompleted`
+- [x] All buttons have proper `accessibilityLabel` and `accessibilityRole`
+- [x] Typecheck passes
 - [ ] Verify visually in simulator: buttons appear inside the floating card
 
 **Validation Test:**
@@ -190,11 +197,11 @@ npx tsc --noEmit
 
 **Acceptance Criteria:**
 
-- [ ] **Loading banner**: Compact row inside the card (above TextInput); shows spinning ⚡ emoji, task text (1 line), and progress bar when `generationProgress > 0`; visible when `isValidating`, `isSaving`, or `isGenerating`
-- [ ] **Error banner**: Compact row with yellow background (#fff3cd); shows ⚠️ + error message (2 lines max); shows "Retry" link when `generationError.retryable`; Retry calls `setGenerationError(null)` then `handleContinueStory()`
-- [ ] Both banners use `borderRadius: 8` with appropriate padding
-- [ ] Banners appear above the TextInput, inside the card
-- [ ] Typecheck passes
+- [x] **Loading banner**: Compact row inside the card (above TextInput); shows spinning ⚡ emoji, task text (1 line), and progress bar when `generationProgress > 0`; visible when `isValidating`, `isSaving`, or `isGenerating`
+- [x] **Error banner**: Compact row with yellow background (#fff3cd); shows ⚠️ + error message (2 lines max); shows "Retry" link when `generationError.retryable`; Retry calls `setGenerationError(null)` then `handleContinueStory()`
+- [x] Both banners use `borderRadius: 8` with appropriate padding
+- [x] Banners appear above the TextInput, inside the card
+- [x] Typecheck passes (no new errors — pre-existing errors unrelated to US-006)
 
 **Validation Test:**
 

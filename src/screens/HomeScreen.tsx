@@ -137,6 +137,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   // Keyboard animation refs
   const keyboardHeight = useRef(new Animated.Value(0)).current;
+  const floatingBarBottom = useMemo(
+    () => Animated.add(new Animated.Value(8), keyboardHeight),
+    [keyboardHeight],
+  );
   const storyScrollViewRef = useRef<ScrollView>(null);
 
   // Game round tracking
@@ -2922,9 +2926,164 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 )}
             </View>
           </ScrollView>
-        </View>
 
-        {/* Fixed Bottom Section removed (US-003) — replaced by floating input bar in US-004 */}
+          {/* Floating Input Bar — Claude-style card overlay (US-004, US-005, US-006) */}
+          {!showCompletionOptions && (
+            <Animated.View
+              style={[styles.floatingInputBar, { bottom: floatingBarBottom }]}
+            >
+              {/* Loading Banner (US-006) — compact row above TextInput */}
+              {(loadingState.isValidating ||
+                loadingState.isSaving ||
+                loadingState.isGenerating) && (
+                <View style={styles.loadingBanner}>
+                  <View style={styles.loadingBannerContent}>
+                    <Animated.Text
+                      style={[
+                        styles.loadingBannerSpinner,
+                        {
+                          transform: [
+                            {
+                              rotate: spinValue.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: ['0deg', '360deg'],
+                              }),
+                            },
+                          ],
+                        },
+                      ]}
+                    >
+                      {'\u26A1'}
+                    </Animated.Text>
+                    <Text style={styles.loadingBannerText} numberOfLines={1}>
+                      {loadingState.currentTask || 'Processing...'}
+                    </Text>
+                  </View>
+                  {loadingState.generationProgress > 0 && (
+                    <View style={styles.loadingBannerProgressContainer}>
+                      <View
+                        style={[
+                          styles.loadingBannerProgressFill,
+                          {
+                            width: `${loadingState.generationProgress}%`,
+                          },
+                        ]}
+                      />
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {/* Error Banner (US-006) — compact row above TextInput */}
+              {generationError && (
+                <View style={styles.errorBanner}>
+                  <View style={styles.errorBannerContent}>
+                    <Text style={styles.errorBannerIcon}>{'\u26A0\uFE0F'}</Text>
+                    <Text style={styles.errorBannerText} numberOfLines={2}>
+                      {generationError.message}
+                      {generationError.suggestion
+                        ? ` — ${generationError.suggestion}`
+                        : ''}
+                    </Text>
+                  </View>
+                  {generationError.retryable && (
+                    <TouchableOpacity
+                      style={styles.errorBannerRetry}
+                      onPress={() => {
+                        setGenerationError(null);
+                        handleContinueStory();
+                      }}
+                      accessibilityLabel="Retry story generation"
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.errorBannerRetryText}>Retry</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+
+              {/* TextInput */}
+              <TextInput
+                testID="story-input"
+                style={styles.floatingTextInput}
+                placeholder="Continue the story..."
+                placeholderTextColor="#999"
+                multiline
+                value={userInput}
+                onChangeText={(text: string) => {
+                  setUserInput(text);
+                  inputDebouncer?.handleInput(text);
+                }}
+                editable={!loadingState.isGenerating}
+              />
+
+              {/* Button Row: Mic → Speaker → spacer → Submit */}
+              <View style={styles.floatingButtonRow}>
+                {/* Mic Button — VoiceInput component */}
+                <View ref={voiceButtonContainerRef}>
+                  <VoiceInput
+                    onSpeechResult={handleVoiceResult}
+                    isEnabled={voiceInputEnabled && !loadingState.isGenerating}
+                    style={styles.floatingIconButton}
+                  />
+                </View>
+
+                {/* Speaker Button */}
+                <TouchableOpacity
+                  testID="speaker-button"
+                  style={[
+                    styles.floatingIconButton,
+                    !canUseSpeaker && styles.floatingIconButtonDisabled,
+                  ]}
+                  onPress={handleSpeakerButtonPress}
+                  onLongPress={handleSpeakerButtonLongPress}
+                  disabled={!canUseSpeaker}
+                  accessibilityLabel={
+                    speakerState === 'speaking' || speakerState === 'starting'
+                      ? 'Stop reading story'
+                      : 'Read story aloud'
+                  }
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.floatingIconText}>
+                    {speakerState === 'speaking' || speakerState === 'starting'
+                      ? '\u23F9\uFE0F'
+                      : '\uD83D\uDD0A'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Spacer */}
+                <View style={{ flex: 1 }} />
+
+                {/* Submit Button */}
+                <TouchableOpacity
+                  testID="continue-story-button"
+                  style={[
+                    styles.floatingSubmitButton,
+                    (!userInput.trim() ||
+                      loadingState.isGenerating ||
+                      isGameCompleted) &&
+                      styles.floatingSubmitButtonDisabled,
+                  ]}
+                  onPress={handleContinueStory}
+                  disabled={
+                    !userInput.trim() ||
+                    loadingState.isGenerating ||
+                    isGameCompleted
+                  }
+                  accessibilityLabel="Submit story contribution"
+                  accessibilityRole="button"
+                >
+                  {loadingState.isGenerating ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.floatingSubmitText}>{'\u2191'}</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          )}
+        </View>
 
         {/* First Story Celebration Modal (US-004) */}
         <CelebrationModal
@@ -3301,9 +3460,132 @@ const styles = StyleSheet.create({
   },
   storyScrollContent: {
     flexGrow: 1,
-    paddingBottom: 8,
+    paddingBottom: 120,
   },
   // fixedInputSection removed (US-003)
+  // Floating input bar — Claude-style card overlay (US-004, US-005)
+  floatingInputBar: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    right: 8,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e8e8e8',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    zIndex: 100,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  floatingTextInput: {
+    minHeight: 36,
+    maxHeight: 120,
+    fontSize: 16,
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    color: '#333',
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+  },
+  floatingButtonRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    marginTop: 4,
+    gap: 4,
+  },
+  floatingIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  floatingIconButtonDisabled: {
+    opacity: 0.3,
+  },
+  floatingIconText: {
+    fontSize: 20,
+  },
+  floatingSubmitButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#4CAF50',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  floatingSubmitButtonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  floatingSubmitText: {
+    fontSize: 18,
+    fontWeight: 'bold' as const,
+    color: '#ffffff',
+  },
+  // Loading & error banners inside floating bar (US-006)
+  loadingBanner: {
+    backgroundColor: '#f0f8ff',
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 6,
+  },
+  loadingBannerContent: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+  },
+  loadingBannerSpinner: {
+    fontSize: 16,
+  },
+  loadingBannerText: {
+    fontSize: 13,
+    color: '#555',
+    flex: 1,
+  },
+  loadingBannerProgressContainer: {
+    height: 3,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 2,
+    marginTop: 6,
+    overflow: 'hidden' as const,
+  },
+  loadingBannerProgressFill: {
+    height: 3,
+    backgroundColor: '#4CAF50',
+    borderRadius: 2,
+  },
+  errorBanner: {
+    backgroundColor: '#fff3cd',
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 6,
+  },
+  errorBannerContent: {
+    flexDirection: 'row' as const,
+    alignItems: 'flex-start' as const,
+    gap: 6,
+  },
+  errorBannerIcon: {
+    fontSize: 16,
+  },
+  errorBannerText: {
+    fontSize: 13,
+    color: '#664d03',
+    flex: 1,
+  },
+  errorBannerRetry: {
+    marginTop: 4,
+    alignSelf: 'flex-end' as const,
+  },
+  errorBannerRetryText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#0d6efd',
+  },
   gameContainer: {
     padding: 8,
   },
