@@ -34,6 +34,10 @@ import {
  */
 const IMAGE_GENERATION_COST = 1000;
 
+// TEMPORARY: Disable XP deduction during beta. Users still need >= 1000 XP (threshold check stays).
+// TODO: Set to true before production release.
+const XP_DEDUCTION_ENABLED = false;
+
 /**
  * Error types that qualify for XP refunds.
  * Content safety, API failures, and timeouts all warrant refunds
@@ -100,10 +104,12 @@ export const createImageGenerationEvent = mutation({
       );
     }
 
-    // Deduct XP atomically
-    await ctx.db.patch(userProfile._id, {
-      totalXp: userProfile.totalXp - xpCost,
-    });
+    // Deduct XP atomically (bypassed during beta)
+    if (XP_DEDUCTION_ENABLED) {
+      await ctx.db.patch(userProfile._id, {
+        totalXp: userProfile.totalXp - xpCost,
+      });
+    }
 
     // Create event with pending status
     const eventId = await ctx.db.insert('imageGenerationEvents', {
@@ -195,8 +201,8 @@ export const updateImageGenerationEvent = mutation({
       }
     }
 
-    // Process refund if needed
-    if (shouldRefund) {
+    // Process refund if needed (bypassed during beta since nothing was deducted)
+    if (shouldRefund && XP_DEDUCTION_ENABLED) {
       const userProfile = await ctx.db.get(event.userId);
       if (userProfile) {
         await ctx.db.patch(userProfile._id, {
@@ -294,15 +300,17 @@ export const refundImageGenerationEvent = mutation({
       throw new Error('Cannot refund pending event - wait for completion');
     }
 
-    // Process refund
+    // Process refund (bypassed during beta since nothing was deducted)
     const userProfile = await ctx.db.get(event.userId);
     if (!userProfile) {
       throw new Error('User profile not found');
     }
 
-    await ctx.db.patch(userProfile._id, {
-      totalXp: userProfile.totalXp + event.xpCost,
-    });
+    if (XP_DEDUCTION_ENABLED) {
+      await ctx.db.patch(userProfile._id, {
+        totalXp: userProfile.totalXp + event.xpCost,
+      });
+    }
 
     // Update event status
     await ctx.db.patch(args.eventId, {

@@ -307,7 +307,7 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
 
   // NEW: Retry failed Supabase upload
   const handleRetryUpload = useCallback(async () => {
-    if (!state.generatedImageUrl || !userProfile?.id) {
+    if (!state.generatedImageUrl || !userProfile?.clerk_user_id) {
       console.error('Cannot retry: missing image URL or user ID');
       return;
     }
@@ -318,7 +318,7 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
       await uploadToSupabaseStorage(
         state.generatedImageUrl,
         sessionId,
-        userProfile.id,
+        userProfile.clerk_user_id,
       );
     } finally {
       setState(prev => ({ ...prev, isRetryingUpload: false }));
@@ -326,7 +326,7 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
   }, [
     state.generatedImageUrl,
     sessionId,
-    userProfile?.id,
+    userProfile?.clerk_user_id,
     uploadToSupabaseStorage,
   ]);
 
@@ -413,7 +413,8 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
         storyContent,
         gradeLevel: gradeLevel as GradeLevel,
         sessionId,
-        userId: userProfile?.id || '',
+        userId: userProfile?.clerk_user_id || '',
+        eventId: imageEventId || undefined,
         metadata: {
           wordCount,
         },
@@ -456,7 +457,7 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
         uploadToSupabaseStorage(
           generationResult.imageUrl!,
           sessionId,
-          userProfile?.id || '',
+          userProfile?.clerk_user_id || '',
         );
       } catch (error) {
         console.error('Failed to update session with image data:', error);
@@ -585,9 +586,7 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
         >
           {xpBalanceInfo.currentXP.toLocaleString()}
         </Text>
-        <Text style={styles.xpBalanceCost}>
-          (Cost: {IMAGE_GENERATION_COST.toLocaleString()} XP)
-        </Text>
+        <Text style={styles.xpBalanceCost}>(Free during beta!)</Text>
       </View>
       {!xpBalanceInfo.hasEnoughXP && (
         <Text style={styles.xpShortfallMessage}>

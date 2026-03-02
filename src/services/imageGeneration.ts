@@ -138,6 +138,7 @@ export interface ImageGenerationRequest {
   gradeLevel: GradeLevel;
   sessionId: string;
   userId: string;
+  eventId?: string; // Image generation event ID from component (Convex)
   metadata?: Record<string, any>;
 }
 
@@ -1467,82 +1468,8 @@ class ImageGenerationService {
     }
   }
 
-  private async checkUserXPBalance(userId: string): Promise<number> {
-    console.log(`Checking XP balance for user: ${userId}`);
-
-    try {
-      // Query user profile directly from Supabase
-      const { data: userProfile, error } = await supabase
-        .from('user_profiles')
-        .select('total_xp')
-        .eq('id', userId)
-        .single();
-
-      if (error) {
-        console.error('Error checking XP balance:', error);
-        throw new Error(`Failed to check XP balance: ${error.message}`);
-      }
-
-      const balance = (userProfile as any)?.total_xp || 0;
-      console.log(`✅ XP balance retrieved: ${balance} XP for user ${userId}`);
-      return balance;
-    } catch (error) {
-      console.error('💥 Exception checking XP balance:', error);
-      throw error;
-    }
-  }
-
-  private async deductXP(userId: string, amount: number): Promise<void> {
-    // Skip XP deduction if testing mode is enabled
-    if (process.env.DISABLE_XP_COSTS_FOR_TESTING === 'true') {
-      console.log(
-        `🧪 Testing mode: Skipping ${amount} XP deduction for user: ${userId}`,
-      );
-      return;
-    }
-
-    console.log(`💸 Deducting ${amount} XP from user: ${userId}`);
-
-    try {
-      // Use Supabase RPC function for atomic XP deduction
-      const { error } = await supabase.rpc('add_user_xp', {
-        user_uuid: userId,
-        xp_to_add: -amount, // Negative amount for deduction
-      });
-
-      if (error) {
-        console.error('❌ XP deduction failed:', error);
-        throw new Error(`XP deduction failed: ${error.message}`);
-      }
-
-      console.log(`✅ Successfully deducted ${amount} XP from user ${userId}`);
-    } catch (error) {
-      console.error('💥 Exception during XP deduction:', error);
-      throw error;
-    }
-  }
-
-  private async refundXP(userId: string, amount: number): Promise<void> {
-    console.log(`💰 Refunding ${amount} XP to user: ${userId}`);
-
-    try {
-      // Use Supabase RPC function for atomic XP refund
-      const { error } = await supabase.rpc('add_user_xp', {
-        user_uuid: userId,
-        xp_to_add: amount, // Positive amount for refund
-      });
-
-      if (error) {
-        console.error('❌ XP refund failed:', error);
-        throw new Error(`XP refund failed: ${error.message}`);
-      }
-
-      console.log(`✅ Successfully refunded ${amount} XP to user ${userId}`);
-    } catch (error) {
-      console.error('💥 Exception during XP refund:', error);
-      throw error;
-    }
-  }
+  // Legacy Supabase XP methods (checkUserXPBalance, deductXP, refundXP) removed.
+  // XP lifecycle is now managed by the component via AuthContext/Convex.
 
   private generatePrompt(storyContent: string, gradeLevel: GradeLevel): string {
     const artStyleDefinition = ART_STYLE_MAPPING[gradeLevel];
@@ -8285,44 +8212,8 @@ class ImageGenerationService {
     }
   }
 
-  private async createImageGenerationEvent(
-    request: ImageGenerationRequest,
-  ): Promise<string> {
-    console.log(
-      `📊 Creating image generation event for session: ${request.sessionId}`,
-    );
-
-    try {
-      // Create event using xpEventTracker
-      const { xpEventTracker } = await import('./xpEventTracker');
-
-      const eventData = {
-        userId: request.userId,
-        sessionId: request.sessionId,
-        xpCost: IMAGE_GENERATION_COST,
-        storyGradeLevel: request.gradeLevel,
-        storyWordCount: request.metadata?.wordCount,
-        metadata: {
-          timestamp: new Date().toISOString(),
-          ...request.metadata,
-        },
-      };
-
-      const result = await xpEventTracker.createImageGenerationEvent(eventData);
-
-      if (result.success && result.eventId) {
-        console.log(`✅ Image generation event created: ${result.eventId}`);
-        return result.eventId;
-      } else {
-        throw new Error(
-          result.error || 'Failed to create image generation event',
-        );
-      }
-    } catch (error) {
-      console.error('💥 Exception creating image generation event:', error);
-      throw error;
-    }
-  }
+  // Legacy createImageGenerationEvent removed — event creation is handled
+  // by the component via AuthContext/Convex before calling the service.
 
   private async updateImageGenerationEvent(
     eventId: string,
@@ -8643,25 +8534,9 @@ class ImageGenerationService {
       // Validate configuration
       this.validateConfiguration();
 
-      // Check XP balance (skip in testing mode)
-      if (process.env.DISABLE_XP_COSTS_FOR_TESTING !== 'true') {
-        const userXP = await this.checkUserXPBalance(request.userId);
-        if (userXP < IMAGE_GENERATION_COST) {
-          return {
-            success: false,
-            error: `Insufficient XP. Need ${IMAGE_GENERATION_COST} XP, have ${userXP} XP`,
-            errorType: 'insufficient_xp',
-            serviceUsed,
-            responseTimeMs: Date.now() - startTime,
-          };
-        }
-      }
-
-      // Deduct XP upfront
-      await this.deductXP(request.userId, IMAGE_GENERATION_COST);
-
-      // Create tracking event
-      eventId = await this.createImageGenerationEvent(request);
+      // XP balance check, deduction, and event creation are handled by the component
+      // via AuthContext (Convex). The service focuses on prompt generation and API calls.
+      eventId = request.eventId;
 
       // US-006: Generate prompt with LLM if feature flag enabled, otherwise use keyword extraction
       let prompt: string;
@@ -8683,7 +8558,7 @@ class ImageGenerationService {
       );
       if (!promptSafety.isSafe && promptSafety.severity === 'high') {
         errorType = 'content_safety';
-        await this.refundXP(request.userId, IMAGE_GENERATION_COST);
+        // XP refund is handled by the component on failure
 
         if (eventId) {
           await this.updateImageGenerationEvent(eventId, {
@@ -8785,7 +8660,7 @@ class ImageGenerationService {
             console.error('💥 Both services failed due to API errors');
           }
 
-          await this.refundXP(request.userId, IMAGE_GENERATION_COST);
+          // XP refund is handled by the component on failure
 
           if (eventId) {
             await this.updateImageGenerationEvent(eventId, {
@@ -8845,8 +8720,7 @@ class ImageGenerationService {
     } catch (error) {
       console.error('Image generation failed:', error);
 
-      // Refund XP on error
-      await this.refundXP(request.userId, IMAGE_GENERATION_COST);
+      // XP refund is handled by the component on failure
 
       // Determine error type
       if (error instanceof Error) {
