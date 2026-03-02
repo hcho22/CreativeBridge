@@ -204,6 +204,26 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   // Ref to track if TTS has been initialized to prevent re-initialization loops
   const ttsInitializedRef = useRef(false);
 
+  // Speaker button enabled logic — extracted for reuse in floating input bar (US-001)
+  const canUseSpeaker = useMemo(() => {
+    const hasStoryContent = !!currentSession?.story_content?.trim();
+    if (!hasStoryContent) return false;
+
+    // Check if there's at least one AI contribution (continuation)
+    if (
+      currentSession?.contributions &&
+      currentSession.contributions.length > 0
+    ) {
+      return currentSession.contributions.some(c => c.type === 'ai');
+    }
+    // Fallback: check if we can extract a continuation (more than just starter)
+    const latestContinuation = extractLatestContinuation(
+      currentSession?.story_content,
+      currentSession,
+    );
+    return latestContinuation.trim().length > 0;
+  }, [currentSession?.story_content, currentSession?.contributions]);
+
   // Enhanced empty state for new users (US-017)
   const [isNewUser, setIsNewUser] = useState(false);
 
@@ -2715,44 +2735,51 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               <View style={styles.storyBookContainer}>
                 <View style={styles.storyBookHeader}>
                   <View style={styles.storyTitleRow}>
-                    <Text style={styles.storyBookTitle}>📖 Your Story</Text>
+                    <Text style={styles.roundCounter}>
+                      Round {currentRound}/{MAX_ROUNDS}
+                    </Text>
                     <Text style={styles.gradeLevel}>{gradeLevel}</Text>
-                    {currentSession?.story_source === 'New' && (
-                      <Text style={styles.roundCounter}>
-                        Round {currentRound}/{MAX_ROUNDS}
-                      </Text>
-                    )}
                   </View>
-                  <TouchableOpacity
-                    style={styles.copyButton}
-                    onPress={() => {
-                      const storyContent =
-                        currentSession?.story_content ||
-                        currentSession?.contributions
-                          ?.map(c => c.content)
-                          .join('\n\n') ||
-                        '';
-                      if (storyContent.trim()) {
-                        Clipboard.setString(storyContent);
-                        Alert.alert('✅ Copied!', 'Story copied to clipboard', [
-                          { text: 'OK' },
-                        ]);
-                      } else {
-                        Alert.alert(
-                          '📝 No Story',
-                          'No story content to copy yet',
-                          [{ text: 'OK' }],
-                        );
+                  <View style={styles.headerButtonRow}>
+                    <TouchableOpacity
+                      style={styles.copyButton}
+                      onPress={() => {
+                        const storyContent =
+                          currentSession?.story_content ||
+                          currentSession?.contributions
+                            ?.map(c => c.content)
+                            .join('\n\n') ||
+                          '';
+                        if (storyContent.trim()) {
+                          Clipboard.setString(storyContent);
+                          Alert.alert(
+                            '✅ Copied!',
+                            'Story copied to clipboard',
+                            [{ text: 'OK' }],
+                          );
+                        } else {
+                          Alert.alert(
+                            '📝 No Story',
+                            'No story content to copy yet',
+                            [{ text: 'OK' }],
+                          );
+                        }
+                      }}
+                      disabled={
+                        !currentSession?.story_content &&
+                        (!currentSession?.contributions ||
+                          currentSession.contributions.length === 0)
                       }
-                    }}
-                    disabled={
-                      !currentSession?.story_content &&
-                      (!currentSession?.contributions ||
-                        currentSession.contributions.length === 0)
-                    }
-                  >
-                    <Text style={styles.copyButtonText}>📋 Copy</Text>
-                  </TouchableOpacity>
+                    >
+                      <Text style={styles.copyButtonText}>📋 Copy</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.exitButtonHeader}
+                      onPress={handleExitGame}
+                    >
+                      <Text style={styles.exitButtonHeaderText}>← Exit</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
                 <ScrollView
                   style={styles.storyBook}
@@ -2897,297 +2924,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           </ScrollView>
         </View>
 
-        {/* Fixed Bottom Section - Input Controls */}
-        <Animated.View
-          style={[
-            styles.fixedInputSection,
-            {
-              paddingBottom: Animated.add(keyboardHeight, 4),
-            },
-          ]}
-        >
-          <View style={styles.inputSection}>
-            <TextInput
-              testID="story-input"
-              style={styles.storyInput}
-              value={userInput}
-              onChangeText={text => {
-                setUserInput(text);
-                // Use debouncing for real-time validation and auto-generation
-                if (inputDebouncer) {
-                  inputDebouncer.handleInput(text);
-                }
-              }}
-              placeholder="Continue the story..."
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-            />
-
-            {/* Game Action Buttons */}
-            <View style={styles.gameButtonsContainer}>
-              <View style={styles.buttonRow}>
-                {/* Read Story Button - Emoji Only */}
-                {(() => {
-                  // Button is disabled if:
-                  // 1. No story content exists, OR
-                  // 2. No continuation exists (only starter, no AI response yet)
-                  const hasStoryContent =
-                    !!currentSession?.story_content?.trim();
-                  const hasContinuation =
-                    hasStoryContent &&
-                    (() => {
-                      // Check if there's at least one AI contribution (continuation)
-                      if (
-                        currentSession?.contributions &&
-                        currentSession.contributions.length > 0
-                      ) {
-                        return currentSession.contributions.some(
-                          c => c.type === 'ai',
-                        );
-                      }
-                      // Fallback: check if we can extract a continuation (more than just starter)
-                      const latestContinuation = extractLatestContinuation(
-                        currentSession?.story_content,
-                        currentSession,
-                      );
-                      return latestContinuation.trim().length > 0;
-                    })();
-
-                  // Button is always pressable when there's content, regardless of speaking state
-                  // This allows users to stop TTS even while it's speaking
-                  const canUseSpeaker = hasStoryContent && hasContinuation;
-                  // Only visually disable if there's no content - button should work when speaking to allow stopping
-                  const isVisuallyDisabled = !canUseSpeaker;
-
-                  if (__DEV__) {
-                    console.log('🔊 [DEBUG] Speaker button render:', {
-                      hasCurrentSession: !!currentSession,
-                      hasStoryContent,
-                      hasContinuation,
-                      storyContentLength:
-                        currentSession?.story_content?.length || 0,
-                      contributionsCount:
-                        currentSession?.contributions?.length || 0,
-                      ttsServiceAvailable,
-                      speakerButtonEnabled,
-                      canUseSpeaker,
-                      isVisuallyDisabled,
-                      speakerState,
-                    });
-                  }
-                  return (
-                    <TouchableOpacity
-                      testID="speaker-button"
-                      style={[
-                        styles.readStoryButton,
-                        isVisuallyDisabled && styles.disabledButton,
-                        // Show visual indication if TTS is unavailable but button is still enabled
-                        !isVisuallyDisabled &&
-                          ttsServiceAvailable === false &&
-                          styles.warningButton,
-                      ]}
-                      onPress={() => {
-                        if (__DEV__) {
-                          console.log(
-                            '🔊 [DEBUG] TouchableOpacity onPress triggered!',
-                            {
-                              hasCurrentSession: !!currentSession,
-                              hasStoryContent: !!currentSession?.story_content,
-                              ttsServiceAvailable,
-                              speakerButtonEnabled,
-                              canUseSpeaker,
-                              isVisuallyDisabled,
-                            },
-                          );
-                        }
-                        // Only handle press if there's content to read
-                        if (!canUseSpeaker) {
-                          Alert.alert(
-                            'No Content',
-                            'No continuation found to read.',
-                            [{ text: 'OK' }],
-                          );
-                          return;
-                        }
-                        handleSpeakerButtonPress();
-                      }}
-                      onLongPress={() => {
-                        if (
-                          canUseSpeaker &&
-                          (speakerState === 'speaking' ||
-                            speakerState === 'paused')
-                        ) {
-                          handleSpeakerButtonLongPress();
-                        }
-                      }}
-                      disabled={!canUseSpeaker} // Only disable if no content, not for enabled state
-                      activeOpacity={isVisuallyDisabled ? 1 : 0.7}
-                      accessibilityLabel={
-                        ttsServiceAvailable === false
-                          ? 'Read story (disabled - TTS unavailable)'
-                          : !currentSession?.story_content
-                          ? 'Read story (disabled - no content)'
-                          : speakerState === 'idle'
-                          ? 'Read story'
-                          : speakerState === 'speaking' ||
-                            speakerState === 'starting'
-                          ? 'Stop story playback'
-                          : 'Resume story playback'
-                      }
-                      accessibilityHint={
-                        ttsServiceAvailable === false
-                          ? 'Text-to-speech is not available on this device. You can still read the story on screen.'
-                          : !currentSession?.story_content
-                          ? 'Story content is required to read'
-                          : speakerState === 'idle'
-                          ? 'Tap to start reading the latest story continuation'
-                          : speakerState === 'speaking' ||
-                            speakerState === 'starting'
-                          ? 'Tap to stop the story playback immediately'
-                          : 'Tap to resume the story playback'
-                      }
-                      accessibilityRole="button"
-                      accessibilityState={{
-                        disabled: !canUseSpeaker,
-                      }}
-                    >
-                      <Text style={styles.emojiButtonText}>
-                        {speakerState === 'idle' ? '🔊' : '⏹️'}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })()}
-
-                {/* Voice Input Component with Tooltip (US-013) */}
-                <View ref={voiceButtonContainerRef} collapsable={false}>
-                  <VoiceInput
-                    onSpeechResult={handleVoiceResult}
-                    isEnabled={voiceInputEnabled && !loadingState.isGenerating}
-                    onError={handleVoiceError}
-                    buttonText={{
-                      idle: '🎤',
-                      listening: '🔴',
-                      processing: '⏳',
-                    }}
-                    style={styles.speakButton}
-                  />
-                </View>
-
-                {/* Exit Button */}
-                <TouchableOpacity
-                  style={styles.exitButtonBottom}
-                  onPress={handleExitGame}
-                >
-                  <Text style={styles.exitButtonText}>← Exit</Text>
-                </TouchableOpacity>
-
-                {/* Continue Story Button */}
-                <TouchableOpacity
-                  testID="continue-story-button"
-                  style={[
-                    styles.continueStoryButton,
-                    (!userInput.trim() ||
-                      loadingState.isGenerating ||
-                      isGameCompleted) &&
-                      styles.disabledButton,
-                  ]}
-                  onPress={handleContinueStory}
-                  disabled={
-                    !userInput.trim() ||
-                    loadingState.isGenerating ||
-                    isGameCompleted
-                  }
-                >
-                  {loadingState.isGenerating ? (
-                    <ActivityIndicator color="#ffffff" size="small" />
-                  ) : isGameCompleted ? (
-                    <Text style={styles.continueStoryButtonText}>
-                      Story Complete! 🎉
-                    </Text>
-                  ) : (
-                    <Text style={styles.continueStoryButtonText}>
-                      {currentRound >= MAX_ROUNDS
-                        ? 'Final Round →'
-                        : 'Continue Story →'}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {(loadingState.isValidating ||
-              loadingState.isSaving ||
-              loadingState.isGenerating) && (
-              <View style={styles.loadingIndicator}>
-                <Animated.View
-                  style={{
-                    transform: [
-                      {
-                        rotate: spinValue.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: ['0deg', '360deg'],
-                        }),
-                      },
-                    ],
-                  }}
-                >
-                  <Text style={styles.loadingSpinner}>⚡</Text>
-                </Animated.View>
-                <View style={styles.loadingTextContainer}>
-                  <Text style={styles.loadingText}>
-                    {loadingState.currentTask ||
-                      (loadingState.isValidating
-                        ? 'Validating content...'
-                        : loadingState.isSaving
-                        ? 'Saving...'
-                        : 'Processing...')}
-                  </Text>
-                  {loadingState.generationProgress > 0 && (
-                    <View style={styles.progressContainer}>
-                      <View style={styles.progressBar}>
-                        <View
-                          style={[
-                            styles.progressFill,
-                            { width: `${loadingState.generationProgress}%` },
-                          ]}
-                        />
-                      </View>
-                      <Text style={styles.progressText}>
-                        {loadingState.generationProgress}%
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            )}
-
-            {generationError && (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorIcon}>⚠️</Text>
-                <View style={styles.errorTextContainer}>
-                  <Text style={styles.errorTitle}>
-                    {generationError.message}
-                  </Text>
-                  <Text style={styles.errorSuggestion}>
-                    {generationError.suggestion}
-                  </Text>
-                  {generationError.retryable && (
-                    <TouchableOpacity
-                      style={styles.retryButton}
-                      onPress={() => {
-                        setGenerationError(null);
-                        handleContinueStory();
-                      }}
-                    >
-                      <Text style={styles.retryButtonText}>Try Again</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-            )}
-          </View>
-        </Animated.View>
+        {/* Fixed Bottom Section removed (US-003) — replaced by floating input bar in US-004 */}
 
         {/* First Story Celebration Modal (US-004) */}
         <CelebrationModal
@@ -3566,13 +3303,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingBottom: 8,
   },
-  fixedInputSection: {
-    backgroundColor: '#f0f2f5',
-    paddingHorizontal: 8,
-    paddingBottom: 4,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-  },
+  // fixedInputSection removed (US-003)
   gameContainer: {
     padding: 8,
   },
@@ -3745,10 +3476,10 @@ const styles = StyleSheet.create({
     gap: 8,
     flex: 1,
   },
-  storyBookTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
+  headerButtonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   copyButton: {
     backgroundColor: '#6B7280',
@@ -3757,6 +3488,17 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   copyButtonText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  exitButtonHeader: {
+    backgroundColor: '#6B7280',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  exitButtonHeaderText: {
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '600',
@@ -3855,44 +3597,15 @@ const styles = StyleSheet.create({
     color: '#888',
     fontWeight: '500',
   },
-  inputSection: {},
-  storyInput: {
-    backgroundColor: '#ffffff',
-    padding: 12,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    fontSize: 16,
-    lineHeight: 20,
-    minHeight: 60,
-    marginBottom: 8,
-    fontFamily: 'serif',
-  },
-  // Removed old continueButton styles - replaced with continueStoryButton
+  // Old input/button/loading/error styles removed (US-003)
+  // Kept: disabledButton, warningButton, loadingButtonContent, loadingButtonText (still used elsewhere)
   disabledButton: {
     backgroundColor: '#cccccc',
   },
   warningButton: {
-    // Visual indication that TTS is unavailable but button still works
     opacity: 0.8,
     borderWidth: 1,
     borderColor: '#ff9800',
-  },
-  // Removed old continueButtonText - replaced with continueStoryButtonText
-  // Removed stats display for cleaner book format
-  // Removed buttonRow - replaced with gameButtonsContainer
-  // Removed complete button styles
-  loadingIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 10,
-    padding: 10,
-  },
-  loadingText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: '#666',
   },
   loadingButtonContent: {
     flexDirection: 'row',
@@ -3901,135 +3614,10 @@ const styles = StyleSheet.create({
   loadingButtonText: {
     marginLeft: 10,
   },
-  // Enhanced loading and error styles
-  loadingSpinner: {
-    fontSize: 20,
-    marginRight: 8,
-  },
   loadingSpinnerButton: {
     fontSize: 16,
     marginRight: 8,
     color: '#ffffff',
-  },
-  loadingTextContainer: {
-    flex: 1,
-  },
-  progressContainer: {
-    marginTop: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  progressBar: {
-    flex: 1,
-    height: 4,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 2,
-    marginRight: 8,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#4CAF50',
-    borderRadius: 2,
-  },
-  progressText: {
-    fontSize: 12,
-    color: '#666',
-    fontWeight: '600',
-  },
-  errorContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#fff3cd',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: '#ffeaa7',
-  },
-  errorIcon: {
-    fontSize: 20,
-    marginRight: 10,
-  },
-  errorTextContainer: {
-    flex: 1,
-  },
-  errorTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#856404',
-    marginBottom: 4,
-  },
-  errorSuggestion: {
-    fontSize: 12,
-    color: '#856404',
-    marginBottom: 8,
-  },
-  retryButton: {
-    backgroundColor: '#ffc107',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
-  },
-  retryButtonText: {
-    color: '#856404',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  // Game action buttons styles
-  gameButtonsContainer: {
-    marginBottom: 0,
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    gap: 6,
-    alignItems: 'center',
-  },
-  readStoryButton: {
-    backgroundColor: '#2196F3',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 44,
-  },
-  speakButton: {
-    backgroundColor: '#9C27B0',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 44,
-  },
-  emojiButtonText: {
-    fontSize: 20,
-  },
-  exitButtonBottom: {
-    backgroundColor: '#666',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  exitButtonText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  continueStoryButton: {
-    backgroundColor: '#4CAF50',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-    alignItems: 'center',
-    flex: 1,
-  },
-  continueStoryButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: 'bold',
   },
   imageDisplayContainer: {
     marginVertical: 8,
