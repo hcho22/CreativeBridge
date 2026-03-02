@@ -586,9 +586,7 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
         >
           {xpBalanceInfo.currentXP.toLocaleString()}
         </Text>
-        <Text style={styles.xpBalanceCost}>
-          (Cost: {IMAGE_GENERATION_COST.toLocaleString()} XP)
-        </Text>
+        <Text style={styles.xpBalanceCost}>(Free during beta!)</Text>
       </View>
       {!xpBalanceInfo.hasEnoughXP && (
         <Text style={styles.xpShortfallMessage}>

@@ -3321,6 +3321,13 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     amount: number,
     reason: string = 'Image generation',
   ): Promise<{ success: boolean; error?: string; newBalance?: number }> => {
+    // TEMPORARY: Skip XP deduction during beta. Threshold check (canGenerateImage) still enforces >= 1000 XP.
+    // TODO: Remove before production release.
+    const XP_DEDUCTION_ENABLED = false;
+    if (!XP_DEDUCTION_ENABLED) {
+      return { success: true, newBalance: userProfile?.total_xp || 0 };
+    }
+
     // Skip XP deduction if testing mode is enabled
     if (process.env.DISABLE_XP_COSTS_FOR_TESTING === 'true') {
       console.log(
@@ -3453,6 +3460,13 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         success: false,
         error: 'No user logged in',
       };
+    }
+
+    // TEMPORARY: Skip XP refund during beta (nothing was deducted).
+    // TODO: Remove before production release.
+    const XP_DEDUCTION_ENABLED = false;
+    if (!XP_DEDUCTION_ENABLED) {
+      return { success: true, newBalance: userProfile?.total_xp || 0 };
     }
 
     // Validate amount is positive
