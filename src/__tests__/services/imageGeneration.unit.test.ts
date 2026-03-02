@@ -9,7 +9,6 @@ import {
   ReplicateClient,
   BackupServiceClient,
 } from '../../services/imageGeneration';
-import { supabase } from '../../services/supabase';
 import type { GradeLevel, ImageGenerationEvent } from '../../types/database';
 
 // Mock environment variables first
@@ -22,8 +21,16 @@ jest.mock('react-native-dotenv', () => ({
 // Mock external dependencies
 jest.mock('../../services/supabase', () => ({
   supabase: {
-    from: jest.fn(),
-    rpc: jest.fn(),
+    from: jest.fn(() => ({
+      update: jest.fn(() => ({
+        eq: jest.fn().mockResolvedValue({ data: null, error: null }),
+      })),
+      select: jest.fn(() => ({
+        eq: jest.fn(() => ({
+          single: jest.fn().mockResolvedValue({ data: null, error: null }),
+        })),
+      })),
+    })),
   },
 }));
 
@@ -43,7 +50,6 @@ jest.mock('../../services/storySessionManager', () => ({
 // Mock fetch for API calls
 global.fetch = jest.fn();
 
-const mockSupabase = supabase as jest.Mocked<typeof supabase>;
 const mockFetch = global.fetch as jest.MockedFunction<typeof fetch>;
 
 describe('Image Generation Service - Unit Tests', () => {
@@ -56,114 +62,8 @@ describe('Image Generation Service - Unit Tests', () => {
     jest.restoreAllMocks();
   });
 
-  describe('XP Deduction and Refund Logic', () => {
-    const testUserId = 'test-user-123';
-    const imageCost = 1000;
-
-    beforeEach(() => {
-      // Mock the from method to return a query builder
-      const mockQueryBuilder = {
-        select: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
-        single: jest.fn(),
-      };
-      mockSupabase.from.mockReturnValue(mockQueryBuilder as any);
-      mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
-    });
-
-    test('should check user XP balance correctly', async () => {
-      const mockUserProfile = { total_xp: 2500 };
-      const mockQueryBuilder = {
-        select: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
-        single: jest.fn().mockResolvedValue({
-          data: mockUserProfile,
-          error: null,
-        }),
-      };
-      mockSupabase.from.mockReturnValue(mockQueryBuilder as any);
-
-      // Use reflection to test private method
-      const checkBalance = (imageGenerationService as any).checkUserXPBalance;
-      const balance = await checkBalance.call(
-        imageGenerationService,
-        testUserId,
-      );
-
-      expect(balance).toBe(2500);
-      expect(mockSupabase.from).toHaveBeenCalledWith('user_profiles');
-      expect(mockQueryBuilder.select).toHaveBeenCalledWith('total_xp');
-      expect(mockQueryBuilder.eq).toHaveBeenCalledWith('id', testUserId);
-    });
-
-    test('should handle XP balance check errors gracefully', async () => {
-      const mockQueryBuilder = {
-        select: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
-        single: jest.fn().mockResolvedValue({
-          data: null,
-          error: { message: 'User not found' },
-        }),
-      };
-      mockSupabase.from.mockReturnValue(mockQueryBuilder as any);
-
-      const checkBalance = (imageGenerationService as any).checkUserXPBalance;
-
-      await expect(
-        checkBalance.call(imageGenerationService, testUserId),
-      ).rejects.toThrow('Failed to check XP balance: User not found');
-    });
-
-    test('should deduct XP successfully', async () => {
-      mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
-
-      const deductXP = (imageGenerationService as any).deductXP;
-      await deductXP.call(imageGenerationService, testUserId, imageCost);
-
-      expect(mockSupabase.rpc).toHaveBeenCalledWith('add_user_xp', {
-        user_uuid: testUserId,
-        xp_to_add: -imageCost,
-      });
-    });
-
-    test('should handle XP deduction errors', async () => {
-      mockSupabase.rpc.mockResolvedValue({
-        data: null,
-        error: { message: 'Insufficient XP' },
-      });
-
-      const deductXP = (imageGenerationService as any).deductXP;
-
-      await expect(
-        deductXP.call(imageGenerationService, testUserId, imageCost),
-      ).rejects.toThrow('XP deduction failed: Insufficient XP');
-    });
-
-    test('should refund XP successfully', async () => {
-      mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
-
-      const refundXP = (imageGenerationService as any).refundXP;
-      await refundXP.call(imageGenerationService, testUserId, imageCost);
-
-      expect(mockSupabase.rpc).toHaveBeenCalledWith('add_user_xp', {
-        user_uuid: testUserId,
-        xp_to_add: imageCost,
-      });
-    });
-
-    test('should handle XP refund errors', async () => {
-      mockSupabase.rpc.mockResolvedValue({
-        data: null,
-        error: { message: 'Database error' },
-      });
-
-      const refundXP = (imageGenerationService as any).refundXP;
-
-      await expect(
-        refundXP.call(imageGenerationService, testUserId, imageCost),
-      ).rejects.toThrow('XP refund failed: Database error');
-    });
-  });
+  // XP Deduction and Refund Logic tests removed — XP lifecycle is now managed
+  // by the component via AuthContext/Convex, not the image generation service.
 
   describe('Story Content Extraction', () => {
     test('should analyze story content and extract characters', () => {
@@ -994,16 +894,8 @@ describe('Image Generation Service - Unit Tests', () => {
         userId: 'test-user',
       };
 
-      // Mock XP balance check to return sufficient balance
-      const mockQueryBuilder = {
-        select: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
-        single: jest.fn().mockResolvedValue({
-          data: { total_xp: 2000 },
-          error: null,
-        }),
-      };
-      mockSupabase.from.mockReturnValue(mockQueryBuilder as any);
+      // XP balance check is now handled by the component, not the service.
+      // The service focuses on prompt generation and API calls.
 
       // Should work in development mode with mocked responses
       try {

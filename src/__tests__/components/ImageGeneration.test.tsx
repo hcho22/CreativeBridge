@@ -63,7 +63,11 @@ describe('ImageGeneration Component - Tasks 5.2-5.5', () => {
   describe('Task 5.2: Design image generation button component', () => {
     test('should render image generation button with correct text', () => {
       mockUseAuth.mockReturnValue({
-        userProfile: { id: 'user-123', total_xp: 5000 },
+        userProfile: {
+          id: 'user-123',
+          clerk_user_id: 'user_2abc123',
+          total_xp: 5000,
+        },
         canGenerateImage: jest.fn().mockReturnValue(true),
         getXPBalanceInfo: jest.fn().mockReturnValue({
           hasEnoughXP: true,
@@ -84,7 +88,11 @@ describe('ImageGeneration Component - Tasks 5.2-5.5', () => {
 
     test('should render button with proper styling and accessibility', () => {
       mockUseAuth.mockReturnValue({
-        userProfile: { id: 'user-123', total_xp: 5000 },
+        userProfile: {
+          id: 'user-123',
+          clerk_user_id: 'user_2abc123',
+          total_xp: 5000,
+        },
         canGenerateImage: jest.fn().mockReturnValue(true),
         getXPBalanceInfo: jest.fn().mockReturnValue({
           hasEnoughXP: true,
@@ -110,7 +118,11 @@ describe('ImageGeneration Component - Tasks 5.2-5.5', () => {
   describe('Task 5.3: Implement XP balance display', () => {
     test('should display current XP balance with sufficient funds', () => {
       mockUseAuth.mockReturnValue({
-        userProfile: { id: 'user-123', total_xp: 5000 },
+        userProfile: {
+          id: 'user-123',
+          clerk_user_id: 'user_2abc123',
+          total_xp: 5000,
+        },
         canGenerateImage: jest.fn().mockReturnValue(true),
         getXPBalanceInfo: jest.fn().mockReturnValue({
           hasEnoughXP: true,
@@ -133,7 +145,11 @@ describe('ImageGeneration Component - Tasks 5.2-5.5', () => {
 
     test('should display XP balance with insufficient funds styling', () => {
       mockUseAuth.mockReturnValue({
-        userProfile: { id: 'user-123', total_xp: 500 },
+        userProfile: {
+          id: 'user-123',
+          clerk_user_id: 'user_2abc123',
+          total_xp: 500,
+        },
         canGenerateImage: jest.fn().mockReturnValue(false),
         getXPBalanceInfo: jest.fn().mockReturnValue({
           hasEnoughXP: false,
@@ -157,7 +173,11 @@ describe('ImageGeneration Component - Tasks 5.2-5.5', () => {
   describe('Task 5.4: Create disabled state UI for insufficient XP', () => {
     test('should show disabled state when user has insufficient XP', () => {
       mockUseAuth.mockReturnValue({
-        userProfile: { id: 'user-123', total_xp: 500 },
+        userProfile: {
+          id: 'user-123',
+          clerk_user_id: 'user_2abc123',
+          total_xp: 500,
+        },
         canGenerateImage: jest.fn().mockReturnValue(false),
         getXPBalanceInfo: jest.fn().mockReturnValue({
           hasEnoughXP: false,
@@ -186,7 +206,11 @@ describe('ImageGeneration Component - Tasks 5.2-5.5', () => {
 
     test('should show disabled state when component is explicitly disabled', () => {
       mockUseAuth.mockReturnValue({
-        userProfile: { id: 'user-123', total_xp: 5000 },
+        userProfile: {
+          id: 'user-123',
+          clerk_user_id: 'user_2abc123',
+          total_xp: 5000,
+        },
         canGenerateImage: jest.fn().mockReturnValue(true),
         getXPBalanceInfo: jest.fn().mockReturnValue({
           hasEnoughXP: true,
@@ -220,7 +244,11 @@ describe('ImageGeneration Component - Tasks 5.2-5.5', () => {
         .mockResolvedValue({ success: true, newBalance: 4000 });
 
       mockUseAuth.mockReturnValue({
-        userProfile: { id: 'user-123', total_xp: 5000 },
+        userProfile: {
+          id: 'user-123',
+          clerk_user_id: 'user_2abc123',
+          total_xp: 5000,
+        },
         canGenerateImage: jest.fn().mockReturnValue(true),
         getXPBalanceInfo: jest.fn().mockReturnValue({
           hasEnoughXP: true,
@@ -263,7 +291,11 @@ describe('ImageGeneration Component - Tasks 5.2-5.5', () => {
         .mockResolvedValue({ success: true, newBalance: 4000 });
 
       mockUseAuth.mockReturnValue({
-        userProfile: { id: 'user-123', total_xp: 5000 },
+        userProfile: {
+          id: 'user-123',
+          clerk_user_id: 'user_2abc123',
+          total_xp: 5000,
+        },
         canGenerateImage: jest.fn().mockReturnValue(true),
         getXPBalanceInfo: jest.fn().mockReturnValue({
           hasEnoughXP: true,
@@ -300,7 +332,11 @@ describe('ImageGeneration Component - Tasks 5.2-5.5', () => {
         .mockResolvedValue({ success: true, newBalance: 4000 });
 
       mockUseAuth.mockReturnValue({
-        userProfile: { id: 'user-123', total_xp: 5000 },
+        userProfile: {
+          id: 'user-123',
+          clerk_user_id: 'user_2abc123',
+          total_xp: 5000,
+        },
         canGenerateImage: jest.fn().mockReturnValue(true),
         getXPBalanceInfo: jest.fn().mockReturnValue({
           hasEnoughXP: true,
@@ -329,7 +365,11 @@ describe('ImageGeneration Component - Tasks 5.2-5.5', () => {
   describe('Cross-device rendering tests', () => {
     test('should render correctly on different screen dimensions', () => {
       mockUseAuth.mockReturnValue({
-        userProfile: { id: 'user-123', total_xp: 5000 },
+        userProfile: {
+          id: 'user-123',
+          clerk_user_id: 'user_2abc123',
+          total_xp: 5000,
+        },
         canGenerateImage: jest.fn().mockReturnValue(true),
         getXPBalanceInfo: jest.fn().mockReturnValue({
           hasEnoughXP: true,
@@ -362,7 +402,11 @@ describe('ImageGeneration Component - Tasks 5.2-5.5', () => {
         .mockResolvedValue({ success: false, error: 'Insufficient XP' });
 
       mockUseAuth.mockReturnValue({
-        userProfile: { id: 'user-123', total_xp: 5000 },
+        userProfile: {
+          id: 'user-123',
+          clerk_user_id: 'user_2abc123',
+          total_xp: 5000,
+        },
         canGenerateImage: jest.fn().mockReturnValue(true),
         getXPBalanceInfo: jest.fn().mockReturnValue({
           hasEnoughXP: true,

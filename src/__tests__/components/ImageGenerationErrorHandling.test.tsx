@@ -30,6 +30,7 @@ jest.mock('../../services/xpEventTracker', () => ({
 jest.mock('../../services/storySessionManager', () => ({
   storySessionManager: {
     updateSessionWithImage: jest.fn(),
+    updateSessionWithSupabaseImage: jest.fn(),
   },
 }));
 
@@ -50,7 +51,11 @@ describe('ImageGeneration Error Handling UI - Tasks 7.1-7.4', () => {
   };
 
   const defaultAuthMock = {
-    userProfile: { id: 'user-123', total_xp: 5000 },
+    userProfile: {
+      id: 'user-123',
+      clerk_user_id: 'user_2abc123',
+      total_xp: 5000,
+    },
     canGenerateImage: jest.fn(() => true),
     getXPBalanceInfo: jest.fn(() => ({
       currentXP: 5000,
