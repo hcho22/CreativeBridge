@@ -92,6 +92,8 @@
     "dotenv": "^17.2.3",
     "expo": "~54.0.33",
     "expo-auth-session": "^7.0.10",
+    "expo-blur": "~15.0.8",
+    "expo-glass-effect": "~0.1.9",
     "expo-linking": "^8.0.10",
     "expo-secure-store": "^15.0.8",
     "expo-web-browser": "~15.0.10",

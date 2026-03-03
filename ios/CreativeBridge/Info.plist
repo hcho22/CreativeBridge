@@ -51,24 +51,8 @@
       <key>NSAllowsLocalNetworking</key>
       <true/>
     </dict>
-    <key>NSLocalNetworkUsageDescription</key>
-    <string>CreativeBridge needs to connect to your development server on the local network for debugging and development.</string>
-    <key>NSBonjourServices</key>
-    <array>
-      <string>_http._tcp</string>
-    </array>
     <key>NSFaceIDUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your Face ID biometric data.</string>
-    <key>NSMicrophoneUsageDescription</key>
-    <string>CreativeBridge needs access to your microphone to enable voice input for continuing your stories.</string>
-    <key>NSSpeechRecognitionUsageDescription</key>
-    <string>CreativeBridge needs access to speech recognition to convert your voice input into text for continuing your stories.</string>
-    <key>NSPhotoLibraryUsageDescription</key>
-    <string>CreativeBridge needs access to your photo library to save and share story illustrations that you create.</string>
-    <key>NSPhotoLibraryAddUsageDescription</key>
-    <string>CreativeBridge needs permission to save story illustrations to your photo library so you can share them with others.</string>
-    <key>NSCameraUsageDescription</key>
-    <string>CreativeBridge may use the camera to capture images for your stories.</string>
     <key>RCTNewArchEnabled</key>
     <true/>
     <key>UILaunchStoryboardName</key>
