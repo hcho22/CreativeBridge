@@ -1741,7 +1741,7 @@ const titleFontSize = Math.min(screenWidth * 0.11, 80);
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f2f5',
+    backgroundColor: '#fcfcfc',
   },
   scrollContainer: {
     flexGrow: 1,
@@ -1917,8 +1917,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     paddingTop: 8,
     paddingBottom: 2,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    borderTopWidth: 0,
   },
   legalLinkText: {
     fontSize: 12,

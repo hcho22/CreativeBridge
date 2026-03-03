@@ -680,7 +680,7 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f2f5',
+    backgroundColor: '#fcfcfc',
   },
   scrollContainer: {
     flexGrow: 1,

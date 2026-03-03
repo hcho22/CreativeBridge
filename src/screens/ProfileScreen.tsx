@@ -10,6 +10,7 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  SafeAreaView,
 } from 'react-native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useAuth } from '../context/AuthContext';
@@ -100,180 +101,186 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const { level, progress, nextLevelXP } = levelData;
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.content}>
-        {/* Profile Header */}
-        <View style={styles.profileHeader}>
-          <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {userProfile?.display_name?.charAt(0)?.toUpperCase() || '?'}
-              </Text>
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.container}>
+        <View style={styles.content}>
+          {/* Profile Header */}
+          <View style={styles.profileHeader}>
+            <View style={styles.avatarContainer}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {userProfile?.display_name?.charAt(0)?.toUpperCase() || '?'}
+                </Text>
+              </View>
             </View>
-          </View>
 
-          <Text style={styles.displayName}>
-            {userProfile?.display_name || 'Writer'}
-          </Text>
-          <Text style={styles.username}>
-            @{userProfile?.username || 'username'}
-          </Text>
-
-          <TouchableOpacity
-            style={styles.editButton}
-            onPress={handleEditProfile}
-          >
-            <Text style={styles.editButtonText}>✏️ Edit Profile</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Level Progress */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🏆 Level Progress</Text>
-          <View style={styles.levelContainer}>
-            <Text style={styles.levelText}>Level {level}</Text>
-            <View style={styles.progressBarContainer}>
-              <View style={[styles.progressBar, { width: `${progress}%` }]} />
-            </View>
-            <Text style={styles.progressText}>
-              {userProfile?.total_xp || 0} / {nextLevelXP} XP
+            <Text style={styles.displayName}>
+              {userProfile?.display_name || 'Writer'}
             </Text>
-          </View>
-        </View>
-
-        {/* Statistics */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📊 Statistics</Text>
-          <View style={styles.statsGrid}>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>{userProfile?.total_xp || 0}</Text>
-              <Text style={styles.statLabel}>⭐ Total XP</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>
-                {userProfile?.current_streak || 0}
-              </Text>
-              <Text style={styles.statLabel}>🔥 Current Streak</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>
-                {userProfile?.longest_streak || 0}
-              </Text>
-              <Text style={styles.statLabel}>🏆 Longest Streak</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>
-                {userProfile?.total_games_played || 0}
-              </Text>
-              <Text style={styles.statLabel}>🎮 Games Played</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>
-                {userProfile?.total_words_written || 0}
-              </Text>
-              <Text style={styles.statLabel}>📝 Words Written</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>
-                {userProfile?.best_score || 0}
-              </Text>
-              <Text style={styles.statLabel}>🎯 Best Score</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Preferences */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>⚙️ Preferences</Text>
-
-          <View style={styles.preferenceItem}>
-            <Text style={styles.preferenceLabel}>Grade Level</Text>
-            <Text style={styles.preferenceValue}>
-              {getGradeDescription(userProfile?.preferred_grade_level || 'K-2')}
+            <Text style={styles.username}>
+              @{userProfile?.username || 'username'}
             </Text>
-          </View>
 
-          <View style={styles.preferenceItem}>
-            <Text style={styles.preferenceLabel}>Speech Features</Text>
-            <Text
-              style={[
-                styles.preferenceValue,
-                userProfile?.speech_enabled
-                  ? styles.enabledText
-                  : styles.disabledText,
-              ]}
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={handleEditProfile}
             >
-              {userProfile?.speech_enabled ? 'Enabled' : 'Disabled'}
-            </Text>
+              <Text style={styles.editButtonText}>✏️ Edit Profile</Text>
+            </TouchableOpacity>
           </View>
-        </View>
 
-        {/* Achievements (Future Feature) */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🏅 Achievements</Text>
-          <View style={styles.achievementsContainer}>
-            <Text style={styles.achievementsPlaceholder}>
-              Achievement system coming soon!
-              {'\n\n'}
-              Start writing stories to unlock badges and rewards.
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Edit Profile Modal */}
-      <Modal
-        visible={editModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={handleCancelEdit}
-      >
-        <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.modalContainer}
-          >
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Edit Profile</Text>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Display Name</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={editedDisplayName}
-                  onChangeText={setEditedDisplayName}
-                  placeholder="Enter your display name"
-                  maxLength={50}
-                />
+          {/* Level Progress */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🏆 Level Progress</Text>
+            <View style={styles.levelContainer}>
+              <Text style={styles.levelText}>Level {level}</Text>
+              <View style={styles.progressBarContainer}>
+                <View style={[styles.progressBar, { width: `${progress}%` }]} />
               </View>
+              <Text style={styles.progressText}>
+                {userProfile?.total_xp || 0} / {nextLevelXP} XP
+              </Text>
+            </View>
+          </View>
 
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.cancelButton]}
-                  onPress={handleCancelEdit}
-                >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.saveButton]}
-                  onPress={handleSaveProfile}
-                >
-                  <Text style={styles.saveButtonText}>Save</Text>
-                </TouchableOpacity>
+          {/* Statistics */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>📊 Statistics</Text>
+            <View style={styles.statsGrid}>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>
+                  {userProfile?.total_xp || 0}
+                </Text>
+                <Text style={styles.statLabel}>⭐ Total XP</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>
+                  {userProfile?.current_streak || 0}
+                </Text>
+                <Text style={styles.statLabel}>🔥 Current Streak</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>
+                  {userProfile?.longest_streak || 0}
+                </Text>
+                <Text style={styles.statLabel}>🏆 Longest Streak</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>
+                  {userProfile?.total_games_played || 0}
+                </Text>
+                <Text style={styles.statLabel}>🎮 Games Played</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>
+                  {userProfile?.total_words_written || 0}
+                </Text>
+                <Text style={styles.statLabel}>📝 Words Written</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>
+                  {userProfile?.best_score || 0}
+                </Text>
+                <Text style={styles.statLabel}>🎯 Best Score</Text>
               </View>
             </View>
-          </KeyboardAvoidingView>
+          </View>
+
+          {/* Preferences */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>⚙️ Preferences</Text>
+
+            <View style={styles.preferenceItem}>
+              <Text style={styles.preferenceLabel}>Grade Level</Text>
+              <Text style={styles.preferenceValue}>
+                {getGradeDescription(
+                  userProfile?.preferred_grade_level || 'K-2',
+                )}
+              </Text>
+            </View>
+
+            <View style={styles.preferenceItem}>
+              <Text style={styles.preferenceLabel}>Speech Features</Text>
+              <Text
+                style={[
+                  styles.preferenceValue,
+                  userProfile?.speech_enabled
+                    ? styles.enabledText
+                    : styles.disabledText,
+                ]}
+              >
+                {userProfile?.speech_enabled ? 'Enabled' : 'Disabled'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Achievements (Future Feature) */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🏅 Achievements</Text>
+            <View style={styles.achievementsContainer}>
+              <Text style={styles.achievementsPlaceholder}>
+                Achievement system coming soon!
+                {'\n\n'}
+                Start writing stories to unlock badges and rewards.
+              </Text>
+            </View>
+          </View>
         </View>
-      </Modal>
-    </ScrollView>
+
+        {/* Edit Profile Modal */}
+        <Modal
+          visible={editModalVisible}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={handleCancelEdit}
+        >
+          <View style={styles.modalOverlay}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={styles.modalContainer}
+            >
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Edit Profile</Text>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Display Name</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={editedDisplayName}
+                    onChangeText={setEditedDisplayName}
+                    placeholder="Enter your display name"
+                    maxLength={50}
+                  />
+                </View>
+
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.cancelButton]}
+                    onPress={handleCancelEdit}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.saveButton]}
+                    onPress={handleSaveProfile}
+                  >
+                    <Text style={styles.saveButtonText}>Save</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </KeyboardAvoidingView>
+          </View>
+        </Modal>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f2f5',
+    backgroundColor: '#fcfcfc',
   },
   content: {
     padding: 20,

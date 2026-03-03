@@ -531,7 +531,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   // Control header visibility based on game state
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerShown: !isGameActive,
+      headerShown: false,
     });
   }, [navigation, isGameActive]);
 
@@ -3430,7 +3430,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f2f5',
+    backgroundColor: '#fcfcfc',
   },
   contentContainer: {
     flexGrow: 1,
@@ -3443,7 +3443,7 @@ const styles = StyleSheet.create({
   // New three-section layout styles
   safeContainer: {
     flex: 1,
-    backgroundColor: '#f0f2f5',
+    backgroundColor: '#fcfcfc',
   },
   challengeHeaderSection: {
     paddingHorizontal: 8,
@@ -3453,7 +3453,7 @@ const styles = StyleSheet.create({
   },
   storyContentSection: {
     flex: 1,
-    paddingHorizontal: 8,
+    paddingHorizontal: 0,
   },
   storyScrollContainer: {
     flex: 1,
@@ -3462,7 +3462,6 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingBottom: 120,
   },
-  // fixedInputSection removed (US-003)
   // Floating input bar — Claude-style card overlay (US-004, US-005)
   floatingInputBar: {
     position: 'absolute',
@@ -3503,6 +3502,9 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    minWidth: 36,
   },
   floatingIconButtonDisabled: {
     opacity: 0.3,
@@ -3605,71 +3607,6 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
   },
-  statsSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 30,
-  },
-  statCard: {
-    backgroundColor: '#ffffff',
-    padding: 20,
-    borderRadius: 12,
-    alignItems: 'center',
-    flex: 1,
-    marginHorizontal: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#4CAF50',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#666',
-    fontWeight: '600',
-  },
-  gradeSection: {
-    marginBottom: 30,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 15,
-  },
-  gradeButtons: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  gradeButton: {
-    backgroundColor: '#ffffff',
-    padding: 15,
-    borderRadius: 8,
-    width: '48%',
-    alignItems: 'center',
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  selectedGradeButton: {
-    backgroundColor: '#4CAF50',
-    borderColor: '#4CAF50',
-  },
-  gradeButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  selectedGradeButtonText: {
-    color: '#ffffff',
-  },
   startSection: {
     alignItems: 'center',
     gap: 20,
@@ -3721,15 +3658,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
-  },
-  sessionXP: {
-    fontSize: 14,
-    color: '#FF9800',
-    fontWeight: '600',
-    backgroundColor: '#FFF3E0',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
   },
   roundCounter: {
     fontSize: 11,
@@ -3786,16 +3714,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   storyBook: {
-    backgroundColor: '#ffffff',
-    borderRadius: 4,
+    backgroundColor: '#fcfcfc',
+    borderRadius: 0,
     width: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: '#e8e8e8',
+    borderWidth: 0,
   },
   storyBookContent: {
     padding: 16,
@@ -3812,53 +3734,11 @@ const styles = StyleSheet.create({
     // Allow text selection on supported platforms
     userSelect: 'text',
   },
-  contributionContainer: {
-    marginBottom: 8,
-    padding: 8,
-    borderRadius: 4,
-    borderLeftWidth: 3,
-  },
-  aiContribution: {
-    backgroundColor: '#f8f9ff',
-    borderLeftColor: '#4285f4',
-  },
-  userContribution: {
-    backgroundColor: '#f0fdf4',
-    borderLeftColor: '#22c55e',
-  },
-  contributionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  contributionLabel: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
   aiLabel: {
     color: '#4285f4',
   },
   userLabel: {
     color: '#22c55e',
-  },
-  wordCount: {
-    fontSize: 10,
-    color: '#666',
-    fontWeight: '500',
-  },
-  contributionText: {
-    fontSize: 16,
-    lineHeight: 22,
-    fontFamily: 'serif',
-  },
-  aiText: {
-    color: '#1e40af',
-  },
-  userText: {
-    color: '#166534',
   },
   compactContributionContainer: {
     marginBottom: 4,
@@ -3879,15 +3759,8 @@ const styles = StyleSheet.create({
     color: '#888',
     fontWeight: '500',
   },
-  // Old input/button/loading/error styles removed (US-003)
-  // Kept: disabledButton, warningButton, loadingButtonContent, loadingButtonText (still used elsewhere)
   disabledButton: {
     backgroundColor: '#cccccc',
-  },
-  warningButton: {
-    opacity: 0.8,
-    borderWidth: 1,
-    borderColor: '#ff9800',
   },
   loadingButtonContent: {
     flexDirection: 'row',
@@ -3900,13 +3773,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginRight: 8,
     color: '#ffffff',
-  },
-  imageDisplayContainer: {
-    marginVertical: 8,
-  },
-  imageDisplayContainerFullWidth: {
-    marginVertical: 0, // Remove margins for edge-to-edge
-    flex: 1, // Allow expansion
   },
   imageDisplayContainerOverlay: {
     marginVertical: 8,
