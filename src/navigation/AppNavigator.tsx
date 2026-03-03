@@ -19,15 +19,17 @@ export type TabParamList = {
 
 // Stack navigation types for story continuation flow
 export type HomeStackParamList = {
-  Home: {
-    continueStory?: {
-      sessionId: string;
-      importedContent: string;
-      storySource: string;
-      gradeLevel: string;
-      metadata?: any;
-    };
-  } | undefined;
+  Home:
+    | {
+        continueStory?: {
+          sessionId: string;
+          importedContent: string;
+          storySource: string;
+          gradeLevel: string;
+          metadata?: any;
+        };
+      }
+    | undefined;
   ImportOptions: undefined;
   StorySelection: undefined;
   StoryPreviewEdit: {
@@ -57,7 +59,7 @@ const HomeStackNavigator: React.FC = () => {
       initialRouteName="Home"
       screenOptions={{
         headerStyle: {
-          backgroundColor: '#f0f2f5',
+          backgroundColor: '#fcfcfc',
         },
         headerTintColor: '#333',
         headerTitleStyle: {
@@ -137,7 +139,7 @@ const AppNavigator: React.FC = () => {
           tabBarActiveTintColor: '#4CAF50', // Story_Quest green
           tabBarInactiveTintColor: '#8E8E93',
           tabBarStyle: {
-            backgroundColor: '#f0f2f5', // Match screen background for uniform appearance
+            backgroundColor: '#fcfcfc', // Match screen background for uniform appearance
             borderTopWidth: 0, // Remove border for seamless look
             borderTopColor: '#E5E5EA',
             paddingBottom: 25, // Increased to prevent home indicator from blocking text
@@ -149,7 +151,7 @@ const AppNavigator: React.FC = () => {
             fontWeight: '600',
           },
           headerStyle: {
-            backgroundColor: '#f0f2f5',
+            backgroundColor: '#fcfcfc',
           },
           headerTintColor: '#333',
           headerTitleStyle: {
@@ -171,7 +173,7 @@ const AppNavigator: React.FC = () => {
           component={SettingsScreen}
           options={{
             title: 'Settings',
-            headerTitle: '⚙️ Settings',
+            headerShown: false,
           }}
         />
         <Tab.Screen
@@ -179,7 +181,7 @@ const AppNavigator: React.FC = () => {
           component={ProfileScreen}
           options={{
             title: 'Profile',
-            headerTitle: '👤 Your Profile',
+            headerShown: false,
           }}
         />
       </Tab.Navigator>

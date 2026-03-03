@@ -7,7 +7,7 @@ export const theme = {
     warning: '#ff9800', // Warning orange
     success: '#4CAF50', // Success green (same as primary)
     info: '#2196F3', // Info blue (same as secondary)
-    background: '#f0f2f5', // Light gray background
+    background: '#fcfcfc', // Light gray background
     surface: '#ffffff', // White cards/surfaces
     text: '#333333', // Dark text
     textSecondary: '#666666', // Secondary text

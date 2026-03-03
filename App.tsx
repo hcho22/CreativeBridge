@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f0f2f5',
+    backgroundColor: '#fcfcfc',
   },
   loadingText: {
     marginTop: 16,
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f0f2f5',
+    backgroundColor: '#fcfcfc',
     padding: 20,
   },
   errorTitle: {

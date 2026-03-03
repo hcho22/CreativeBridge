@@ -24,6 +24,10 @@ import { v } from 'convex/values';
 import { requireAuth, getClerkUserId } from './auth';
 import { gradeLevelValidator } from './schema';
 
+// TEMPORARY: Disable XP deduction during beta. Image generation is free.
+// TODO: Set to true before production release.
+const XP_DEDUCTION_ENABLED = false;
+
 /**
  * Default onboarding progress structure.
  * All items start as incomplete (false).
@@ -316,6 +320,14 @@ export const deductUserXp = mutation({
 
     if (!profile) {
       throw new Error(`Profile not found for Clerk user: ${args.clerkUserId}`);
+    }
+
+    // Beta guard: skip actual deduction, return current balance unchanged
+    if (!XP_DEDUCTION_ENABLED) {
+      return {
+        success: true,
+        newBalance: profile.totalXp,
+      };
     }
 
     // Check sufficient balance
