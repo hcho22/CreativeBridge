@@ -1298,10 +1298,8 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
         <View style={styles.content}>
           {/* App Logo/Title */}
           <View style={styles.headerSection}>
-            <Text style={styles.appTitle}>🎮 CreativeBridge</Text>
-            <Text style={styles.appSubtitle}>
-              AI-Assisted Story Writing for Students
-            </Text>
+            <Text style={styles.appTitle}>CreativeBridge</Text>
+            <Text style={styles.appSubtitle}>Create your best Story!</Text>
           </View>
 
           {/* Auth Form */}
@@ -1757,11 +1755,12 @@ const styles = StyleSheet.create({
   headerSection: {
     alignItems: 'center',
     marginBottom: 12,
+    marginTop: 80,
   },
   appTitle: {
     fontSize: titleFontSize,
     fontWeight: 'bold',
-    color: '#4CAF50',
+    color: '#000000',
     marginBottom: 4,
     textAlign: 'center',
     width: '100%',
@@ -1770,7 +1769,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     textAlign: 'center',
-    marginBottom: 100,
+    marginBottom: 24,
   },
   formSection: {
     width: '100%',
