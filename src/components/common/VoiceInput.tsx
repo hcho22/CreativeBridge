@@ -1617,7 +1617,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minWidth: 44,
-    ...theme.shadows.sm,
   },
   buttonContent: {
     flexDirection: 'row',
@@ -1625,25 +1624,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   idle: {
-    backgroundColor: theme.colors.accent,
+    backgroundColor: 'transparent',
   },
   listening: {
-    backgroundColor: theme.colors.error,
+    backgroundColor: 'transparent',
   },
   processing: {
-    backgroundColor: theme.colors.warning,
+    backgroundColor: 'transparent',
   },
   error: {
-    backgroundColor: theme.colors.error,
+    backgroundColor: 'transparent',
     opacity: 0.7,
   },
   success: {
-    backgroundColor: '#4CAF50', // Green for success
+    backgroundColor: 'transparent',
     opacity: 1,
   },
   disabled: {
-    backgroundColor: theme.colors.disabled,
-    opacity: 1, // Keep full opacity so button is always visible
+    backgroundColor: 'transparent',
+    opacity: 0.4,
   },
   voiceButtonText: {
     color: '#FFFFFF', // Explicit white color for visibility
