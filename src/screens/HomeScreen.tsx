@@ -58,6 +58,7 @@ import {
 } from '../components/onboarding';
 import { onboardingMilestoneTracker } from '../services/onboardingMilestoneTracker';
 import { onboardingService } from '../services/onboardingService';
+import { AdaptiveGlassBackground } from '../components/common/AdaptiveGlassBackground';
 
 type HomeScreenNavigationProp = BottomTabNavigationProp<TabParamList, 'Home'>;
 
@@ -2927,160 +2928,177 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             </View>
           </ScrollView>
 
-          {/* Floating Input Bar — Claude-style card overlay (US-004, US-005, US-006) */}
+          {/* Floating Input Bar — glass card overlay (US-004, US-005, US-006) */}
           {!showCompletionOptions && (
             <Animated.View
-              style={[styles.floatingInputBar, { bottom: floatingBarBottom }]}
+              style={[
+                styles.floatingInputBarPositioner,
+                { bottom: floatingBarBottom },
+              ]}
             >
-              {/* Loading Banner (US-006) — compact row above TextInput */}
-              {(loadingState.isValidating ||
-                loadingState.isSaving ||
-                loadingState.isGenerating) && (
-                <View style={styles.loadingBanner}>
-                  <View style={styles.loadingBannerContent}>
-                    <Animated.Text
-                      style={[
-                        styles.loadingBannerSpinner,
-                        {
-                          transform: [
-                            {
-                              rotate: spinValue.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: ['0deg', '360deg'],
-                              }),
-                            },
-                          ],
-                        },
-                      ]}
-                    >
-                      {'\u26A1'}
-                    </Animated.Text>
-                    <Text style={styles.loadingBannerText} numberOfLines={1}>
-                      {loadingState.currentTask || 'Processing...'}
-                    </Text>
-                  </View>
-                  {loadingState.generationProgress > 0 && (
-                    <View style={styles.loadingBannerProgressContainer}>
-                      <View
+              <AdaptiveGlassBackground
+                glassStyle="regular"
+                isInteractive={true}
+                fallbackBlurIntensity={90}
+                fallbackBlurTint="light"
+                androidFallbackColor="rgba(255,255,255,0.95)"
+                style={styles.floatingInputBarGlass}
+              >
+                {/* Loading Banner (US-006) — compact row above TextInput */}
+                {(loadingState.isValidating ||
+                  loadingState.isSaving ||
+                  loadingState.isGenerating) && (
+                  <View style={styles.loadingBanner}>
+                    <View style={styles.loadingBannerContent}>
+                      <Animated.Text
                         style={[
-                          styles.loadingBannerProgressFill,
+                          styles.loadingBannerSpinner,
                           {
-                            width: `${loadingState.generationProgress}%`,
+                            transform: [
+                              {
+                                rotate: spinValue.interpolate({
+                                  inputRange: [0, 1],
+                                  outputRange: ['0deg', '360deg'],
+                                }),
+                              },
+                            ],
                           },
                         ]}
-                      />
+                      >
+                        {'\u26A1'}
+                      </Animated.Text>
+                      <Text style={styles.loadingBannerText} numberOfLines={1}>
+                        {loadingState.currentTask || 'Processing...'}
+                      </Text>
                     </View>
-                  )}
-                </View>
-              )}
-
-              {/* Error Banner (US-006) — compact row above TextInput */}
-              {generationError && (
-                <View style={styles.errorBanner}>
-                  <View style={styles.errorBannerContent}>
-                    <Text style={styles.errorBannerIcon}>{'\u26A0\uFE0F'}</Text>
-                    <Text style={styles.errorBannerText} numberOfLines={2}>
-                      {generationError.message}
-                      {generationError.suggestion
-                        ? ` — ${generationError.suggestion}`
-                        : ''}
-                    </Text>
+                    {loadingState.generationProgress > 0 && (
+                      <View style={styles.loadingBannerProgressContainer}>
+                        <View
+                          style={[
+                            styles.loadingBannerProgressFill,
+                            {
+                              width: `${loadingState.generationProgress}%`,
+                            },
+                          ]}
+                        />
+                      </View>
+                    )}
                   </View>
-                  {generationError.retryable && (
-                    <TouchableOpacity
-                      style={styles.errorBannerRetry}
-                      onPress={() => {
-                        setGenerationError(null);
-                        handleContinueStory();
-                      }}
-                      accessibilityLabel="Retry story generation"
-                      accessibilityRole="button"
-                    >
-                      <Text style={styles.errorBannerRetryText}>Retry</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
+                )}
 
-              {/* TextInput */}
-              <TextInput
-                testID="story-input"
-                style={styles.floatingTextInput}
-                placeholder="Continue the story..."
-                placeholderTextColor="#999"
-                multiline
-                value={userInput}
-                onChangeText={(text: string) => {
-                  setUserInput(text);
-                  inputDebouncer?.handleInput(text);
-                }}
-                editable={!loadingState.isGenerating}
-              />
+                {/* Error Banner (US-006) — compact row above TextInput */}
+                {generationError && (
+                  <View style={styles.errorBanner}>
+                    <View style={styles.errorBannerContent}>
+                      <Text style={styles.errorBannerIcon}>
+                        {'\u26A0\uFE0F'}
+                      </Text>
+                      <Text style={styles.errorBannerText} numberOfLines={2}>
+                        {generationError.message}
+                        {generationError.suggestion
+                          ? ` — ${generationError.suggestion}`
+                          : ''}
+                      </Text>
+                    </View>
+                    {generationError.retryable && (
+                      <TouchableOpacity
+                        style={styles.errorBannerRetry}
+                        onPress={() => {
+                          setGenerationError(null);
+                          handleContinueStory();
+                        }}
+                        accessibilityLabel="Retry story generation"
+                        accessibilityRole="button"
+                      >
+                        <Text style={styles.errorBannerRetryText}>Retry</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
 
-              {/* Button Row: Mic → Speaker → spacer → Submit */}
-              <View style={styles.floatingButtonRow}>
-                {/* Mic Button — VoiceInput component */}
-                <View ref={voiceButtonContainerRef}>
-                  <VoiceInput
-                    onSpeechResult={handleVoiceResult}
-                    isEnabled={voiceInputEnabled && !loadingState.isGenerating}
-                    style={styles.floatingIconButton}
-                  />
-                </View>
+                {/* TextInput */}
+                <TextInput
+                  testID="story-input"
+                  style={styles.floatingTextInput}
+                  placeholder="Continue the story..."
+                  placeholderTextColor="#999"
+                  multiline
+                  value={userInput}
+                  onChangeText={(text: string) => {
+                    setUserInput(text);
+                    inputDebouncer?.handleInput(text);
+                  }}
+                  editable={!loadingState.isGenerating}
+                />
 
-                {/* Speaker Button */}
-                <TouchableOpacity
-                  testID="speaker-button"
-                  style={[
-                    styles.floatingIconButton,
-                    !canUseSpeaker && styles.floatingIconButtonDisabled,
-                  ]}
-                  onPress={handleSpeakerButtonPress}
-                  onLongPress={handleSpeakerButtonLongPress}
-                  disabled={!canUseSpeaker}
-                  accessibilityLabel={
-                    speakerState === 'speaking' || speakerState === 'starting'
-                      ? 'Stop reading story'
-                      : 'Read story aloud'
-                  }
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.floatingIconText}>
-                    {speakerState === 'speaking' || speakerState === 'starting'
-                      ? '\u23F9\uFE0F'
-                      : '\uD83D\uDD0A'}
-                  </Text>
-                </TouchableOpacity>
+                {/* Button Row: Mic → Speaker → spacer → Submit */}
+                <View style={styles.floatingButtonRow}>
+                  {/* Mic Button — VoiceInput component */}
+                  <View ref={voiceButtonContainerRef}>
+                    <VoiceInput
+                      onSpeechResult={handleVoiceResult}
+                      isEnabled={
+                        voiceInputEnabled && !loadingState.isGenerating
+                      }
+                      style={styles.floatingIconButton}
+                    />
+                  </View>
 
-                {/* Spacer */}
-                <View style={{ flex: 1 }} />
+                  {/* Speaker Button */}
+                  <TouchableOpacity
+                    testID="speaker-button"
+                    style={[
+                      styles.floatingIconButton,
+                      !canUseSpeaker && styles.floatingIconButtonDisabled,
+                    ]}
+                    onPress={handleSpeakerButtonPress}
+                    onLongPress={handleSpeakerButtonLongPress}
+                    disabled={!canUseSpeaker}
+                    accessibilityLabel={
+                      speakerState === 'speaking' || speakerState === 'starting'
+                        ? 'Stop reading story'
+                        : 'Read story aloud'
+                    }
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.floatingIconText}>
+                      {speakerState === 'speaking' ||
+                      speakerState === 'starting'
+                        ? '\u23F9\uFE0F'
+                        : '\uD83D\uDD0A'}
+                    </Text>
+                  </TouchableOpacity>
 
-                {/* Submit Button */}
-                <TouchableOpacity
-                  testID="continue-story-button"
-                  style={[
-                    styles.floatingSubmitButton,
-                    (!userInput.trim() ||
+                  {/* Spacer */}
+                  <View style={{ flex: 1 }} />
+
+                  {/* Submit Button */}
+                  <TouchableOpacity
+                    testID="continue-story-button"
+                    style={[
+                      styles.floatingSubmitButton,
+                      (!userInput.trim() ||
+                        loadingState.isGenerating ||
+                        isGameCompleted) &&
+                        styles.floatingSubmitButtonDisabled,
+                    ]}
+                    onPress={handleContinueStory}
+                    disabled={
+                      !userInput.trim() ||
                       loadingState.isGenerating ||
-                      isGameCompleted) &&
-                      styles.floatingSubmitButtonDisabled,
-                  ]}
-                  onPress={handleContinueStory}
-                  disabled={
-                    !userInput.trim() ||
-                    loadingState.isGenerating ||
-                    isGameCompleted
-                  }
-                  accessibilityLabel="Submit story contribution"
-                  accessibilityRole="button"
-                >
-                  {loadingState.isGenerating ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={styles.floatingSubmitText}>{'\u2191'}</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
+                      isGameCompleted
+                    }
+                    accessibilityLabel="Submit story contribution"
+                    accessibilityRole="button"
+                  >
+                    {loadingState.isGenerating ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.floatingSubmitText}>{'\u2191'}</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </AdaptiveGlassBackground>
             </Animated.View>
           )}
         </View>
@@ -3159,6 +3177,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         {/* Story Completion Options Screen - Full Screen Overlay */}
         {showCompletionOptions && (
           <View style={styles.completionModalOverlay}>
+            <AdaptiveGlassBackground
+              glassStyle="clear"
+              fallbackBlurIntensity={20}
+              fallbackBlurTint="dark"
+              androidFallbackColor="rgba(0,0,0,0.5)"
+            />
             <ScrollView
               style={styles.completionScrollView}
               contentContainerStyle={styles.completionScrollContent}
@@ -3281,6 +3305,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               );
             }}
           >
+            <AdaptiveGlassBackground
+              glassStyle="clear"
+              fallbackBlurIntensity={20}
+              fallbackBlurTint="dark"
+              androidFallbackColor="rgba(0,0,0,0.5)"
+            />
             <Pressable
               style={styles.imageGenerationScrollView}
               onPress={e => e.stopPropagation()}
@@ -3460,26 +3490,24 @@ const styles = StyleSheet.create({
   },
   storyScrollContent: {
     flexGrow: 1,
-    paddingBottom: 120,
+    paddingBottom: 200, // Increased from 120 to account for absolute-positioned glass tab bar (US-005)
   },
-  // Floating input bar — Claude-style card overlay (US-004, US-005)
-  floatingInputBar: {
+  // Floating input bar — layout positioning only (US-006: split from floatingInputBar)
+  floatingInputBarPositioner: {
     position: 'absolute',
     bottom: 8,
     left: 8,
     right: 8,
-    backgroundColor: '#ffffff',
+    zIndex: 100,
+  },
+  // Floating input bar — glass visual style (US-006: AdaptiveGlassBackground provides material)
+  floatingInputBarGlass: {
+    // Override AdaptiveGlassBackground's absoluteFill so glass acts as layout container
+    position: 'relative' as const,
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#e8e8e8',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    zIndex: 100,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
+    overflow: 'hidden' as const,
   },
   floatingTextInput: {
     minHeight: 36,
@@ -3786,7 +3814,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Semi-transparent background
     zIndex: 1000,
     justifyContent: 'center',
     alignItems: 'center',
@@ -3881,7 +3908,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Semi-transparent backdrop
     zIndex: 1001, // Above completion modal (zIndex: 1000)
     justifyContent: 'center',
     alignItems: 'center',

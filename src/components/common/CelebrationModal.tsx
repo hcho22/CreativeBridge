@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../../constants/theme';
+import { AdaptiveGlassBackground } from './AdaptiveGlassBackground';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -203,6 +204,14 @@ export const CelebrationModal: React.FC<CelebrationModalProps> = ({
       statusBarTranslucent
     >
       <View style={styles.backdrop}>
+        {/* Glass backdrop */}
+        <AdaptiveGlassBackground
+          glassStyle="clear"
+          fallbackBlurIntensity={20}
+          fallbackBlurTint="dark"
+          androidFallbackColor="rgba(0,0,0,0.6)"
+        />
+
         {/* Confetti layer */}
         <View style={styles.confettiContainer} pointerEvents="none">
           {confetti.map(renderConfettiPiece)}
@@ -283,7 +292,6 @@ export const CelebrationModal: React.FC<CelebrationModalProps> = ({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
   },

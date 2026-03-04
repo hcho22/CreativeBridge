@@ -3,6 +3,8 @@ import { Text } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { NavigationContainer } from '@react-navigation/native';
+import { AdaptiveGlassBackground } from '../components/common/AdaptiveGlassBackground';
+import { theme } from '../constants/theme';
 
 // Screen imports
 import { HomeScreen, SettingsScreen, ProfileScreen } from '../screens';
@@ -138,13 +140,25 @@ const AppNavigator: React.FC = () => {
           ),
           tabBarActiveTintColor: '#4CAF50', // Story_Quest green
           tabBarInactiveTintColor: '#8E8E93',
+          tabBarBackground: () => (
+            <AdaptiveGlassBackground
+              glassStyle={theme.glass.surfaces.tabBar.glassStyle}
+              fallbackBlurIntensity={
+                theme.glass.surfaces.tabBar.fallbackBlurIntensity
+              }
+              fallbackBlurTint={theme.glass.surfaces.tabBar.fallbackBlurTint}
+              androidFallbackColor={
+                theme.glass.surfaces.tabBar.androidFallbackColor
+              }
+            />
+          ),
           tabBarStyle: {
-            backgroundColor: '#fcfcfc', // Match screen background for uniform appearance
+            backgroundColor: 'transparent', // Transparent to let glass show through
             borderTopWidth: 0, // Remove border for seamless look
-            borderTopColor: '#E5E5EA',
-            paddingBottom: 25, // Increased to prevent home indicator from blocking text
+            position: 'absolute', // Absolute positioning for scroll-behind effect
+            paddingBottom: 25, // Prevent home indicator from blocking text
             paddingTop: 8,
-            height: 85, // Increased to accommodate extra padding
+            height: 85,
           },
           tabBarLabelStyle: {
             fontSize: 12,
