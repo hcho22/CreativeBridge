@@ -9,6 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import type { GradeLevel } from '../types/database';
 import { TabParamList } from '../navigation/AppNavigator';
@@ -27,6 +28,7 @@ interface SettingsScreenProps {
 const SettingsScreen: React.FC<SettingsScreenProps> = ({
   navigation: _navigation,
 }) => {
+  const insets = useSafeAreaInsets();
   const { userProfile, updateProfile, signOut } = useAuth();
   const [speechEnabled, setSpeechEnabled] = useState(
     userProfile?.speech_enabled || false,
@@ -140,157 +142,169 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.content}>
-        {/* Settings Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>⚙️ Settings</Text>
+    <View style={styles.container}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom + 80,
+        }}
+      >
+        <View style={styles.content}>
+          {/* Settings Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>⚙️ Settings</Text>
 
-          {/* Grade Level Selection */}
-          <View style={styles.settingItem}>
-            <Text style={styles.settingLabel}>Preferred Grade Level</Text>
-            <Text style={styles.settingDescription}>
-              {getGradeLevelDescription(selectedGradeLevel)}
-            </Text>
-            <View style={styles.gradeButtons}>
-              {(['K-2', '3-5', '6-8', '9-12'] as const).map(level => (
-                <TouchableOpacity
-                  key={level}
-                  style={[
-                    styles.gradeButton,
-                    selectedGradeLevel === level && styles.selectedGradeButton,
-                  ]}
-                  onPress={() => handleGradeLevelChange(level)}
-                >
-                  <Text
+            {/* Grade Level Selection */}
+            <View style={styles.settingItem}>
+              <Text style={styles.settingLabel}>Preferred Grade Level</Text>
+              <Text style={styles.settingDescription}>
+                {getGradeLevelDescription(selectedGradeLevel)}
+              </Text>
+              <View style={styles.gradeButtons}>
+                {(['K-2', '3-5', '6-8', '9-12'] as const).map(level => (
+                  <TouchableOpacity
+                    key={level}
                     style={[
-                      styles.gradeButtonText,
+                      styles.gradeButton,
                       selectedGradeLevel === level &&
-                        styles.selectedGradeButtonText,
+                        styles.selectedGradeButton,
                     ]}
+                    onPress={() => handleGradeLevelChange(level)}
                   >
-                    {level}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={[
+                        styles.gradeButtonText,
+                        selectedGradeLevel === level &&
+                          styles.selectedGradeButtonText,
+                      ]}
+                    >
+                      {level}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
           </View>
-        </View>
 
-        {/* Accessibility Settings Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>♿ Accessibility Settings</Text>
+          {/* Accessibility Settings Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>♿ Accessibility Settings</Text>
 
-          {/* Speech Settings */}
-          <View style={styles.settingRow}>
-            <View style={styles.settingInfo} pointerEvents="box-none">
-              <Text style={styles.settingLabel}>🔊 Speech Features</Text>
-              <Text style={styles.settingDescription}>
-                Enable voice input and text-to-speech for stories
+            {/* Speech Settings */}
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo} pointerEvents="box-none">
+                <Text style={styles.settingLabel}>🔊 Speech Features</Text>
+                <Text style={styles.settingDescription}>
+                  Enable voice input and text-to-speech for stories
+                </Text>
+              </View>
+              <Switch
+                trackColor={{ false: '#767577', true: '#4CAF50' }}
+                thumbColor={speechEnabled ? '#ffffff' : '#f4f3f4'}
+                ios_backgroundColor="#3e3e3e"
+                onValueChange={handleSpeechToggle}
+                value={speechEnabled}
+              />
+            </View>
+          </View>
+
+          {/* Onboarding Progress Section (US-018) - Only show if not complete */}
+          {!isOnboardingComplete && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>🚀 Getting Started</Text>
+
+              <TouchableOpacity
+                style={styles.onboardingButton}
+                onPress={() => setShowOnboardingModal(true)}
+                accessibilityRole="button"
+                accessibilityLabel="View onboarding progress"
+                accessibilityHint="Opens a modal showing your onboarding checklist progress"
+              >
+                <View style={styles.onboardingButtonContent}>
+                  <Text style={styles.onboardingButtonIcon}>📋</Text>
+                  <View style={styles.onboardingButtonText}>
+                    <Text style={styles.onboardingButtonTitle}>
+                      Onboarding Progress
+                    </Text>
+                    <Text style={styles.onboardingButtonDescription}>
+                      View your getting started checklist and earn XP
+                    </Text>
+                  </View>
+                  <Text style={styles.onboardingButtonArrow}>›</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* User Account Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>👤 Account</Text>
+
+            {/* User Info */}
+            <View style={styles.settingItem}>
+              <Text style={styles.settingLabel}>Username</Text>
+              <Text style={styles.userInfo}>
+                {userProfile?.username || 'Not set'}
               </Text>
             </View>
-            <Switch
-              trackColor={{ false: '#767577', true: '#4CAF50' }}
-              thumbColor={speechEnabled ? '#ffffff' : '#f4f3f4'}
-              ios_backgroundColor="#3e3e3e"
-              onValueChange={handleSpeechToggle}
-              value={speechEnabled}
-            />
-          </View>
-        </View>
 
-        {/* Onboarding Progress Section (US-018) - Only show if not complete */}
-        {!isOnboardingComplete && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🚀 Getting Started</Text>
+            <View style={styles.settingItem}>
+              <Text style={styles.settingLabel}>Display Name</Text>
+              <Text style={styles.userInfo}>
+                {userProfile?.display_name || 'Not set'}
+              </Text>
+            </View>
 
+            {/* Logout Button */}
             <TouchableOpacity
-              style={styles.onboardingButton}
-              onPress={() => setShowOnboardingModal(true)}
-              accessibilityRole="button"
-              accessibilityLabel="View onboarding progress"
-              accessibilityHint="Opens a modal showing your onboarding checklist progress"
+              style={styles.logoutButton}
+              onPress={handleLogout}
             >
-              <View style={styles.onboardingButtonContent}>
-                <Text style={styles.onboardingButtonIcon}>📋</Text>
-                <View style={styles.onboardingButtonText}>
-                  <Text style={styles.onboardingButtonTitle}>
-                    Onboarding Progress
-                  </Text>
-                  <Text style={styles.onboardingButtonDescription}>
-                    View your getting started checklist and earn XP
-                  </Text>
-                </View>
-                <Text style={styles.onboardingButtonArrow}>›</Text>
-              </View>
+              <Text style={styles.logoutButtonText}>🚪 Logout</Text>
             </TouchableOpacity>
           </View>
-        )}
 
-        {/* User Account Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>👤 Account</Text>
+          {/* About Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>ℹ️ About</Text>
 
-          {/* User Info */}
-          <View style={styles.settingItem}>
-            <Text style={styles.settingLabel}>Username</Text>
-            <Text style={styles.userInfo}>
-              {userProfile?.username || 'Not set'}
-            </Text>
-          </View>
+            <View style={styles.settingItem}>
+              <Text style={styles.settingLabel}>App Version</Text>
+              <Text style={styles.userInfo}>1.0.0</Text>
+            </View>
 
-          <View style={styles.settingItem}>
-            <Text style={styles.settingLabel}>Display Name</Text>
-            <Text style={styles.userInfo}>
-              {userProfile?.display_name || 'Not set'}
-            </Text>
-          </View>
-
-          {/* Logout Button */}
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Text style={styles.logoutButtonText}>🚪 Logout</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* About Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>ℹ️ About</Text>
-
-          <View style={styles.settingItem}>
-            <Text style={styles.settingLabel}>App Version</Text>
-            <Text style={styles.userInfo}>1.0.0</Text>
-          </View>
-
-          <View style={styles.settingItem}>
-            <Text style={styles.settingLabel}>Description</Text>
-            <Text style={styles.aboutText}>
-              CreativeBridge helps students develop creative writing skills
-              through AI-assisted collaborative storytelling. Choose your grade
-              level and start creating amazing stories today!
-            </Text>
+            <View style={styles.settingItem}>
+              <Text style={styles.settingLabel}>Description</Text>
+              <Text style={styles.aboutText}>
+                CreativeBridge helps students develop creative writing skills
+                through AI-assisted collaborative storytelling. Choose your
+                grade level and start creating amazing stories today!
+              </Text>
+            </View>
           </View>
         </View>
-      </View>
 
-      {/* Onboarding Checklist Modal (US-018) */}
-      <OnboardingChecklistModal
-        visible={showOnboardingModal}
-        onClose={() => {
-          setShowOnboardingModal(false);
-          // Recheck completion status after closing modal
-          onboardingMilestoneTracker
-            .isOnboardingComplete()
-            .then(setIsOnboardingComplete);
-        }}
-      />
-    </ScrollView>
+        {/* Onboarding Checklist Modal (US-018) */}
+        <OnboardingChecklistModal
+          visible={showOnboardingModal}
+          onClose={() => {
+            setShowOnboardingModal(false);
+            // Recheck completion status after closing modal
+            onboardingMilestoneTracker
+              .isOnboardingComplete()
+              .then(setIsOnboardingComplete);
+          }}
+        />
+      </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f2f5',
+    backgroundColor: '#fcfcfc',
   },
   content: {
     padding: 20,

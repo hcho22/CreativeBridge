@@ -64,8 +64,6 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
     userProfile,
     canGenerateImage,
     getXPBalanceInfo,
-    deductXP,
-    refundXP,
     createImageGenerationEvent,
   } = useAuth();
 
@@ -392,17 +390,7 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
         isStoryCompleted, // Pass story completion status for tracking
       );
 
-      // Step 2: Deduct XP (only after story completion validation passed)
-      const deductionResult = await deductXP(
-        IMAGE_GENERATION_COST,
-        'AI story illustration generation',
-      );
-
-      if (!deductionResult.success) {
-        throw new Error(deductionResult.error || 'Failed to deduct XP');
-      }
-
-      // Step 3: Generate image
+      // Step 2: Generate image
       setState(prev => ({
         ...prev,
         progress: 100,
@@ -421,16 +409,6 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
       });
 
       if (!generationResult.success || !generationResult.imageUrl) {
-        // Refund XP if generation failed
-        if (deductionResult.newBalance !== undefined) {
-          await refundXP(
-            IMAGE_GENERATION_COST,
-            `Image generation failed: ${
-              generationResult.error || 'Unknown error'
-            }`,
-          );
-        }
-
         throw new Error(generationResult.error || 'Failed to generate image');
       }
 
@@ -556,8 +534,6 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
     maxRounds,
     canGenerateImage,
     disabled,
-    deductXP,
-    refundXP,
     createImageGenerationEvent,
     storyContent,
     gradeLevel,

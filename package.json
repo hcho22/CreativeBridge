@@ -79,6 +79,8 @@
   },
   "dependencies": {
     "@clerk/clerk-expo": "^2.19.12",
+    "@expo-google-fonts/architects-daughter": "^0.4.1",
+    "@expo-google-fonts/kaushan-script": "^0.4.1",
     "@hookform/resolvers": "^5.2.2",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-clipboard/clipboard": "^1.16.3",
@@ -92,6 +94,9 @@
     "dotenv": "^17.2.3",
     "expo": "~54.0.33",
     "expo-auth-session": "^7.0.10",
+    "expo-blur": "~15.0.8",
+    "expo-font": "~14.0.11",
+    "expo-glass-effect": "~0.1.9",
     "expo-linking": "^8.0.10",
     "expo-secure-store": "^15.0.8",
     "expo-web-browser": "~15.0.10",

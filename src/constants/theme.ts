@@ -7,7 +7,7 @@ export const theme = {
     warning: '#ff9800', // Warning orange
     success: '#4CAF50', // Success green (same as primary)
     info: '#2196F3', // Info blue (same as secondary)
-    background: '#f0f2f5', // Light gray background
+    background: '#fcfcfc', // Light gray background
     surface: '#ffffff', // White cards/surfaces
     text: '#333333', // Dark text
     textSecondary: '#666666', // Secondary text
@@ -206,6 +206,68 @@ export const theme = {
     normal: 300,
     slow: 500,
   },
+
+  // Liquid Glass / blur / solid fallback configuration
+  // iOS 26+: native Liquid Glass via expo-glass-effect
+  // iOS < 26: Gaussian blur via expo-blur
+  // Android: semi-transparent solid View
+  glass: {
+    // Default glass effect styles
+    styles: {
+      regular: 'regular' as const,
+      clear: 'clear' as const,
+      none: 'none' as const,
+    },
+
+    // Fallback blur settings (iOS < 26)
+    fallback: {
+      blur: {
+        intensity: 80,
+        tint: 'light' as const,
+      },
+    },
+
+    // Android solid-color fallback
+    android: {
+      fallbackColor: 'rgba(252, 252, 252, 0.95)',
+      fallbackColorDark: 'rgba(0, 0, 0, 0.5)',
+    },
+
+    // Per-surface configuration — consumed by AdaptiveGlassBackground
+    surfaces: {
+      tabBar: {
+        glassStyle: 'regular' as const,
+        fallbackBlurIntensity: 80,
+        fallbackBlurTint: 'light' as const,
+        androidFallbackColor: 'rgba(252, 252, 252, 0.95)',
+      },
+      floatingInputBar: {
+        glassStyle: 'regular' as const,
+        isInteractive: true,
+        fallbackBlurIntensity: 90,
+        fallbackBlurTint: 'light' as const,
+        androidFallbackColor: 'rgba(255, 255, 255, 0.95)',
+      },
+      modalBackdrop: {
+        glassStyle: 'clear' as const,
+        fallbackBlurIntensity: 20,
+        fallbackBlurTint: 'dark' as const,
+        androidFallbackColor: 'rgba(0, 0, 0, 0.5)',
+      },
+      navigationHeader: {
+        glassStyle: 'regular' as const,
+        fallbackBlurIntensity: 80,
+        fallbackBlurTint: 'light' as const,
+        androidFallbackColor: 'rgba(252, 252, 252, 0.95)',
+      },
+      challengeBox: {
+        glassStyle: 'regular' as const,
+        fallbackBlurIntensity: 80,
+        fallbackBlurTint: 'light' as const,
+        androidFallbackColor: 'rgba(255, 255, 255, 0.90)',
+      },
+    },
+  },
 };
 
 // Type definitions for theme
@@ -215,3 +277,6 @@ export type ThemeSpacing = typeof theme.spacing;
 export type ThemeTypography = typeof theme.typography;
 export type ThemeBorderRadius = typeof theme.borderRadius;
 export type ThemeShadows = typeof theme.shadows;
+export type ThemeGlass = typeof theme.glass;
+export type ThemeGlassSurface =
+  (typeof theme.glass.surfaces)[keyof typeof theme.glass.surfaces];
