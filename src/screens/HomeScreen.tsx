@@ -25,7 +25,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useRoute, RouteProp } from '@react-navigation/native';
-import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import {
+  BottomTabNavigationProp,
+  useBottomTabBarHeight,
+} from '@react-navigation/bottom-tabs';
 import { useAuth } from '../context/AuthContext';
 import { useSafeClerkAuth } from '../hooks/useSafeClerkAuth';
 import { TabParamList, HomeStackParamList } from '../navigation/AppNavigator';
@@ -85,6 +88,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const { userProfile, refreshProfile, awardOnboardingXP } = useAuth();
   const { clerkAuth } = useSafeClerkAuth();
   const route = useRoute<RouteProp<HomeStackParamList, 'Home'>>();
+  const tabBarHeight = useBottomTabBarHeight();
 
   // All users authenticate via Clerk — use Clerk user ID for all operations
   const effectiveUserId = clerkAuth?.userId || userProfile?.clerk_user_id;
@@ -139,8 +143,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   // Keyboard animation refs
   const keyboardHeight = useRef(new Animated.Value(0)).current;
   const floatingBarBottom = useMemo(
-    () => Animated.add(new Animated.Value(8), keyboardHeight),
-    [keyboardHeight],
+    () => Animated.add(new Animated.Value(tabBarHeight + 8), keyboardHeight),
+    [keyboardHeight, tabBarHeight],
   );
   const storyScrollViewRef = useRef<ScrollView>(null);
 
@@ -700,9 +704,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     const keyboardWillShowListener = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
       (event: KeyboardEvent) => {
-        // Animate content up with spring animation for natural feel
+        // Subtract tabBarHeight since floatingBarBottom base already includes it
+        // and the keyboard covers the tab bar area
         Animated.spring(keyboardHeight, {
-          toValue: event.endCoordinates.height,
+          toValue: Math.max(0, event.endCoordinates.height - tabBarHeight),
           useNativeDriver: false,
           tension: 100,
           friction: 10,
@@ -732,7 +737,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       keyboardWillShowListener.remove();
       keyboardWillHideListener.remove();
     };
-  }, [keyboardHeight]);
+  }, [keyboardHeight, tabBarHeight]);
 
   // Auto-scroll to show latest story contribution
   useEffect(() => {
