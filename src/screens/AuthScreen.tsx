@@ -1759,7 +1759,7 @@ const styles = StyleSheet.create({
   },
   appTitle: {
     fontSize: titleFontSize,
-    fontWeight: 'bold',
+    fontFamily: 'KaushanScript_400Regular',
     color: '#000000',
     marginBottom: 4,
     textAlign: 'center',

@@ -260,6 +260,12 @@ export const theme = {
         fallbackBlurTint: 'light' as const,
         androidFallbackColor: 'rgba(252, 252, 252, 0.95)',
       },
+      challengeBox: {
+        glassStyle: 'regular' as const,
+        fallbackBlurIntensity: 80,
+        fallbackBlurTint: 'light' as const,
+        androidFallbackColor: 'rgba(255, 255, 255, 0.90)',
+      },
     },
   },
 };

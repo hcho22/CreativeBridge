@@ -10,9 +10,9 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
 } from 'react-native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { TabParamList } from '../navigation/AppNavigator';
 
@@ -29,6 +29,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   navigation: _navigation,
 }) => {
   const { userProfile, updateProfile, refreshProfile } = useAuth();
+  const insets = useSafeAreaInsets();
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editedDisplayName, setEditedDisplayName] = useState(
     userProfile?.display_name || '',
@@ -101,8 +102,14 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const { level, progress, nextLevelXP } = levelData;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.container}>
+    <View style={styles.container}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom + 80,
+        }}
+      >
         <View style={styles.content}>
           {/* Profile Header */}
           <View style={styles.profileHeader}>
@@ -273,7 +280,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </View>
         </Modal>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

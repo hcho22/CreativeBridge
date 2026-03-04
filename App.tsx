@@ -8,6 +8,9 @@ import {
   AppState,
   StyleSheet,
 } from 'react-native';
+import { useFonts } from 'expo-font';
+import { KaushanScript_400Regular } from '@expo-google-fonts/kaushan-script';
+import { ArchitectsDaughter_400Regular } from '@expo-google-fonts/architects-daughter';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { AppNavigator } from './src/navigation';
 import { AuthScreen, ProfileCompletionScreen } from './src/screens';
@@ -45,6 +48,10 @@ const LoadingScreen: React.FC = () => (
 );
 
 const MainApp: React.FC = () => {
+  const [fontsLoaded] = useFonts({
+    KaushanScript_400Regular,
+    ArchitectsDaughter_400Regular,
+  });
   const { loading, needsProfileCompletion, refreshProfile } = useAuth();
   const { clerkUser, clerkAuth } = useSafeClerkAuth();
   const appState = useRef(AppState.currentState);
@@ -201,7 +208,7 @@ const MainApp: React.FC = () => {
   }, [clerkAuth, clerkUser]);
 
   // Now handle the conditional rendering AFTER all hooks
-  if (loading) {
+  if (loading || !fontsLoaded) {
     return <LoadingScreen />;
   }
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { NavigationContainer } from '@react-navigation/native';
@@ -60,9 +60,22 @@ const HomeStackNavigator: React.FC = () => {
     <HomeStack.Navigator
       initialRouteName="Home"
       screenOptions={{
-        headerStyle: {
-          backgroundColor: '#fcfcfc',
-        },
+        headerTransparent: true,
+        headerBackground: () => (
+          <AdaptiveGlassBackground
+            glassStyle={theme.glass.surfaces.navigationHeader.glassStyle}
+            fallbackBlurIntensity={
+              theme.glass.surfaces.navigationHeader.fallbackBlurIntensity
+            }
+            fallbackBlurTint={
+              theme.glass.surfaces.navigationHeader.fallbackBlurTint
+            }
+            androidFallbackColor={
+              theme.glass.surfaces.navigationHeader.androidFallbackColor
+            }
+            style={StyleSheet.absoluteFill}
+          />
+        ),
         headerTintColor: '#333',
         headerTitleStyle: {
           fontWeight: 'bold',

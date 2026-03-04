@@ -7,9 +7,9 @@ import {
   ScrollView,
   Switch,
   Alert,
-  SafeAreaView,
 } from 'react-native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import type { GradeLevel } from '../types/database';
 import { TabParamList } from '../navigation/AppNavigator';
@@ -28,6 +28,7 @@ interface SettingsScreenProps {
 const SettingsScreen: React.FC<SettingsScreenProps> = ({
   navigation: _navigation,
 }) => {
+  const insets = useSafeAreaInsets();
   const { userProfile, updateProfile, signOut } = useAuth();
   const [speechEnabled, setSpeechEnabled] = useState(
     userProfile?.speech_enabled || false,
@@ -141,8 +142,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.container}>
+    <View style={styles.container}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom + 80,
+        }}
+      >
         <View style={styles.content}>
           {/* Settings Section */}
           <View style={styles.section}>
@@ -290,7 +297,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           }}
         />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

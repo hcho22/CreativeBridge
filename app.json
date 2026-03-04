@@ -12,7 +12,7 @@
   },
   "scheme": "creativebridge",
   "owner": "hcho22",
-  "plugins": ["expo-web-browser", "expo-secure-store"],
+  "plugins": ["expo-web-browser", "expo-secure-store", "expo-font"],
   "android": {
     "package": "org.name.CreativeBridge"
   }

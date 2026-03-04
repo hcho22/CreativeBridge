@@ -1,12 +1,16 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Challenge, ChallengeProgress } from '../../types/challenges';
+import { AdaptiveGlassBackground } from './AdaptiveGlassBackground';
+import { theme } from '../../constants/theme';
 
 interface ChallengeDisplayProps {
   challenge: Challenge | null;
   progress?: ChallengeProgress;
   compact?: boolean;
 }
+
+const challengeBoxConfig = theme.glass.surfaces.challengeBox;
 
 const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
   challenge,
@@ -24,7 +28,17 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
   const isCompleted = progress?.isCompleted || false;
 
   return (
-    <View style={[styles.container, isCompleted && styles.completedContainer]}>
+    <AdaptiveGlassBackground
+      glassStyle={challengeBoxConfig.glassStyle}
+      fallbackBlurIntensity={challengeBoxConfig.fallbackBlurIntensity}
+      fallbackBlurTint={challengeBoxConfig.fallbackBlurTint}
+      androidFallbackColor={
+        isCompleted
+          ? 'rgba(240, 255, 240, 0.90)'
+          : challengeBoxConfig.androidFallbackColor
+      }
+      style={[styles.glassContainer, isCompleted && styles.completedContainer]}
+    >
       <View style={styles.header}>
         <Text style={styles.emoji}>{challenge.emoji}</Text>
         <View style={styles.headerText}>
@@ -45,7 +59,7 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
           <Text style={styles.completedText}>✅ Challenge Completed!</Text>
         </View>
       )}
-    </View>
+    </AdaptiveGlassBackground>
   );
 };
 
@@ -55,16 +69,17 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+  },
+  glassContainer: {
+    position: 'relative' as const,
+    overflow: 'hidden' as const,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
     borderLeftWidth: 4,
     borderLeftColor: '#4CAF50',
   },
   completedContainer: {
-    backgroundColor: '#f0fff0',
     borderLeftColor: '#2E7D32',
   },
   header: {

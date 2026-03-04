@@ -22,7 +22,7 @@ import {
   KeyboardEvent,
   Pressable,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import {
@@ -89,6 +89,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const { clerkAuth } = useSafeClerkAuth();
   const route = useRoute<RouteProp<HomeStackParamList, 'Home'>>();
   const tabBarHeight = useBottomTabBarHeight();
+  const insets = useSafeAreaInsets();
 
   // All users authenticate via Clerk — use Clerk user ID for all operations
   const effectiveUserId = clerkAuth?.userId || userProfile?.clerk_user_id;
@@ -2715,82 +2716,22 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   if (isGameActive) {
     return (
-      <SafeAreaView style={styles.safeContainer}>
-        {/* Fixed Top Section - Challenge Display */}
-        {currentChallenge && !showCompletionOptions && (
-          <View style={styles.challengeHeaderSection}>
-            <View ref={challengeDisplayContainerRef} collapsable={false}>
-              <ChallengeDisplay
-                challenge={currentChallenge}
-                progress={challengeProgress.find(
-                  p => p.challengeId === currentChallenge.id,
-                )}
-                compact={true}
-              />
-            </View>
-          </View>
-        )}
-
-        {/* Flex Middle Section - Story Content */}
+      <View style={styles.safeContainer}>
+        {/* Flex Middle Section - Story Content (scrolls behind challenge box) */}
         <View style={styles.storyContentSection}>
           <ScrollView
             ref={storyScrollViewRef}
             style={styles.storyScrollContainer}
-            contentContainerStyle={styles.storyScrollContent}
+            contentContainerStyle={[
+              styles.storyScrollContent,
+              { paddingTop: insets.top + 80 },
+            ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.gameContainer}>
               {/* Story Display - Book Format */}
               <View style={styles.storyBookContainer}>
-                <View style={styles.storyBookHeader}>
-                  <View style={styles.storyTitleRow}>
-                    <Text style={styles.roundCounter}>
-                      Round {currentRound}/{MAX_ROUNDS}
-                    </Text>
-                    <Text style={styles.gradeLevel}>{gradeLevel}</Text>
-                  </View>
-                  <View style={styles.headerButtonRow}>
-                    <TouchableOpacity
-                      style={styles.copyButton}
-                      onPress={() => {
-                        const storyContent =
-                          currentSession?.story_content ||
-                          currentSession?.contributions
-                            ?.map(c => c.content)
-                            .join('\n\n') ||
-                          '';
-                        if (storyContent.trim()) {
-                          Clipboard.setString(storyContent);
-                          Alert.alert(
-                            '✅ Copied!',
-                            'Story copied to clipboard',
-                            [{ text: 'OK' }],
-                          );
-                        } else {
-                          Alert.alert(
-                            '📝 No Story',
-                            'No story content to copy yet',
-                            [{ text: 'OK' }],
-                          );
-                        }
-                      }}
-                      disabled={
-                        !currentSession?.story_content &&
-                        (!currentSession?.contributions ||
-                          currentSession.contributions.length === 0)
-                      }
-                    >
-                      <Text style={styles.copyButtonText}>📋 Copy</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.exitButtonHeader}
-                      onPress={handleExitGame}
-                    >
-                      <Text style={styles.exitButtonHeaderText}>← Exit</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
                 <ScrollView
                   style={styles.storyBook}
                   contentContainerStyle={styles.storyBookContent}
@@ -3359,7 +3300,22 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           onDismiss={handleImageGenerationTooltipDismiss}
           autoHideDelay={5000}
         />
-      </SafeAreaView>
+
+        {/* Absolute-positioned Challenge Display — story content scrolls behind it */}
+        {currentChallenge && !showCompletionOptions && (
+          <View style={[styles.challengeHeaderSection, { top: insets.top }]}>
+            <View ref={challengeDisplayContainerRef} collapsable={false}>
+              <ChallengeDisplay
+                challenge={currentChallenge}
+                progress={challengeProgress.find(
+                  p => p.challengeId === currentChallenge.id,
+                )}
+                compact={true}
+              />
+            </View>
+          </View>
+        )}
+      </View>
     );
   }
 
@@ -3370,95 +3326,107 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   };
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-    >
-      <View style={styles.homeContainer}>
-        {/* US-017: Enhanced Empty State for new users */}
-        {isNewUser ? (
-          <>
-            <EnhancedEmptyState
-              userName={userProfile?.display_name}
-              onStartFirstStory={handleStartNewGame}
-              onSeeHowItWorks={handleSeeHowItWorks}
-              isLoading={loadingState.isGenerating}
-            />
-          </>
-        ) : (
-          <>
-            {/* Welcome Section - for returning users */}
-            <View style={styles.welcomeSection}>
-              <Text style={styles.welcomeTitle}>
-                Welcome back, {userProfile?.display_name || 'Writer'}!
-              </Text>
-              <Text style={styles.welcomeSubtitle}>
-                Ready to create amazing stories?
-              </Text>
-            </View>
+    <View style={styles.safeContainer}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[
+          styles.contentContainer,
+          { paddingTop: insets.top },
+        ]}
+      >
+        <View style={styles.homeContainer}>
+          {/* US-017: Enhanced Empty State for new users */}
+          {isNewUser ? (
+            <>
+              <EnhancedEmptyState
+                userName={userProfile?.display_name}
+                onStartFirstStory={handleStartNewGame}
+                onSeeHowItWorks={handleSeeHowItWorks}
+                isLoading={loadingState.isGenerating}
+              />
+            </>
+          ) : (
+            <>
+              {/* Welcome Section - for returning users */}
+              <View style={styles.welcomeSection}>
+                <Text style={styles.welcomeTitle}>
+                  Welcome back, {userProfile?.display_name || 'Writer'}!
+                </Text>
+                <Text style={styles.welcomeSubtitle}>
+                  Ready to create amazing stories?
+                </Text>
+              </View>
 
-            {/* Story Action Buttons */}
-            <View style={styles.startSection}>
-              <TouchableOpacity
-                style={[
-                  styles.startButton,
-                  loadingState.isGenerating && styles.disabledButton,
-                ]}
-                onPress={handleStartNewGame}
-                disabled={loadingState.isGenerating}
-              >
-                {loadingState.isGenerating ? (
-                  <View style={styles.loadingButtonContent}>
-                    <Animated.View
-                      style={{
-                        transform: [
-                          {
-                            rotate: spinValue.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: ['0deg', '360deg'],
-                            }),
-                          },
-                        ],
-                      }}
-                    >
-                      <Text style={styles.loadingSpinnerButton}>✨</Text>
-                    </Animated.View>
-                    <Text
-                      style={[styles.startButtonText, styles.loadingButtonText]}
-                    >
-                      {loadingState.currentTask || 'Creating Story...'}
+              {/* Story Action Buttons */}
+              <View style={styles.startSection}>
+                <TouchableOpacity
+                  style={[
+                    styles.startButton,
+                    loadingState.isGenerating && styles.disabledButton,
+                  ]}
+                  onPress={handleStartNewGame}
+                  disabled={loadingState.isGenerating}
+                >
+                  {loadingState.isGenerating ? (
+                    <View style={styles.loadingButtonContent}>
+                      <Animated.View
+                        style={{
+                          transform: [
+                            {
+                              rotate: spinValue.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: ['0deg', '360deg'],
+                              }),
+                            },
+                          ],
+                        }}
+                      >
+                        <Text style={styles.loadingSpinnerButton}>✨</Text>
+                      </Animated.View>
+                      <Text
+                        style={[
+                          styles.startButtonText,
+                          styles.loadingButtonText,
+                        ]}
+                      >
+                        {loadingState.currentTask || 'Creating Story...'}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.startButtonText}>
+                      🎮 Start New Story
                     </Text>
-                  </View>
-                ) : (
-                  <Text style={styles.startButtonText}>🎮 Start New Story</Text>
-                )}
-              </TouchableOpacity>
+                  )}
+                </TouchableOpacity>
 
-              {/* Continue Story Button */}
-              <TouchableOpacity
-                style={[
-                  styles.continueButton,
-                  loadingState.isGenerating && styles.disabledButton,
-                ]}
-                onPress={handleContinueStoryOption}
-                disabled={loadingState.isGenerating}
-              >
-                <Text style={styles.continueButtonText}>📖 Continue Story</Text>
-              </TouchableOpacity>
-            </View>
-          </>
-        )}
-      </View>
+                {/* Continue Story Button */}
+                <TouchableOpacity
+                  style={[
+                    styles.continueButton,
+                    loadingState.isGenerating && styles.disabledButton,
+                  ]}
+                  onPress={handleContinueStoryOption}
+                  disabled={loadingState.isGenerating}
+                >
+                  <Text style={styles.continueButtonText}>
+                    📖 Continue Story
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+        </View>
 
-      {/* First Story Guidance Modal (US-012) - added here for non-game-active state */}
-      <FirstStoryGuidanceModal
-        visible={showFirstStoryGuidance}
-        onClose={handleFirstStoryGuidanceClose}
-        onProceed={handleFirstStoryGuidanceProceed}
-        showDontShowAgain={true}
-        onDontShowAgainChange={handleDontShowGuidanceAgainChange}
-      />
-    </ScrollView>
+        {/* First Story Guidance Modal (US-012) - added here for non-game-active state */}
+        <FirstStoryGuidanceModal
+          visible={showFirstStoryGuidance}
+          onClose={handleFirstStoryGuidanceClose}
+          onProceed={handleFirstStoryGuidanceProceed}
+          showDontShowAgain={true}
+          onDontShowAgainChange={handleDontShowGuidanceAgainChange}
+        />
+      </ScrollView>
+    </View>
   );
 };
 
@@ -3481,8 +3449,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#fcfcfc',
   },
   challengeHeaderSection: {
+    position: 'absolute' as const,
+    top: 0,
+    left: 0,
+    right: 0,
     paddingHorizontal: 8,
-    paddingTop: 8,
+    paddingTop: 4,
     paddingBottom: 4,
     zIndex: 10,
   },
@@ -3518,7 +3490,7 @@ const styles = StyleSheet.create({
     minHeight: 36,
     maxHeight: 120,
     fontSize: 16,
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    fontFamily: 'ArchitectsDaughter_400Regular',
     color: '#333',
     paddingVertical: 4,
     paddingHorizontal: 4,
@@ -3760,7 +3732,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     lineHeight: 26,
     color: '#333',
-    fontFamily: 'serif',
+    fontFamily: 'ArchitectsDaughter_400Regular',
     textAlign: 'left',
   },
   selectableText: {
