@@ -22,7 +22,7 @@
 import { query, mutation } from './_generated/server';
 import { v } from 'convex/values';
 import { requireAuth, getClerkUserId } from './auth';
-import { gradeLevelValidator } from './schema';
+import { gradeLevelValidator, genreValidator } from './schema';
 
 // TEMPORARY: Disable XP deduction during beta. Image generation is free.
 // TODO: Set to true before production release.
@@ -183,6 +183,7 @@ export const updateProfile = mutation({
       displayName: v.optional(v.string()),
       preferredGradeLevel: v.optional(gradeLevelValidator),
       speechEnabled: v.optional(v.boolean()),
+      preferredGenre: v.optional(genreValidator),
       avatarUrl: v.optional(v.string()),
       bio: v.optional(v.string()),
     }),
@@ -214,6 +215,8 @@ export const updateProfile = mutation({
       updateFields.preferredGradeLevel = args.updates.preferredGradeLevel;
     if (args.updates.speechEnabled !== undefined)
       updateFields.speechEnabled = args.updates.speechEnabled;
+    if (args.updates.preferredGenre !== undefined)
+      updateFields.preferredGenre = args.updates.preferredGenre;
     if (args.updates.avatarUrl !== undefined)
       updateFields.avatarUrl = args.updates.avatarUrl;
     if (args.updates.bio !== undefined) updateFields.bio = args.updates.bio;
