@@ -2732,6 +2732,54 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <View style={styles.gameContainer}>
               {/* Story Display - Book Format */}
               <View style={styles.storyBookContainer}>
+                <View style={styles.storyBookHeader}>
+                  <View style={styles.storyTitleRow}>
+                    <Text style={styles.roundCounter}>
+                      Round {currentRound}/{MAX_ROUNDS}
+                    </Text>
+                    <Text style={styles.gradeLevel}>{gradeLevel}</Text>
+                  </View>
+                  <View style={styles.headerButtonRow}>
+                    <TouchableOpacity
+                      style={styles.copyButton}
+                      onPress={() => {
+                        const storyContent =
+                          currentSession?.story_content ||
+                          currentSession?.contributions
+                            ?.map(c => c.content)
+                            .join('\n\n') ||
+                          '';
+                        if (storyContent.trim()) {
+                          Clipboard.setString(storyContent);
+                          Alert.alert(
+                            '✅ Copied!',
+                            'Story copied to clipboard',
+                            [{ text: 'OK' }],
+                          );
+                        } else {
+                          Alert.alert(
+                            '📝 No Story',
+                            'No story content to copy yet',
+                            [{ text: 'OK' }],
+                          );
+                        }
+                      }}
+                      disabled={
+                        !currentSession?.story_content &&
+                        (!currentSession?.contributions ||
+                          currentSession.contributions.length === 0)
+                      }
+                    >
+                      <Text style={styles.copyButtonText}>📋 Copy</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.exitButtonHeader}
+                      onPress={handleExitGame}
+                    >
+                      <Text style={styles.exitButtonHeaderText}>← Exit</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
                 <ScrollView
                   style={styles.storyBook}
                   contentContainerStyle={styles.storyBookContent}
