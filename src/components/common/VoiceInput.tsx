@@ -153,6 +153,32 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
     const lastErrorTimeRef = useRef<number>(0); // Track when last error occurred to detect rapid failures
     const manualStopInProgressRef = useRef<boolean>(false); // Track if user manually stopped (prevent retries on manual stop)
 
+    // ============================================================================
+    // CALLBACK REFS - Keep latest prop values accessible without re-running effects
+    // ============================================================================
+    const onSpeechResultRef = useRef(onSpeechResult);
+    const onErrorRef = useRef(onError);
+    const silenceTimeoutRef = useRef(silenceTimeout);
+    const showRecordingTipsRef = useRef(showRecordingTips);
+    const hasPermissionRef = useRef(hasPermission);
+
+    // Sync refs with latest prop values (no-op renders, no effect re-runs)
+    useEffect(() => {
+      onSpeechResultRef.current = onSpeechResult;
+    }, [onSpeechResult]);
+    useEffect(() => {
+      onErrorRef.current = onError;
+    }, [onError]);
+    useEffect(() => {
+      silenceTimeoutRef.current = silenceTimeout;
+    }, [silenceTimeout]);
+    useEffect(() => {
+      showRecordingTipsRef.current = showRecordingTips;
+    }, [showRecordingTips]);
+    useEffect(() => {
+      hasPermissionRef.current = hasPermission;
+    }, [hasPermission]);
+
     // Check and request microphone permissions
     const checkPermissions = useCallback(async (): Promise<boolean> => {
       if (Platform.OS === 'android') {
@@ -351,28 +377,23 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
                 '⚠️ [VoiceInput] Native iOS speech recognizer not available',
               );
               setHasPermission(false);
-              onError?.('Speech recognition is not available on this device.');
+              onErrorRef.current?.(
+                'Speech recognition is not available on this device.',
+              );
               return;
             }
 
-            // Check/request permissions
+            // Only CHECK permissions during init — don't REQUEST (no system dialog on mount).
+            // Permission will be requested lazily when user taps the mic button.
             const permissions = await nativeSpeechRecognizer.checkPermissions();
             console.log('🎤 [VoiceInput] iOS permissions:', permissions);
 
             if (!permissions.granted) {
-              // Request permissions
-              const requestedPermissions =
-                await nativeSpeechRecognizer.requestPermissions();
-              if (!requestedPermissions.granted) {
-                setHasPermission(false);
-                const errorMessage =
-                  'Microphone and speech recognition permissions are required for voice input.';
-                onError?.(errorMessage);
-                Alert.alert('Permission Required', errorMessage, [
-                  { text: 'OK' },
-                ]);
-                return;
-              }
+              setHasPermission(false);
+              console.log(
+                '🎤 [VoiceInput] iOS permissions not yet granted during init — will request on first use',
+              );
+              return;
             }
 
             setHasPermission(true);
@@ -380,7 +401,7 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
             // Set up native event listeners
             const unsubResult = nativeSpeechRecognizer.onResult(event => {
               console.log('🎤 [VoiceInput] Native iOS result:', event.text);
-              onSpeechResult(event.text);
+              onSpeechResultRef.current(event.text);
               setVoiceState('idle');
               pendingResultRef.current = null;
               lastPartialResultRef.current = null;
@@ -408,7 +429,7 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
                 event.message,
               );
               setVoiceState('error');
-              onError?.(event.message);
+              onErrorRef.current?.(event.message);
               // UNTRACKED TIMER (SAFE): Error state reset
               // This timer only transitions error→idle and uses no refs
               // Safe to fire on unmounted component (setState is idempotent)
@@ -459,14 +480,31 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
           if (!Voice || typeof Voice.start !== 'function') {
             console.error('❌ [VoiceInput] Voice module is not available');
             setHasPermission(false);
-            onError?.('Voice recognition is not available on this device.');
+            onErrorRef.current?.(
+              'Voice recognition is not available on this device.',
+            );
             return;
           }
 
+          // Silent permission check during init — no dialogs, no requests.
+          // Permission will be requested lazily when user taps the mic button.
           console.log(
-            '✅ [VoiceInput] Voice module is available, checking permissions...',
+            '✅ [VoiceInput] Voice module is available, checking permissions silently...',
           );
-          const permissionGranted = await checkPermissions();
+          let permissionGranted = false;
+          if (Platform.OS === 'android') {
+            permissionGranted = await PermissionsAndroid.check(
+              PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+            );
+          } else {
+            // iOS fallback path (non-native recognizer)
+            const micStatus = await check(PERMISSIONS.IOS.MICROPHONE);
+            const speechStatus = await check(
+              PERMISSIONS.IOS.SPEECH_RECOGNITION,
+            );
+            permissionGranted =
+              micStatus === RESULTS.GRANTED && speechStatus === RESULTS.GRANTED;
+          }
           console.log(
             '🎤 [VoiceInput] Permission check result:',
             permissionGranted,
@@ -474,30 +512,8 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
           setHasPermission(permissionGranted);
 
           if (!permissionGranted) {
-            const errorMessage =
-              'Microphone permission is required for voice input. You can enable it in your device settings. Typing is still available.';
-            onError?.(errorMessage);
-
-            // Show helpful alert with option to open settings
-            Alert.alert(
-              'Microphone Permission Required',
-              errorMessage,
-              [
-                { text: 'OK' },
-                ...(Platform.OS === 'android'
-                  ? [
-                      {
-                        text: 'Open Settings',
-                        onPress: () => {
-                          Linking.openSettings().catch(() => {
-                            console.log('Could not open settings');
-                          });
-                        },
-                      },
-                    ]
-                  : []),
-              ],
-              { cancelable: true },
+            console.log(
+              '🎤 [VoiceInput] Permissions not yet granted — will request on first use',
             );
             return;
           }
@@ -545,7 +561,7 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
               );
               // Use final result (more accurate than partial)
               // Call callback immediately to ensure text appears in input field
-              onSpeechResult(speechText);
+              onSpeechResultRef.current(speechText);
               setVoiceState('idle');
               pendingResultRef.current = null;
               lastPartialResultRef.current = null;
@@ -569,7 +585,7 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
               if (fallbackText.trim()) {
                 console.log('✅ Using fallback partial text:', fallbackText);
                 // Show incomplete transcription - user can edit to fix noise-related errors
-                onSpeechResult(fallbackText);
+                onSpeechResultRef.current(fallbackText);
                 setVoiceState('idle');
                 pendingResultRef.current = null;
                 lastPartialResultRef.current = null;
@@ -579,7 +595,7 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
                 showSuccessFeedbackBriefly();
 
                 // Hint that user can edit if needed
-                if (showRecordingTips) {
+                if (showRecordingTipsRef.current) {
                   console.log(
                     '💡 Tip: Transcription may be incomplete. You can edit it in the input field.',
                   );
@@ -641,8 +657,8 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
                 // Adaptive silence timeout: slightly longer in noisy environments
                 // If we detect rapid updates, increase timeout to filter noise
                 const adaptiveTimeout = isRapidUpdates
-                  ? silenceTimeout * 1.5
-                  : silenceTimeout;
+                  ? silenceTimeoutRef.current * 1.5
+                  : silenceTimeoutRef.current;
 
                 // Set new timeout to wait for silence
                 // Note: We track silence for potential UI feedback but DO NOT finalize here
@@ -814,7 +830,7 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
                 const errorMessage =
                   'Voice recognition is not available in the Simulator/Emulator. Please test on a physical device to use voice input.';
                 setVoiceState('error');
-                onError?.(errorMessage);
+                onErrorRef.current?.(errorMessage);
                 // UNTRACKED TIMER (SAFE): Simulator error state reset
                 setTimeout(() => {
                   setVoiceState('idle');
@@ -999,7 +1015,7 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
 
             // For other errors, call error callback with user-friendly message
             // The callback will show an alert
-            onError?.(errorMessage);
+            onErrorRef.current?.(errorMessage);
 
             // Auto-reset state after showing error (fallback)
             // Note: "Try Again" button handler resets state immediately, so this is just a fallback
@@ -1027,30 +1043,38 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
 
           const errorMessage =
             'Failed to initialize voice recognition. You can still type your input.';
-          onError?.(errorMessage);
-
-          // Show Alert with helpful message
-          Alert.alert(
-            'Voice Input Unavailable',
-            errorMessage,
-            [{ text: 'OK' }],
-            { cancelable: true },
-          );
+          onErrorRef.current?.(errorMessage);
+          // Don't show alert here - handlePress will inform user when they tap mic
         }
       };
 
       console.log('🎤 [VoiceInput] Calling initializeVoice()...');
       initializeVoice();
 
-      // Re-check permissions when app comes to foreground (in case user enabled in settings)
+      // Re-check permissions silently when app comes to foreground (in case user enabled in settings)
       const appStateSubscription = AppState.addEventListener(
         'change',
         async nextAppState => {
-          if (nextAppState === 'active' && hasPermission === false) {
-            // App came to foreground and permission was previously denied
-            // Re-check permission status
-            const permissionGranted = await checkPermissions();
-            if (permissionGranted) {
+          if (nextAppState === 'active' && hasPermissionRef.current === false) {
+            // Silent re-check — no dialogs, just update state
+            let granted = false;
+            if (useNativeIOSSpeechRecognizer) {
+              const perms = await nativeSpeechRecognizer.checkPermissions();
+              granted = perms.granted;
+            } else if (Platform.OS === 'android') {
+              granted = await PermissionsAndroid.check(
+                PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+              );
+            } else {
+              const micStatus = await check(PERMISSIONS.IOS.MICROPHONE);
+              const speechStatus = await check(
+                PERMISSIONS.IOS.SPEECH_RECOGNITION,
+              );
+              granted =
+                micStatus === RESULTS.GRANTED &&
+                speechStatus === RESULTS.GRANTED;
+            }
+            if (granted) {
               setHasPermission(true);
               console.log(
                 '✅ Permission granted after returning from settings',
@@ -1127,18 +1151,13 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
         lastErrorTimeRef.current = 0;
         manualStopInProgressRef.current = false;
       };
-      // voiceState is intentionally omitted - it's set inside the effect, not used as input
+      // Mount-only initialization: Voice module setup, permission check, and event listeners.
+      // Callback props are accessed via refs (onSpeechResultRef, onErrorRef, etc.) to avoid
+      // re-initialization cycles. Previously, including hasPermission/isEnabled/onSpeechResult
+      // as dependencies caused the effect to re-run on every state change, triggering repeated
+      // permission alerts (the root cause of the mic permission dialog bug).
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [
-      checkPermissions,
-      onError,
-      onSpeechResult,
-      silenceTimeout,
-      hasPermission,
-      showRecordingTips,
-      isEnabled,
-      language,
-    ]);
+    }, []);
 
     const startListening = useCallback(async () => {
       console.log('🎤 [VoiceInput] startListening called', {
@@ -1482,36 +1501,42 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
         return;
       }
 
-      if (hasPermission === false) {
-        console.log('🎤 [VoiceInput] ⚠️ Permission denied');
-        // Permission was denied - offer to open settings
+      if (hasPermission === false || hasPermission === null) {
+        console.log(
+          '🎤 [VoiceInput] Permission not yet granted, requesting...',
+        );
+        // Try to request permission lazily on first mic tap
+        let granted = false;
+        if (useNativeIOSSpeechRecognizer) {
+          const result = await nativeSpeechRecognizer.requestPermissions();
+          granted = result.granted;
+        } else {
+          granted = await checkPermissions();
+        }
+
+        if (granted) {
+          setHasPermission(true);
+          console.log('✅ Permission granted on mic tap');
+          // Permission just granted — start listening immediately
+          startListening();
+          return;
+        }
+
+        // Permission truly denied — show helpful alert
         Alert.alert(
           'Microphone Permission Required',
           'Microphone permission is required for voice input. You can enable it in your device settings. Typing is still available.',
           [
             { text: 'OK' },
-            ...(Platform.OS === 'android'
-              ? [
-                  {
-                    text: 'Open Settings',
-                    onPress: () => {
-                      Linking.openSettings().catch(() => {
-                        console.log('Could not open settings');
-                      });
-                    },
-                  },
-                ]
-              : []),
+            {
+              text: 'Open Settings',
+              onPress: () => {
+                Linking.openSettings().catch(() => {
+                  console.log('Could not open settings');
+                });
+              },
+            },
           ],
-        );
-        return;
-      }
-
-      if (hasPermission === null) {
-        Alert.alert(
-          'Checking Permissions',
-          'Please wait while we check microphone permissions.',
-          [{ text: 'OK' }],
         );
         return;
       }
