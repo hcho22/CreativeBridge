@@ -53,6 +53,12 @@
     </dict>
     <key>NSFaceIDUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your Face ID biometric data.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>$(PRODUCT_NAME) needs microphone access so you can dictate your story ideas using voice input.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>$(PRODUCT_NAME) needs access to your photo library to save and share your generated story illustrations.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>$(PRODUCT_NAME) uses speech recognition to convert your voice input into text for story creation.</string>
     <key>RCTNewArchEnabled</key>
     <true/>
     <key>UILaunchStoryboardName</key>
