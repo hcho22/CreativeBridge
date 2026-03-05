@@ -486,39 +486,10 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
             return;
           }
 
-          // Silent permission check during init — no dialogs, no requests.
-          // Permission will be requested lazily when user taps the mic button.
-          console.log(
-            '✅ [VoiceInput] Voice module is available, checking permissions silently...',
-          );
-          let permissionGranted = false;
-          if (Platform.OS === 'android') {
-            permissionGranted = await PermissionsAndroid.check(
-              PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-            );
-          } else {
-            // iOS fallback path (non-native recognizer)
-            const micStatus = await check(PERMISSIONS.IOS.MICROPHONE);
-            const speechStatus = await check(
-              PERMISSIONS.IOS.SPEECH_RECOGNITION,
-            );
-            permissionGranted =
-              micStatus === RESULTS.GRANTED && speechStatus === RESULTS.GRANTED;
-          }
-          console.log(
-            '🎤 [VoiceInput] Permission check result:',
-            permissionGranted,
-          );
-          setHasPermission(permissionGranted);
-
-          if (!permissionGranted) {
-            console.log(
-              '🎤 [VoiceInput] Permissions not yet granted — will request on first use',
-            );
-            return;
-          }
-
-          // Set up Voice event listeners (Android only now)
+          // Set up Voice event listeners BEFORE permission check.
+          // Listeners are just JS callbacks — they don't require permission.
+          // They must be registered now so that events are received when
+          // Voice.start() is called later (after lazy permission grant).
           console.log('🎤 [VoiceInput] Setting up Voice event listeners...');
           Voice.onSpeechStart = (e: SpeechStartEvent) => {
             console.log('🎤 [VoiceInput] ✅ Speech started event received:', e);
@@ -1037,6 +1008,29 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
           console.log(
             '✅ [VoiceInput] Voice event listeners initialized successfully',
           );
+
+          // Silent permission check during init — no dialogs, no requests.
+          // Permission will be requested lazily when user taps the mic button.
+          console.log('🎤 [VoiceInput] Checking permissions silently...');
+          let permissionGranted = false;
+          if (Platform.OS === 'android') {
+            permissionGranted = await PermissionsAndroid.check(
+              PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+            );
+          } else {
+            // iOS fallback path (non-native recognizer)
+            const micStatus = await check(PERMISSIONS.IOS.MICROPHONE);
+            const speechStatus = await check(
+              PERMISSIONS.IOS.SPEECH_RECOGNITION,
+            );
+            permissionGranted =
+              micStatus === RESULTS.GRANTED && speechStatus === RESULTS.GRANTED;
+          }
+          console.log(
+            '🎤 [VoiceInput] Permission check result:',
+            permissionGranted,
+          );
+          setHasPermission(permissionGranted);
         } catch (error) {
           console.error('❌ [VoiceInput] Error initializing voice:', error);
           setHasPermission(false);
@@ -1517,8 +1511,35 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
         if (granted) {
           setHasPermission(true);
           console.log('✅ Permission granted on mic tap');
-          // Permission just granted — start listening immediately
-          startListening();
+          // Permission just granted — start listening immediately.
+          // We cannot call startListening() here because it captures
+          // hasPermission from its closure which is still false (React
+          // state updates are async). Instead, start Voice directly.
+          try {
+            retryCountRef.current = 0;
+            manualStopInProgressRef.current = false;
+            if (useNativeIOSSpeechRecognizer) {
+              setVoiceState('listening');
+              await nativeSpeechRecognizer.startDictation(language);
+            } else if (Voice && typeof Voice.start === 'function') {
+              try {
+                await Voice.cancel();
+                await new Promise(resolve => setTimeout(resolve, 100));
+              } catch (cancelError) {
+                // Ignore cancel errors - may not be running
+              }
+              setVoiceState('listening');
+              await Voice.start(language);
+            }
+            console.log('✅ Voice recognition started after permission grant');
+          } catch (startError) {
+            console.error(
+              '❌ Failed to start voice after permission grant:',
+              startError,
+            );
+            setVoiceState('error');
+            setTimeout(() => setVoiceState('idle'), 3000);
+          }
           return;
         }
 
