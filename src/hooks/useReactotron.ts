@@ -1,5 +1,19 @@
 import { useEffect } from 'react';
-import reactotron from '../services/reactotron';
+
+// Conditionally import reactotron only in dev
+let reactotron: {
+  log?: (...args: unknown[]) => void;
+  error?: (...args: unknown[]) => void;
+  warn?: (...args: unknown[]) => void;
+  display?: (config: unknown) => void;
+} = {};
+if (__DEV__) {
+  try {
+    reactotron = require('../services/reactotron').default;
+  } catch {
+    // Reactotron not available
+  }
+}
 
 /**
  * Custom hook for Reactotron debugging utilities

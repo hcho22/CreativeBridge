@@ -1,4 +1,5 @@
 import React, { useMemo, useCallback } from 'react';
+import { View, Text } from 'react-native';
 import { ClerkProvider, useAuth } from '@clerk/clerk-expo';
 import { ConvexProviderWithClerk } from 'convex/react-clerk';
 import { isClerkConfigured, getClerkConfig } from '../../config/environment';
@@ -191,8 +192,32 @@ export const ConditionalClerkProvider: React.FC<
           {children}
         </ConvexProviderWithClerk>
       ) : (
-        // Convex not configured - render children without Convex
-        children
+        // Convex not configured - AuthProvider requires ConvexProvider for its hooks
+        // (useConvex, useMutation, useQuery). Rendering children without it would crash.
+        <View
+          style={{
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: 20,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 18,
+              fontWeight: 'bold',
+              color: '#333',
+              textAlign: 'center',
+              marginBottom: 10,
+            }}
+          >
+            Backend Not Configured
+          </Text>
+          <Text style={{ fontSize: 16, color: '#666', textAlign: 'center' }}>
+            CONVEX_URL is not set. Please configure the Convex backend URL to
+            continue.
+          </Text>
+        </View>
       )}
     </ClerkProvider>
   );

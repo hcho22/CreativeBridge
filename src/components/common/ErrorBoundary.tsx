@@ -7,7 +7,15 @@ import {
   Alert,
   ScrollView,
 } from 'react-native';
-import reactotron from '../../services/reactotron';
+// Conditionally import reactotron only in dev to avoid production bundle issues
+let reactotron: { error?: (...args: unknown[]) => void } = {};
+if (__DEV__) {
+  try {
+    reactotron = require('../../services/reactotron').default;
+  } catch {
+    // Reactotron not available
+  }
+}
 
 interface ErrorBoundaryState {
   hasError: boolean;
