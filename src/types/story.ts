@@ -19,6 +19,7 @@ export interface StoryRequest {
   sessionId?: string; // Optional session ID for diversity tracking
   userId?: string; // Optional user ID for diversity tracking (fallback when no sessionId)
   storyId?: string; // Optional story ID for post-generation element storage
+  genre?: string; // Optional genre preference for genre-aware story generation (US-006)
 }
 
 export interface AgentConfig {

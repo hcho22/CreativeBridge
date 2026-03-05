@@ -11,7 +11,7 @@ import AsyncStorage from '../utils/asyncStorageWrapper';
 import { supabase } from '../services/supabase';
 import { useSafeClerkAuth } from '../hooks/useSafeClerkAuth';
 // Note (US-016): completeOAuthFlow, ClerkAuthMethods, ClerkUser removed — no longer needed
-import type { UserProfile, GradeLevel } from '../types/database';
+import type { UserProfile, GradeLevel, StoryGenre } from '../types/database';
 import { RememberMeStorage } from '../utils/rememberMeStorage';
 import { xpEventTracker } from '../services/xpEventTracker';
 import {
@@ -39,7 +39,7 @@ export interface AppUser {
  * Helper to convert Convex userProfile to legacy UserProfile type
  * This ensures backward compatibility during the migration period.
  */
-const convertConvexProfileToLegacy = (
+export const convertConvexProfileToLegacy = (
   convexProfile: Doc<'userProfiles'>,
 ): UserProfile => ({
   id: convexProfile._id,
@@ -56,6 +56,7 @@ const convertConvexProfileToLegacy = (
   total_words_written: convexProfile.totalWordsWritten,
   preferred_grade_level: convexProfile.preferredGradeLevel as GradeLevel,
   speech_enabled: convexProfile.speechEnabled,
+  preferred_genre: convexProfile.preferredGenre as StoryGenre | undefined,
   avatar_url: convexProfile.avatarUrl,
   bio: convexProfile.bio,
   onboarding_completed: convexProfile.onboardingCompleted,
@@ -340,7 +341,8 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           currentProfile.preferred_grade_level ===
             legacyProfile.preferred_grade_level &&
           currentProfile.current_streak === legacyProfile.current_streak &&
-          currentProfile.username === legacyProfile.username
+          currentProfile.username === legacyProfile.username &&
+          currentProfile.preferred_genre === legacyProfile.preferred_genre
         ) {
           // No meaningful change, return current state to prevent re-render
           return currentProfile;
@@ -650,6 +652,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           displayName?: string;
           preferredGradeLevel?: 'K-2' | '3-5' | '6-8' | '9-12';
           speechEnabled?: boolean;
+          preferredGenre?: StoryGenre | null;
           avatarUrl?: string;
           bio?: string;
         } = {};
@@ -662,6 +665,8 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           convexUpdates.preferredGradeLevel = profile.preferred_grade_level;
         if (profile.speech_enabled !== undefined)
           convexUpdates.speechEnabled = profile.speech_enabled;
+        if ('preferred_genre' in profile)
+          convexUpdates.preferredGenre = profile.preferred_genre ?? null;
         if (profile.avatar_url !== undefined)
           convexUpdates.avatarUrl = profile.avatar_url;
         if (profile.bio !== undefined) convexUpdates.bio = profile.bio;

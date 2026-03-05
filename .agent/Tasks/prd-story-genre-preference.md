@@ -79,14 +79,14 @@ Users currently have no control over the genre or tone of AI-generated stories. 
 
 **Acceptance Criteria:**
 
-- [ ] In `convertConvexProfileToLegacy()` in `src/context/AuthContext.tsx`: map `convexProfile.preferredGenre` to `preferred_genre`
-- [ ] In `updateProfile()` in `src/context/AuthContext.tsx`: map `profile.preferred_genre` to `convexUpdates.preferredGenre`
-- [ ] When `preferredGenre` is undefined on the Convex profile, `preferred_genre` is undefined on the legacy profile (not null or empty string)
-- [ ] Typecheck passes
+- [x] In `convertConvexProfileToLegacy()` in `src/context/AuthContext.tsx`: map `convexProfile.preferredGenre` to `preferred_genre`
+- [x] In `updateProfile()` in `src/context/AuthContext.tsx`: map `profile.preferred_genre` to `convexUpdates.preferredGenre`
+- [x] When `preferredGenre` is undefined on the Convex profile, `preferred_genre` is undefined on the legacy profile (not null or empty string)
+- [x] Typecheck passes (no new errors introduced; pre-existing errors in unrelated files)
 
 **Validation Test:**
 
-- [ ] Write `__tests__/context/authContextGenreMapping.test.ts`: test `convertConvexProfileToLegacy` with genre set to each of the 6 values and with genre undefined; test `updateProfile` mapping from snake_case to camelCase
+- [x] Write `__tests__/context/authContextGenreMapping.test.ts`: test `convertConvexProfileToLegacy` with genre set to each of the 6 values and with genre undefined; test `updateProfile` mapping from snake_case to camelCase (19 tests, all passing)
 
 ---
 
@@ -96,21 +96,21 @@ Users currently have no control over the genre or tone of AI-generated stories. 
 
 **Acceptance Criteria:**
 
-- [ ] Genre selector section appears below the Grade Level selector in SettingsScreen
-- [ ] 6 genre buttons displayed in a grid (3 rows x 2 columns), reusing existing `gradeButton` / `selectedGradeButton` styles
-- [ ] A 7th "No Preference" option allows clearing the genre (sets `preferred_genre` to `undefined`)
-- [ ] Selected genre is visually highlighted
-- [ ] Genre description text shown below the buttons (e.g., Mystery: "Clues, secrets, and puzzles to solve")
-- [ ] When no genre is selected, description reads: "Stories will vary in theme each time"
-- [ ] Tapping a genre calls `updateProfile({ preferred_genre: genre })` and shows a success alert
-- [ ] Tapping the already-selected genre deselects it (sets to undefined — "No Preference" behavior)
-- [ ] On error, selection reverts to previous value
-- [ ] Typecheck/lint passes
+- [x] Genre selector section appears below the Grade Level selector in SettingsScreen
+- [x] 6 genre buttons displayed in a grid (3 rows x 2 columns), reusing existing `gradeButton` / `selectedGradeButton` styles
+- [x] A 7th "No Preference" option allows clearing the genre (sets `preferred_genre` to `undefined`)
+- [x] Selected genre is visually highlighted
+- [x] Genre description text shown below the buttons (e.g., Mystery: "Clues, secrets, and puzzles to solve")
+- [x] When no genre is selected, description reads: "Stories will vary in theme each time"
+- [x] Tapping a genre calls `updateProfile({ preferred_genre: genre })` and shows a success alert
+- [x] Tapping the already-selected genre deselects it (sets to undefined — "No Preference" behavior)
+- [x] On error, selection reverts to previous value
+- [x] Typecheck/lint passes (no new errors; pre-existing errors in unrelated files)
 - [ ] Verify on iOS simulator
 
 **Validation Test:**
 
-- [ ] Write `__tests__/screens/SettingsScreen.genre.test.ts`: render SettingsScreen with mocked AuthContext; verify 6 genre buttons + "No Preference" render; verify tapping "Mystery" calls `updateProfile` with `{ preferred_genre: 'Mystery' }`; verify tapping active genre deselects it
+- [x] Write `src/__tests__/screens/SettingsScreen.genre.test.tsx`: render SettingsScreen with mocked AuthContext; verify 6 genre buttons + "No Preference" render; verify tapping "Mystery" calls `updateProfile` with `{ preferred_genre: 'Mystery' }`; verify tapping active genre deselects it (18 tests, all passing)
 
 ---
 
@@ -120,13 +120,13 @@ Users currently have no control over the genre or tone of AI-generated stories. 
 
 **Acceptance Criteria:**
 
-- [ ] Add `genre?: string` to `StoryRequest` in `src/types/story.ts`
-- [ ] `StoryContinuationRequest` (which extends `StoryRequest`) automatically inherits the field
-- [ ] Typecheck passes
+- [x] Add `genre?: string` to `StoryRequest` in `src/types/story.ts`
+- [x] `StoryContinuationRequest` (which extends `StoryRequest`) automatically inherits the field
+- [x] Typecheck passes
 
 **Validation Test:**
 
-- [ ] Write `__tests__/types/storyRequest.test.ts`: verify a `StoryRequest` object with `genre: 'Mystery'` compiles; verify `StoryContinuationRequest` also accepts `genre`
+- [x] Write `__tests__/types/storyRequest.test.ts`: verify a `StoryRequest` object with `genre: 'Mystery'` compiles; verify `StoryContinuationRequest` also accepts `genre` (6 tests, all passing)
 
 ---
 

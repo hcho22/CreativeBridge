@@ -183,7 +183,7 @@ export const updateProfile = mutation({
       displayName: v.optional(v.string()),
       preferredGradeLevel: v.optional(gradeLevelValidator),
       speechEnabled: v.optional(v.boolean()),
-      preferredGenre: v.optional(genreValidator),
+      preferredGenre: v.optional(v.union(genreValidator, v.null())),
       avatarUrl: v.optional(v.string()),
       bio: v.optional(v.string()),
     }),
@@ -216,7 +216,10 @@ export const updateProfile = mutation({
     if (args.updates.speechEnabled !== undefined)
       updateFields.speechEnabled = args.updates.speechEnabled;
     if (args.updates.preferredGenre !== undefined)
-      updateFields.preferredGenre = args.updates.preferredGenre;
+      updateFields.preferredGenre =
+        args.updates.preferredGenre === null
+          ? undefined
+          : args.updates.preferredGenre;
     if (args.updates.avatarUrl !== undefined)
       updateFields.avatarUrl = args.updates.avatarUrl;
     if (args.updates.bio !== undefined) updateFields.bio = args.updates.bio;
