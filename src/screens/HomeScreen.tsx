@@ -54,7 +54,6 @@ import RNFS, { rnfsWrapper } from '../utils/rnfsWrapper';
 import { VoiceInput } from '../components/common/VoiceInput';
 import Share from '../utils/shareWrapper';
 import { CelebrationModal } from '../components/common/CelebrationModal';
-import { FeatureTooltip } from '../components/common/FeatureTooltip';
 import {
   FirstStoryGuidanceModal,
   EnhancedEmptyState,
@@ -179,37 +178,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [dontShowGuidanceAgain, setDontShowGuidanceAgain] = useState(false);
   // Store the pending action to execute after guidance is dismissed
   const pendingStoryActionRef = useRef<(() => void) | null>(null);
-
-  // Voice input feature tooltip state (US-013)
-  const [showVoiceInputTooltip, setShowVoiceInputTooltip] = useState(false);
-  const [voiceButtonLayout, setVoiceButtonLayout] = useState<{
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null>(null);
-  const voiceButtonContainerRef = useRef<View>(null);
-
-  // Image generation feature tooltip state (US-014)
-  const [showImageGenerationTooltip, setShowImageGenerationTooltip] =
-    useState(false);
-  const [imageGenerationLayout, setImageGenerationLayout] = useState<{
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null>(null);
-  const imageGenerationContainerRef = useRef<View>(null);
-
-  // XP/Challenges feature tooltip state (US-015)
-  const [showXpChallengesTooltip, setShowXpChallengesTooltip] = useState(false);
-  const [challengeDisplayLayout, setChallengeDisplayLayout] = useState<{
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null>(null);
-  const challengeDisplayContainerRef = useRef<View>(null);
 
   // Ref to track if TTS has been initialized to prevent re-initialization loops
   const ttsInitializedRef = useRef(false);
@@ -374,171 +342,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       );
     }
   }, [showFirstStoryCelebration]);
-
-  // Show voice input tooltip when game becomes active (US-013)
-  // Tooltip appears near voice input button on first game with voice input enabled
-  useEffect(() => {
-    const checkVoiceInputTooltip = async () => {
-      // Only check when game becomes active and voice input is enabled
-      if (!isGameActive || !voiceInputEnabled) {
-        setShowVoiceInputTooltip(false);
-        return;
-      }
-
-      try {
-        // Check if tooltip should be shown (first time seeing voice input)
-        const shouldShow =
-          await onboardingMilestoneTracker.shouldShowVoiceInputTooltip();
-
-        if (shouldShow) {
-          // Small delay to ensure the voice button is rendered and measurable
-          setTimeout(() => {
-            // Measure voice button position for tooltip placement
-            if (voiceButtonContainerRef.current) {
-              voiceButtonContainerRef.current.measureInWindow(
-                (x, y, width, height) => {
-                  setVoiceButtonLayout({ x, y, width, height });
-                  setShowVoiceInputTooltip(true);
-                  console.log('💡 [US-013] Showing voice input tooltip');
-                },
-              );
-            } else {
-              // Fallback: show tooltip without precise positioning
-              setShowVoiceInputTooltip(true);
-              console.log(
-                '💡 [US-013] Showing voice input tooltip (no ref available)',
-              );
-            }
-          }, 500); // Wait for layout to stabilize
-        }
-      } catch (error) {
-        console.error('❌ Error checking voice input tooltip:', error);
-      }
-    };
-
-    checkVoiceInputTooltip();
-  }, [isGameActive, voiceInputEnabled]);
-
-  // Handle voice input tooltip dismissal (US-013)
-  const handleVoiceInputTooltipDismiss = useCallback(async () => {
-    setShowVoiceInputTooltip(false);
-    try {
-      await onboardingMilestoneTracker.markVoiceInputTooltipShown();
-    } catch (error) {
-      console.error('❌ Error marking voice input tooltip as shown:', error);
-    }
-  }, []);
-
-  // Show image generation tooltip when image generation modal opens (US-014)
-  // Tooltip appears to inform new users that AI creates grade-level illustrations
-  useEffect(() => {
-    const checkImageGenerationTooltip = async () => {
-      // Only check when image generation modal is shown
-      if (!showImageGeneration) {
-        setShowImageGenerationTooltip(false);
-        return;
-      }
-
-      try {
-        // Check if tooltip should be shown (first time seeing image generation)
-        const shouldShow =
-          await onboardingMilestoneTracker.shouldShowImageGenerationTooltip();
-
-        if (shouldShow) {
-          // Small delay to ensure the image generation container is rendered and measurable
-          setTimeout(() => {
-            // Measure image generation container position for tooltip placement
-            if (imageGenerationContainerRef.current) {
-              imageGenerationContainerRef.current.measureInWindow(
-                (x, y, width, height) => {
-                  setImageGenerationLayout({ x, y, width, height });
-                  setShowImageGenerationTooltip(true);
-                  console.log('💡 [US-014] Showing image generation tooltip');
-                },
-              );
-            } else {
-              // Fallback: show tooltip without precise positioning
-              setShowImageGenerationTooltip(true);
-              console.log(
-                '💡 [US-014] Showing image generation tooltip (no ref available)',
-              );
-            }
-          }, 500); // Wait for layout to stabilize
-        }
-      } catch (error) {
-        console.error('❌ Error checking image generation tooltip:', error);
-      }
-    };
-
-    checkImageGenerationTooltip();
-  }, [showImageGeneration]);
-
-  // Handle image generation tooltip dismissal (US-014)
-  const handleImageGenerationTooltipDismiss = useCallback(async () => {
-    setShowImageGenerationTooltip(false);
-    try {
-      await onboardingMilestoneTracker.markImageGenerationTooltipShown();
-    } catch (error) {
-      console.error(
-        '❌ Error marking image generation tooltip as shown:',
-        error,
-      );
-    }
-  }, []);
-
-  // Show XP/Challenges tooltip when game becomes active with a challenge (US-015)
-  // Tooltip appears to inform new users about the XP and challenge system
-  useEffect(() => {
-    const checkXpChallengesTooltip = async () => {
-      // Only check when game is active and there's a current challenge displayed
-      if (!isGameActive || !currentChallenge) {
-        setShowXpChallengesTooltip(false);
-        return;
-      }
-
-      try {
-        // Check if tooltip should be shown (first time seeing challenges during a story)
-        const shouldShow =
-          await onboardingMilestoneTracker.shouldShowXpChallengesTooltip();
-
-        if (shouldShow) {
-          // Small delay to ensure the challenge display container is rendered and measurable
-          setTimeout(() => {
-            // Measure challenge display container position for tooltip placement
-            if (challengeDisplayContainerRef.current) {
-              challengeDisplayContainerRef.current.measureInWindow(
-                (x, y, width, height) => {
-                  setChallengeDisplayLayout({ x, y, width, height });
-                  setShowXpChallengesTooltip(true);
-                  console.log('💡 [US-015] Showing XP/Challenges tooltip');
-                },
-              );
-            } else {
-              // Fallback: show tooltip without precise positioning
-              setShowXpChallengesTooltip(true);
-              console.log(
-                '💡 [US-015] Showing XP/Challenges tooltip (no ref available)',
-              );
-            }
-          }, 500); // Wait for layout to stabilize
-        }
-      } catch (error) {
-        console.error('❌ Error checking XP/Challenges tooltip:', error);
-      }
-    };
-
-    checkXpChallengesTooltip();
-  }, [isGameActive, currentChallenge]);
-
-  // Handle XP/Challenges tooltip dismissal (US-015)
-  const handleXpChallengesTooltipDismiss = useCallback(async () => {
-    setShowXpChallengesTooltip(false);
-    try {
-      await onboardingMilestoneTracker.markXpChallengesTooltipShown();
-    } catch (error) {
-      console.error('❌ Error marking XP/Challenges tooltip as shown:', error);
-    }
-  }, []);
 
   // Control header visibility based on game state
   useLayoutEffect(() => {
@@ -3035,7 +2838,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 {/* Button Row: Mic → Speaker → spacer → Submit */}
                 <View style={styles.floatingButtonRow}>
                   {/* Mic Button — VoiceInput component */}
-                  <View ref={voiceButtonContainerRef}>
+                  <View>
                     <VoiceInput
                       onSpeechResult={handleVoiceResult}
                       isEnabled={
@@ -3151,28 +2954,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           onProceed={handleFirstStoryGuidanceProceed}
           showDontShowAgain={true}
           onDontShowAgainChange={handleDontShowGuidanceAgainChange}
-        />
-
-        {/* Voice Input Feature Tooltip (US-013) */}
-        <FeatureTooltip
-          visible={showVoiceInputTooltip}
-          text="Tap to speak your story instead of typing"
-          icon="🎤"
-          position="top"
-          targetLayout={voiceButtonLayout || undefined}
-          onDismiss={handleVoiceInputTooltipDismiss}
-          autoHideDelay={5000}
-        />
-
-        {/* XP/Challenges Feature Tooltip (US-015) */}
-        <FeatureTooltip
-          visible={showXpChallengesTooltip}
-          text="Complete challenges for bonus XP and level up!"
-          icon="🏆"
-          position="bottom"
-          targetLayout={challengeDisplayLayout || undefined}
-          onDismiss={handleXpChallengesTooltipDismiss}
-          autoHideDelay={5000}
         />
 
         {/* Story Completion Options Screen - Full Screen Overlay */}
@@ -3320,12 +3101,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 contentContainerStyle={styles.imageGenerationScrollContent}
                 showsVerticalScrollIndicator={false}
               >
-                {/* Image Generation Container with ref for tooltip positioning (US-014) */}
-                <View
-                  ref={imageGenerationContainerRef}
-                  style={styles.imageGenerationContainer}
-                  collapsable={false}
-                >
+                <View style={styles.imageGenerationContainer}>
                   <ImageGeneration
                     storyContent={currentSession.story_content || ''}
                     sessionId={currentSession.id}
@@ -3345,29 +3121,16 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           </Pressable>
         )}
 
-        {/* Image Generation Feature Tooltip (US-014) */}
-        <FeatureTooltip
-          visible={showImageGenerationTooltip}
-          text="AI creates illustrations matching your grade level!"
-          icon="🎨"
-          position="bottom"
-          targetLayout={imageGenerationLayout || undefined}
-          onDismiss={handleImageGenerationTooltipDismiss}
-          autoHideDelay={5000}
-        />
-
         {/* Absolute-positioned Challenge Display — story content scrolls behind it */}
         {currentChallenge && !showCompletionOptions && (
           <View style={[styles.challengeHeaderSection, { top: insets.top }]}>
-            <View ref={challengeDisplayContainerRef} collapsable={false}>
-              <ChallengeDisplay
-                challenge={currentChallenge}
-                progress={challengeProgress.find(
-                  p => p.challengeId === currentChallenge.id,
-                )}
-                compact={true}
-              />
-            </View>
+            <ChallengeDisplay
+              challenge={currentChallenge}
+              progress={challengeProgress.find(
+                p => p.challengeId === currentChallenge.id,
+              )}
+              compact={true}
+            />
           </View>
         )}
       </View>
