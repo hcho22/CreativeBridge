@@ -1254,17 +1254,14 @@ Continue the story with 1-3 sentences. Keep your response under 200 words.`;
       violations.push('User input too long (max 1000 characters)');
     }
 
-    // CRITICAL FIX: Increased story length limit to support longer stories for older students
-    // Grade-specific limits to prevent context loss:
-    // - K-2: 3000 chars (shorter, simpler stories)
-    // - 3-5: 5000 chars (moderate complexity)
-    // - 6-8: 8000 chars (developing narratives)
-    // - 9-12: 12000 chars (sophisticated, multi-paragraph stories)
+    // Story length limits account for multi-round accumulation (up to 5 rounds).
+    // Each round adds user input (~1000 chars) + AI continuation (~500 chars).
+    // GPT-4 Turbo 128K context handles these sizes easily.
     const storyLengthLimits: Record<GradeLevel, number> = {
-      'K-2': 3000,
-      '3-5': 5000,
-      '6-8': 8000,
-      '9-12': 12000,
+      'K-2': 10000,
+      '3-5': 15000,
+      '6-8': 25000,
+      '9-12': 35000,
     };
 
     const maxLength = storyLengthLimits[request.gradeLevel] || 8000;
