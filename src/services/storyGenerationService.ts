@@ -971,16 +971,56 @@ class StoryGenerationService {
       agent,
       request.gradeLevel,
       diversityGuidance,
+      request.genre,
     );
     const userPrompt = this.buildUserPrompt(request);
 
     return { systemPrompt, userPrompt };
   }
 
+  /**
+   * Genre-specific writing guidance for the AI system prompt.
+   * Horror entries are grade-aware: K-2 gets "spooky and silly", 3-5 gets "mild suspense",
+   * while older grades get progressively more atmospheric Horror guidance.
+   */
+  private getGenreGuidance(genre: string, gradeLevel: GradeLevel): string {
+    const genreGuidanceMap: Record<string, string> = {
+      Mystery:
+        'Write in a mystery style. Include clues, secrets, and puzzles for the reader to follow. Build suspense through unanswered questions and surprising discoveries. Use foreshadowing and red herrings appropriate for the reading level.',
+      Fantasy:
+        'Write in a fantasy style. Include magical elements, enchanted settings, and wondrous creatures. Create a sense of wonder and imagination. Use vivid descriptions of fantastical worlds and extraordinary abilities.',
+      Comedy:
+        'Write in a comedic style. Include humor through funny situations, witty dialogue, and amusing character traits. Use wordplay, unexpected twists, and lighthearted moments to make the reader laugh.',
+      Horror: this.getHorrorGuidance(gradeLevel),
+      Fiction:
+        'Write in a realistic fiction style. Focus on believable characters, relatable situations, and authentic emotions. Ground the story in everyday life while making it compelling and meaningful.',
+      'Fairy Tale':
+        'Write in a fairy tale style. Use classic storytelling patterns with magical transformations, moral lessons, and enchanted objects. Include phrases like "once upon a time" and create a timeless, storybook atmosphere.',
+    };
+
+    return genreGuidanceMap[genre] || '';
+  }
+
+  private getHorrorGuidance(gradeLevel: GradeLevel): string {
+    switch (gradeLevel) {
+      case 'K-2':
+        return 'Write in a spooky and silly style. Include playful surprises like friendly ghosts, silly monsters, and things that go bump in the night. Keep the tone light, fun, and giggle-worthy. Everything should feel safe and gentle.';
+      case '3-5':
+        return 'Write with mild suspense and mystery. Include slightly eerie settings and curious unexplained events, but keep the tone adventurous. Focus on brave characters solving spooky puzzles. Keep everything age-appropriate and gentle.';
+      case '6-8':
+        return 'Write in a suspenseful, atmospheric style. Include eerie settings, mysterious events, and building tension. Create a sense of unease through the unknown, but keep content age-appropriate. Focus on atmosphere and mystery over graphic content.';
+      case '9-12':
+        return 'Write in a horror style with atmospheric tension, psychological suspense, and eerie settings. Build dread through pacing, foreshadowing, and the unknown. Focus on psychological horror and atmosphere rather than graphic content.';
+      default:
+        return 'Write with mild suspense and mystery. Include eerie settings and curious unexplained events.';
+    }
+  }
+
   private buildSystemPrompt(
     agent: AgentConfig,
     gradeLevel: GradeLevel,
     diversityGuidance: string = '',
+    genre?: string,
   ): string {
     // Grade-specific vocabulary guidance
     const vocabularyGuidance = {
@@ -999,9 +1039,17 @@ class StoryGenerationService {
 You specialize in writing for ${gradeLevel} students. Your stories should be age-appropriate, engaging, and educational.
 
 VOCABULARY REQUIREMENTS FOR ${gradeLevel}:
-${vocabularyGuidance[gradeLevel]}
+${vocabularyGuidance[gradeLevel]}`;
 
-Key guidelines:
+    // Insert genre-specific guidance between vocabulary requirements and key guidelines
+    if (genre) {
+      const genreGuidance = this.getGenreGuidance(genre, gradeLevel);
+      if (genreGuidance) {
+        systemPrompt += `\n\nGENRE: ${genre}\n${genreGuidance}`;
+      }
+    }
+
+    systemPrompt += `\n\nKey guidelines:
 - Write 2-3 sentences that flow naturally
 - Keep sentences short and simple for young readers
 - If continuing a story, maintain the same characters, setting, and tone
@@ -1067,12 +1115,18 @@ Key guidelines:
           ? 'Use very simple words and short sentences that kindergarten and early elementary students can understand easily.'
           : '';
 
+      // Genre reinforcement for continuations
+      const genreGuidance = request.genre
+        ? `Maintain the ${request.genre} genre throughout.`
+        : '';
+
       return `Continue this story in a creative and engaging way. The story is for ${
         request.gradeLevel
       } students.
 Story so far: ${request.storySoFar}
 ${request.challenge ? `Current challenge: ${request.challenge}` : ''}
 ${simplicityGuidance}
+${genreGuidance}
 
 Continue the story with 1-3 sentences. Keep your response under 200 words.`;
     } else {
@@ -1093,6 +1147,11 @@ Continue the story with 1-3 sentences. Keep your response under 200 words.`;
       if (request.challenge) {
         prompt += `CREATIVE WRITING CHALLENGE:\n${request.challenge}\n\n`;
         prompt += `Incorporate this challenge seamlessly into your narrative.\n\n`;
+      }
+
+      // Genre requirement for story starters
+      if (request.genre) {
+        prompt += `GENRE REQUIREMENT:\nThis story must be written in the ${request.genre} genre. Ensure the opening sets the appropriate tone, atmosphere, and narrative elements characteristic of ${request.genre} stories.\n\n`;
       }
 
       const finalGuidance =
@@ -1273,9 +1332,30 @@ Continue the story with 1-3 sentences. Keep your response under 200 words.`;
       fallbackOptions.length,
     );
 
-    const selectedFallback =
-      fallbackOptions[Math.floor(Math.random() * fallbackOptions.length)] ||
-      this.fallbackStories[0];
+    // Prefer genre-matching categories when genre is set
+    let selectedFallback: FallbackStory;
+    if (request.genre && fallbackOptions.length > 0) {
+      const genreCategoryMap: Record<string, string[]> = {
+        Mystery: ['mystery', 'thriller'],
+        Fantasy: ['fantasy', 'adventure'],
+        Comedy: ['comedy', 'friendship'],
+        Horror: ['thriller', 'mystery', 'dystopian'],
+        Fiction: ['coming-of-age', 'friendship', 'education'],
+        'Fairy Tale': ['fantasy', 'adventure', 'courage'],
+      };
+      const preferredCategories = genreCategoryMap[request.genre] || [];
+      const genreMatches = fallbackOptions.filter(f =>
+        preferredCategories.includes(f.category),
+      );
+      const pool = genreMatches.length > 0 ? genreMatches : fallbackOptions;
+      selectedFallback =
+        pool[Math.floor(Math.random() * pool.length)] ||
+        this.fallbackStories[0];
+    } else {
+      selectedFallback =
+        fallbackOptions[Math.floor(Math.random() * fallbackOptions.length)] ||
+        this.fallbackStories[0];
+    }
     console.log('🎲 Selected fallback category:', selectedFallback.category);
 
     let story = selectedFallback.template;
