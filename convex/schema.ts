@@ -22,6 +22,20 @@ export const gradeLevelValidator = v.union(
 );
 
 /**
+ * Story genre preferences for AI-generated content.
+ * Used to customize story tone and style based on user preference.
+ * Horror is auto-softened for younger grade levels at the prompt level.
+ */
+export const genreValidator = v.union(
+  v.literal('Mystery'),
+  v.literal('Fantasy'),
+  v.literal('Comedy'),
+  v.literal('Horror'),
+  v.literal('Fiction'),
+  v.literal('Fairy Tale'),
+);
+
+/**
  * Onboarding progress tracking object.
  * Tracks completion of key user milestones.
  */
@@ -181,6 +195,7 @@ export default defineSchema({
     // User Preferences
     preferredGradeLevel: gradeLevelValidator,
     speechEnabled: v.boolean(),
+    preferredGenre: v.optional(genreValidator),
 
     // Optional Profile Data
     avatarUrl: v.optional(v.string()),

@@ -552,7 +552,7 @@ class StoryAgentService {
     return {
       gradeLevel: request.gradeLevel,
       userInput: prompt,
-      challenge: this.getGradeLevelChallenge(request.gradeLevel),
+      challenge: this.getGradeLevelChallenge(request.gradeLevel, request.theme),
       // Pass through diversity tracking IDs for element extraction and guidance
       sessionId: request.sessionId,
       userId: request.userId,
@@ -560,7 +560,10 @@ class StoryAgentService {
     };
   }
 
-  private getGradeLevelChallenge(gradeLevel: GradeLevel): string {
+  private getGradeLevelChallenge(
+    gradeLevel: GradeLevel,
+    genre?: string,
+  ): string {
     const challenges = {
       'K-2':
         'Create vivid sensory experiences using simple, clear language that helps young readers see, hear, and feel the story world. Focus on concrete imagery and emotional connection through relatable experiences.',
@@ -572,7 +575,31 @@ class StoryAgentService {
         'Explore profound themes of human experience, philosophical questions, and complex moral choices. Develop psychologically realistic characters facing meaningful challenges that reflect real-world issues and encourage deep reflection.',
     };
 
-    return challenges[gradeLevel];
+    let challenge = challenges[gradeLevel];
+
+    if (genre) {
+      const genreChallengeModifiers: Record<string, string> = {
+        Mystery:
+          'Include a mysterious element that raises questions and invites the reader to search for clues.',
+        Fantasy:
+          'Include a fantastical element such as magic, mythical creatures, or an enchanted world that sparks imagination.',
+        Comedy:
+          'Include a humorous moment or funny character trait that brings lighthearted fun to the story.',
+        Horror:
+          'Include a spooky or suspenseful element that builds tension and keeps the reader on edge.',
+        Fiction:
+          'Include a realistic yet compelling scenario that draws the reader into an emotionally authentic world.',
+        'Fairy Tale':
+          'Include a classic fairy tale element such as a moral lesson, a magical transformation, or a quest.',
+      };
+
+      const modifier = genreChallengeModifiers[genre];
+      if (modifier) {
+        challenge += ' ' + modifier;
+      }
+    }
+
+    return challenge;
   }
 
   private assessStoryQuality(

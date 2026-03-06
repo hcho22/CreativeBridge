@@ -6,6 +6,15 @@ import { StoryDownloadHistoryRecord } from './storyDownload';
 // Grade level options
 export type GradeLevel = 'K-2' | '3-5' | '6-8' | '9-12';
 
+// Story genre options (US-003)
+export type StoryGenre =
+  | 'Mystery'
+  | 'Fantasy'
+  | 'Comedy'
+  | 'Horror'
+  | 'Fiction'
+  | 'Fairy Tale';
+
 // Onboarding progress tracking (US-007)
 export interface OnboardingProgress {
   create_account: boolean;
@@ -52,6 +61,7 @@ export interface UserProfile {
   // Preferences
   preferred_grade_level: GradeLevel;
   speech_enabled: boolean;
+  preferred_genre?: StoryGenre;
 
   // Profile Data (optional)
   avatar_url?: string;

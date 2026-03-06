@@ -244,6 +244,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     [userProfile?.preferred_grade_level],
   );
 
+  // Use the user's preferred story genre from their profile (US-007)
+  const preferredGenre = useMemo(
+    () => userProfile?.preferred_genre,
+    [userProfile?.preferred_genre],
+  );
+
   // Detect first streak achievement (US-006)
   // When streak changes from <2 to >=2, check if we should show the celebration
   useEffect(() => {
@@ -1456,7 +1462,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       // Generate dynamic story starter using AI with diversity tracking
       const starterResponse = await storyAgentService.generateStoryStarter({
         gradeLevel,
-        theme: 'adventure',
+        theme: preferredGenre ?? 'adventure',
         sessionId: newSession.id,
         userId: userIdToUse,
         storyId: newSession.id, // Use session ID as story ID for the starter
@@ -1790,6 +1796,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         sessionId: currentSession?.id || undefined,
         userId: effectiveUserId,
         storyId: currentSession?.id || undefined, // Use session ID as story ID
+        genre: preferredGenre,
       });
 
       if (aiResponse.success && aiResponse.story) {

@@ -11,7 +11,7 @@ import {
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
-import type { GradeLevel } from '../types/database';
+import type { GradeLevel, StoryGenre } from '../types/database';
 import { TabParamList } from '../navigation/AppNavigator';
 import { OnboardingChecklistModal } from '../components/onboarding/OnboardingChecklistModal';
 import { onboardingMilestoneTracker } from '../services/onboardingMilestoneTracker';
@@ -35,6 +35,9 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   );
   const [selectedGradeLevel, setSelectedGradeLevel] = useState<GradeLevel>(
     (userProfile?.preferred_grade_level as GradeLevel) || 'K-2',
+  );
+  const [selectedGenre, setSelectedGenre] = useState<StoryGenre | undefined>(
+    userProfile?.preferred_genre,
   );
 
   // Onboarding progress modal state (US-018)
@@ -103,6 +106,56 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       setSelectedGradeLevel(
         (userProfile?.preferred_grade_level as GradeLevel) || 'K-2',
       ); // Revert on error
+    }
+  };
+
+  const genreDescriptions: Record<StoryGenre, string> = useMemo(
+    () => ({
+      Mystery: 'Clues, secrets, and puzzles to solve',
+      Fantasy: 'Magic, mythical creatures, and enchanted worlds',
+      Comedy: 'Humor, funny situations, and lighthearted fun',
+      Horror: 'Spooky adventures and suspenseful tales',
+      Fiction: 'Realistic stories with relatable characters',
+      'Fairy Tale': 'Once upon a time... classic tales reimagined',
+    }),
+    [],
+  );
+
+  const GENRES: StoryGenre[] = [
+    'Mystery',
+    'Fantasy',
+    'Comedy',
+    'Horror',
+    'Fiction',
+    'Fairy Tale',
+  ];
+
+  const handleGenreChange = async (genre: StoryGenre) => {
+    const previousGenre = selectedGenre;
+    // Tapping the active genre deselects it (No Preference)
+    const newGenre = selectedGenre === genre ? undefined : genre;
+    setSelectedGenre(newGenre);
+
+    try {
+      const result = await updateProfile({
+        preferred_genre: newGenre,
+      });
+
+      if (result.error) {
+        Alert.alert('Update Failed', result.error);
+        setSelectedGenre(previousGenre);
+      } else {
+        Alert.alert(
+          'Success',
+          newGenre
+            ? `Story genre set to ${newGenre}!`
+            : 'Genre preference cleared!',
+        );
+      }
+    } catch (error) {
+      console.error('Genre update error:', error);
+      Alert.alert('Error', 'Failed to update genre preference');
+      setSelectedGenre(previousGenre);
     }
   };
 
@@ -184,6 +237,52 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   </TouchableOpacity>
                 ))}
               </View>
+            </View>
+          </View>
+
+          {/* Story Genre Selection */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>📚 Story Genre</Text>
+
+            <View style={styles.settingItem}>
+              <Text style={styles.settingLabel}>Preferred Genre</Text>
+              <Text style={styles.settingDescription}>
+                {selectedGenre
+                  ? genreDescriptions[selectedGenre]
+                  : 'Stories will vary in theme each time'}
+              </Text>
+              <View style={styles.gradeButtons}>
+                {GENRES.map(genre => (
+                  <TouchableOpacity
+                    key={genre}
+                    style={[
+                      styles.gradeButton,
+                      selectedGenre === genre && styles.selectedGradeButton,
+                    ]}
+                    onPress={() => handleGenreChange(genre)}
+                  >
+                    <Text
+                      style={[
+                        styles.gradeButtonText,
+                        selectedGenre === genre &&
+                          styles.selectedGradeButtonText,
+                      ]}
+                    >
+                      {genre}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {selectedGenre && (
+                <TouchableOpacity
+                  style={styles.clearGenreButton}
+                  onPress={() => handleGenreChange(selectedGenre)}
+                >
+                  <Text style={styles.clearGenreButtonText}>
+                    Clear Selection (No Preference)
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
 
@@ -381,6 +480,16 @@ const styles = StyleSheet.create({
   },
   selectedGradeButtonText: {
     color: '#ffffff',
+  },
+  clearGenreButton: {
+    alignItems: 'center',
+    marginTop: 5,
+    paddingVertical: 8,
+  },
+  clearGenreButtonText: {
+    fontSize: 14,
+    color: '#4CAF50',
+    fontWeight: '500',
   },
   logoutButton: {
     backgroundColor: '#f44336',
