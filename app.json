@@ -17,7 +17,17 @@
   },
   "scheme": "creativebridge",
   "owner": "hcho22",
-  "plugins": ["expo-web-browser", "expo-secure-store", "expo-font"],
+  "plugins": [
+    "expo-web-browser",
+    "expo-secure-store",
+    "expo-font",
+    [
+      "react-native-permissions",
+      {
+        "iosPermissions": ["Microphone", "SpeechRecognition"]
+      }
+    ]
+  ],
   "android": {
     "package": "org.name.CreativeBridge"
   }
