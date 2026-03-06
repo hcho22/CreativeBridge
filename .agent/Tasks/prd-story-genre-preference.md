@@ -136,15 +136,15 @@ Users currently have no control over the genre or tone of AI-generated stories. 
 
 **Acceptance Criteria:**
 
-- [ ] Add `preferredGenre` memo derived from `userProfile?.preferred_genre` (next to existing `gradeLevel` memo in HomeScreen)
-- [ ] In `executeStartNewGame`: change `theme: 'adventure'` to `theme: preferredGenre ?? 'adventure'`
-- [ ] In `continueStory` call: add `genre: preferredGenre` to the request object
-- [ ] When `preferredGenre` is undefined, behavior is unchanged from current (theme defaults to `'adventure'`)
-- [ ] Typecheck passes
+- [x] Add `preferredGenre` memo derived from `userProfile?.preferred_genre` (next to existing `gradeLevel` memo in HomeScreen)
+- [x] In `executeStartNewGame`: change `theme: 'adventure'` to `theme: preferredGenre ?? 'adventure'`
+- [x] In `continueStory` call: add `genre: preferredGenre` to the request object
+- [x] When `preferredGenre` is undefined, behavior is unchanged from current (theme defaults to `'adventure'`)
+- [x] Typecheck passes (no new errors introduced; pre-existing errors in unrelated files)
 
 **Validation Test:**
 
-- [ ] Write `__tests__/screens/HomeScreen.genre.test.ts`: mock `storyAgentService.generateStoryStarter` and `storyAgentService.continueStory`; verify `theme` param equals the user's preferred genre; verify fallback to `'adventure'` when no genre set
+- [x] Write `__tests__/screens/HomeScreen.genre.test.ts`: mock `storyAgentService.generateStoryStarter` and `storyAgentService.continueStory`; verify `theme` param equals the user's preferred genre; verify fallback to `'adventure'` when no genre set (32 tests, all passing)
 
 ---
 
@@ -154,26 +154,27 @@ Users currently have no control over the genre or tone of AI-generated stories. 
 
 **Acceptance Criteria:**
 
-- [ ] `buildSystemPrompt()` in `storyGenerationService.ts` accepts a `genre?: string` parameter
-- [ ] When genre is set, a `GENRE: <NAME>` block with genre-specific writing guidance is inserted into the system prompt between vocabulary requirements and key guidelines
-- [ ] Genre guidance map covers all 6 genres with distinct style instructions
-- [ ] Horror guidance for K-2 says "spooky and silly" (not scary); for 3-5 says "mild suspense and mystery" (not frightening)
-- [ ] `buildPrompts()` passes `request.genre` to `buildSystemPrompt()`
-- [ ] `buildUserPrompt()` story continuation branch appends `Maintain the ${genre} genre throughout.` when genre is set
-- [ ] `buildUserPrompt()` story starter branch adds a `GENRE REQUIREMENT` paragraph when genre is set
-- [ ] Fallback story selection prefers matching genre categories when genre is set (e.g., Mystery → `['mystery']`, Fantasy → `['fantasy', 'adventure']`)
-- [ ] When genre is undefined, all prompts are identical to current behavior (no regression)
-- [ ] Typecheck passes
+- [x] `buildSystemPrompt()` in `storyGenerationService.ts` accepts a `genre?: string` parameter
+- [x] When genre is set, a `GENRE: <NAME>` block with genre-specific writing guidance is inserted into the system prompt between vocabulary requirements and key guidelines
+- [x] Genre guidance map covers all 6 genres with distinct style instructions
+- [x] Horror guidance for K-2 says "spooky and silly" (not scary); for 3-5 says "mild suspense and mystery" (not frightening)
+- [x] `buildPrompts()` passes `request.genre` to `buildSystemPrompt()`
+- [x] `buildUserPrompt()` story continuation branch appends `Maintain the ${genre} genre throughout.` when genre is set
+- [x] `buildUserPrompt()` story starter branch adds a `GENRE REQUIREMENT` paragraph when genre is set
+- [x] Fallback story selection prefers matching genre categories when genre is set (e.g., Mystery → `['mystery']`, Fantasy → `['fantasy', 'adventure']`)
+- [x] When genre is undefined, all prompts are identical to current behavior (no regression)
+- [x] Typecheck passes (no new errors introduced; pre-existing errors in unrelated files)
 
 **Validation Test:**
 
-- [ ] Write `__tests__/services/storyGenerationService.genre.test.ts`:
+- [x] Write `__tests__/services/storyGenerationService.genre.test.ts`:
   - Test `buildSystemPrompt` with each genre → output contains genre name and guidance text
   - Test `buildSystemPrompt` with `genre: 'Horror'` and `gradeLevel: 'K-2'` → output contains "spooky" or "silly", NOT "scary" or "frightening"
   - Test `buildSystemPrompt` with no genre → output does NOT contain "GENRE:"
   - Test `buildUserPrompt` continuation with genre → output contains "Maintain the Mystery genre"
   - Test `buildUserPrompt` starter with genre → output contains "GENRE REQUIREMENT"
   - Test `buildUserPrompt` without genre → output unchanged from baseline
+  - (45 tests, all passing)
 
 ---
 
@@ -183,19 +184,20 @@ Users currently have no control over the genre or tone of AI-generated stories. 
 
 **Acceptance Criteria:**
 
-- [ ] `getGradeLevelChallenge()` in `storyAgent.ts` accepts an optional `genre?: string` parameter
-- [ ] Genre-specific challenge modifiers are appended to the base challenge (e.g., Mystery → "Include a mysterious element that raises questions", Comedy → "Include a humorous moment or funny character trait")
-- [ ] `buildStarterRequest()` passes `request.theme` as the genre parameter to `getGradeLevelChallenge()`
-- [ ] When genre is undefined, challenge strings are unchanged
-- [ ] Typecheck passes
+- [x] `getGradeLevelChallenge()` in `storyAgent.ts` accepts an optional `genre?: string` parameter
+- [x] Genre-specific challenge modifiers are appended to the base challenge (e.g., Mystery → "Include a mysterious element that raises questions", Comedy → "Include a humorous moment or funny character trait")
+- [x] `buildStarterRequest()` passes `request.theme` as the genre parameter to `getGradeLevelChallenge()`
+- [x] When genre is undefined, challenge strings are unchanged
+- [x] Typecheck passes (no new errors introduced; pre-existing errors in unrelated files)
 
 **Validation Test:**
 
-- [ ] Write `__tests__/services/storyAgent.genre.test.ts`:
+- [x] Write `__tests__/services/storyAgent.genre.test.ts`:
   - Test `getGradeLevelChallenge('K-2', 'Mystery')` → includes base K-2 challenge + mystery modifier
   - Test `getGradeLevelChallenge('9-12', 'Comedy')` → includes base 9-12 challenge + comedy modifier
   - Test `getGradeLevelChallenge('3-5')` (no genre) → identical to current output
   - Test `buildStarterRequest` with `theme: 'Fantasy'` → `challenge` field includes fantasy modifier
+  - (21 tests, all passing)
 
 ## Functional Requirements
 
