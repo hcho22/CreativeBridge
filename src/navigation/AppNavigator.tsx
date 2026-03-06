@@ -79,7 +79,7 @@ const HomeStackNavigator: React.FC = () => {
         headerTintColor: '#333',
         headerTitleStyle: {
           fontWeight: 'bold',
-          fontSize: 18,
+          fontSize: 20,
         },
       }}
     >
@@ -174,7 +174,7 @@ const AppNavigator: React.FC = () => {
             height: 85,
           },
           tabBarLabelStyle: {
-            fontSize: 12,
+            fontSize: 14,
             fontWeight: '600',
           },
           headerStyle: {
@@ -183,7 +183,7 @@ const AppNavigator: React.FC = () => {
           headerTintColor: '#333',
           headerTitleStyle: {
             fontWeight: 'bold',
-            fontSize: 18,
+            fontSize: 20,
           },
         })}
       >

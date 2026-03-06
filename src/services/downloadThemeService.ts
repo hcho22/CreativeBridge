@@ -11,18 +11,18 @@ export interface ThemeColors {
   surface: string;
   card: string;
   modal: string;
-  
+
   // Content colors
   text: string;
   textSecondary: string;
   textMuted: string;
-  
+
   // Interactive colors
   primary: string;
   primaryText: string;
   secondary: string;
   secondaryText: string;
-  
+
   // Status colors
   success: string;
   successText: string;
@@ -30,18 +30,18 @@ export interface ThemeColors {
   warningText: string;
   error: string;
   errorText: string;
-  
+
   // Progress colors
   progress: string;
   progressBackground: string;
-  
+
   // Border colors
   border: string;
   borderLight: string;
-  
+
   // Shadow colors
   shadow: string;
-  
+
   // Overlay colors
   overlay: string;
   modalOverlay: string;
@@ -118,9 +118,11 @@ export class DownloadThemeService {
   /**
    * Get download button styles for current theme
    */
-  getDownloadButtonStyles(state: 'idle' | 'downloading' | 'completed' | 'error'): any {
+  getDownloadButtonStyles(
+    state: 'idle' | 'downloading' | 'completed' | 'error',
+  ): any {
     const theme = this.getCurrentTheme();
-    
+
     const baseStyles = {
       borderRadius: theme.borderRadius.md,
       paddingHorizontal: theme.spacing.lg,
@@ -138,26 +140,26 @@ export class DownloadThemeService {
           ...baseStyles,
           backgroundColor: theme.colors.primary,
         };
-      
+
       case 'downloading':
         return {
           ...baseStyles,
           backgroundColor: theme.colors.secondary,
           opacity: 0.8,
         };
-      
+
       case 'completed':
         return {
           ...baseStyles,
           backgroundColor: theme.colors.success,
         };
-      
+
       case 'error':
         return {
           ...baseStyles,
           backgroundColor: theme.colors.error,
         };
-      
+
       default:
         return baseStyles;
     }
@@ -166,9 +168,11 @@ export class DownloadThemeService {
   /**
    * Get download button text styles
    */
-  getDownloadButtonTextStyles(state: 'idle' | 'downloading' | 'completed' | 'error'): any {
+  getDownloadButtonTextStyles(
+    state: 'idle' | 'downloading' | 'completed' | 'error',
+  ): any {
     const theme = this.getCurrentTheme();
-    
+
     const baseStyles = {
       fontSize: theme.typography.fontSize.md,
       fontWeight: theme.typography.fontWeight.semibold,
@@ -181,25 +185,25 @@ export class DownloadThemeService {
           ...baseStyles,
           color: theme.colors.primaryText,
         };
-      
+
       case 'downloading':
         return {
           ...baseStyles,
           color: theme.colors.secondaryText,
         };
-      
+
       case 'completed':
         return {
           ...baseStyles,
           color: theme.colors.successText,
         };
-      
+
       case 'error':
         return {
           ...baseStyles,
           color: theme.colors.errorText,
         };
-      
+
       default:
         return baseStyles;
     }
@@ -210,7 +214,7 @@ export class DownloadThemeService {
    */
   getProgressIndicatorStyles(): any {
     const theme = this.getCurrentTheme();
-    
+
     return {
       container: {
         backgroundColor: theme.colors.progressBackground,
@@ -238,7 +242,7 @@ export class DownloadThemeService {
    */
   getModalStyles(): any {
     const theme = this.getCurrentTheme();
-    
+
     return {
       overlay: {
         flex: 1,
@@ -277,7 +281,7 @@ export class DownloadThemeService {
    */
   getListItemStyles(): any {
     const theme = this.getCurrentTheme();
-    
+
     return {
       container: {
         backgroundColor: theme.colors.card,
@@ -317,11 +321,11 @@ export class DownloadThemeService {
    */
   getErrorRecoveryStyles(): any {
     const theme = this.getCurrentTheme();
-    
+
     return {
       ...this.getModalStyles(),
       errorIcon: {
-        fontSize: 48,
+        fontSize: 50,
         color: theme.colors.error,
         textAlign: 'center',
         marginBottom: theme.spacing.md,
@@ -360,18 +364,18 @@ export class DownloadThemeService {
         surface: '#F8F9FA',
         card: '#FFFFFF',
         modal: '#FFFFFF',
-        
+
         // Content colors
         text: '#1A1A1A',
         textSecondary: '#6B6B6B',
         textMuted: '#9CA3AF',
-        
+
         // Interactive colors
         primary: '#007AFF',
         primaryText: '#FFFFFF',
         secondary: '#34C759',
         secondaryText: '#FFFFFF',
-        
+
         // Status colors
         success: '#34C759',
         successText: '#FFFFFF',
@@ -379,18 +383,18 @@ export class DownloadThemeService {
         warningText: '#FFFFFF',
         error: '#FF3B30',
         errorText: '#FFFFFF',
-        
+
         // Progress colors
         progress: '#007AFF',
         progressBackground: '#E5E5E7',
-        
+
         // Border colors
         border: '#E5E5E7',
         borderLight: '#F2F2F7',
-        
+
         // Shadow colors
         shadow: '#000000',
-        
+
         // Overlay colors
         overlay: 'rgba(0, 0, 0, 0.1)',
         modalOverlay: 'rgba(0, 0, 0, 0.5)',
@@ -408,18 +412,18 @@ export class DownloadThemeService {
         surface: '#1C1C1E',
         card: '#2C2C2E',
         modal: '#1C1C1E',
-        
+
         // Content colors
         text: '#FFFFFF',
         textSecondary: '#AEAEB2',
         textMuted: '#6D6D70',
-        
+
         // Interactive colors
         primary: '#0A84FF',
         primaryText: '#FFFFFF',
         secondary: '#30D158',
         secondaryText: '#000000',
-        
+
         // Status colors
         success: '#30D158',
         successText: '#000000',
@@ -427,18 +431,18 @@ export class DownloadThemeService {
         warningText: '#000000',
         error: '#FF453A',
         errorText: '#FFFFFF',
-        
+
         // Progress colors
         progress: '#0A84FF',
         progressBackground: '#3A3A3C',
-        
+
         // Border colors
         border: '#3A3A3C',
         borderLight: '#2C2C2E',
-        
+
         // Shadow colors
         shadow: '#000000',
-        
+
         // Overlay colors
         overlay: 'rgba(255, 255, 255, 0.1)',
         modalOverlay: 'rgba(0, 0, 0, 0.8)',
@@ -460,11 +464,11 @@ export class DownloadThemeService {
       },
       typography: {
         fontSize: {
-          xs: 12,
-          sm: 14,
-          md: 16,
-          lg: 18,
-          xl: 24,
+          xs: 14,
+          sm: 16,
+          md: 18,
+          lg: 20,
+          xl: 26,
         },
         fontWeight: {
           normal: '400',
