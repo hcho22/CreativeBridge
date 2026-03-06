@@ -8,7 +8,12 @@
     "convexUrl": "${CONVEX_URL}"
   },
   "ios": {
-    "bundleIdentifier": "org.name.CreativeBridge"
+    "bundleIdentifier": "org.name.CreativeBridge",
+    "infoPlist": {
+      "NSMicrophoneUsageDescription": "CreativeBridge needs microphone access so you can dictate your story ideas using voice input.",
+      "NSSpeechRecognitionUsageDescription": "CreativeBridge uses speech recognition to convert your voice input into text for story creation.",
+      "NSPhotoLibraryUsageDescription": "CreativeBridge needs access to your photo library to save and share your generated story illustrations."
+    }
   },
   "scheme": "creativebridge",
   "owner": "hcho22",

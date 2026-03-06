@@ -284,11 +284,16 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
         try {
           // Check microphone permission
           const micStatus = await check(PERMISSIONS.IOS.MICROPHONE);
+          console.log('🎤 [VoiceInput] iOS mic permission status:', micStatus);
 
           if (micStatus === RESULTS.GRANTED) {
             // Check speech recognition permission
             const speechStatus = await check(
               PERMISSIONS.IOS.SPEECH_RECOGNITION,
+            );
+            console.log(
+              '🎤 [VoiceInput] iOS speech permission status:',
+              speechStatus,
             );
 
             if (speechStatus === RESULTS.GRANTED) {
@@ -300,23 +305,45 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
               );
               return requestResult === RESULTS.GRANTED;
             } else {
-              // Blocked or unavailable
+              // Blocked or unavailable — user must enable in Settings
+              console.log(
+                '🎤 [VoiceInput] Speech recognition blocked/unavailable:',
+                speechStatus,
+              );
               return false;
             }
           } else if (micStatus === RESULTS.DENIED) {
-            // Request microphone permission first
+            // Request microphone permission first (triggers iOS system dialog)
             const micRequestResult = await request(PERMISSIONS.IOS.MICROPHONE);
+            console.log(
+              '🎤 [VoiceInput] Mic request result:',
+              micRequestResult,
+            );
 
             if (micRequestResult === RESULTS.GRANTED) {
               // Now request speech recognition
               const speechRequestResult = await request(
                 PERMISSIONS.IOS.SPEECH_RECOGNITION,
               );
+              console.log(
+                '🎤 [VoiceInput] Speech request result:',
+                speechRequestResult,
+              );
               return speechRequestResult === RESULTS.GRANTED;
             }
             return false;
+          } else if (micStatus === RESULTS.BLOCKED) {
+            // Previously denied — user must re-enable in Settings
+            console.log(
+              '🎤 [VoiceInput] Mic permission blocked — user must enable in Settings',
+            );
+            return false;
           } else {
-            // Blocked or unavailable
+            // Unavailable (e.g., missing Info.plist key or unsupported device)
+            console.log(
+              '🎤 [VoiceInput] Mic permission unavailable:',
+              micStatus,
+            );
             return false;
           }
         } catch (error) {
