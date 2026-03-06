@@ -1766,7 +1766,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   appSubtitle: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
     textAlign: 'center',
     marginBottom: 24,
@@ -1776,14 +1776,14 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   formTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
     textAlign: 'center',
     marginBottom: 4,
   },
   formSubtitle: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
     textAlign: 'center',
     marginBottom: 12,
@@ -1792,7 +1792,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   inputLabel: {
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: '600',
     color: '#333',
     marginBottom: 6,
@@ -1803,7 +1803,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 15,
     paddingVertical: 10,
-    fontSize: 16,
+    fontSize: 18,
     backgroundColor: '#f8f9fa',
   },
   passwordInputWrapper: {
@@ -1816,7 +1816,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 10,
     paddingRight: 50,
-    fontSize: 16,
+    fontSize: 18,
     backgroundColor: '#f8f9fa',
   },
   passwordToggle: {
@@ -1829,10 +1829,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   passwordToggleText: {
-    fontSize: 18,
+    fontSize: 20,
   },
   passwordHint: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
     marginTop: 5,
   },
@@ -1846,7 +1846,7 @@ const styles = StyleSheet.create({
     marginBottom: 60,
   },
   forgotPasswordText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#4CAF50',
     fontWeight: '600',
   },
@@ -1863,7 +1863,7 @@ const styles = StyleSheet.create({
   },
   authButtonText: {
     color: '#ffffff',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
   },
   switchContainer: {
@@ -1872,11 +1872,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   switchText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
   },
   switchLink: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#4CAF50',
     fontWeight: '600',
   },
@@ -1893,7 +1893,7 @@ const styles = StyleSheet.create({
   },
   oauthDividerText: {
     marginHorizontal: 16,
-    fontSize: 14,
+    fontSize: 16,
     color: '#999',
     fontWeight: '500',
   },
@@ -1920,12 +1920,12 @@ const styles = StyleSheet.create({
     borderTopWidth: 0,
   },
   legalLinkText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
     textDecorationLine: 'underline',
   },
   legalDivider: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
     marginHorizontal: 8,
   },
@@ -1964,23 +1964,23 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   errorText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#dc3545',
     marginBottom: 4,
   },
   warningText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#fd7e14',
     marginBottom: 4,
   },
   suggestionText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#6c757d',
     marginBottom: 4,
     fontStyle: 'italic',
   },
   successText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#198754',
     marginBottom: 4,
   },
@@ -1994,12 +1994,12 @@ const styles = StyleSheet.create({
     borderLeftColor: '#4CAF50',
   },
   emailLabel: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
     marginBottom: 5,
   },
   emailAddress: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#333',
   },
@@ -2015,7 +2015,7 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: {
     color: '#4CAF50',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
   },
   helpSection: {
@@ -2026,7 +2026,7 @@ const styles = StyleSheet.create({
     borderColor: '#ffeaa7',
   },
   helpText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#856404',
     marginBottom: 8,
     textAlign: 'center',
@@ -2047,7 +2047,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   passwordStrengthText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
     textAlign: 'center',
   },
@@ -2084,7 +2084,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0fff0',
   },
   gradeLevelOptionText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#333',
     textAlign: 'center',
     fontWeight: '500',
@@ -2116,11 +2116,11 @@ const styles = StyleSheet.create({
   },
   checkboxCheck: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
   },
   checkboxText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#333',
     flex: 1,
     lineHeight: 20,
@@ -2136,7 +2136,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 15,
     paddingVertical: 14,
-    fontSize: 28,
+    fontSize: 30,
     backgroundColor: '#f8f9fa',
     textAlign: 'center',
     letterSpacing: 12,
@@ -2147,7 +2147,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   backButtonText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
     fontWeight: '500',
   },

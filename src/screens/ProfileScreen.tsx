@@ -316,18 +316,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   avatarText: {
-    fontSize: 36,
+    fontSize: 38,
     fontWeight: 'bold',
     color: '#ffffff',
   },
   displayName: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 5,
   },
   username: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#666',
     marginBottom: 20,
   },
@@ -339,7 +339,7 @@ const styles = StyleSheet.create({
   },
   editButtonText: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
   },
   section: {
@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 15,
@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   levelText: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#4CAF50',
     marginBottom: 10,
@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   progressText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
   },
   statsGrid: {
@@ -398,13 +398,13 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   statValue: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#4CAF50',
     marginBottom: 5,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
     textAlign: 'center',
   },
@@ -417,12 +417,12 @@ const styles = StyleSheet.create({
     borderBottomColor: '#f0f0f0',
   },
   preferenceLabel: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#333',
     fontWeight: '500',
   },
   preferenceValue: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#666',
   },
   enabledText: {
@@ -436,7 +436,7 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   achievementsPlaceholder: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
     textAlign: 'center',
     fontStyle: 'italic',
@@ -458,7 +458,7 @@ const styles = StyleSheet.create({
     padding: 25,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 20,
@@ -468,7 +468,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   inputLabel: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#333',
     marginBottom: 8,
@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 15,
     paddingVertical: 12,
-    fontSize: 16,
+    fontSize: 18,
     backgroundColor: '#f8f9fa',
   },
   modalButtons: {
@@ -502,12 +502,12 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     color: '#666',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
   },
   saveButtonText: {
     color: '#ffffff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
   },
 });
