@@ -287,7 +287,7 @@ const styles = StyleSheet.create({
     marginRight: 0,
   },
   googleIcon: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: theme.typography.fontWeight.bold,
     color: theme.colors.surface,
   },
@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
     borderColor: '#28a745',
   },
   successIcon: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: theme.typography.fontWeight.bold,
     color: '#28a745',
     marginRight: theme.spacing.sm,

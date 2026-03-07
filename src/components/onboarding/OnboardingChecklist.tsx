@@ -450,7 +450,7 @@ const styles = StyleSheet.create({
     marginRight: theme.spacing.md,
   },
   emoji: {
-    fontSize: 16,
+    fontSize: 18,
   },
   itemTitle: {
     flex: 1,

@@ -696,14 +696,14 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   title: {
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#666',
     textAlign: 'center',
   },
@@ -714,7 +714,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   inputLabel: {
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: '600',
     color: '#333',
     marginBottom: 6,
@@ -725,7 +725,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 15,
     paddingVertical: 12,
-    fontSize: 16,
+    fontSize: 18,
     backgroundColor: '#ffffff',
   },
   emailInputWrapper: {
@@ -747,23 +747,23 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   errorText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#dc3545',
     marginBottom: 4,
   },
   warningText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#fd7e14',
     marginBottom: 4,
   },
   suggestionText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#6c757d',
     marginBottom: 4,
     fontStyle: 'italic',
   },
   successText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#198754',
     marginBottom: 4,
   },
@@ -783,7 +783,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0fff0',
   },
   hintText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
     marginTop: 5,
   },
@@ -803,7 +803,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0fff0',
   },
   gradeLevelOptionText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#333',
     textAlign: 'center',
     fontWeight: '500',
@@ -825,7 +825,7 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     color: '#ffffff',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
   },
   skipButton: {
@@ -846,7 +846,7 @@ const styles = StyleSheet.create({
   },
   skipButtonText: {
     color: '#666',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '500',
   },
   helpSection: {
@@ -857,7 +857,7 @@ const styles = StyleSheet.create({
     borderColor: '#ffeaa7',
   },
   helpText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#856404',
     textAlign: 'center',
   },

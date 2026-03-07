@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.xxl,
   },
   welcomeEmoji: {
-    fontSize: 48,
+    fontSize: 50,
     marginBottom: theme.spacing.md,
   },
   tagline: {
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sampleImageEmoji: {
-    fontSize: 48,
+    fontSize: 50,
     marginBottom: theme.spacing.xs,
   },
   sampleImageText: {
@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
   },
   completeBadgeText: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: theme.typography.fontWeight.bold,
   },
   samplePreview: {
@@ -427,7 +427,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.full,
   },
   featureEmoji: {
-    fontSize: 16,
+    fontSize: 18,
     marginRight: theme.spacing.xs,
   },
   featureText: {

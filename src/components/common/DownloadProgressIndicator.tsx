@@ -23,12 +23,9 @@ interface DownloadProgressIndicatorProps {
   style?: any;
 }
 
-export const DownloadProgressIndicator: React.FC<DownloadProgressIndicatorProps> = ({
-  visible,
-  progress,
-  onCancel,
-  style
-}) => {
+export const DownloadProgressIndicator: React.FC<
+  DownloadProgressIndicatorProps
+> = ({ visible, progress, onCancel, style }) => {
   const [progressAnim] = useState(new Animated.Value(0));
   const [fadeAnim] = useState(new Animated.Value(0));
   const [scaleAnim] = useState(new Animated.Value(0.8));
@@ -79,31 +76,50 @@ export const DownloadProgressIndicator: React.FC<DownloadProgressIndicatorProps>
 
   const getStageIcon = (stage: DownloadProgress['stage']): string => {
     switch (stage) {
-      case 'validating': return '🔍';
-      case 'generating': return '📝';
-      case 'compressing': return '🗜️';
-      case 'saving': return '💾';
-      case 'sharing': return '📤';
-      case 'completed': return '✅';
-      case 'error': return '❌';
-      default: return '⏳';
+      case 'validating':
+        return '🔍';
+      case 'generating':
+        return '📝';
+      case 'compressing':
+        return '🗜️';
+      case 'saving':
+        return '💾';
+      case 'sharing':
+        return '📤';
+      case 'completed':
+        return '✅';
+      case 'error':
+        return '❌';
+      default:
+        return '⏳';
     }
   };
 
   const getStageColor = (stage: DownloadProgress['stage']): string => {
     switch (stage) {
-      case 'validating': return '#2196F3';
-      case 'generating': return '#FF9800';
-      case 'compressing': return '#9C27B0';
-      case 'saving': return '#4CAF50';
-      case 'sharing': return '#00BCD4';
-      case 'completed': return '#4CAF50';
-      case 'error': return '#F44336';
-      default: return '#757575';
+      case 'validating':
+        return '#2196F3';
+      case 'generating':
+        return '#FF9800';
+      case 'compressing':
+        return '#9C27B0';
+      case 'saving':
+        return '#4CAF50';
+      case 'sharing':
+        return '#00BCD4';
+      case 'completed':
+        return '#4CAF50';
+      case 'error':
+        return '#F44336';
+      default:
+        return '#757575';
     }
   };
 
-  const formatStageMessage = (stage: DownloadProgress['stage'], message: string): string => {
+  const formatStageMessage = (
+    stage: DownloadProgress['stage'],
+    message: string,
+  ): string => {
     const stageLabels: Record<string, string> = {
       validating: 'Validating Content',
       generating: 'Generating File',
@@ -119,7 +135,7 @@ export const DownloadProgressIndicator: React.FC<DownloadProgressIndicatorProps>
 
   const formatTimeRemaining = (seconds?: number): string => {
     if (!seconds || seconds <= 0) return '';
-    
+
     if (seconds < 60) {
       return `${Math.round(seconds)}s remaining`;
     } else {
@@ -161,7 +177,11 @@ export const DownloadProgressIndicator: React.FC<DownloadProgressIndicatorProps>
               {getStageIcon(progress.stage)}
             </Text>
             <Text style={styles.headerTitle}>
-              {isCompleted ? 'Download Complete' : isError ? 'Download Failed' : 'Downloading Story'}
+              {isCompleted
+                ? 'Download Complete'
+                : isError
+                ? 'Download Failed'
+                : 'Downloading Story'}
             </Text>
           </View>
 
@@ -169,10 +189,12 @@ export const DownloadProgressIndicator: React.FC<DownloadProgressIndicatorProps>
           <View style={styles.content}>
             {/* Stage Information */}
             <View style={styles.stageContainer}>
-              <View style={[
-                styles.stageIndicator,
-                { backgroundColor: getStageColor(progress.stage) }
-              ]} />
+              <View
+                style={[
+                  styles.stageIndicator,
+                  { backgroundColor: getStageColor(progress.stage) },
+                ]}
+              />
               <Text style={styles.stageText}>
                 {formatStageMessage(progress.stage, progress.message)}
               </Text>
@@ -202,11 +224,13 @@ export const DownloadProgressIndicator: React.FC<DownloadProgressIndicatorProps>
             )}
 
             {/* Message */}
-            <Text style={[
-              styles.message,
-              isError && styles.errorMessage,
-              isCompleted && styles.successMessage,
-            ]}>
+            <Text
+              style={[
+                styles.message,
+                isError && styles.errorMessage,
+                isCompleted && styles.successMessage,
+              ]}
+            >
               {progress.message}
             </Text>
 
@@ -239,12 +263,12 @@ export const DownloadProgressIndicator: React.FC<DownloadProgressIndicatorProps>
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
             )}
-            
+
             {(isCompleted || isError) && (
               <TouchableOpacity
                 style={[styles.button, styles.closeButton]}
                 onPress={onCancel}
-                accessibilityLabel={isCompleted ? "Close" : "Dismiss error"}
+                accessibilityLabel={isCompleted ? 'Close' : 'Dismiss error'}
               >
                 <Text style={styles.closeButtonText}>
                   {isCompleted ? 'Done' : 'Close'}
@@ -287,11 +311,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerIcon: {
-    fontSize: 32,
+    fontSize: 34,
     marginBottom: 8,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
     textAlign: 'center',
@@ -311,7 +335,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   stageText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#333',
     flex: 1,
@@ -331,13 +355,13 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   progressText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '500',
     color: '#666',
     textAlign: 'center',
   },
   message: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
     textAlign: 'center',
     lineHeight: 20,
@@ -350,7 +374,7 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
   },
   timeRemaining: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#999',
     textAlign: 'center',
     fontStyle: 'italic',
@@ -381,7 +405,7 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
   },
   cancelButtonText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#666',
   },
@@ -389,7 +413,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#4CAF50',
   },
   closeButtonText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#fff',
   },

@@ -331,7 +331,7 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.base,
   },
   iconText: {
-    fontSize: 32,
+    fontSize: 34,
   },
   title: {
     fontSize: theme.typography.fontSize.xl,
@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   tipIcon: {
-    fontSize: 16,
+    fontSize: 18,
     marginRight: theme.spacing.sm,
     marginTop: 2,
   },

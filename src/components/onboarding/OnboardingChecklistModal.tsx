@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerIcon: {
-    fontSize: 24,
+    fontSize: 26,
   },
   closeButton: {
     width: 32,

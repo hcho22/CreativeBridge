@@ -420,7 +420,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 20,
@@ -438,18 +438,18 @@ const styles = StyleSheet.create({
     marginRight: 15,
   },
   settingLabel: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#333',
     marginBottom: 4,
   },
   settingDescription: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
     lineHeight: 20,
   },
   userInfo: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#4CAF50',
     fontWeight: '500',
   },
@@ -474,7 +474,7 @@ const styles = StyleSheet.create({
     borderColor: '#4CAF50',
   },
   gradeButtonText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: '#333',
   },
@@ -487,7 +487,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   clearGenreButtonText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#4CAF50',
     fontWeight: '500',
   },
@@ -501,11 +501,11 @@ const styles = StyleSheet.create({
   },
   logoutButtonText: {
     color: '#ffffff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
   },
   aboutText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
     lineHeight: 20,
     marginTop: 5,
@@ -524,25 +524,25 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   onboardingButtonIcon: {
-    fontSize: 24,
+    fontSize: 26,
     marginRight: 12,
   },
   onboardingButtonText: {
     flex: 1,
   },
   onboardingButtonTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#333',
     marginBottom: 2,
   },
   onboardingButtonDescription: {
-    fontSize: 13,
+    fontSize: 15,
     color: '#666',
     lineHeight: 18,
   },
   onboardingButtonArrow: {
-    fontSize: 24,
+    fontSize: 26,
     color: '#4CAF50',
     fontWeight: '300',
   },

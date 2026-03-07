@@ -246,12 +246,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   title: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
   },
   gradeLevel: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
     color: '#4CAF50',
     backgroundColor: '#e8f5e8',
@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   overallScore: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: 'bold',
     marginBottom: 4,
   },
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   gradeFeedback: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
     textAlign: 'center',
   },
@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   metricLabel: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
     width: 90,
     fontWeight: '600',
@@ -307,7 +307,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   metricValue: {
-    fontSize: 11,
+    fontSize: 13,
     color: '#666',
     fontWeight: '600',
     width: 35,
@@ -319,7 +319,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   suggestionsTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 8,
@@ -330,13 +330,13 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   suggestionIcon: {
-    fontSize: 14,
+    fontSize: 16,
     marginRight: 8,
     marginTop: 1,
   },
   suggestionText: {
     flex: 1,
-    fontSize: 12,
+    fontSize: 14,
     color: '#555',
     lineHeight: 16,
   },
@@ -348,14 +348,14 @@ const styles = StyleSheet.create({
   },
   detailsButtonText: {
     color: '#ffffff',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
   },
   moreButton: {
     marginTop: 4,
   },
   moreButtonText: {
-    fontSize: 11,
+    fontSize: 13,
     color: '#4CAF50',
     fontWeight: '600',
   },

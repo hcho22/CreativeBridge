@@ -12,7 +12,10 @@ import {
   Animated,
   ActivityIndicator,
 } from 'react-native';
-import { enhancedErrorHandling, QueuedDownload } from '../../services/enhancedErrorHandling';
+import {
+  enhancedErrorHandling,
+  QueuedDownload,
+} from '../../services/enhancedErrorHandling';
 import { networkMonitor, NetworkStatus } from '../../services/networkMonitor';
 
 interface DownloadQueueStatusProps {
@@ -22,27 +25,27 @@ interface DownloadQueueStatusProps {
 
 export const DownloadQueueStatus: React.FC<DownloadQueueStatusProps> = ({
   onPress,
-  style
+  style,
 }) => {
   const [queuedDownloads, setQueuedDownloads] = useState<QueuedDownload[]>([]);
   const [networkStatus, setNetworkStatus] = useState<NetworkStatus>({
     isConnected: false,
     connectionType: 'unknown',
     isInternetReachable: false,
-    strength: 'unknown'
+    strength: 'unknown',
   });
   const [isProcessing, setIsProcessing] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(1));
 
   useEffect(() => {
     loadQueueStatus();
-    
+
     // Set up network monitoring
     const unsubscribeNetwork = networkMonitor.addListener(setNetworkStatus);
-    
+
     // Refresh queue status periodically
     const interval = setInterval(loadQueueStatus, 10000); // Every 10 seconds
-    
+
     return () => {
       unsubscribeNetwork();
       clearInterval(interval);
@@ -65,10 +68,10 @@ export const DownloadQueueStatus: React.FC<DownloadQueueStatusProps> = ({
     try {
       const result = await enhancedErrorHandling.processDownloadQueue();
       console.log('📊 Queue retry result:', result);
-      
+
       // Refresh queue status
       await loadQueueStatus();
-      
+
       if (result.processed > 0) {
         // Animate success
         Animated.sequence([
@@ -100,7 +103,9 @@ export const DownloadQueueStatus: React.FC<DownloadQueueStatusProps> = ({
     const failedCount = queuedDownloads.filter(d => d.lastError).length;
 
     if (!networkStatus.isConnected) {
-      return `${pendingCount} download${pendingCount !== 1 ? 's' : ''} waiting for connection`;
+      return `${pendingCount} download${
+        pendingCount !== 1 ? 's' : ''
+      } waiting for connection`;
     }
 
     if (isProcessing) {
@@ -108,7 +113,9 @@ export const DownloadQueueStatus: React.FC<DownloadQueueStatusProps> = ({
     }
 
     if (failedCount > 0) {
-      return `${pendingCount} download${pendingCount !== 1 ? 's' : ''} queued (${failedCount} failed)`;
+      return `${pendingCount} download${
+        pendingCount !== 1 ? 's' : ''
+      } queued (${failedCount} failed)`;
     }
 
     return `${pendingCount} download${pendingCount !== 1 ? 's' : ''} queued`;
@@ -137,11 +144,16 @@ export const DownloadQueueStatus: React.FC<DownloadQueueStatusProps> = ({
     }
 
     switch (networkStatus.strength) {
-      case 'excellent': return '📶';
-      case 'good': return '📶';
-      case 'fair': return '📶';
-      case 'poor': return '📶';
-      default: return '📶';
+      case 'excellent':
+        return '📶';
+      case 'good':
+        return '📶';
+      case 'fair':
+        return '📶';
+      case 'poor':
+        return '📶';
+      default:
+        return '📶';
     }
   };
 
@@ -160,7 +172,11 @@ export const DownloadQueueStatus: React.FC<DownloadQueueStatusProps> = ({
         onPress={onPress || handleRetryQueue}
         disabled={isProcessing}
         accessibilityLabel={`Download queue status: ${getStatusText()}`}
-        accessibilityHint={networkStatus.isConnected ? "Tap to retry queued downloads" : "Waiting for network connection"}
+        accessibilityHint={
+          networkStatus.isConnected
+            ? 'Tap to retry queued downloads'
+            : 'Waiting for network connection'
+        }
       >
         <View style={styles.iconContainer}>
           {isProcessing ? (
@@ -172,14 +188,18 @@ export const DownloadQueueStatus: React.FC<DownloadQueueStatusProps> = ({
 
         <View style={styles.textContainer}>
           <Text style={styles.statusText}>{getStatusText()}</Text>
-          
+
           {!networkStatus.isConnected && (
-            <Text style={styles.subText}>Offline - downloads will resume when connected</Text>
+            <Text style={styles.subText}>
+              Offline - downloads will resume when connected
+            </Text>
           )}
-          
-          {networkStatus.isConnected && queuedDownloads.length > 0 && !isProcessing && (
-            <Text style={styles.subText}>Tap to retry now</Text>
-          )}
+
+          {networkStatus.isConnected &&
+            queuedDownloads.length > 0 &&
+            !isProcessing && (
+              <Text style={styles.subText}>Tap to retry now</Text>
+            )}
         </View>
 
         <View style={styles.chevronContainer}>
@@ -201,7 +221,7 @@ export const DownloadQueueStatus: React.FC<DownloadQueueStatusProps> = ({
               )}
             </View>
           ))}
-          
+
           {queuedDownloads.length > 3 && (
             <Text style={styles.moreText}>
               +{queuedDownloads.length - 3} more
@@ -240,19 +260,19 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   networkIcon: {
-    fontSize: 16,
+    fontSize: 18,
   },
   textContainer: {
     flex: 1,
   },
   statusText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#fff',
     marginBottom: 2,
   },
   subText: {
-    fontSize: 12,
+    fontSize: 14,
     color: 'rgba(255, 255, 255, 0.8)',
   },
   chevronContainer: {
@@ -262,7 +282,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   chevron: {
-    fontSize: 18,
+    fontSize: 20,
     color: 'rgba(255, 255, 255, 0.7)',
     fontWeight: 'bold',
   },
@@ -276,7 +296,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   queueItemText: {
-    fontSize: 12,
+    fontSize: 14,
     color: 'rgba(255, 255, 255, 0.9)',
     flex: 1,
   },
@@ -290,12 +310,12 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   errorText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: 'bold',
     color: '#fff',
   },
   moreText: {
-    fontSize: 10,
+    fontSize: 12,
     color: 'rgba(255, 255, 255, 0.7)',
     fontStyle: 'italic',
     marginTop: 4,

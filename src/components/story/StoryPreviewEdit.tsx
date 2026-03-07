@@ -56,7 +56,8 @@ export const StoryPreviewEdit: React.FC<StoryPreviewEditProps> = ({
   autoSaveDelay = 2000,
 }) => {
   // Get story content - prioritize story_content, fallback to imported_story_content
-  const storyContent = story.story_content || story.imported_story_content || '';
+  const storyContent =
+    story.story_content || story.imported_story_content || '';
 
   const [isEditing, setIsEditing] = useState(initialEditMode);
   const [editedContent, setEditedContent] = useState(storyContent);
@@ -446,7 +447,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   backButtonText: {
-    fontSize: 18,
+    fontSize: 20,
     color: '#333',
     fontWeight: '600',
   },
@@ -454,13 +455,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
     color: '#333',
     marginBottom: 2,
   },
   headerSubtitle: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
   },
   metadataButton: {
@@ -470,7 +471,7 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   metadataButtonText: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#666',
   },
   metadataPanel: {
@@ -480,7 +481,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#e0e0e0',
   },
   metadataTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#333',
     marginBottom: 12,
@@ -494,17 +495,17 @@ const styles = StyleSheet.create({
     minWidth: '30%',
   },
   metadataLabel: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
     marginBottom: 2,
   },
   metadataValue: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '500',
     color: '#333',
   },
   unsavedWarning: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#ff6b35',
     marginTop: 8,
     fontWeight: '500',
@@ -529,7 +530,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   storyText: {
-    fontSize: 16,
+    fontSize: 18,
     lineHeight: 24,
     color: '#333',
     fontFamily: Platform.select({
@@ -541,7 +542,7 @@ const styles = StyleSheet.create({
   editInput: {
     flex: 1,
     padding: 20,
-    fontSize: 16,
+    fontSize: 18,
     lineHeight: 24,
     color: '#333',
     fontFamily: Platform.select({
@@ -572,7 +573,7 @@ const styles = StyleSheet.create({
   },
   editButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
   },
   saveButton: {
@@ -580,7 +581,7 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
   },
   cancelButton: {
@@ -588,7 +589,7 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     color: '#666',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
   },
   continueButton: {
@@ -596,7 +597,7 @@ const styles = StyleSheet.create({
   },
   continueButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
   },
   disabledButton: {

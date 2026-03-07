@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
     ...theme.shadows.sm,
   },
   iconText: {
-    fontSize: 40,
+    fontSize: 42,
   },
   title: {
     fontSize: theme.typography.fontSize.xxl,

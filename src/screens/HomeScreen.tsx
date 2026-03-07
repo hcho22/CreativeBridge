@@ -3307,7 +3307,7 @@ const styles = StyleSheet.create({
   floatingTextInput: {
     minHeight: 36,
     maxHeight: 120,
-    fontSize: 16,
+    fontSize: 18,
     fontFamily: 'ArchitectsDaughter_400Regular',
     color: '#333',
     paddingVertical: 4,
@@ -3333,7 +3333,7 @@ const styles = StyleSheet.create({
     opacity: 0.3,
   },
   floatingIconText: {
-    fontSize: 20,
+    fontSize: 22,
   },
   floatingSubmitButton: {
     width: 36,
@@ -3347,7 +3347,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ccc',
   },
   floatingSubmitText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold' as const,
     color: '#ffffff',
   },
@@ -3364,10 +3364,10 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   loadingBannerSpinner: {
-    fontSize: 16,
+    fontSize: 18,
   },
   loadingBannerText: {
-    fontSize: 13,
+    fontSize: 15,
     color: '#555',
     flex: 1,
   },
@@ -3395,10 +3395,10 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   errorBannerIcon: {
-    fontSize: 16,
+    fontSize: 18,
   },
   errorBannerText: {
-    fontSize: 13,
+    fontSize: 15,
     color: '#664d03',
     flex: 1,
   },
@@ -3407,7 +3407,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end' as const,
   },
   errorBannerRetryText: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '600' as const,
     color: '#0d6efd',
   },
@@ -3419,14 +3419,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   welcomeTitle: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: 'bold',
     color: '#333',
     textAlign: 'center',
     marginBottom: 8,
   },
   welcomeSubtitle: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#666',
     textAlign: 'center',
   },
@@ -3449,7 +3449,7 @@ const styles = StyleSheet.create({
   },
   startButtonText: {
     color: '#ffffff',
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
   },
   continueButton: {
@@ -3469,12 +3469,12 @@ const styles = StyleSheet.create({
   },
   continueButtonText: {
     color: '#ffffff',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
   },
   // Game Screen Styles
   gradeLevel: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: 'bold',
     color: '#4CAF50',
     backgroundColor: '#E8F5E8',
@@ -3483,7 +3483,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   roundCounter: {
-    fontSize: 11,
+    fontSize: 13,
     color: '#FF6B35',
     fontWeight: 'bold',
     backgroundColor: '#FFF3E0',
@@ -3522,7 +3522,7 @@ const styles = StyleSheet.create({
   },
   copyButtonText: {
     color: '#ffffff',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
   },
   exitButtonHeader: {
@@ -3533,7 +3533,7 @@ const styles = StyleSheet.create({
   },
   exitButtonHeaderText: {
     color: '#ffffff',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
   },
   storyBook: {
@@ -3547,7 +3547,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   storyText: {
-    fontSize: 18,
+    fontSize: 20,
     lineHeight: 26,
     color: '#333',
     fontFamily: 'ArchitectsDaughter_400Regular',
@@ -3574,11 +3574,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
   compactContributionLabel: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: 'bold',
   },
   compactWordCount: {
-    fontSize: 9,
+    fontSize: 11,
     color: '#888',
     fontWeight: '500',
   },
@@ -3593,7 +3593,7 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   loadingSpinnerButton: {
-    fontSize: 16,
+    fontSize: 18,
     marginRight: 8,
     color: '#ffffff',
   },
@@ -3643,14 +3643,14 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   completionTitle: {
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: 'bold',
     color: '#4CAF50',
     marginBottom: 12,
     textAlign: 'center',
   },
   completionSubtitle: {
-    fontSize: 17,
+    fontSize: 19,
     color: '#333',
     textAlign: 'center',
     marginBottom: 20,
@@ -3662,7 +3662,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   completionStat: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
     fontWeight: '600',
   },
@@ -3692,7 +3692,7 @@ const styles = StyleSheet.create({
   },
   completionOptionText: {
     color: '#ffffff',
-    fontSize: 17,
+    fontSize: 19,
     fontWeight: 'bold',
     textAlign: 'center',
   },
@@ -3753,7 +3753,7 @@ const styles = StyleSheet.create({
   },
   backToOptionsText: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
   },
 });

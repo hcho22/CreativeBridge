@@ -14,7 +14,11 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { DownloadError, RecoveryOption, enhancedErrorHandling } from '../../services/enhancedErrorHandling';
+import {
+  DownloadError,
+  RecoveryOption,
+  enhancedErrorHandling,
+} from '../../services/enhancedErrorHandling';
 
 interface ErrorRecoveryModalProps {
   visible: boolean;
@@ -29,10 +33,12 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({
   error,
   onClose,
   onRetry,
-  onRetryWithOptions
+  onRetryWithOptions,
 }) => {
   const [isExecutingRecovery, setIsExecutingRecovery] = useState(false);
-  const [selectedOption, setSelectedOption] = useState<RecoveryOption | null>(null);
+  const [selectedOption, setSelectedOption] = useState<RecoveryOption | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!visible) {
@@ -48,8 +54,11 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({
     setSelectedOption(option);
 
     try {
-      const success = await enhancedErrorHandling.executeRecoveryAction(option, error);
-      
+      const success = await enhancedErrorHandling.executeRecoveryAction(
+        option,
+        error,
+      );
+
       if (success) {
         // Automatic recovery successful
         onRetry();
@@ -64,7 +73,7 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({
       Alert.alert(
         'Recovery Failed',
         'The recovery action could not be completed. Please try a different approach.',
-        [{ text: 'OK' }]
+        [{ text: 'OK' }],
       );
     } finally {
       setIsExecutingRecovery(false);
@@ -74,25 +83,39 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({
 
   const getErrorIcon = (errorType: DownloadError['type']): string => {
     switch (errorType) {
-      case 'permission_denied': return '🔒';
-      case 'storage_full': return '💾';
-      case 'network_error': return '📶';
-      case 'file_system_error': return '📁';
-      case 'timeout': return '⏱️';
-      case 'user_cancelled': return '🚫';
-      default: return '⚠️';
+      case 'permission_denied':
+        return '🔒';
+      case 'storage_full':
+        return '💾';
+      case 'network_error':
+        return '📶';
+      case 'file_system_error':
+        return '📁';
+      case 'timeout':
+        return '⏱️';
+      case 'user_cancelled':
+        return '🚫';
+      default:
+        return '⚠️';
     }
   };
 
   const getErrorTitle = (errorType: DownloadError['type']): string => {
     switch (errorType) {
-      case 'permission_denied': return 'Permission Required';
-      case 'storage_full': return 'Storage Full';
-      case 'network_error': return 'Network Issue';
-      case 'file_system_error': return 'File System Error';
-      case 'timeout': return 'Download Timeout';
-      case 'user_cancelled': return 'Download Cancelled';
-      default: return 'Download Error';
+      case 'permission_denied':
+        return 'Permission Required';
+      case 'storage_full':
+        return 'Storage Full';
+      case 'network_error':
+        return 'Network Issue';
+      case 'file_system_error':
+        return 'File System Error';
+      case 'timeout':
+        return 'Download Timeout';
+      case 'user_cancelled':
+        return 'Download Cancelled';
+      default:
+        return 'Download Error';
     }
   };
 
@@ -101,9 +124,9 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({
       case 'permission_denied':
         return 'The app needs permission to save files to your device. Please grant file access permissions in Settings.';
       case 'storage_full':
-        return 'Your device doesn\'t have enough storage space for this download. Free up some space and try again.';
+        return "Your device doesn't have enough storage space for this download. Free up some space and try again.";
       case 'network_error':
-        return 'There\'s a problem with your internet connection. Check your connection and try again.';
+        return "There's a problem with your internet connection. Check your connection and try again.";
       case 'file_system_error':
         return 'There was a problem accessing the file system. This might be a temporary issue.';
       case 'timeout':
@@ -111,16 +134,22 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({
       case 'user_cancelled':
         return 'The download was cancelled. You can start a new download anytime.';
       default:
-        return error.message || 'An unexpected error occurred during the download.';
+        return (
+          error.message || 'An unexpected error occurred during the download.'
+        );
     }
   };
 
   const getPriorityColor = (priority: RecoveryOption['priority']): string => {
     switch (priority) {
-      case 'high': return '#4CAF50';
-      case 'medium': return '#ff9800';
-      case 'low': return '#9e9e9e';
-      default: return '#4CAF50';
+      case 'high':
+        return '#4CAF50';
+      case 'medium':
+        return '#ff9800';
+      case 'low':
+        return '#9e9e9e';
+      default:
+        return '#4CAF50';
     }
   };
 
@@ -149,11 +178,13 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({
             <Text style={styles.errorDescription}>
               {getErrorDescription(error)}
             </Text>
-            
+
             {error.context.fileName && (
               <View style={styles.contextInfo}>
                 <Text style={styles.contextLabel}>File:</Text>
-                <Text style={styles.contextValue}>{error.context.fileName}</Text>
+                <Text style={styles.contextValue}>
+                  {error.context.fileName}
+                </Text>
               </View>
             )}
 
@@ -180,12 +211,12 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({
               Choose an option to resolve this issue:
             </Text>
 
-            {error.recoveryOptions.map((option) => (
+            {error.recoveryOptions.map(option => (
               <TouchableOpacity
                 key={option.id}
                 style={[
                   styles.recoveryOption,
-                  selectedOption?.id === option.id && styles.selectedOption
+                  selectedOption?.id === option.id && styles.selectedOption,
                 ]}
                 onPress={() => handleRecoveryAction(option)}
                 disabled={isExecutingRecovery}
@@ -193,10 +224,12 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({
                 accessibilityHint={option.description}
               >
                 <View style={styles.optionHeader}>
-                  <View style={[
-                    styles.priorityIndicator,
-                    { backgroundColor: getPriorityColor(option.priority) }
-                  ]} />
+                  <View
+                    style={[
+                      styles.priorityIndicator,
+                      { backgroundColor: getPriorityColor(option.priority) },
+                    ]}
+                  />
                   <Text style={styles.optionLabel}>{option.label}</Text>
                   {option.automated && (
                     <View style={styles.automatedBadge}>
@@ -204,8 +237,10 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({
                     </View>
                   )}
                 </View>
-                <Text style={styles.optionDescription}>{option.description}</Text>
-                
+                <Text style={styles.optionDescription}>
+                  {option.description}
+                </Text>
+
                 {isExecutingRecovery && selectedOption?.id === option.id && (
                   <View style={styles.executingContainer}>
                     <ActivityIndicator size="small" color="#4CAF50" />
@@ -225,7 +260,7 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({
           >
             <Text style={styles.cancelButtonText}>Cancel</Text>
           </TouchableOpacity>
-          
+
           {error.canRetry && (
             <TouchableOpacity
               style={[styles.footerButton, styles.retryButton]}
@@ -265,11 +300,11 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   errorIcon: {
-    fontSize: 20,
+    fontSize: 22,
   },
   errorTitle: {
     flex: 1,
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
   },
@@ -282,7 +317,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   closeButtonText: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#666',
   },
   content: {
@@ -293,7 +328,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   errorDescription: {
-    fontSize: 16,
+    fontSize: 18,
     lineHeight: 24,
     color: '#333',
     marginBottom: 16,
@@ -303,13 +338,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   contextLabel: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: '#666',
     width: 60,
   },
   contextValue: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#333',
     flex: 1,
   },
@@ -317,13 +352,13 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 8,
   },
   sectionSubtitle: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
     marginBottom: 16,
   },
@@ -351,7 +386,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   optionLabel: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#333',
     flex: 1,
@@ -363,12 +398,12 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   automatedText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: 'bold',
     color: '#fff',
   },
   optionDescription: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
     lineHeight: 20,
     marginLeft: 16,
@@ -380,7 +415,7 @@ const styles = StyleSheet.create({
     marginLeft: 16,
   },
   executingText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#4CAF50',
     marginLeft: 8,
     fontWeight: '500',
@@ -404,7 +439,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   cancelButtonText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#666',
   },
@@ -412,7 +447,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#4CAF50',
   },
   retryButtonText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#fff',
   },

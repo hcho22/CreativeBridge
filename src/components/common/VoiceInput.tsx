@@ -1720,7 +1720,7 @@ const styles = StyleSheet.create({
   voiceButtonText: {
     color: '#FFFFFF', // Explicit white color for visibility
     textAlign: 'center',
-    fontSize: 20, // Match speaker button emoji size
+    fontSize: 22, // Match speaker button emoji size
     fontWeight: 'normal',
     includeFontPadding: false, // Android: remove extra padding
     textAlignVertical: 'center', // Android: center text vertically
@@ -1729,7 +1729,7 @@ const styles = StyleSheet.create({
     marginRight: theme.spacing.xs,
   },
   successIcon: {
-    fontSize: 16,
+    fontSize: 18,
     color: theme.colors.surface,
     marginRight: theme.spacing.xs,
     fontWeight: 'bold',

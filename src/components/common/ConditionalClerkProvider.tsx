@@ -204,7 +204,7 @@ export const ConditionalClerkProvider: React.FC<
         >
           <Text
             style={{
-              fontSize: 18,
+              fontSize: 20,
               fontWeight: 'bold',
               color: '#333',
               textAlign: 'center',
@@ -213,7 +213,7 @@ export const ConditionalClerkProvider: React.FC<
           >
             Backend Not Configured
           </Text>
-          <Text style={{ fontSize: 16, color: '#666', textAlign: 'center' }}>
+          <Text style={{ fontSize: 18, color: '#666', textAlign: 'center' }}>
             CONVEX_URL is not set. Please configure the Convex backend URL to
             continue.
           </Text>

@@ -189,7 +189,7 @@ const StoryCard: React.FC<StoryCardProps> = ({
           cancelButtonIndex: 0,
           title: storyTitle,
         },
-        async (buttonIndex) => {
+        async buttonIndex => {
           if (buttonIndex === 1) {
             // Download
             await downloadImage();
@@ -201,15 +201,11 @@ const StoryCard: React.FC<StoryCardProps> = ({
       );
     } else {
       // Android fallback - show simple alert with options
-      Alert.alert(
-        storyTitle,
-        'What would you like to do with this image?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Download', onPress: () => downloadImage() },
-          { text: 'Share', onPress: () => shareImage() },
-        ],
-      );
+      Alert.alert(storyTitle, 'What would you like to do with this image?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Download', onPress: () => downloadImage() },
+        { text: 'Share', onPress: () => shareImage() },
+      ]);
     }
   }, [hasImage, imageUrl, imageError, story]);
 
@@ -229,7 +225,9 @@ const StoryCard: React.FC<StoryCardProps> = ({
       }).promise;
 
       if (downloadResult.statusCode !== 200) {
-        throw new Error(`Download failed with status: ${downloadResult.statusCode}`);
+        throw new Error(
+          `Download failed with status: ${downloadResult.statusCode}`,
+        );
       }
 
       // Use folder picker to save
@@ -249,7 +247,10 @@ const StoryCard: React.FC<StoryCardProps> = ({
       await RNFS.unlink(tempPath);
     } catch (error: any) {
       console.error('Download failed:', error);
-      Alert.alert('❌ Download Failed', error.message || 'Could not download image');
+      Alert.alert(
+        '❌ Download Failed',
+        error.message || 'Could not download image',
+      );
     }
   }, [imageUrl, story.id]);
 
@@ -269,7 +270,9 @@ const StoryCard: React.FC<StoryCardProps> = ({
       }).promise;
 
       if (downloadResult.statusCode !== 200) {
-        throw new Error(`Download failed with status: ${downloadResult.statusCode}`);
+        throw new Error(
+          `Download failed with status: ${downloadResult.statusCode}`,
+        );
       }
 
       const shareUrl = `file://${tempPath}`;
@@ -288,7 +291,10 @@ const StoryCard: React.FC<StoryCardProps> = ({
     } catch (error: any) {
       if (error.message && !error.message.includes('cancelled')) {
         console.error('Share failed:', error);
-        Alert.alert('❌ Share Failed', error.message || 'Could not share image');
+        Alert.alert(
+          '❌ Share Failed',
+          error.message || 'Could not share image',
+        );
       }
     }
   }, [imageUrl, story]);
@@ -815,13 +821,13 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   closeButtonText: {
-    fontSize: 18,
+    fontSize: 20,
     color: '#666',
   },
   title: {
     flex: 1,
     textAlign: 'center',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
     color: '#333',
   },
@@ -841,13 +847,13 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    fontSize: 16,
+    fontSize: 18,
   },
   clearSearchButton: {
     padding: 12,
   },
   clearSearchText: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#666',
   },
   filtersContainer: {
@@ -858,7 +864,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   filterLabel: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '500',
     color: '#666',
     marginBottom: 4,
@@ -881,7 +887,7 @@ const styles = StyleSheet.create({
     borderColor: '#007AFF',
   },
   filterButtonText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
   },
   filterButtonTextActive: {
@@ -892,13 +898,13 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   toggleButtonText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#007AFF',
   },
   resultsCount: {
     paddingHorizontal: 16,
     paddingBottom: 8,
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
   },
   listContainer: {
@@ -949,7 +955,7 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
   },
   thumbnailPlaceholderIcon: {
-    fontSize: 32,
+    fontSize: 34,
     opacity: 0.3,
   },
   thumbnailLoading: {
@@ -973,7 +979,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   thumbnailErrorIcon: {
-    fontSize: 24,
+    fontSize: 26,
   },
   // Upload Status Badges
   uploadingBadge: {
@@ -997,7 +1003,7 @@ const styles = StyleSheet.create({
   },
   uploadedBadgeText: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: 'bold',
   },
   uploadFailedBadge: {
@@ -1013,7 +1019,7 @@ const styles = StyleSheet.create({
   },
   uploadFailedBadgeText: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
   },
   storyHeader: {
@@ -1024,7 +1030,7 @@ const styles = StyleSheet.create({
   },
   storyTitle: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#333',
     marginRight: 8,
@@ -1035,12 +1041,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   sourceText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '500',
     color: '#fff',
   },
   storyPreview: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
     lineHeight: 20,
     marginBottom: 12,
@@ -1051,7 +1057,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   storyDate: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#999',
   },
   storyStats: {
@@ -1059,11 +1065,11 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   wordCount: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
   },
   score: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#4CAF50',
     fontWeight: '500',
   },
@@ -1079,7 +1085,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   completedText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#fff',
     fontWeight: 'bold',
   },
@@ -1153,13 +1159,13 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#666',
     textAlign: 'center',
     marginBottom: 16,
   },
   errorText: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#f44336',
     textAlign: 'center',
     marginBottom: 16,

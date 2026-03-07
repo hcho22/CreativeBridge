@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 16,
-    fontSize: 16,
+    fontSize: 18,
     color: '#666',
   },
   errorContainer: {
@@ -319,14 +319,14 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   errorTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
     textAlign: 'center',
     marginBottom: 10,
   },
   errorText: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#666',
     textAlign: 'center',
     marginBottom: 20,
