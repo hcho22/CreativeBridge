@@ -9,6 +9,7 @@
     "convexUrl": "${CONVEX_URL}"
   },
   "ios": {
+    "supportsTablet": true,
     "bundleIdentifier": "org.name.CreativeBridge",
     "infoPlist": {
       "NSMicrophoneUsageDescription": "CreativeBridge needs microphone access so you can dictate your story ideas using voice input.",
