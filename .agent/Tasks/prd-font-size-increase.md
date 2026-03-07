@@ -169,8 +169,8 @@ grep -c 'fontSize:' src/screens/ProfileScreen.tsx src/screens/ProfileCompletionS
 
 **Acceptance Criteria:**
 
-- [ ] Every numeric `fontSize: N` in all three files updated to `fontSize: N+2`
-- [ ] Typecheck passes
+- [x] Every numeric `fontSize: N` in all three files updated to `fontSize: N+2` (21 + 9 + 3 = 33 values)
+- [x] Typecheck passes (pre-existing BlobOptions/ArrayBuffer errors in test files are unrelated)
 
 **Validation Test:**
 
@@ -186,7 +186,7 @@ grep -c 'fontSize:' src/screens/StoryQuestImportScreen.tsx src/screens/ImportOpt
 
 **Files (16 files):**
 
-- `src/components/common/ImageGeneration.tsx` (19 values)
+- `src/components/common/ImageGeneration.tsx` (30 values)
 - `src/components/common/StoryImageDisplay.tsx` (24 values)
 - `src/components/common/ErrorRecoveryModal.tsx` (14 values)
 - `src/components/common/FullScreenImageModal.tsx` (9 values)
@@ -205,9 +205,9 @@ grep -c 'fontSize:' src/screens/StoryQuestImportScreen.tsx src/screens/ImportOpt
 
 **Acceptance Criteria:**
 
-- [ ] Every numeric `fontSize: N` in all 16 files updated to `fontSize: N+2`
-- [ ] Emoji icon sizes also bumped (e.g., 48->50, 64->66, 40->42)
-- [ ] Typecheck passes
+- [x] Every numeric `fontSize: N` in all 16 files updated to `fontSize: N+2` (141 total values across 16 files)
+- [x] Emoji icon sizes also bumped (e.g., 48->50, 64->66, 40->42)
+- [x] Typecheck passes (pre-existing BlobOptions/test errors are unrelated)
 
 **Validation Test:**
 
@@ -237,8 +237,8 @@ done
 
 **Acceptance Criteria:**
 
-- [ ] Every numeric `fontSize: N` in all 8 files updated to `fontSize: N+2`
-- [ ] Typecheck passes
+- [x] Every numeric `fontSize: N` in all 8 files updated to `fontSize: N+2` (24+21+14+20+1+4+2+1 = 87 values)
+- [x] Typecheck passes (pre-existing BlobOptions/ArrayBuffer errors in test files are unrelated)
 
 **Validation Test:**
 

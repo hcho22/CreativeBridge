@@ -184,18 +184,18 @@ const styles = StyleSheet.create({
     minHeight: '100%',
   },
   errorEmoji: {
-    fontSize: 64,
+    fontSize: 66,
     marginBottom: 20,
   },
   errorTitle: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: 'bold',
     color: '#dc3545',
     textAlign: 'center',
     marginBottom: 16,
   },
   errorMessage: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#6c757d',
     textAlign: 'center',
     lineHeight: 24,
@@ -212,13 +212,13 @@ const styles = StyleSheet.create({
     borderLeftColor: '#ffc107',
   },
   errorDetailsTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: '#495057',
     marginBottom: 8,
   },
   errorDetailsText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#6c757d',
     fontFamily: 'monospace',
   },
@@ -244,16 +244,16 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     color: '#ffffff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
   },
   secondaryButtonText: {
     color: '#6c757d',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '500',
   },
   helpText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#adb5bd',
     textAlign: 'center',
     marginTop: 24,

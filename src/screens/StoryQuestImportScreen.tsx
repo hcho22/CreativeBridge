@@ -536,13 +536,13 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   title: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 8,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#666',
     marginBottom: 20,
     lineHeight: 24,
@@ -551,7 +551,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   inputLabel: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#333',
     marginBottom: 8,
@@ -561,7 +561,7 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
     borderRadius: 8,
     padding: 12,
-    fontSize: 16,
+    fontSize: 18,
     backgroundColor: '#fff',
   },
   connectButton: {
@@ -576,7 +576,7 @@ const styles = StyleSheet.create({
   },
   connectButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
   },
   progressContainer: {
@@ -588,7 +588,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   stepIcon: {
-    fontSize: 20,
+    fontSize: 22,
     marginRight: 12,
     marginTop: 2,
   },
@@ -596,18 +596,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   stepTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#333',
     marginBottom: 4,
   },
   stepDescription: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
     lineHeight: 20,
   },
   stepError: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#e74c3c',
     marginTop: 4,
     fontStyle: 'italic',
@@ -619,18 +619,18 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   userInfoTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#2d5a2d',
     marginBottom: 8,
   },
   userInfoText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#2d5a2d',
     marginBottom: 4,
   },
   matchConfidence: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#5a5a5a',
     marginTop: 8,
     fontStyle: 'italic',
@@ -642,7 +642,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   selectionCount: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#666',
   },
   selectAllButton: {
@@ -654,7 +654,7 @@ const styles = StyleSheet.create({
   },
   selectAllText: {
     color: '#007AFF',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '500',
   },
   storiesList: {
@@ -679,7 +679,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   storyGrade: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#007AFF',
     backgroundColor: '#e6f3ff',
@@ -688,21 +688,21 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   storyScore: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
   },
   storyWords: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
   },
   storyPreview: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#333',
     lineHeight: 20,
     marginBottom: 8,
   },
   storyDate: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#999',
   },
   importButton: {
@@ -716,14 +716,14 @@ const styles = StyleSheet.create({
   },
   importButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
   },
   importingIndicator: {
     marginVertical: 20,
   },
   importingText: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#666',
     textAlign: 'center',
     lineHeight: 24,

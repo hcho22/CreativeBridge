@@ -99,14 +99,14 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   errorTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '600',
     color: '#333',
     marginBottom: 8,
     textAlign: 'center',
   },
   errorMessage: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#666',
     textAlign: 'center',
     lineHeight: 24,
@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
   },
   errorBannerText: {
     color: '#d32f2f',
-    fontSize: 14,
+    fontSize: 16,
     textAlign: 'center',
     fontWeight: '500',
   },

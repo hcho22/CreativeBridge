@@ -544,11 +544,11 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   closeButtonText: {
-    fontSize: 18,
+    fontSize: 20,
     color: '#666',
   },
   title: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
   },
@@ -556,7 +556,7 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   filterToggleText: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#007AFF',
     fontWeight: '500',
   },
@@ -575,7 +575,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     backgroundColor: '#f5f5f5',
     borderRadius: 22,
-    fontSize: 16,
+    fontSize: 18,
     color: '#333',
   },
   clearButton: {
@@ -583,7 +583,7 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   clearButtonText: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#666',
   },
   suggestionsContainer: {
@@ -602,12 +602,12 @@ const styles = StyleSheet.create({
     borderBottomColor: '#f0f0f0',
   },
   suggestionText: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#333',
     flex: 1,
   },
   suggestionType: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
     backgroundColor: '#f0f0f0',
     paddingHorizontal: 8,
@@ -625,7 +625,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   filterLabel: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: '#333',
     marginBottom: 8,
@@ -644,7 +644,7 @@ const styles = StyleSheet.create({
     borderColor: '#007AFF',
   },
   filterButtonText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#333',
   },
   filterButtonTextActive: {
@@ -657,7 +657,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   clearFiltersText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#007AFF',
     fontWeight: '500',
   },
@@ -665,7 +665,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   resultCount: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
     paddingHorizontal: 20,
     paddingVertical: 12,
@@ -693,7 +693,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   resultSource: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#007AFF',
     fontWeight: '500',
     backgroundColor: '#e6f3ff',
@@ -703,7 +703,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   resultGrade: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#28a745',
     fontWeight: '500',
     backgroundColor: '#e8f5e8',
@@ -713,15 +713,15 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   resultScore: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
   },
   resultDate: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#999',
   },
   resultPreview: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#333',
     lineHeight: 20,
     marginBottom: 8,
@@ -732,11 +732,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   resultWordCount: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
   },
   resultMatches: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#007AFF',
     fontStyle: 'italic',
   },
@@ -751,7 +751,7 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
   },
   loadingText: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#666',
     marginTop: 12,
   },
@@ -762,13 +762,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
   },
   errorText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#e74c3c',
     marginBottom: 8,
   },
   errorMessage: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
     textAlign: 'center',
     marginBottom: 20,
@@ -781,7 +781,7 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '500',
   },
   emptyContainer: {
@@ -791,13 +791,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
   },
   emptyText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 8,
   },
   emptySubtext: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
     textAlign: 'center',
   },

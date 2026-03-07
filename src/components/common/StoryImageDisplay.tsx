@@ -1692,18 +1692,18 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   placeholderIcon: {
-    fontSize: 48,
+    fontSize: 50,
     marginBottom: 12,
   },
   placeholderTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#495057',
     marginBottom: 8,
     textAlign: 'center',
   },
   placeholderMessage: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#6c757d',
     textAlign: 'center',
     lineHeight: 20,
@@ -1720,18 +1720,18 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   errorIcon: {
-    fontSize: 32,
+    fontSize: 34,
     marginBottom: 12,
   },
   errorTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#721c24',
     marginBottom: 8,
     textAlign: 'center',
   },
   errorMessage: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#721c24',
     textAlign: 'center',
     lineHeight: 20,
@@ -1745,11 +1745,11 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
   },
   errorUrl: {
-    fontSize: 10,
+    fontSize: 12,
     color: '#6b7280',
     textAlign: 'center',
     marginVertical: 8,
@@ -1769,7 +1769,7 @@ const styles = StyleSheet.create({
   },
   openUrlButtonText: {
     color: '#ffffff',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
     textAlign: 'center',
   },
@@ -1782,7 +1782,7 @@ const styles = StyleSheet.create({
   },
   generateNewButtonText: {
     color: '#ffffff',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
     textAlign: 'center',
   },
@@ -1796,13 +1796,13 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   loadingText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#6c757d',
     marginTop: 12,
     textAlign: 'center',
   },
   loadingSubtext: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#9ca3af',
     marginTop: 4,
     textAlign: 'center',
@@ -1816,7 +1816,7 @@ const styles = StyleSheet.create({
   },
   cancelLoadingText: {
     color: '#ffffff',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
     textAlign: 'center',
   },
@@ -1850,11 +1850,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#007bff',
   },
   actionButtonIcon: {
-    fontSize: 16,
+    fontSize: 18,
   },
   actionButtonText: {
     color: '#ffffff',
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '600',
     textAlign: 'center',
   },
@@ -1886,13 +1886,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   backButtonIcon: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#ffffff',
     fontWeight: 'bold',
   },
   backButtonText: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
   },
 
@@ -1922,7 +1922,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   zoomIconText: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#ffffff',
   },
 
@@ -1944,7 +1944,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   uploadStatusText: {
-    fontSize: 13,
+    fontSize: 15,
     color: '#6c757d',
     fontWeight: '500',
   },
@@ -1953,10 +1953,10 @@ const styles = StyleSheet.create({
     borderColor: '#c3e6cb',
   },
   uploadSuccessIcon: {
-    fontSize: 16,
+    fontSize: 18,
   },
   uploadSuccessText: {
-    fontSize: 13,
+    fontSize: 15,
     color: '#155724',
     fontWeight: '600',
   },
@@ -1972,10 +1972,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   uploadFailedIcon: {
-    fontSize: 16,
+    fontSize: 18,
   },
   uploadFailedText: {
-    fontSize: 13,
+    fontSize: 15,
     color: '#856404',
     fontWeight: '500',
     flex: 1,
@@ -1989,7 +1989,7 @@ const styles = StyleSheet.create({
   },
   retryBackupButtonText: {
     color: '#ffffff',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
   },
 });

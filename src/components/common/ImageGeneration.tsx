@@ -864,7 +864,7 @@ const styles = StyleSheet.create({
     borderColor: '#e9ecef',
   },
   xpBalanceLabel: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
     color: '#6c757d',
     marginBottom: 4,
@@ -875,7 +875,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   xpBalanceValue: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
   },
   xpSufficient: {
@@ -885,12 +885,12 @@ const styles = StyleSheet.create({
     color: '#dc3545',
   },
   xpBalanceCost: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#6c757d',
     fontStyle: 'italic',
   },
   xpShortfallMessage: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#dc3545',
     fontWeight: '600',
     marginTop: 4,
@@ -921,7 +921,7 @@ const styles = StyleSheet.create({
   },
   generateButtonText: {
     color: '#ffffff',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
   },
   generateButtonTextDisabled: {
@@ -949,12 +949,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   progressTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#495057',
   },
   progressPercentage: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: '#6f42c1',
   },
@@ -973,7 +973,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   progressStep: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#6c757d',
     textAlign: 'center',
     marginBottom: 8,
@@ -983,7 +983,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   estimateText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#6c757d',
     fontWeight: '500',
   },
@@ -999,31 +999,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   disabledIcon: {
-    fontSize: 32,
+    fontSize: 34,
     marginBottom: 8,
   },
   disabledTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#721c24',
     marginBottom: 8,
     textAlign: 'center',
   },
   disabledMessage: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#721c24',
     textAlign: 'center',
     marginBottom: 8,
   },
   disabledProgress: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#6f42c1',
     textAlign: 'center',
     marginBottom: 8,
   },
   disabledHint: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#856404',
     textAlign: 'center',
     fontStyle: 'italic',
@@ -1038,7 +1038,7 @@ const styles = StyleSheet.create({
   },
   closeButtonText: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',
   },
@@ -1070,16 +1070,16 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   errorIconLarge: {
-    fontSize: 28,
+    fontSize: 30,
   },
   errorTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#721c24',
     flex: 1,
   },
   errorMessage: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#721c24',
     lineHeight: 20,
     marginBottom: 12,
@@ -1088,7 +1088,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   retryInfo: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#6c757d',
     textAlign: 'center',
     marginBottom: 8,
@@ -1112,7 +1112,7 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
   },
   maxRetriesContainer: {
@@ -1122,7 +1122,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   maxRetriesText: {
-    fontSize: 13,
+    fontSize: 15,
     color: '#495057',
     textAlign: 'center',
     fontStyle: 'italic',
@@ -1131,7 +1131,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   errorHint: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#6c757d',
     textAlign: 'center',
     lineHeight: 16,
@@ -1148,7 +1148,7 @@ const styles = StyleSheet.create({
   },
   dismissButtonText: {
     color: '#6c757d',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '500',
   },
 
@@ -1165,7 +1165,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   uploadStatusText: {
-    fontSize: 13,
+    fontSize: 15,
     color: '#6c757d',
     marginLeft: 8,
   },
@@ -1175,10 +1175,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   uploadSuccessIcon: {
-    fontSize: 16,
+    fontSize: 18,
   },
   uploadSuccessText: {
-    fontSize: 13,
+    fontSize: 15,
     color: '#28a745',
     fontWeight: '500',
   },
@@ -1191,16 +1191,16 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   uploadFailedIcon: {
-    fontSize: 16,
+    fontSize: 18,
   },
   uploadFailedText: {
-    fontSize: 13,
+    fontSize: 15,
     color: '#dc3545',
     fontWeight: '500',
     flex: 1,
   },
   uploadFailedHint: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#6c757d',
     fontStyle: 'italic',
   },
@@ -1219,7 +1219,7 @@ const styles = StyleSheet.create({
   },
   retryUploadButtonText: {
     color: '#ffffff',
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '600',
     marginLeft: 4,
   },

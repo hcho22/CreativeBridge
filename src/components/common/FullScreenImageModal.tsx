@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
   },
   headerButtonText: {
     color: '#ffffff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
   },
   titleContainer: {
@@ -168,21 +168,21 @@ const styles = StyleSheet.create({
   },
   imageTitle: {
     color: '#ffffff',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 4,
   },
   storyText: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 16,
     textAlign: 'center',
     fontStyle: 'italic',
     opacity: 0.9,
   },
   imageCounter: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 16,
     opacity: 0.8,
   },
   actionBar: {
@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     color: '#ffffff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
   },
   indicator: {
@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
   },
   closeButtonText: {
     color: '#ffffff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
   },
   imageInfo: {
@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
   },
   imageIndex: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 16,
     opacity: 0.8,
   },
   headerActions: {
@@ -252,13 +252,13 @@ const styles = StyleSheet.create({
   },
   storyTitle: {
     color: '#ffffff',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 8,
   },
   metadata: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 16,
     opacity: 0.8,
   },
   navigationIndicators: {

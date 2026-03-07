@@ -1,14 +1,27 @@
 /**
  * Service Status Indicator Component
- * 
+ *
  * Provides user communication for service issues and degradation
  * Task 6.3: Service Degradation Handling - User communication component
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, Animated, TouchableOpacity, Modal } from 'react-native';
-import { ServiceHealthMonitor, ServiceHealthStatus } from '../services/serviceHealth';
-import { AutomaticFallbackManager, SystemDegradationStatus } from '../services/automaticFallbackManager';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Animated,
+  TouchableOpacity,
+  Modal,
+} from 'react-native';
+import {
+  ServiceHealthMonitor,
+  ServiceHealthStatus,
+} from '../services/serviceHealth';
+import {
+  AutomaticFallbackManager,
+  SystemDegradationStatus,
+} from '../services/automaticFallbackManager';
 import { ServiceRestorationManager } from '../services/serviceRestoration';
 import { structuredLogger } from '../utils/logger';
 
@@ -48,16 +61,18 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
   position = 'top',
   autoHide = true,
   showDetails = false,
-  onStatusChange
+  onStatusChange,
 }) => {
   const [systemStatus, setSystemStatus] = useState<SystemDegradationStatus>({
     overall: 'normal',
     activeFallbacks: [],
     availableFeatures: [],
-    disabledFeatures: []
+    disabledFeatures: [],
   });
 
-  const [currentMessage, setCurrentMessage] = useState<StatusMessage | null>(null);
+  const [currentMessage, setCurrentMessage] = useState<StatusMessage | null>(
+    null,
+  );
   const [messageQueue, setMessageQueue] = useState<StatusMessage[]>([]);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
@@ -82,11 +97,14 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
       structuredLogger.debug('System status updated', {
         overall: status.overall,
         activeFallbacks: status.activeFallbacks.length,
-        disabledFeatures: status.disabledFeatures.length
+        disabledFeatures: status.disabledFeatures.length,
       });
-
     } catch (error) {
-      structuredLogger.error('Failed to update system status', {}, error as Error);
+      structuredLogger.error(
+        'Failed to update system status',
+        {},
+        error as Error,
+      );
     }
   }, [fallbackManager, onStatusChange]);
 
@@ -96,7 +114,7 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
       // Remove duplicates and add new message
       const filteredQueue = prevQueue.filter(m => m.id !== message.id);
       const newQueue = [...filteredQueue, message];
-      
+
       // Sort by priority (higher number = higher priority)
       return newQueue.sort((a, b) => b.priority - a.priority);
     });
@@ -111,13 +129,13 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
     if (messageQueue.length > 0) {
       const nextMessage = messageQueue[0];
       setCurrentMessage(nextMessage);
-      
+
       if (!nextMessage.persistent) {
         setMessageQueue(prevQueue => prevQueue.slice(1));
       }
 
       setIsVisible(true);
-      
+
       // Auto-hide non-persistent messages
       if (autoHide && !nextMessage.persistent) {
         setTimeout(() => {
@@ -151,7 +169,7 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
           toValue: 0,
           duration: 300,
           useNativeDriver: true,
-        })
+        }),
       ]).start();
     } else {
       Animated.parallel([
@@ -164,7 +182,7 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
           toValue: position === 'top' ? -50 : 50,
           duration: 200,
           useNativeDriver: true,
-        })
+        }),
       ]).start();
     }
   }, [isVisible, currentMessage, fadeAnim, slideAnim, position]);
@@ -177,7 +195,7 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
   // Set up monitoring intervals
   useEffect(() => {
     updateSystemStatus();
-    
+
     const interval = setInterval(() => {
       updateSystemStatus();
     }, 10000); // Update every 10 seconds
@@ -186,9 +204,11 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
   }, [updateSystemStatus]);
 
   // Generate status message based on system status
-  const generateStatusMessage = (status: SystemDegradationStatus): StatusMessage | null => {
+  const generateStatusMessage = (
+    status: SystemDegradationStatus,
+  ): StatusMessage | null => {
     const messageId = `system_${status.overall}_${Date.now()}`;
-    
+
     switch (status.overall) {
       case 'normal':
         // Clear any existing persistent messages when system is normal
@@ -201,7 +221,7 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
             persistent: false,
             timestamp: new Date(),
             priority: 3,
-            icon: '✅'
+            icon: '✅',
           };
         }
         return null;
@@ -211,7 +231,9 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
           id: messageId,
           type: 'warning',
           title: 'Limited Service Mode',
-          message: status.userMessage || 'Some features are temporarily running in reduced mode to ensure the best experience.',
+          message:
+            status.userMessage ||
+            'Some features are temporarily running in reduced mode to ensure the best experience.',
           persistent: true,
           timestamp: new Date(),
           priority: 4,
@@ -220,14 +242,14 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
             {
               label: 'Details',
               action: 'details',
-              handler: () => setShowDetailModal(true)
+              handler: () => setShowDetailModal(true),
             },
             {
               label: 'Dismiss',
               action: 'dismiss',
-              handler: () => hideMessage()
-            }
-          ]
+              handler: () => hideMessage(),
+            },
+          ],
         };
 
       case 'critical':
@@ -235,7 +257,9 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
           id: messageId,
           type: 'error',
           title: 'Service Issues',
-          message: status.userMessage || 'We\'re experiencing technical difficulties. Core features remain available with limited functionality.',
+          message:
+            status.userMessage ||
+            "We're experiencing technical difficulties. Core features remain available with limited functionality.",
           persistent: true,
           timestamp: new Date(),
           priority: 5,
@@ -244,14 +268,14 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
             {
               label: 'Details',
               action: 'details',
-              handler: () => setShowDetailModal(true)
+              handler: () => setShowDetailModal(true),
             },
             {
               label: 'Retry',
               action: 'retry',
-              handler: () => retryServices()
-            }
-          ]
+              handler: () => retryServices(),
+            },
+          ],
         };
 
       case 'emergency':
@@ -259,7 +283,9 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
           id: messageId,
           type: 'error',
           title: 'Emergency Mode',
-          message: status.userMessage || 'The system is in emergency mode. Basic story creation is available offline while we work to restore full service.',
+          message:
+            status.userMessage ||
+            'The system is in emergency mode. Basic story creation is available offline while we work to restore full service.',
           persistent: true,
           timestamp: new Date(),
           priority: 6,
@@ -268,14 +294,14 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
             {
               label: 'Details',
               action: 'details',
-              handler: () => setShowDetailModal(true)
+              handler: () => setShowDetailModal(true),
             },
             {
               label: 'Contact Support',
               action: 'contact_support',
-              handler: () => contactSupport()
-            }
-          ]
+              handler: () => contactSupport(),
+            },
+          ],
         };
 
       default:
@@ -305,7 +331,7 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
   const retryServices = useCallback(async () => {
     try {
       structuredLogger.info('User initiated service retry');
-      
+
       addMessage({
         id: `retry_${Date.now()}`,
         type: 'working',
@@ -315,32 +341,41 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
         timestamp: new Date(),
         priority: 4,
         icon: '🔄',
-        progress: 0.5
+        progress: 0.5,
       });
 
       // Trigger manual restoration
       const disabledServices = systemStatus.disabledFeatures;
       if (disabledServices.length > 0) {
-        await restorationManager.triggerRestoration(disabledServices, undefined, true);
+        await restorationManager.triggerRestoration(
+          disabledServices,
+          undefined,
+          true,
+        );
       }
 
       setTimeout(() => updateSystemStatus(), 2000);
-
     } catch (error) {
       structuredLogger.error('Service retry failed', {}, error as Error);
-      
+
       addMessage({
         id: `retry_failed_${Date.now()}`,
         type: 'error',
         title: 'Retry Failed',
-        message: 'Unable to restore services at this time. Please try again later.',
+        message:
+          'Unable to restore services at this time. Please try again later.',
         persistent: false,
         timestamp: new Date(),
         priority: 5,
-        icon: '❌'
+        icon: '❌',
       });
     }
-  }, [restorationManager, systemStatus.disabledFeatures, addMessage, updateSystemStatus]);
+  }, [
+    restorationManager,
+    systemStatus.disabledFeatures,
+    addMessage,
+    updateSystemStatus,
+  ]);
 
   // Handle contact support action
   const contactSupport = useCallback(() => {
@@ -354,7 +389,7 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
       persistent: false,
       timestamp: new Date(),
       priority: 3,
-      icon: '📞'
+      icon: '📞',
     });
   }, [addMessage]);
 
@@ -363,7 +398,7 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
     if (!currentMessage) return {};
 
     const baseStyle = styles.messageContainer;
-    
+
     switch (currentMessage.type) {
       case 'info':
         return [baseStyle, styles.infoMessage];
@@ -391,10 +426,12 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>System Status Details</Text>
-          
+
           <View style={styles.statusSection}>
             <Text style={styles.sectionTitle}>Overall Status</Text>
-            <Text style={[styles.statusText, getStatusColor(systemStatus.overall)]}>
+            <Text
+              style={[styles.statusText, getStatusColor(systemStatus.overall)]}
+            >
               {getStatusLabel(systemStatus.overall)}
             </Text>
           </View>
@@ -402,7 +439,9 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
           <View style={styles.statusSection}>
             <Text style={styles.sectionTitle}>Available Features</Text>
             {systemStatus.availableFeatures.map(feature => (
-              <Text key={feature} style={styles.featureText}>• {formatFeatureName(feature)}</Text>
+              <Text key={feature} style={styles.featureText}>
+                • {formatFeatureName(feature)}
+              </Text>
             ))}
           </View>
 
@@ -410,7 +449,9 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
             <View style={styles.statusSection}>
               <Text style={styles.sectionTitle}>Temporarily Disabled</Text>
               {systemStatus.disabledFeatures.map(feature => (
-                <Text key={feature} style={styles.disabledFeatureText}>• {formatFeatureName(feature)}</Text>
+                <Text key={feature} style={styles.disabledFeatureText}>
+                  • {formatFeatureName(feature)}
+                </Text>
               ))}
             </View>
           )}
@@ -420,7 +461,10 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
               <Text style={styles.sectionTitle}>Active Mitigations</Text>
               {systemStatus.activeFallbacks.map((fallback, index) => (
                 <Text key={index} style={styles.fallbackText}>
-                  • {fallback.strategyId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  •{' '}
+                  {fallback.strategyId
+                    .replace(/_/g, ' ')
+                    .replace(/\b\w/g, l => l.toUpperCase())}
                 </Text>
               ))}
             </View>
@@ -458,7 +502,9 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
             style={[styles.actionButton, getActionButtonStyle(action.action)]}
             onPress={action.handler}
           >
-            <Text style={[styles.actionText, getActionTextStyle(action.action)]}>
+            <Text
+              style={[styles.actionText, getActionTextStyle(action.action)]}
+            >
               {action.label}
             </Text>
           </TouchableOpacity>
@@ -474,7 +520,12 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
     return (
       <View style={styles.progressContainer}>
         <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${currentMessage.progress * 100}%` }]} />
+          <View
+            style={[
+              styles.progressFill,
+              { width: `${currentMessage.progress * 100}%` },
+            ]}
+          />
         </View>
       </View>
     );
@@ -483,21 +534,31 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
   // Helper functions
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'normal': return { color: '#28a745' };
-      case 'degraded': return { color: '#ffc107' };
-      case 'critical': return { color: '#fd7e14' };
-      case 'emergency': return { color: '#dc3545' };
-      default: return { color: '#6c757d' };
+      case 'normal':
+        return { color: '#28a745' };
+      case 'degraded':
+        return { color: '#ffc107' };
+      case 'critical':
+        return { color: '#fd7e14' };
+      case 'emergency':
+        return { color: '#dc3545' };
+      default:
+        return { color: '#6c757d' };
     }
   };
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'normal': return 'All Systems Operational';
-      case 'degraded': return 'Reduced Functionality';
-      case 'critical': return 'Service Issues';
-      case 'emergency': return 'Emergency Mode';
-      default: return 'Unknown Status';
+      case 'normal':
+        return 'All Systems Operational';
+      case 'degraded':
+        return 'Reduced Functionality';
+      case 'critical':
+        return 'Service Issues';
+      case 'emergency':
+        return 'Emergency Mode';
+      default:
+        return 'Unknown Status';
     }
   };
 
@@ -508,7 +569,7 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
   const formatDuration = (ms: number) => {
     const minutes = Math.floor(ms / 60000);
     const hours = Math.floor(minutes / 60);
-    
+
     if (hours > 0) {
       return `${hours}h ${minutes % 60}m`;
     } else if (minutes > 0) {
@@ -520,17 +581,23 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
 
   const getActionButtonStyle = (action: string) => {
     switch (action) {
-      case 'retry': return styles.primaryButton;
-      case 'contact_support': return styles.primaryButton;
-      default: return styles.secondaryButton;
+      case 'retry':
+        return styles.primaryButton;
+      case 'contact_support':
+        return styles.primaryButton;
+      default:
+        return styles.secondaryButton;
     }
   };
 
   const getActionTextStyle = (action: string) => {
     switch (action) {
-      case 'retry': return styles.primaryButtonText;
-      case 'contact_support': return styles.primaryButtonText;
-      default: return styles.secondaryButtonText;
+      case 'retry':
+        return styles.primaryButtonText;
+      case 'contact_support':
+        return styles.primaryButtonText;
+      default:
+        return styles.secondaryButtonText;
     }
   };
 
@@ -547,7 +614,7 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
             styles.container,
             getMessageStyle,
             { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
-            position === 'bottom' ? styles.bottomPosition : styles.topPosition
+            position === 'bottom' ? styles.bottomPosition : styles.topPosition,
           ]}
         >
           <View style={styles.messageContent}>
@@ -568,13 +635,13 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
                 </TouchableOpacity>
               )}
             </View>
-            
+
             {renderProgress()}
             {renderActions()}
           </View>
         </Animated.View>
       )}
-      
+
       {renderDetailModal()}
     </>
   );
@@ -631,7 +698,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   icon: {
-    fontSize: 18,
+    fontSize: 20,
     marginRight: 8,
     marginTop: 2,
   },
@@ -639,13 +706,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: '#212529',
     marginBottom: 2,
   },
   message: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#6c757d',
     lineHeight: 16,
   },
@@ -654,7 +721,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   dismissText: {
-    fontSize: 20,
+    fontSize: 22,
     color: '#6c757d',
     lineHeight: 20,
   },
@@ -692,7 +759,7 @@ const styles = StyleSheet.create({
     borderColor: '#6c757d',
   },
   actionText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '500',
   },
   primaryButtonText: {
@@ -718,7 +785,7 @@ const styles = StyleSheet.create({
     maxHeight: '80%',
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
     color: '#212529',
     marginBottom: 16,
@@ -728,32 +795,32 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: '#495057',
     marginBottom: 8,
   },
   statusText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '500',
   },
   featureText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#28a745',
     marginBottom: 2,
   },
   disabledFeatureText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#dc3545',
     marginBottom: 2,
   },
   fallbackText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#ffc107',
     marginBottom: 2,
   },
   recoveryText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#6c757d',
     fontStyle: 'italic',
   },
@@ -765,7 +832,7 @@ const styles = StyleSheet.create({
   },
   modalCloseText: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '500',
     textAlign: 'center',
   },

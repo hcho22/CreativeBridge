@@ -87,14 +87,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emoji: {
-    fontSize: 24,
+    fontSize: 26,
     marginRight: 12,
   },
   headerText: {
     flex: 1,
   },
   title: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#333',
     marginBottom: 4,
@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   description: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
     lineHeight: 18,
   },
@@ -116,7 +116,7 @@ const styles = StyleSheet.create({
   },
   xpText: {
     color: '#ffffff',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
   },
   completedBanner: {
@@ -129,11 +129,11 @@ const styles = StyleSheet.create({
   },
   completedText: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
   },
   noChallengeText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#999',
     textAlign: 'center',
     fontStyle: 'italic',

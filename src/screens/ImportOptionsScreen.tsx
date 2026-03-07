@@ -226,14 +226,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
   },
   backButtonText: {
-    fontSize: 20,
+    fontSize: 22,
     color: '#333',
     fontWeight: '600',
   },
   headerTitle: {
     flex: 1,
     textAlign: 'center',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
     color: '#333',
   },
@@ -249,14 +249,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   introTitle: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: '700',
     color: '#333',
     marginBottom: 8,
     textAlign: 'center',
   },
   introDescription: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#666',
     textAlign: 'center',
     lineHeight: 24,
@@ -294,19 +294,19 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   optionIcon: {
-    fontSize: 28,
+    fontSize: 30,
   },
   optionContent: {
     flex: 1,
   },
   optionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
     color: '#333',
     marginBottom: 4,
   },
   optionDescription: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
     lineHeight: 20,
     marginBottom: 8,
@@ -315,7 +315,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   featureText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#888',
     lineHeight: 16,
   },
@@ -327,7 +327,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   arrowText: {
-    fontSize: 18,
+    fontSize: 20,
     color: '#007AFF',
     fontWeight: '600',
   },

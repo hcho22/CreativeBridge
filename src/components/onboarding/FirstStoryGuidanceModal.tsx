@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
     ...theme.shadows.sm,
   },
   iconText: {
-    fontSize: 40,
+    fontSize: 42,
   },
   title: {
     fontSize: theme.typography.fontSize.xxl,
@@ -528,7 +528,7 @@ const styles = StyleSheet.create({
     marginRight: theme.spacing.md,
   },
   emoji: {
-    fontSize: 16,
+    fontSize: 18,
   },
   itemTitle: {
     flex: 1,

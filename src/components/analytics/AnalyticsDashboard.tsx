@@ -498,11 +498,11 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   closeButtonText: {
-    fontSize: 18,
+    fontSize: 20,
     color: '#666',
   },
   title: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
   },
@@ -510,7 +510,7 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   refreshButtonText: {
-    fontSize: 18,
+    fontSize: 20,
     color: '#007AFF',
   },
   timeRangeContainer: {
@@ -534,7 +534,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#007AFF',
   },
   timeRangeButtonText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#333',
     fontWeight: '500',
   },
@@ -552,7 +552,7 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
   },
   loadingText: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#666',
     marginTop: 16,
   },
@@ -564,13 +564,13 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
   },
   errorText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#e74c3c',
     marginBottom: 8,
   },
   errorMessage: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
     textAlign: 'center',
     marginBottom: 24,
@@ -583,7 +583,7 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '500',
   },
   card: {
@@ -598,7 +598,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   cardTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 16,
@@ -614,17 +614,17 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   metricValue: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: 'bold',
     marginBottom: 4,
   },
   metricLabel: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
     textAlign: 'center',
   },
   subSectionTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#333',
     marginTop: 16,
@@ -642,12 +642,12 @@ const styles = StyleSheet.create({
     borderBottomColor: '#f0f0f0',
   },
   sourceName: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#333',
     fontWeight: '500',
   },
   sourcePercentage: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
   },
   engagementDetails: {
@@ -657,7 +657,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#f0f0f0',
   },
   detailText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
     marginBottom: 8,
   },
@@ -669,26 +669,26 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   reportType: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#007AFF',
     marginBottom: 4,
   },
   reportDate: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
   },
   reportSummary: {
     marginBottom: 16,
   },
   insightText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#333',
     marginBottom: 8,
     lineHeight: 20,
   },
   recommendationText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#007AFF',
     marginBottom: 8,
     lineHeight: 20,
@@ -711,7 +711,7 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
   },
 });
