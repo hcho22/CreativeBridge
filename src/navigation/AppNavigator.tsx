@@ -5,6 +5,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { NavigationContainer } from '@react-navigation/native';
 import { AdaptiveGlassBackground } from '../components/common/AdaptiveGlassBackground';
 import { theme } from '../constants/theme';
+import type { StorySetupAnswers } from '../types/storySetup';
 
 // Screen imports
 import { HomeScreen, SettingsScreen, ProfileScreen } from '../screens';
@@ -31,6 +32,7 @@ export type HomeStackParamList = {
           gradeLevel: string;
           metadata?: any;
         };
+        storySetup?: StorySetupAnswers;
       }
     | undefined;
   ImportOptions: undefined;

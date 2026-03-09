@@ -129,23 +129,23 @@ This feature adds a **4-step story setup wizard** that appears before each new s
 
 **Acceptance Criteria:**
 
-- [ ] Step 1 shows title: "Who is your character?"
-- [ ] Display 4 character type buttons in 2-column grid: Girl (with emoji), Boy (with emoji), Animal (with emoji), Custom (with emoji)
-- [ ] Selected option shows `theme.colors.primary` border + light green background
-- [ ] **Animal inline expansion**: When "Animal" is selected, a sub-section slides in below the grid with label "Pick an animal:" and 5 options in a 2-column grid: Cat, Dog, Rabbit, Owl, Other (each with emoji)
-- [ ] When "Other" animal is selected, a TextInput appears below the animal grid with placeholder "Type of animal..." and `maxLength={30}`
-- [ ] **Custom inline expansion**: When "Custom" is selected, a TextInput appears below the grid with placeholder "Describe your character..." and `maxLength={50}`
-- [ ] **Name input**: Always visible at bottom of step with label "Give them a name: (optional)" and `maxLength={30}`
-- [ ] **State cleanup**: Switching character type clears irrelevant sub-state:
+- [x] Step 1 shows title: "Who is your character?"
+- [x] Display 4 character type buttons in 2-column grid: Girl (with emoji), Boy (with emoji), Animal (with emoji), Custom (with emoji)
+- [x] Selected option shows `theme.colors.primary` border + light green background
+- [x] **Animal inline expansion**: When "Animal" is selected, a sub-section slides in below the grid with label "Pick an animal:" and 5 options in a 2-column grid: Cat, Dog, Rabbit, Owl, Other (each with emoji)
+- [x] When "Other" animal is selected, a TextInput appears below the animal grid with placeholder "Type of animal..." and `maxLength={30}`
+- [x] **Custom inline expansion**: When "Custom" is selected, a TextInput appears below the grid with placeholder "Describe your character..." and `maxLength={50}`
+- [x] **Name input**: Always visible at bottom of step with label "Give them a name: (optional)" and `maxLength={30}`
+- [x] **State cleanup**: Switching character type clears irrelevant sub-state:
   - Switching away from "Animal" → clears `animalType`, `customAnimal`
   - Switching away from "Custom" → clears `customCharacter`
   - `characterName` persists across type switches (it applies to all types)
-- [ ] Step wrapped in `ScrollView` to handle content growth from inline expansions
-- [ ] `KeyboardAvoidingView` wrapping for text inputs
-- [ ] Bottom bar: "Back" (goes to step 0), "Skip" (sets all character fields to null, advances), "Next" (advances with current selections)
-- [ ] If "Custom" or "Other" is selected but text is empty, treat as skip for that sub-field (AI decides)
-- [ ] Progress indicator shows dot 2 of 4 filled
-- [ ] Typecheck passes: `npx tsc --noEmit`
+- [x] Step wrapped in `ScrollView` to handle content growth from inline expansions
+- [x] `KeyboardAvoidingView` wrapping for text inputs
+- [x] Bottom bar: "Back" (goes to step 0), "Skip" (sets all character fields to null, advances), "Next" (advances with current selections)
+- [x] If "Custom" or "Other" is selected but text is empty, treat as skip for that sub-field (AI decides)
+- [x] Progress indicator shows dot 2 of 4 filled
+- [x] Typecheck passes: `npx tsc --noEmit`
 
 **Validation Test:**
 
@@ -172,15 +172,15 @@ This feature adds a **4-step story setup wizard** that appears before each new s
 
 **Acceptance Criteria:**
 
-- [ ] Step 2 shows title: "Where does the story happen?"
-- [ ] Display 5 setting option buttons in 2-column grid: Forest (with tree emoji), Beach (with palm emoji), Castle (with castle emoji), Space (with rocket emoji), Custom (with pencil emoji)
-- [ ] Selected option shows `theme.colors.primary` border + light green background
-- [ ] When "Custom" is selected, a TextInput slides in below the grid with placeholder "Describe a place..." and `maxLength={50}`
-- [ ] If "Custom" is selected but text is empty and user taps Next, treat as skip (AI decides)
-- [ ] `KeyboardAvoidingView` wrapping for the custom text input
-- [ ] Bottom bar: "Back" (goes to step 1), "Skip" (sets setting to null, advances), "Next" (advances with selection)
-- [ ] Progress indicator shows dot 3 of 4 filled
-- [ ] Typecheck passes: `npx tsc --noEmit`
+- [x] Step 2 shows title: "Where does the story happen?"
+- [x] Display 5 setting option buttons in 2-column grid: Forest (with tree emoji), Beach (with palm emoji), Castle (with castle emoji), Space (with rocket emoji), Custom (with pencil emoji)
+- [x] Selected option shows `theme.colors.primary` border + light green background
+- [x] When "Custom" is selected, a TextInput slides in below the grid with placeholder "Describe a place..." and `maxLength={50}`
+- [x] If "Custom" is selected but text is empty and user taps Next, treat as skip (AI decides)
+- [x] `KeyboardAvoidingView` wrapping for the custom text input
+- [x] Bottom bar: "Back" (goes to step 1), "Skip" (sets setting to null, advances), "Next" (advances with selection)
+- [x] Progress indicator shows dot 3 of 4 filled
+- [x] Typecheck passes: `npx tsc --noEmit`
 
 **Validation Test:**
 
@@ -203,15 +203,15 @@ This feature adds a **4-step story setup wizard** that appears before each new s
 
 **Acceptance Criteria:**
 
-- [ ] Step 3 shows title: "Who writes first?"
-- [ ] Display 2 option buttons (can be full-width stacked or 2-column): "AI starts the story" (with robot/sparkle emoji), "I want to start" (with pencil/writing emoji)
-- [ ] "AI starts the story" is pre-highlighted as the default/recommended option
-- [ ] Selected option shows `theme.colors.primary` border + light green background
-- [ ] Bottom bar: "Back" (goes to step 2), "Skip" (defaults to 'ai', triggers start), "Start Story" (primary button styling, replaces "Next")
-- [ ] **Double-tap prevention**: "Start Story" button disables after first tap to prevent duplicate calls
-- [ ] Tapping "Start Story" navigates back to HomeScreen with `{ storySetup: StorySetupAnswers }` route params
-- [ ] Progress indicator shows dot 4 of 4 filled
-- [ ] Typecheck passes: `npx tsc --noEmit`
+- [x] Step 3 shows title: "Who writes first?"
+- [x] Display 2 option buttons (can be full-width stacked or 2-column): "AI starts the story" (with robot/sparkle emoji), "I want to start" (with pencil/writing emoji)
+- [x] "AI starts the story" is pre-highlighted as the default/recommended option
+- [x] Selected option shows `theme.colors.primary` border + light green background
+- [x] Bottom bar: "Back" (goes to step 2), "Skip" (defaults to 'ai', triggers start), "Start Story" (primary button styling, replaces "Next")
+- [x] **Double-tap prevention**: "Start Story" button disables after first tap to prevent duplicate calls
+- [x] Tapping "Start Story" navigates back to HomeScreen with `{ storySetup: StorySetupAnswers }` route params
+- [x] Progress indicator shows dot 4 of 4 filled
+- [x] Typecheck passes: `npx tsc --noEmit`
 
 **Validation Test:**
 

@@ -1,16 +1,27 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
+  ScrollView,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useAuth } from '../context/AuthContext';
 import { theme } from '../constants/theme';
 import { HomeStackParamList } from '../navigation/AppNavigator';
-import type { StoryGenre } from '../types/storySetup';
+import type {
+  StoryGenre,
+  CharacterType,
+  AnimalType,
+  StorySetting,
+  StoryStarter,
+  StorySetupAnswers,
+} from '../types/storySetup';
 import type { GradeLevel } from '../types/database';
 
 // ─── Navigation typing ──────────────────────────────────────────────
@@ -67,6 +78,61 @@ const getGenreLabel = (genre: StoryGenre, gradeLevel: GradeLevel): string => {
   }
 };
 
+// ─── Character configuration ────────────────────────────────────────
+
+interface CharacterOption {
+  value: CharacterType;
+  emoji: string;
+}
+
+const CHARACTER_OPTIONS: CharacterOption[] = [
+  { value: 'Girl', emoji: '👧' },
+  { value: 'Boy', emoji: '👦' },
+  { value: 'Animal', emoji: '🐾' },
+  { value: 'Custom', emoji: '✏️' },
+];
+
+interface AnimalOption {
+  value: AnimalType;
+  emoji: string;
+}
+
+const ANIMAL_OPTIONS: AnimalOption[] = [
+  { value: 'Cat', emoji: '🐱' },
+  { value: 'Dog', emoji: '🐶' },
+  { value: 'Rabbit', emoji: '🐰' },
+  { value: 'Owl', emoji: '🦉' },
+  { value: 'Other', emoji: '✏️' },
+];
+
+// ─── Setting configuration ──────────────────────────────────────────
+
+interface SettingOption {
+  value: StorySetting;
+  emoji: string;
+}
+
+const SETTING_OPTIONS: SettingOption[] = [
+  { value: 'Forest', emoji: '🌲' },
+  { value: 'Beach', emoji: '🌴' },
+  { value: 'Castle', emoji: '🏰' },
+  { value: 'Space', emoji: '🚀' },
+  { value: 'Custom', emoji: '✏️' },
+];
+
+// ─── Starter configuration ─────────────────────────────────────────
+
+interface StarterOption {
+  value: StoryStarter;
+  label: string;
+  emoji: string;
+}
+
+const STARTER_OPTIONS: StarterOption[] = [
+  { value: 'ai', label: 'AI starts the story', emoji: '✨' },
+  { value: 'user', label: 'I want to start', emoji: '✏️' },
+];
+
 // ─── Constants ──────────────────────────────────────────────────────
 
 const TOTAL_STEPS = 4;
@@ -78,35 +144,154 @@ const StorySetupScreen: React.FC<StorySetupScreenProps> = ({ navigation }) => {
   const gradeLevel: GradeLevel =
     (userProfile?.preferred_grade_level as GradeLevel) ?? 'K-2';
 
-  // Wizard state — only genre for Step 0 (other steps will extend this)
+  // ── Wizard state ───────────────────────────────────────────────
+
+  const [currentStep, setCurrentStep] = useState(0);
+
+  // Step 0 — Genre
   const [selectedGenre, setSelectedGenre] = useState<StoryGenre | null>(null);
 
-  // Current step — Step 0 is Genre
-  const [currentStep] = useState(0);
+  // Step 1 — Character
+  const [selectedCharacterType, setSelectedCharacterType] =
+    useState<CharacterType | null>(null);
+  const [selectedAnimalType, setSelectedAnimalType] =
+    useState<AnimalType | null>(null);
+  const [customAnimal, setCustomAnimal] = useState('');
+  const [customCharacter, setCustomCharacter] = useState('');
+  const [characterName, setCharacterName] = useState('');
+
+  // Step 2 — Setting
+  const [selectedSetting, setSelectedSetting] = useState<StorySetting | null>(
+    null,
+  );
+  const [customSetting, setCustomSetting] = useState('');
+  const customSettingInputRef = useRef<TextInput>(null);
+
+  // Step 3 — Who Starts
+  const [selectedStarter, setSelectedStarter] = useState<StoryStarter>('ai');
+
+  // Double-tap prevention for Start Story
+  const isStartingRef = useRef(false);
+  const [isStarting, setIsStarting] = useState(false);
 
   // ── Handlers ────────────────────────────────────────────────────
 
   const handleGenrePress = useCallback((genre: StoryGenre) => {
-    // Toggle: tap selected genre to deselect
     setSelectedGenre(prev => (prev === genre ? null : genre));
+  }, []);
+
+  const handleCharacterTypePress = useCallback((type: CharacterType) => {
+    setSelectedCharacterType(prev => {
+      if (prev === type) return null; // toggle off
+      // State cleanup: clear irrelevant sub-state when switching
+      if (type !== 'Animal') {
+        setSelectedAnimalType(null);
+        setCustomAnimal('');
+      }
+      if (type !== 'Custom') {
+        setCustomCharacter('');
+      }
+      return type;
+    });
+  }, []);
+
+  const handleAnimalTypePress = useCallback((animal: AnimalType) => {
+    setSelectedAnimalType(prev => {
+      if (prev === animal) return null;
+      if (animal !== 'Other') {
+        setCustomAnimal('');
+      }
+      return animal;
+    });
+  }, []);
+
+  const handleSettingPress = useCallback(
+    (setting: StorySetting) => {
+      setSelectedSetting(prev => (prev === setting ? null : setting));
+      // Clear custom text when leaving Custom
+      if (selectedSetting === 'Custom') {
+        setCustomSetting('');
+      }
+      // Focus custom input when selecting Custom
+      if (setting === 'Custom' && selectedSetting !== 'Custom') {
+        setTimeout(() => customSettingInputRef.current?.focus(), 150);
+      }
+    },
+    [selectedSetting],
+  );
+
+  const handleStarterPress = useCallback((starter: StoryStarter) => {
+    setSelectedStarter(starter);
   }, []);
 
   const handleClose = useCallback(() => {
     navigation.goBack();
   }, [navigation]);
 
+  const handleBack = useCallback(() => {
+    if (currentStep > 0) {
+      setCurrentStep(prev => prev - 1);
+    }
+  }, [currentStep]);
+
+  const buildAnswers = useCallback(
+    (starterOverride?: StoryStarter): StorySetupAnswers => ({
+      genre: selectedGenre,
+      characterType: selectedCharacterType,
+      animalType: selectedAnimalType,
+      customAnimal: customAnimal.trim() || null,
+      customCharacter: customCharacter.trim() || null,
+      characterName: characterName.trim() || null,
+      setting: selectedSetting,
+      customSetting: customSetting.trim() || null,
+      whoStarts: starterOverride ?? selectedStarter,
+    }),
+    [
+      selectedGenre,
+      selectedCharacterType,
+      selectedAnimalType,
+      customAnimal,
+      customCharacter,
+      characterName,
+      selectedSetting,
+      customSetting,
+      selectedStarter,
+    ],
+  );
+
   const handleSkip = useCallback(() => {
-    // Skip sets genre to null — advance to step 1
-    // For now (US-003 only), this is a placeholder for future steps.
-    // Once steps 1-3 are implemented, this will advance `currentStep`.
-    setSelectedGenre(null);
-    // TODO: advance to step 1 when character step is implemented
-  }, []);
+    if (currentStep === 0) {
+      setSelectedGenre(null);
+    } else if (currentStep === 1) {
+      setSelectedCharacterType(null);
+      setSelectedAnimalType(null);
+      setCustomAnimal('');
+      setCustomCharacter('');
+      setCharacterName('');
+    } else if (currentStep === 2) {
+      setSelectedSetting(null);
+      setCustomSetting('');
+    } else if (currentStep === 3) {
+      // Skip on final step defaults to 'ai' and starts the story
+      if (isStartingRef.current) return;
+      isStartingRef.current = true;
+      setIsStarting(true);
+      navigation.navigate('Home', { storySetup: buildAnswers('ai') });
+      return;
+    }
+    setCurrentStep(prev => prev + 1);
+  }, [currentStep, navigation, buildAnswers]);
 
   const handleNext = useCallback(() => {
-    // Advance to step 1 with selected genre (null if none selected = same as skip)
-    // TODO: advance to step 1 when character step is implemented
+    setCurrentStep(prev => prev + 1);
   }, []);
+
+  const handleStartStory = useCallback(() => {
+    if (isStartingRef.current) return;
+    isStartingRef.current = true;
+    setIsStarting(true);
+    navigation.navigate('Home', { storySetup: buildAnswers() });
+  }, [navigation, buildAnswers]);
 
   // ── Progress Dots ───────────────────────────────────────────────
 
@@ -157,38 +342,314 @@ const StorySetupScreen: React.FC<StorySetupScreenProps> = ({ navigation }) => {
     </View>
   );
 
-  // ── Bottom Bar ──────────────────────────────────────────────────
+  // ── Character Step (Step 1) ─────────────────────────────────────
 
-  const renderBottomBar = () => (
-    <View style={styles.bottomBar}>
-      {/* Close (X) — left side (step 0 has no Back) */}
-      <TouchableOpacity
-        style={styles.bottomBarButton}
-        onPress={handleClose}
-        activeOpacity={0.7}
+  const renderCharacterStep = () => (
+    <KeyboardAvoidingView
+      style={styles.keyboardAvoidingView}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+    >
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollViewContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.closeButtonText}>✕</Text>
-      </TouchableOpacity>
+        {/* Character type grid */}
+        <View style={styles.gridContainer}>
+          {CHARACTER_OPTIONS.map(option => {
+            const isSelected = selectedCharacterType === option.value;
+            return (
+              <TouchableOpacity
+                key={option.value}
+                style={[
+                  styles.genreButton,
+                  isSelected && styles.genreButtonSelected,
+                ]}
+                onPress={() => handleCharacterTypePress(option.value)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.genreEmoji}>{option.emoji}</Text>
+                <Text
+                  style={[
+                    styles.genreLabel,
+                    isSelected && styles.genreLabelSelected,
+                  ]}
+                >
+                  {option.value}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
-      {/* Skip — center */}
-      <TouchableOpacity
-        style={styles.bottomBarButton}
-        onPress={handleSkip}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.skipButtonText}>Skip</Text>
-      </TouchableOpacity>
+        {/* Animal inline expansion */}
+        {selectedCharacterType === 'Animal' && (
+          <View style={styles.expansionContainer}>
+            <Text style={styles.expansionLabel}>Pick an animal:</Text>
+            <View style={styles.gridContainer}>
+              {ANIMAL_OPTIONS.map(option => {
+                const isSelected = selectedAnimalType === option.value;
+                return (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[
+                      styles.genreButton,
+                      isSelected && styles.genreButtonSelected,
+                    ]}
+                    onPress={() => handleAnimalTypePress(option.value)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.genreEmoji}>{option.emoji}</Text>
+                    <Text
+                      style={[
+                        styles.genreLabel,
+                        isSelected && styles.genreLabelSelected,
+                      ]}
+                    >
+                      {option.value}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
-      {/* Next — right */}
-      <TouchableOpacity
-        style={[styles.bottomBarButton, styles.nextButton]}
-        onPress={handleNext}
-        activeOpacity={0.7}
+            {/* "Other" animal text input */}
+            {selectedAnimalType === 'Other' && (
+              <TextInput
+                style={styles.textInput}
+                placeholder="Type of animal..."
+                placeholderTextColor={theme.colors.textDisabled}
+                value={customAnimal}
+                onChangeText={setCustomAnimal}
+                maxLength={30}
+                autoCapitalize="sentences"
+                returnKeyType="done"
+              />
+            )}
+          </View>
+        )}
+
+        {/* Custom character text input */}
+        {selectedCharacterType === 'Custom' && (
+          <View style={styles.expansionContainer}>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Describe your character..."
+              placeholderTextColor={theme.colors.textDisabled}
+              value={customCharacter}
+              onChangeText={setCustomCharacter}
+              maxLength={50}
+              autoCapitalize="sentences"
+              returnKeyType="done"
+            />
+          </View>
+        )}
+
+        {/* Character name — always visible */}
+        <View style={styles.nameInputContainer}>
+          <Text style={styles.nameInputLabel}>
+            Give them a name: (optional)
+          </Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="Character name..."
+            placeholderTextColor={theme.colors.textDisabled}
+            value={characterName}
+            onChangeText={setCharacterName}
+            maxLength={30}
+            autoCapitalize="words"
+            returnKeyType="done"
+          />
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+
+  // ── Setting Step (Step 2) ──────────────────────────────────────
+
+  const renderSettingStep = () => (
+    <KeyboardAvoidingView
+      style={styles.keyboardAvoidingView}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+    >
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollViewContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.nextButtonText}>Next</Text>
-      </TouchableOpacity>
+        {/* Setting grid */}
+        <View style={styles.gridContainer}>
+          {SETTING_OPTIONS.map(option => {
+            const isSelected = selectedSetting === option.value;
+            return (
+              <TouchableOpacity
+                key={option.value}
+                style={[
+                  styles.genreButton,
+                  isSelected && styles.genreButtonSelected,
+                ]}
+                onPress={() => handleSettingPress(option.value)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.genreEmoji}>{option.emoji}</Text>
+                <Text
+                  style={[
+                    styles.genreLabel,
+                    isSelected && styles.genreLabelSelected,
+                  ]}
+                >
+                  {option.value}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Custom setting text input */}
+        {selectedSetting === 'Custom' && (
+          <View style={styles.expansionContainer}>
+            <TextInput
+              ref={customSettingInputRef}
+              style={styles.textInput}
+              placeholder="Describe a place..."
+              placeholderTextColor={theme.colors.textDisabled}
+              value={customSetting}
+              onChangeText={setCustomSetting}
+              maxLength={50}
+              autoCapitalize="sentences"
+              returnKeyType="done"
+            />
+          </View>
+        )}
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+
+  // ── Starter Options (Step 3) ──────────────────────────────────
+
+  const renderStarterOptions = () => (
+    <View style={styles.starterContainer}>
+      {STARTER_OPTIONS.map(option => {
+        const isSelected = selectedStarter === option.value;
+        return (
+          <TouchableOpacity
+            key={option.value}
+            style={[
+              styles.starterButton,
+              isSelected && styles.starterButtonSelected,
+            ]}
+            onPress={() => handleStarterPress(option.value)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.starterEmoji}>{option.emoji}</Text>
+            <Text
+              style={[
+                styles.starterLabel,
+                isSelected && styles.starterLabelSelected,
+              ]}
+            >
+              {option.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
+
+  // ── Bottom Bar ──────────────────────────────────────────────────
+
+  const renderBottomBar = () => {
+    const isLastStep = currentStep === 3;
+
+    return (
+      <View style={styles.bottomBar}>
+        {/* Left: Close (X) on step 0, Back on steps 1+ */}
+        {currentStep === 0 ? (
+          <TouchableOpacity
+            style={styles.bottomBarButton}
+            onPress={handleClose}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.closeButtonText}>✕</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={styles.bottomBarButton}
+            onPress={handleBack}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.backButtonText}>Back</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Skip — center */}
+        <TouchableOpacity
+          style={styles.bottomBarButton}
+          onPress={handleSkip}
+          activeOpacity={0.7}
+          disabled={isStarting}
+        >
+          <Text style={styles.skipButtonText}>Skip</Text>
+        </TouchableOpacity>
+
+        {/* Right: "Start Story" on step 3, "Next" otherwise */}
+        {isLastStep ? (
+          <TouchableOpacity
+            style={[
+              styles.bottomBarButton,
+              styles.startStoryButton,
+              isStarting && styles.startStoryButtonDisabled,
+            ]}
+            onPress={handleStartStory}
+            activeOpacity={0.7}
+            disabled={isStarting}
+          >
+            <Text style={styles.nextButtonText}>
+              {isStarting ? 'Starting…' : 'Start Story'}
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[styles.bottomBarButton, styles.nextButton]}
+            onPress={handleNext}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.nextButtonText}>Next</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
+  // ── Step titles ────────────────────────────────────────────────
+
+  const stepTitles = [
+    'Pick a story genre',
+    'Who is your character?',
+    'Where does the story happen?',
+    'Who writes first?',
+  ];
+
+  // ── Render step content ───────────────────────────────────────
+
+  const renderStepContent = () => {
+    switch (currentStep) {
+      case 0:
+        return renderGenreGrid();
+      case 1:
+        return renderCharacterStep();
+      case 2:
+        return renderSettingStep();
+      case 3:
+        return renderStarterOptions();
+      default:
+        return null;
+    }
+  };
 
   // ── Render ──────────────────────────────────────────────────────
 
@@ -197,9 +658,9 @@ const StorySetupScreen: React.FC<StorySetupScreenProps> = ({ navigation }) => {
       <View style={styles.content}>
         {renderProgressDots()}
 
-        <Text style={styles.stepTitle}>Pick a story genre</Text>
+        <Text style={styles.stepTitle}>{stepTitles[currentStep]}</Text>
 
-        {renderGenreGrid()}
+        {renderStepContent()}
       </View>
 
       {renderBottomBar()}
@@ -288,6 +749,79 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.semibold,
   },
 
+  // Character step
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollViewContent: {
+    paddingBottom: theme.spacing.xl,
+  },
+  expansionContainer: {
+    marginTop: theme.spacing.base,
+  },
+  expansionLabel: {
+    fontSize: theme.typography.textStyles.bodySmall.fontSize,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.textSecondary,
+    marginBottom: theme.spacing.md,
+  },
+  textInput: {
+    borderWidth: theme.layout.borderWidth,
+    borderColor: theme.colors.inputBorder,
+    borderRadius: theme.borderRadius.input,
+    backgroundColor: theme.colors.inputBackground,
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.base,
+    fontSize: theme.typography.textStyles.body.fontSize,
+    color: theme.colors.text,
+    marginTop: theme.spacing.md,
+  },
+  nameInputContainer: {
+    marginTop: theme.spacing.xl,
+  },
+  nameInputLabel: {
+    fontSize: theme.typography.textStyles.bodySmall.fontSize,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.textSecondary,
+    marginBottom: theme.spacing.sm,
+  },
+
+  // Starter options (Step 3) — full-width stacked buttons
+  starterContainer: {
+    gap: theme.spacing.base,
+  },
+  starterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.xl,
+    borderWidth: theme.layout.borderWidthThick,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.button,
+    backgroundColor: theme.colors.surface,
+    ...theme.shadows.sm,
+  },
+  starterButtonSelected: {
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.inputBackgroundValid,
+  },
+  starterEmoji: {
+    fontSize: 28,
+    marginRight: theme.spacing.base,
+  },
+  starterLabel: {
+    fontSize: theme.typography.textStyles.body.fontSize,
+    fontWeight: theme.typography.fontWeight.medium,
+    color: theme.colors.text,
+  },
+  starterLabelSelected: {
+    color: theme.colors.primary,
+    fontWeight: theme.typography.fontWeight.semibold,
+  },
+
   // Bottom bar
   bottomBar: {
     flexDirection: 'row',
@@ -310,6 +844,11 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     fontWeight: theme.typography.fontWeight.semibold,
   },
+  backButtonText: {
+    fontSize: theme.typography.textStyles.button.fontSize,
+    fontWeight: theme.typography.textStyles.button.fontWeight,
+    color: theme.colors.textSecondary,
+  },
   skipButtonText: {
     fontSize: theme.typography.textStyles.button.fontSize,
     fontWeight: theme.typography.textStyles.button.fontWeight,
@@ -319,6 +858,14 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primary,
     borderRadius: theme.borderRadius.button,
     paddingHorizontal: theme.spacing.xl,
+  },
+  startStoryButton: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.button,
+    paddingHorizontal: theme.spacing.xl,
+  },
+  startStoryButtonDisabled: {
+    backgroundColor: theme.colors.disabled,
   },
   nextButtonText: {
     fontSize: theme.typography.textStyles.button.fontSize,
