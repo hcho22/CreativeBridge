@@ -277,7 +277,7 @@ const App: React.FC = () => {
         // Clerk is configured - wrap with ConditionalClerkProvider which will render ClerkProvider
         <ConditionalClerkProvider>
           <AuthProvider>
-            <StatusBar barStyle="light-content" backgroundColor="#4CAF50" />
+            <StatusBar barStyle="dark-content" backgroundColor="#fcfcfc" />
             <MainApp />
           </AuthProvider>
         </ConditionalClerkProvider>
