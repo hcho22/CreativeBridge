@@ -316,19 +316,19 @@ This feature adds a **4-step story setup wizard** that appears before each new s
 
 **Acceptance Criteria:**
 
-- [ ] Modify `executeStartNewGame` signature to accept optional `StorySetupAnswers`:
+- [x] Modify `executeStartNewGame` signature to accept optional `StorySetupAnswers`:
   ```typescript
   const executeStartNewGame = async (overrideUserId?: string, setup?: StorySetupAnswers) => {
   ```
-- [ ] At the start of `executeStartNewGame`, call `resolveStorySetup(setup)` to get resolved values
-- [ ] Pass resolved genre to `storySessionManager.createSession()` metadata as `theme`
-- [ ] Pass resolved character to session metadata as `character`
-- [ ] Pass resolved setting to session metadata as `setting`
-- [ ] Pass resolved genre as `theme` to `storyAgentService.generateStoryStarter()` (replaces `preferredGenre ?? 'adventure'`)
-- [ ] Pass resolved character as `character` to `generateStoryStarter()` (field already exists on `StoryStarterRequest`)
-- [ ] Pass resolved setting as `setting` to `generateStoryStarter()` (field already exists on `StoryStarterRequest`)
-- [ ] When `setup` is undefined (fallback/legacy path), behavior is identical to current: uses `preferredGenre ?? 'adventure'`, no character/setting
-- [ ] Typecheck passes: `npx tsc --noEmit`
+- [x] At the start of `executeStartNewGame`, call `resolveStorySetup(setup)` to get resolved values
+- [x] Pass resolved genre to `storySessionManager.createSession()` metadata as `theme`
+- [x] Pass resolved character to session metadata as `character`
+- [x] Pass resolved setting to session metadata as `setting`
+- [x] Pass resolved genre as `theme` to `storyAgentService.generateStoryStarter()` (replaces `preferredGenre ?? 'adventure'`)
+- [x] Pass resolved character as `character` to `generateStoryStarter()` (field already exists on `StoryStarterRequest`)
+- [x] Pass resolved setting as `setting` to `generateStoryStarter()` (field already exists on `StoryStarterRequest`)
+- [x] When `setup` is undefined (fallback/legacy path), behavior is identical to current: uses `preferredGenre ?? 'adventure'`, no character/setting
+- [x] Typecheck passes: `npx tsc --noEmit`
 
 **Validation Test:**
 
@@ -350,25 +350,25 @@ This feature adds a **4-step story setup wizard** that appears before each new s
 
 **Acceptance Criteria:**
 
-- [ ] Add state variable `isUserStarting` (boolean, default false) to HomeScreen
-- [ ] When `resolvedSetup.whoStarts === 'user'` in `executeStartNewGame`:
+- [x] Add state variable `isUserStarting` (boolean, default false) to HomeScreen
+- [x] When `resolvedSetup.whoStarts === 'user'` in `executeStartNewGame`:
   - Create session normally (with metadata) via `storySessionManager.createSession()`
   - **Skip** the `storyAgentService.generateStoryStarter()` call entirely
   - Set `currentSession` to the new (empty) session
   - Set `isGameActive` to true
   - Set `isUserStarting` to true
   - Initialize challenge system normally
-- [ ] In the story display area, when `isUserStarting && contributions.length === 0`:
+- [x] In the story display area, when `isUserStarting && contributions.length === 0`:
   - Show a styled prompt card with text: "Write the first line of your story..."
   - Generic prompt with no contextual hints from setup choices
   - Auto-focus the text input field
-- [ ] After user submits their first contribution:
+- [x] After user submits their first contribution:
   - Set `isUserStarting` to false
   - Normal AI continuation flow resumes via existing `continueStory()`
   - AI response uses the session metadata (genre, character, setting) when continuing
-- [ ] When user quits/exits a "user starts" session without writing, handle via existing quit flow (no special handling needed)
-- [ ] Reset `isUserStarting` to false when a new game starts or session ends
-- [ ] Typecheck passes: `npx tsc --noEmit`
+- [x] When user quits/exits a "user starts" session without writing, handle via existing quit flow (no special handling needed)
+- [x] Reset `isUserStarting` to false when a new game starts or session ends
+- [x] Typecheck passes: `npx tsc --noEmit`
 
 **Validation Test:**
 
