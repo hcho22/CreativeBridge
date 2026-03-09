@@ -11,6 +11,7 @@ import { HomeScreen, SettingsScreen, ProfileScreen } from '../screens';
 import ImportOptionsScreen from '../screens/ImportOptionsScreen';
 import StorySelectionScreen from '../screens/StorySelectionScreen';
 import StoryPreviewEditScreen from '../screens/StoryPreviewEditScreen';
+import StorySetupScreen from '../screens/StorySetupScreen';
 
 // Type definitions for navigation
 export type TabParamList = {
@@ -44,6 +45,7 @@ export type HomeStackParamList = {
       created_at?: string;
     };
   };
+  StorySetup: undefined;
 };
 
 // Auth navigation types (for stack navigation if needed)
@@ -113,6 +115,11 @@ const HomeStackNavigator: React.FC = () => {
           headerTitle: '📖 Story Preview',
           headerBackTitle: 'Stories',
         }}
+      />
+      <HomeStack.Screen
+        name="StorySetup"
+        component={StorySetupScreen}
+        options={{ headerShown: false }}
       />
     </HomeStack.Navigator>
   );
