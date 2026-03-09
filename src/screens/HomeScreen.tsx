@@ -40,6 +40,7 @@ import {
   StorySession,
 } from '../services/storySessionManager';
 import { GradeLevel } from '../types';
+import type { StorySetupAnswers } from '../types/storySetup';
 import { textToSpeechService } from '../services/textToSpeechIsolated';
 import { StoryInputDebouncer } from '../utils/debounceUtils';
 import { extractLatestContinuation } from '../utils/storyUtils';
@@ -1163,6 +1164,36 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     isGameActive,
   ]);
 
+  // Handle story setup from wizard (US-009)
+  useEffect(() => {
+    const storySetupParams = route.params?.storySetup;
+
+    if (
+      storySetupParams &&
+      isAuthenticated &&
+      effectiveUserId &&
+      !isGameActive
+    ) {
+      console.log('🎭 Detected story setup from wizard:', {
+        genre: storySetupParams.genre,
+        characterType: storySetupParams.characterType,
+        setting: storySetupParams.setting,
+        whoStarts: storySetupParams.whoStarts,
+      });
+
+      // Clear the param immediately to prevent re-triggering
+      (navigation as any).setParams({ storySetup: undefined });
+
+      // Start the story with setup answers
+      executeStartNewGame(effectiveUserId, storySetupParams);
+    }
+  }, [
+    route.params?.storySetup,
+    isAuthenticated,
+    effectiveUserId,
+    isGameActive,
+  ]);
+
   const handleContinueImportedStory = async (
     continueParams: NonNullable<HomeStackParamList['Home']>['continueStory'],
   ) => {
@@ -1224,7 +1255,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   // Core story creation logic - extracted for reuse after guidance modal (US-012)
   // overrideUserId allows passing a resolved profile ID when userProfile context isn't updated yet
-  const executeStartNewGame = async (overrideUserId?: string) => {
+  const executeStartNewGame = async (
+    overrideUserId?: string,
+    setup?: StorySetupAnswers,
+  ) => {
     const userIdToUse = overrideUserId || effectiveUserId;
     console.log('📖 executeStartNewGame: Starting new game flow', {
       overrideUserId,
@@ -1461,7 +1495,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         // Store the action to execute after guidance is dismissed
         // Capture the user ID in a closure (works for both OAuth and email/password users)
         pendingStoryActionRef.current = () =>
-          executeStartNewGame(userIdForSession);
+          navigation.navigate('StorySetup' as never);
         setShowFirstStoryGuidance(true);
         return;
       }
@@ -1470,8 +1504,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       // Continue with story creation on error
     }
 
-    // No guidance needed, proceed directly
-    executeStartNewGame(userIdForSession);
+    // No guidance needed, proceed directly to setup wizard
+    navigation.navigate('StorySetup' as never);
   };
 
   const generateFallbackStarter = async (): Promise<string> => {

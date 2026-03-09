@@ -234,13 +234,13 @@ This feature adds a **4-step story setup wizard** that appears before each new s
 
 **Acceptance Criteria:**
 
-- [ ] Steps transition with horizontal slide animation using `Animated.timing` with `translateX` (duration: `theme.animation.normal` = 300ms)
-- [ ] Going forward: current step slides left out, new step slides in from right
-- [ ] Going backward: current step slides right out, previous step slides in from left
-- [ ] Progress dots animate fill state with `Animated.spring`
-- [ ] **Android hardware back button**: On steps 1-3, goes to previous step (not exit screen). On step 0, exits the setup screen.
-- [ ] **iOS swipe-back gesture**: Intercepted via `navigation.addListener('beforeRemove')` — on steps 1-3, prevent default and go to previous step. On step 0, allow default (exit screen).
-- [ ] Typecheck passes: `npx tsc --noEmit`
+- [x] Steps transition with horizontal slide animation using `Animated.timing` with `translateX` (duration: `theme.animation.normal` = 300ms)
+- [x] Going forward: current step slides left out, new step slides in from right
+- [x] Going backward: current step slides right out, previous step slides in from left
+- [x] Progress dots animate fill state with `Animated.spring`
+- [x] **Android hardware back button**: On steps 1-3, goes to previous step (not exit screen). On step 0, exits the setup screen.
+- [x] **iOS swipe-back gesture**: Intercepted via `navigation.addListener('beforeRemove')` — on steps 1-3, prevent default and go to previous step. On step 0, allow default (exit screen).
+- [x] Typecheck passes: `npx tsc --noEmit`
 
 **Validation Test:**
 
@@ -264,12 +264,12 @@ This feature adds a **4-step story setup wizard** that appears before each new s
 
 **Acceptance Criteria:**
 
-- [ ] Add `StorySetup: undefined` to `HomeStackParamList` in `src/navigation/AppNavigator.tsx`
-- [ ] Add `storySetup?: StorySetupAnswers` to the `Home` route params type (alongside existing `continueStory`)
-- [ ] Import `StorySetupScreen` in `AppNavigator.tsx`
-- [ ] Register `<HomeStack.Screen name="StorySetup" component={StorySetupScreen} options={{ headerShown: false }} />` in the HomeStack navigator
-- [ ] Add `export { default as StorySetupScreen } from './StorySetupScreen';` to `src/screens/index.ts`
-- [ ] Typecheck passes: `npx tsc --noEmit`
+- [x] Add `StorySetup: undefined` to `HomeStackParamList` in `src/navigation/AppNavigator.tsx`
+- [x] Add `storySetup?: StorySetupAnswers` to the `Home` route params type (alongside existing `continueStory`)
+- [x] Import `StorySetupScreen` in `AppNavigator.tsx`
+- [x] Register `<HomeStack.Screen name="StorySetup" component={StorySetupScreen} options={{ headerShown: false }} />` in the HomeStack navigator
+- [x] Add `export { default as StorySetupScreen } from './StorySetupScreen';` to `src/screens/index.ts`
+- [x] Typecheck passes: `npx tsc --noEmit`
 
 **Validation Test:**
 
@@ -288,15 +288,15 @@ This feature adds a **4-step story setup wizard** that appears before each new s
 
 **Acceptance Criteria:**
 
-- [ ] In `src/screens/HomeScreen.tsx`, modify `handleStartNewGame()`:
+- [x] In `src/screens/HomeScreen.tsx`, modify `handleStartNewGame()`:
   - Auth/profile validation stays unchanged (lines 1400-1448)
   - Replace `executeStartNewGame(userIdForSession)` (line 1474) with `navigation.navigate('StorySetup')`
   - Replace `pendingStoryActionRef.current` assignment (line 1463) with `() => navigation.navigate('StorySetup')` so first-story guidance modal navigates to wizard after dismissal
-- [ ] Add `useEffect` that watches `route.params?.storySetup`:
+- [x] Add `useEffect` that watches `route.params?.storySetup`:
   - When `storySetup` param arrives and user is authenticated and no game is active, call `executeStartNewGame(userIdForSession, setup)`
   - Clear the param immediately via `navigation.setParams({ storySetup: undefined })` to prevent re-triggering
-- [ ] Import `StorySetupAnswers` type in HomeScreen
-- [ ] Typecheck passes: `npx tsc --noEmit`
+- [x] Import `StorySetupAnswers` type in HomeScreen
+- [x] Typecheck passes: `npx tsc --noEmit`
 
 **Validation Test:**
 

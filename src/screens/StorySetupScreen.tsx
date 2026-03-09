@@ -1,4 +1,10 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useMemo,
+} from 'react';
 import {
   View,
   Text,
@@ -9,6 +15,9 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Animated,
+  Dimensions,
+  BackHandler,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useAuth } from '../context/AuthContext';
@@ -136,6 +145,7 @@ const STARTER_OPTIONS: StarterOption[] = [
 // ─── Constants ──────────────────────────────────────────────────────
 
 const TOTAL_STEPS = 4;
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 // ─── Component ──────────────────────────────────────────────────────
 
@@ -173,6 +183,46 @@ const StorySetupScreen: React.FC<StorySetupScreenProps> = ({ navigation }) => {
   // Double-tap prevention for Start Story
   const isStartingRef = useRef(false);
   const [isStarting, setIsStarting] = useState(false);
+
+  // ── Animation ─────────────────────────────────────────────────
+
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const isTransitioning = useRef(false);
+  const isNavigatingAway = useRef(false);
+  const dotAnims = useMemo(
+    () => Array.from({ length: TOTAL_STEPS }, () => new Animated.Value(1)),
+    [],
+  );
+
+  /** Slide current step out, update content, slide new step in. */
+  const animateStepTransition = useCallback(
+    (direction: 'forward' | 'backward', updateStep: () => void) => {
+      if (isTransitioning.current) return;
+      isTransitioning.current = true;
+
+      const exitValue = direction === 'forward' ? -SCREEN_WIDTH : SCREEN_WIDTH;
+      const entryValue = direction === 'forward' ? SCREEN_WIDTH : -SCREEN_WIDTH;
+
+      // Phase 1: slide current content out
+      Animated.timing(slideAnim, {
+        toValue: exitValue,
+        duration: theme.animation.fast,
+        useNativeDriver: true,
+      }).start(() => {
+        updateStep();
+        slideAnim.setValue(entryValue);
+        // Phase 2: slide new content in
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: theme.animation.fast,
+          useNativeDriver: true,
+        }).start(() => {
+          isTransitioning.current = false;
+        });
+      });
+    },
+    [slideAnim],
+  );
 
   // ── Handlers ────────────────────────────────────────────────────
 
@@ -230,9 +280,11 @@ const StorySetupScreen: React.FC<StorySetupScreenProps> = ({ navigation }) => {
 
   const handleBack = useCallback(() => {
     if (currentStep > 0) {
-      setCurrentStep(prev => prev - 1);
+      animateStepTransition('backward', () => {
+        setCurrentStep(prev => prev - 1);
+      });
     }
-  }, [currentStep]);
+  }, [currentStep, animateStepTransition]);
 
   const buildAnswers = useCallback(
     (starterOverride?: StoryStarter): StorySetupAnswers => ({
@@ -260,49 +312,106 @@ const StorySetupScreen: React.FC<StorySetupScreenProps> = ({ navigation }) => {
   );
 
   const handleSkip = useCallback(() => {
-    if (currentStep === 0) {
-      setSelectedGenre(null);
-    } else if (currentStep === 1) {
-      setSelectedCharacterType(null);
-      setSelectedAnimalType(null);
-      setCustomAnimal('');
-      setCustomCharacter('');
-      setCharacterName('');
-    } else if (currentStep === 2) {
-      setSelectedSetting(null);
-      setCustomSetting('');
-    } else if (currentStep === 3) {
+    if (currentStep === 3) {
       // Skip on final step defaults to 'ai' and starts the story
       if (isStartingRef.current) return;
       isStartingRef.current = true;
       setIsStarting(true);
+      isNavigatingAway.current = true;
       navigation.navigate('Home', { storySetup: buildAnswers('ai') });
       return;
     }
-    setCurrentStep(prev => prev + 1);
-  }, [currentStep, navigation, buildAnswers]);
+    animateStepTransition('forward', () => {
+      // Clear state for the skipped step
+      if (currentStep === 0) {
+        setSelectedGenre(null);
+      } else if (currentStep === 1) {
+        setSelectedCharacterType(null);
+        setSelectedAnimalType(null);
+        setCustomAnimal('');
+        setCustomCharacter('');
+        setCharacterName('');
+      } else if (currentStep === 2) {
+        setSelectedSetting(null);
+        setCustomSetting('');
+      }
+      setCurrentStep(prev => prev + 1);
+    });
+  }, [currentStep, navigation, buildAnswers, animateStepTransition]);
 
   const handleNext = useCallback(() => {
-    setCurrentStep(prev => prev + 1);
-  }, []);
+    if (currentStep < TOTAL_STEPS - 1) {
+      animateStepTransition('forward', () => {
+        setCurrentStep(prev => prev + 1);
+      });
+    }
+  }, [currentStep, animateStepTransition]);
 
   const handleStartStory = useCallback(() => {
     if (isStartingRef.current) return;
     isStartingRef.current = true;
     setIsStarting(true);
+    isNavigatingAway.current = true;
     navigation.navigate('Home', { storySetup: buildAnswers() });
   }, [navigation, buildAnswers]);
+
+  // ── Effects ───────────────────────────────────────────────────
+
+  // Animate progress dot with spring "pop" when step changes
+  useEffect(() => {
+    dotAnims.forEach((anim, index) => {
+      if (index === currentStep) {
+        Animated.spring(anim, {
+          toValue: 1.3,
+          useNativeDriver: true,
+          friction: 4,
+          tension: 200,
+        }).start(() => {
+          Animated.spring(anim, {
+            toValue: 1,
+            useNativeDriver: true,
+            friction: 5,
+          }).start();
+        });
+      }
+    });
+  }, [currentStep, dotAnims]);
+
+  // Android hardware back button: go to previous step on steps 1-3
+  useEffect(() => {
+    const handler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (currentStep > 0) {
+        handleBack();
+        return true;
+      }
+      return false; // Allow default (exit screen) on step 0
+    });
+    return () => handler.remove();
+  }, [currentStep, handleBack]);
+
+  // iOS swipe-back gesture: intercept and go to previous step on steps 1-3
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', e => {
+      if (isNavigatingAway.current) return; // Allow intentional navigation
+      if (currentStep > 0) {
+        e.preventDefault();
+        handleBack();
+      }
+    });
+    return unsubscribe;
+  }, [currentStep, handleBack, navigation]);
 
   // ── Progress Dots ───────────────────────────────────────────────
 
   const renderProgressDots = () => (
     <View style={styles.progressContainer}>
       {Array.from({ length: TOTAL_STEPS }).map((_, index) => (
-        <View
+        <Animated.View
           key={index}
           style={[
             styles.progressDot,
             index <= currentStep && styles.progressDotActive,
+            { transform: [{ scale: dotAnims[index] }] },
           ]}
         />
       ))}
@@ -658,9 +767,17 @@ const StorySetupScreen: React.FC<StorySetupScreenProps> = ({ navigation }) => {
       <View style={styles.content}>
         {renderProgressDots()}
 
-        <Text style={styles.stepTitle}>{stepTitles[currentStep]}</Text>
-
-        {renderStepContent()}
+        <View style={styles.stepContentWrapper}>
+          <Animated.View
+            style={[
+              styles.stepAnimatedContent,
+              { transform: [{ translateX: slideAnim }] },
+            ]}
+          >
+            <Text style={styles.stepTitle}>{stepTitles[currentStep]}</Text>
+            {renderStepContent()}
+          </Animated.View>
+        </View>
       </View>
 
       {renderBottomBar()}
@@ -679,6 +796,13 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: theme.spacing.screen,
     paddingTop: theme.spacing.section,
+  },
+  stepContentWrapper: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  stepAnimatedContent: {
+    flex: 1,
   },
 
   // Progress dots
