@@ -2,7 +2,10 @@ import React from 'react';
 import { StyleSheet, Text } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { NavigationContainer } from '@react-navigation/native';
+import {
+  NavigationContainer,
+  getFocusedRouteNameFromRoute,
+} from '@react-navigation/native';
 import { AdaptiveGlassBackground } from '../components/common/AdaptiveGlassBackground';
 import { theme } from '../constants/theme';
 import type { StorySetupAnswers } from '../types/storySetup';
@@ -199,9 +202,18 @@ const AppNavigator: React.FC = () => {
         <Tab.Screen
           name="HomeStack"
           component={HomeStackNavigator}
-          options={{
-            title: 'Home',
-            headerShown: false, // Hide tab navigator header since HomeStack handles headers
+          options={({ route }) => {
+            // Hide the tab bar when a full-screen wizard (e.g. StorySetup) is focused
+            const routeName = getFocusedRouteNameFromRoute(route) ?? 'Home';
+            const hideTabBar = routeName === 'StorySetup';
+
+            return {
+              title: 'Home',
+              headerShown: false,
+              ...(hideTabBar && {
+                tabBarStyle: { display: 'none' as const },
+              }),
+            };
           }}
         />
         <Tab.Screen
