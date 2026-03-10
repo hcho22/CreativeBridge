@@ -7,12 +7,12 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
   Alert,
   ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useHeaderHeight } from '@react-navigation/elements';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { FilePickerUtils } from '../utils/filePicker';
 
@@ -34,6 +34,7 @@ export const ImportOptionsScreen: React.FC<ImportOptionsScreenProps> = ({
 }) => {
   const nav = useNavigation<ImportOptionsNavigationProp>();
   const activeNavigation = navigation || nav;
+  const headerHeight = useHeaderHeight();
   const [isImporting, setIsImporting] = useState(false);
 
   const handleFileImport = async () => {
@@ -112,7 +113,7 @@ export const ImportOptionsScreen: React.FC<ImportOptionsScreenProps> = ({
   // Removed handleBack function - back button was removed from the header
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: headerHeight }]}>
       <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
 
       {/* Main Content */}
@@ -197,7 +198,7 @@ export const ImportOptionsScreen: React.FC<ImportOptionsScreenProps> = ({
           </TouchableOpacity>
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 

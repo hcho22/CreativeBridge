@@ -4,6 +4,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, StatusBar, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useHeaderHeight } from '@react-navigation/elements';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
 import { StorySelectionModal } from '../components/story/StorySelectionModal';
@@ -24,6 +25,7 @@ export const StorySelectionScreen: React.FC<StorySelectionScreenProps> = ({
 }) => {
   const nav = useNavigation<StorySelectionNavigationProp>();
   const activeNavigation = navigation || nav;
+  const headerHeight = useHeaderHeight();
   const { user } = useAuth();
 
   const handleStorySelect = (story: GameSession) => {
@@ -73,7 +75,7 @@ export const StorySelectionScreen: React.FC<StorySelectionScreenProps> = ({
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: headerHeight }]}>
       <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
 
       <StorySelectionModal
@@ -82,6 +84,7 @@ export const StorySelectionScreen: React.FC<StorySelectionScreenProps> = ({
         onStorySelect={handleStorySelect}
         onClose={handleBack}
         title="Your Stories"
+        showHeader={false}
       />
     </View>
   );

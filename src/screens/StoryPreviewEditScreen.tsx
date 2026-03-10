@@ -2,12 +2,14 @@
 // Allows users to preview and edit their selected story before continuing
 
 import React, { useState } from 'react';
-import { View, StyleSheet, SafeAreaView, StatusBar, Alert } from 'react-native';
+import { View, StyleSheet, StatusBar, Alert } from 'react-native';
 import {
   useNavigation,
   useRoute,
   type RouteProp,
 } from '@react-navigation/native';
+import { useHeaderHeight } from '@react-navigation/elements';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { StoryPreviewEdit } from '../components/story/StoryPreviewEdit';
 import type { HomeStackParamList } from '../navigation/AppNavigator';
@@ -33,6 +35,8 @@ export const StoryPreviewEditScreen: React.FC<StoryPreviewEditScreenProps> = ({
 }) => {
   const nav = useNavigation<StoryPreviewEditNavigationProp>();
   const currentRoute = useRoute<StoryPreviewEditRouteProp>();
+  const headerHeight = useHeaderHeight();
+  const tabBarHeight = useBottomTabBarHeight();
 
   const activeNavigation = navigation || nav;
   const activeRoute = route || currentRoute;
@@ -124,7 +128,8 @@ export const StoryPreviewEditScreen: React.FC<StoryPreviewEditScreenProps> = ({
       activeNavigation.navigate('Home', {
         continueStory: {
           sessionId: storyData.id,
-          importedContent: storyData.imported_story_content || storyData.story_content || '',
+          importedContent:
+            storyData.imported_story_content || storyData.story_content || '',
           storySource: storyData.story_source,
           gradeLevel: storyData.grade_level,
           metadata: storyData.story_metadata,
@@ -154,17 +159,22 @@ export const StoryPreviewEditScreen: React.FC<StoryPreviewEditScreenProps> = ({
     );
 
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={[styles.container, { paddingTop: headerHeight }]}>
         <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
         <View style={styles.errorContainer}>
           {/* Alert is shown above, this is just a fallback view */}
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        { paddingTop: headerHeight, paddingBottom: tabBarHeight },
+      ]}
+    >
       <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
 
       <StoryPreviewEdit
@@ -176,8 +186,9 @@ export const StoryPreviewEditScreen: React.FC<StoryPreviewEditScreenProps> = ({
         autoSave={true}
         autoSaveDelay={2000}
         showActions={true}
+        showHeader={false}
       />
-    </SafeAreaView>
+    </View>
   );
 };
 
