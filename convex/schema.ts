@@ -212,6 +212,7 @@ export default defineSchema({
     firstStreakAchievedAt: v.optional(v.string()),
   })
     .index('by_clerk_user_id', ['clerkUserId'])
+    .index('by_username', ['username'])
     .index('by_total_xp', ['totalXp']),
 
   /**

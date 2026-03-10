@@ -144,6 +144,27 @@ export const getProfileByClerkId = query({
 });
 
 /**
+ * Check if a username is available (not already taken).
+ * This is a public query (no auth required) so it can be used during sign-up.
+ *
+ * @param username - Username to check
+ * @returns true if the username is available
+ */
+export const isUsernameAvailable = query({
+  args: {
+    username: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query('userProfiles')
+      .withIndex('by_username', q => q.eq('username', args.username))
+      .first();
+
+    return existing === null;
+  },
+});
+
+/**
  * Get the current authenticated user's profile.
  * Convenience function that extracts Clerk ID from auth context.
  *

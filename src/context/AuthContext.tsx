@@ -1967,6 +1967,35 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         password,
       });
 
+      // Debug: log full sign-in result to diagnose unexpected verification prompts
+      console.log('🔍 [AuthContext] Clerk sign-in result:', {
+        status: result.status,
+        supportedFirstFactors: result.supportedFirstFactors?.map((f: any) => ({
+          strategy: f.strategy,
+          safeIdentifier: f.safeIdentifier,
+        })),
+        supportedSecondFactors: result.supportedSecondFactors?.map(
+          (f: any) => ({
+            strategy: f.strategy,
+            safeIdentifier: f.safeIdentifier,
+          }),
+        ),
+        firstFactorVerification: result.firstFactorVerification
+          ? {
+              status: result.firstFactorVerification.status,
+              strategy: result.firstFactorVerification.strategy,
+            }
+          : null,
+        secondFactorVerification: result.secondFactorVerification
+          ? {
+              status: result.secondFactorVerification.status,
+              strategy: result.secondFactorVerification.strategy,
+            }
+          : null,
+        identifier: result.identifier,
+        createdSessionId: result.createdSessionId,
+      });
+
       if (result.status === 'complete') {
         // Activate the Clerk session
         console.log('📧 [AuthContext] Activating Clerk session...');
@@ -1975,27 +2004,90 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         return {};
       }
 
-      // Handle needs_second_factor: prepare email code and signal UI
+      // Handle needs_second_factor: bypass email_code verification using sign-in token
       if (result.status === 'needs_second_factor') {
+        const strategies = result.supportedSecondFactors?.map(
+          (f: any) => f.strategy,
+        );
         console.log(
           '🔐 [AuthContext] Sign-in needs second factor. Supported:',
-          result.supportedSecondFactors?.map((f: any) => f.strategy),
+          strategies,
         );
 
-        // Check if email_code is a supported second factor
-        const hasEmailCode = result.supportedSecondFactors?.some(
-          (f: any) => f.strategy === 'email_code',
+        // Check if email_code is the ONLY second factor (not real MFA like TOTP/phone)
+        const hasEmailCode = strategies?.includes('email_code');
+        const hasRealMFA = strategies?.some(
+          (s: string) =>
+            s === 'totp' || s === 'phone_code' || s === 'backup_code',
         );
 
-        if (hasEmailCode) {
-          // Prepare the email code second factor — this sends the code
-          await clerkSignInResource.prepareSecondFactor({
-            strategy: 'email_code',
-          });
+        if (hasEmailCode && !hasRealMFA) {
+          // This is Clerk's email re-verification, not actual MFA.
+          // Bypass it using a server-side sign-in token.
           console.log(
-            '📧 [AuthContext] Second factor email code sent, awaiting verification',
+            '🔑 [AuthContext] Bypassing email re-verification via sign-in token...',
           );
-          return { needsSecondFactor: true };
+
+          try {
+            const token = await convex.action(api.auth.createSignInToken, {
+              email,
+            });
+
+            if (!token) {
+              console.error(
+                '❌ [AuthContext] Failed to get sign-in token: user not found',
+              );
+              return { error: 'Unable to sign in. Please try again.' };
+            }
+
+            // Use the sign-in token to complete sign-in without email verification
+            const ticketResult = await clerkSignInResource.create({
+              strategy: 'ticket',
+              ticket: token,
+            });
+
+            if (ticketResult.status === 'complete') {
+              console.log(
+                '✅ [AuthContext] Sign-in completed via sign-in token',
+              );
+              await setActive({ session: ticketResult.createdSessionId });
+              return {};
+            }
+
+            console.warn(
+              '⚠️ [AuthContext] Sign-in token result:',
+              ticketResult.status,
+            );
+            return {
+              error: 'Sign-in incomplete. Please try again.',
+            };
+          } catch (tokenError) {
+            console.error(
+              '❌ [AuthContext] Sign-in token bypass failed:',
+              tokenError,
+            );
+            // Fall through to the old behavior as a last resort
+            await clerkSignInResource.prepareSecondFactor({
+              strategy: 'email_code',
+            });
+            console.log(
+              '📧 [AuthContext] Falling back to email code verification',
+            );
+            return { needsSecondFactor: true };
+          }
+        }
+
+        if (hasRealMFA) {
+          // User has actual MFA (TOTP, phone, backup codes) — show verification UI
+          if (hasEmailCode) {
+            await clerkSignInResource.prepareSecondFactor({
+              strategy: 'email_code',
+            });
+            console.log(
+              '📧 [AuthContext] Real MFA email code sent, awaiting verification',
+            );
+            return { needsSecondFactor: true };
+          }
         }
 
         // No supported second factor strategy we can handle

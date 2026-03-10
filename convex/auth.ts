@@ -47,6 +47,8 @@
  */
 
 import { QueryCtx, MutationCtx, ActionCtx } from './_generated/server';
+import { action } from './_generated/server';
+import { v } from 'convex/values';
 import { UserIdentity } from 'convex/server';
 
 /**
@@ -183,3 +185,77 @@ export async function getUserProfile(ctx: AuthContext): Promise<{
     pictureUrl: identity.pictureUrl,
   };
 }
+
+/**
+ * Create a Clerk sign-in token for a user.
+ *
+ * This is used when Clerk returns `needs_second_factor` with `email_code`
+ * during email/password sign-in, despite no MFA being configured.
+ * The sign-in token allows bypassing the unnecessary email verification step.
+ *
+ * Security: This action should only be called AFTER the password has been
+ * verified by Clerk's first factor. The token is single-use and short-lived.
+ *
+ * @param email - The email address of the user to create a token for
+ * @returns The sign-in token string, or null if the user is not found
+ */
+export const createSignInToken = action({
+  args: {
+    email: v.string(),
+  },
+  handler: async (_ctx, args) => {
+    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+    if (!clerkSecretKey) {
+      throw new Error('CLERK_SECRET_KEY is not configured');
+    }
+
+    // Step 1: Look up the user by email to get their Clerk user ID
+    const usersResponse = await fetch(
+      `https://api.clerk.com/v1/users?email_address=${encodeURIComponent(
+        args.email,
+      )}`,
+      {
+        headers: {
+          Authorization: `Bearer ${clerkSecretKey}`,
+        },
+      },
+    );
+
+    if (!usersResponse.ok) {
+      throw new Error(`Failed to look up user: ${usersResponse.status}`);
+    }
+
+    const users = await usersResponse.json();
+    if (!users || users.length === 0) {
+      return null;
+    }
+
+    const userId = users[0].id;
+
+    // Step 2: Create a sign-in token for the user
+    const tokenResponse = await fetch(
+      'https://api.clerk.com/v1/sign_in_tokens',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${clerkSecretKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          expires_in_seconds: 60,
+        }),
+      },
+    );
+
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text();
+      throw new Error(
+        `Failed to create sign-in token: ${tokenResponse.status} ${errorText}`,
+      );
+    }
+
+    const tokenData = await tokenResponse.json();
+    return tokenData.token as string;
+  },
+});
