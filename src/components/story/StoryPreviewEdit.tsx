@@ -34,6 +34,8 @@ export interface StoryPreviewEditProps {
   showActions?: boolean;
   autoSave?: boolean;
   autoSaveDelay?: number;
+  /** When false, hides the built-in header (useful when rendered inside a navigation stack) */
+  showHeader?: boolean;
 }
 
 export interface StoryStats {
@@ -54,6 +56,7 @@ export const StoryPreviewEdit: React.FC<StoryPreviewEditProps> = ({
   showActions = true,
   autoSave = false,
   autoSaveDelay = 2000,
+  showHeader = true,
 }) => {
   // Get story content - prioritize story_content, fallback to imported_story_content
   const storyContent =
@@ -264,35 +267,39 @@ export const StoryPreviewEdit: React.FC<StoryPreviewEditProps> = ({
 
   const title = getStoryTitle();
 
+  const Container = showHeader ? SafeAreaView : View;
+
   return (
-    <SafeAreaView style={styles.container}>
+    <Container style={styles.container}>
       <KeyboardAvoidingView
         style={styles.keyboardContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          {onBack && (
-            <TouchableOpacity style={styles.backButton} onPress={onBack}>
-              <Text style={styles.backButtonText}>←</Text>
+        {/* Header - hidden when inside a navigation stack */}
+        {showHeader && (
+          <View style={styles.header}>
+            {onBack && (
+              <TouchableOpacity style={styles.backButton} onPress={onBack}>
+                <Text style={styles.backButtonText}>←</Text>
+              </TouchableOpacity>
+            )}
+            <View style={styles.headerContent}>
+              <Text style={styles.headerTitle} numberOfLines={1}>
+                {title}
+              </Text>
+              <Text style={styles.headerSubtitle}>
+                {stats.wordCount} words • {stats.estimatedReadingTime} min read
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.metadataButton}
+              onPress={() => setShowMetadata(!showMetadata)}
+            >
+              <Text style={styles.metadataButtonText}>ℹ</Text>
             </TouchableOpacity>
-          )}
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle} numberOfLines={1}>
-              {title}
-            </Text>
-            <Text style={styles.headerSubtitle}>
-              {stats.wordCount} words • {stats.estimatedReadingTime} min read
-            </Text>
           </View>
-          <TouchableOpacity
-            style={styles.metadataButton}
-            onPress={() => setShowMetadata(!showMetadata)}
-          >
-            <Text style={styles.metadataButtonText}>ℹ</Text>
-          </TouchableOpacity>
-        </View>
+        )}
 
         {/* Metadata Panel */}
         {showMetadata && (
@@ -414,7 +421,7 @@ export const StoryPreviewEdit: React.FC<StoryPreviewEditProps> = ({
           </View>
         )}
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </Container>
   );
 };
 

@@ -37,6 +37,8 @@ export interface StorySelectionModalProps {
   showOnlyCompleted?: boolean;
   excludeStoryIds?: string[];
   initialSource?: StorySource;
+  /** When false, hides the built-in header (useful when rendered inside a navigation stack that already provides a header) */
+  showHeader?: boolean;
 }
 
 interface FilterState {
@@ -445,6 +447,7 @@ export const StorySelectionModal: React.FC<StorySelectionModalProps> = ({
   showOnlyCompleted = false,
   excludeStoryIds = [],
   initialSource,
+  showHeader = true,
 }) => {
   const [stories, setStories] = useState<GameSession[]>([]);
   const [filteredStories, setFilteredStories] = useState<GameSession[]>([]);
@@ -623,13 +626,6 @@ export const StorySelectionModal: React.FC<StorySelectionModalProps> = ({
     [],
   );
 
-  const sourceOptions: Array<StorySource | 'All'> = [
-    'All',
-    'New',
-    'CreativeBridge',
-    'Story_Quest',
-    'File',
-  ];
   const dateRangeOptions = [
     { key: 'all', label: 'All Time' },
     { key: 'week', label: 'This Week' },
@@ -668,16 +664,20 @@ export const StorySelectionModal: React.FC<StorySelectionModalProps> = ({
     );
   }, [loading, error, searchTerm, renderSkeleton, loadStories, clearSearch]);
 
+  const Container = showHeader ? SafeAreaView : View;
+
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-          <Text style={styles.closeButtonText}>✕</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>{modalTitle}</Text>
-        <View style={styles.headerSpacer} />
-      </View>
+    <Container style={styles.container}>
+      {/* Header - hidden when inside a navigation stack */}
+      {showHeader && (
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+            <Text style={styles.closeButtonText}>✕</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>{modalTitle}</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+      )}
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
@@ -701,32 +701,6 @@ export const StorySelectionModal: React.FC<StorySelectionModalProps> = ({
 
       {/* Filter Buttons */}
       <View style={styles.filtersContainer}>
-        {/* Source Filter */}
-        <View style={styles.filterGroup}>
-          <Text style={styles.filterLabel}>Source:</Text>
-          <View style={styles.filterButtons}>
-            {sourceOptions.map(source => (
-              <TouchableOpacity
-                key={source}
-                style={[
-                  styles.filterButton,
-                  filters.source === source && styles.filterButtonActive,
-                ]}
-                onPress={() => setFilters(prev => ({ ...prev, source }))}
-              >
-                <Text
-                  style={[
-                    styles.filterButtonText,
-                    filters.source === source && styles.filterButtonTextActive,
-                  ]}
-                >
-                  {source}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
         {/* Date Range Filter */}
         <View style={styles.filterGroup}>
           <Text style={styles.filterLabel}>Date:</Text>
@@ -799,7 +773,7 @@ export const StorySelectionModal: React.FC<StorySelectionModalProps> = ({
         removeClippedSubviews={false}
         keyboardShouldPersistTaps="handled"
       />
-    </SafeAreaView>
+    </Container>
   );
 };
 
