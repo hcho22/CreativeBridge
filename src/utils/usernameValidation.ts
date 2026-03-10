@@ -1,4 +1,4 @@
-import { supabase } from '../services/supabase';
+import { getConvexClient, api } from '../services/convex';
 
 export interface UsernameValidationResult {
   isValid: boolean;
@@ -179,30 +179,25 @@ export class UsernameValidator {
     try {
       const trimmedUsername = username.trim();
 
-      // Check in user_profiles table
-      const { data: _data, error } = await supabase
-        .from('user_profiles')
-        .select('username')
-        .eq('username', trimmedUsername)
-        .single();
-
-      if (error && error.code === 'PGRST116') {
-        // No matching row found - username is available
-        return {
-          isAvailable: true,
-        };
+      // Check in Convex userProfiles table
+      const client = getConvexClient();
+      if (!client) {
+        // Convex not initialized — skip availability check, allow sign-up to proceed
+        console.warn(
+          'Convex client not available for username check, skipping',
+        );
+        return { isAvailable: true };
       }
 
-      if (error) {
-        // Some other error occurred
-        console.error('Username availability check error:', error);
-        return {
-          isAvailable: false,
-          error: 'Unable to check username availability. Please try again.',
-        };
+      const isAvailable = await client.query(
+        api.userProfiles.isUsernameAvailable,
+        { username: trimmedUsername },
+      );
+
+      if (isAvailable) {
+        return { isAvailable: true };
       }
 
-      // Username exists
       return {
         isAvailable: false,
         error: 'This username is already taken',
