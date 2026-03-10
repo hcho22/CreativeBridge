@@ -2,15 +2,20 @@ import React from 'react';
 import { StyleSheet, Text } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { NavigationContainer } from '@react-navigation/native';
+import {
+  NavigationContainer,
+  getFocusedRouteNameFromRoute,
+} from '@react-navigation/native';
 import { AdaptiveGlassBackground } from '../components/common/AdaptiveGlassBackground';
 import { theme } from '../constants/theme';
+import type { StorySetupAnswers } from '../types/storySetup';
 
 // Screen imports
 import { HomeScreen, SettingsScreen, ProfileScreen } from '../screens';
 import ImportOptionsScreen from '../screens/ImportOptionsScreen';
 import StorySelectionScreen from '../screens/StorySelectionScreen';
 import StoryPreviewEditScreen from '../screens/StoryPreviewEditScreen';
+import StorySetupScreen from '../screens/StorySetupScreen';
 
 // Type definitions for navigation
 export type TabParamList = {
@@ -30,6 +35,7 @@ export type HomeStackParamList = {
           gradeLevel: string;
           metadata?: any;
         };
+        storySetup?: StorySetupAnswers;
       }
     | undefined;
   ImportOptions: undefined;
@@ -44,6 +50,7 @@ export type HomeStackParamList = {
       created_at?: string;
     };
   };
+  StorySetup: undefined;
 };
 
 // Auth navigation types (for stack navigation if needed)
@@ -113,6 +120,11 @@ const HomeStackNavigator: React.FC = () => {
           headerTitle: '📖 Story Preview',
           headerBackTitle: 'Stories',
         }}
+      />
+      <HomeStack.Screen
+        name="StorySetup"
+        component={StorySetupScreen}
+        options={{ headerShown: false }}
       />
     </HomeStack.Navigator>
   );
@@ -190,9 +202,18 @@ const AppNavigator: React.FC = () => {
         <Tab.Screen
           name="HomeStack"
           component={HomeStackNavigator}
-          options={{
-            title: 'Home',
-            headerShown: false, // Hide tab navigator header since HomeStack handles headers
+          options={({ route }) => {
+            // Hide the tab bar when a full-screen wizard (e.g. StorySetup) is focused
+            const routeName = getFocusedRouteNameFromRoute(route) ?? 'Home';
+            const hideTabBar = routeName === 'StorySetup';
+
+            return {
+              title: 'Home',
+              headerShown: false,
+              ...(hideTabBar && {
+                tabBarStyle: { display: 'none' as const },
+              }),
+            };
           }}
         />
         <Tab.Screen

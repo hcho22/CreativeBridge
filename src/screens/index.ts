@@ -6,3 +6,4 @@ export { default as ImportOptionsScreen } from './ImportOptionsScreen';
 export { default as StorySelectionScreen } from './StorySelectionScreen';
 export { default as StoryPreviewEditScreen } from './StoryPreviewEditScreen';
 export { default as ProfileCompletionScreen } from './ProfileCompletionScreen';
+export { default as StorySetupScreen } from './StorySetupScreen';

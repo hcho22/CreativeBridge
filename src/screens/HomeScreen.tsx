@@ -40,6 +40,8 @@ import {
   StorySession,
 } from '../services/storySessionManager';
 import { GradeLevel } from '../types';
+import type { StorySetupAnswers } from '../types/storySetup';
+import { resolveStorySetup } from '../utils/storySetupDefaults';
 import { textToSpeechService } from '../services/textToSpeechIsolated';
 import { StoryInputDebouncer } from '../utils/debounceUtils';
 import { extractLatestContinuation } from '../utils/storyUtils';
@@ -147,6 +149,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     [keyboardHeight, tabBarHeight],
   );
   const storyScrollViewRef = useRef<ScrollView>(null);
+  const storyInputRef = useRef<TextInput>(null);
 
   // Game round tracking
   const [currentRound, setCurrentRound] = useState(1);
@@ -157,6 +160,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     null,
   );
   const MAX_ROUNDS = 5;
+
+  // "User starts first" mode (US-011): user writes the opening line instead of AI
+  const [isUserStarting, setIsUserStarting] = useState(false);
 
   // First story celebration state (US-004)
   const [showFirstStoryCelebration, setShowFirstStoryCelebration] =
@@ -1163,6 +1169,36 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     isGameActive,
   ]);
 
+  // Handle story setup from wizard (US-009)
+  useEffect(() => {
+    const storySetupParams = route.params?.storySetup;
+
+    if (
+      storySetupParams &&
+      isAuthenticated &&
+      effectiveUserId &&
+      !isGameActive
+    ) {
+      console.log('🎭 Detected story setup from wizard:', {
+        genre: storySetupParams.genre,
+        characterType: storySetupParams.characterType,
+        setting: storySetupParams.setting,
+        whoStarts: storySetupParams.whoStarts,
+      });
+
+      // Clear the param immediately to prevent re-triggering
+      (navigation as any).setParams({ storySetup: undefined });
+
+      // Start the story with setup answers
+      executeStartNewGame(effectiveUserId, storySetupParams);
+    }
+  }, [
+    route.params?.storySetup,
+    isAuthenticated,
+    effectiveUserId,
+    isGameActive,
+  ]);
+
   const handleContinueImportedStory = async (
     continueParams: NonNullable<HomeStackParamList['Home']>['continueStory'],
   ) => {
@@ -1224,17 +1260,24 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   // Core story creation logic - extracted for reuse after guidance modal (US-012)
   // overrideUserId allows passing a resolved profile ID when userProfile context isn't updated yet
-  const executeStartNewGame = async (overrideUserId?: string) => {
+  const executeStartNewGame = async (
+    overrideUserId?: string,
+    setup?: StorySetupAnswers,
+  ) => {
     const userIdToUse = overrideUserId || effectiveUserId;
+    // Resolve wizard answers into pipeline-ready values (US-010)
+    const resolvedSetup = resolveStorySetup(setup);
     console.log('📖 executeStartNewGame: Starting new game flow', {
       overrideUserId,
       effectiveUserId,
       userIdToUse,
+      resolvedSetup,
     });
     try {
-      // Clear any previous errors and reset image state
+      // Clear any previous errors and reset image/user-starts state
       setGenerationError(null);
       setGeneratedImageUrl(null); // Reset to prevent showing expired images from previous sessions
+      setIsUserStarting(false); // US-011: Reset in case previous session was user-starts-first
 
       // Start loading with animations
       setLoadingState(prev => ({
@@ -1258,14 +1301,42 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       const newSession = await storySessionManager.createSession(
         userIdToUse,
         gradeLevel,
-        { difficulty: 1 },
+        {
+          difficulty: 1,
+          theme: resolvedSetup.genre,
+          character: resolvedSetup.character,
+          setting: resolvedSetup.setting,
+        },
       );
       console.log('📖 executeStartNewGame: Session created:', newSession.id);
 
-      // Generate dynamic story starter using AI with diversity tracking
+      // US-011: "User starts first" mode — skip AI generation, show empty story with prompt
+      if (resolvedSetup.whoStarts === 'user') {
+        console.log(
+          '📖 executeStartNewGame: User-starts-first mode — skipping AI generation',
+        );
+        setCurrentSession({ ...newSession });
+        setIsGameActive(true);
+        setIsUserStarting(true);
+        setCurrentRound(1);
+        setIsGameCompleted(false);
+        startFadeAnimation();
+        initializeChallengeSystem();
+
+        // Auto-focus the text input after a short delay to let the UI render
+        setTimeout(() => {
+          storyInputRef.current?.focus();
+        }, 500);
+        return;
+      }
+
+      // Generate dynamic story starter using AI with diversity tracking (US-010)
+      // Use resolved setup values; fall back to profile genre or 'adventure' when no wizard answers
       const starterResponse = await storyAgentService.generateStoryStarter({
         gradeLevel,
-        theme: preferredGenre ?? 'adventure',
+        theme: setup ? resolvedSetup.genre : preferredGenre ?? 'adventure',
+        character: resolvedSetup.character,
+        setting: resolvedSetup.setting,
         sessionId: newSession.id,
         userId: userIdToUse,
         storyId: newSession.id, // Use session ID as story ID for the starter
@@ -1461,7 +1532,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         // Store the action to execute after guidance is dismissed
         // Capture the user ID in a closure (works for both OAuth and email/password users)
         pendingStoryActionRef.current = () =>
-          executeStartNewGame(userIdForSession);
+          navigation.navigate('StorySetup' as never);
         setShowFirstStoryGuidance(true);
         return;
       }
@@ -1470,8 +1541,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       // Continue with story creation on error
     }
 
-    // No guidance needed, proceed directly
-    executeStartNewGame(userIdForSession);
+    // No guidance needed, proceed directly to setup wizard
+    navigation.navigate('StorySetup' as never);
   };
 
   const generateFallbackStarter = async (): Promise<string> => {
@@ -1573,6 +1644,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       );
       // Force re-render by creating new object reference
       setCurrentSession({ ...updatedSession });
+
+      // US-011: After user's first contribution in "user starts first" mode,
+      // switch to normal turn-taking — AI will continue using session metadata
+      if (isUserStarting) {
+        setIsUserStarting(false);
+      }
 
       // Validate challenge completion with user input
       validateUserChallenge(userContribution);
@@ -1836,6 +1913,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     setUserInput('');
     setCurrentRound(1);
     setIsGameCompleted(false);
+    setIsUserStarting(false); // US-011: Reset user-starts-first mode
     setShowCompletionOptions(false);
     setShowImageGeneration(false);
     setGeneratedImageUrl(null); // Reset image URL to prevent showing expired images
@@ -2624,6 +2702,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                         </Text>
                       </View>
                     ))
+                  ) : isUserStarting ? (
+                    /* US-011: "User starts first" prompt card */
+                    <View style={styles.userStartsPromptCard}>
+                      <Text style={styles.userStartsPromptEmoji}>✍️</Text>
+                      <Text style={styles.userStartsPromptText}>
+                        Write the first line of your story...
+                      </Text>
+                    </View>
                   ) : (
                     <Text
                       style={[styles.storyText, styles.selectableText]}
@@ -2822,9 +2908,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
                 {/* TextInput */}
                 <TextInput
+                  ref={storyInputRef}
                   testID="story-input"
                   style={styles.floatingTextInput}
-                  placeholder="Continue the story..."
+                  placeholder={
+                    isUserStarting
+                      ? 'Start your story...'
+                      : 'Continue the story...'
+                  }
                   placeholderTextColor="#999"
                   multiline
                   value={userInput}
@@ -3581,6 +3672,24 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#888',
     fontWeight: '500',
+  },
+  // US-011: "User starts first" prompt card styles
+  userStartsPromptCard: {
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+  },
+  userStartsPromptEmoji: {
+    fontSize: 40,
+    marginBottom: 12,
+  },
+  userStartsPromptText: {
+    fontSize: 18,
+    fontWeight: '500' as const,
+    color: '#666666',
+    textAlign: 'center' as const,
+    lineHeight: 28,
   },
   disabledButton: {
     backgroundColor: '#cccccc',
