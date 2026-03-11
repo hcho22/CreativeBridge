@@ -438,6 +438,8 @@ const SkeletonCard: React.FC = () => (
   </View>
 );
 
+const EMPTY_STRING_ARRAY: string[] = [];
+
 export const StorySelectionModal: React.FC<StorySelectionModalProps> = ({
   visible: _visible, // Unused, kept for API compatibility
   onClose,
@@ -445,7 +447,7 @@ export const StorySelectionModal: React.FC<StorySelectionModalProps> = ({
   userId,
   title: modalTitle = 'Select a Story',
   showOnlyCompleted = false,
-  excludeStoryIds = [],
+  excludeStoryIds = EMPTY_STRING_ARRAY,
   initialSource,
   showHeader = true,
 }) => {

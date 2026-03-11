@@ -1159,6 +1159,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         gradeLevel: continueStoryParams.gradeLevel,
       });
 
+      // Clear the param immediately to prevent re-triggering on exit
+      (navigation as any).setParams({ continueStory: undefined });
+
       // Start the imported story continuation
       handleContinueImportedStory(continueStoryParams);
     }
