@@ -3,6 +3,7 @@
 
 // Removed OpenAI SDK - using React Native compatible client
 import { openaiClient } from './openaiClient';
+import { Environment } from '../config/environment';
 import {
   StoryRequest,
   StoryResponse,
@@ -31,7 +32,7 @@ class StoryGenerationService {
   constructor() {
     this.config = {
       apiKey: '', // Now handled by openaiClient
-      model: 'gpt-4-turbo-preview',
+      model: Environment.openai.model,
       maxTokens: 2000,
       temperature: 0.7,
       contentFilter: {
