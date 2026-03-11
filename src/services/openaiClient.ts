@@ -193,7 +193,7 @@ Story:
 Create a focused image prompt that captures the story's key visual moment.`;
 
   /**
-   * Analyze story text and generate optimized image prompt using GPT-4 Turbo
+   * Analyze story text and generate optimized image prompt
    *
    * Uses LLM to extract visual elements from narrative and create a focused
    * Stable Diffusion prompt with better story-to-image relevance.
@@ -201,7 +201,7 @@ Create a focused image prompt that captures the story's key visual moment.`;
    * Features:
    * - Exponential backoff retry logic (max 3 retries)
    * - Handles rate limits, timeouts, and API errors gracefully
-   * - Uses GPT-4 Turbo for cost-effective story analysis
+   * - Uses model from central config (Environment.openai.model)
    *
    * @param storyText - The story excerpt to analyze
    * @returns Optimized image generation prompt string
@@ -228,7 +228,7 @@ Create a focused image prompt that captures the story's key visual moment.`;
         );
 
         const request: OpenAICompletionRequest = {
-          model: 'gpt-4-turbo-preview', // Use GPT-4 Turbo for cost efficiency
+          model: Environment.openai.model, // Uses model from central config
           messages: [
             {
               role: 'system',
