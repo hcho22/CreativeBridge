@@ -9,6 +9,7 @@ import {
   SUPABASE_URL,
   SUPABASE_ANON_KEY,
   OPENAI_API_KEY,
+  OPENAI_MODEL,
   ELEVENLABS_API_KEY,
   CONVEX_URL,
 } from '@env';
@@ -77,7 +78,7 @@ const getEnvironmentConfig = (): EnvironmentConfig => {
           ? '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'
           : ''),
       baseUrl: 'https://api.openai.com/v1',
-      model: 'gpt-4-turbo-preview',
+      model: OPENAI_MODEL || 'gpt-4o-mini',
       maxTokens: 2000,
       temperature: 0.7,
     },

@@ -212,7 +212,6 @@ Extract characters, settings, objects, and plot patterns. Return valid JSON only
       StoryElementExtractionService.EXTRACTION_SYSTEM_PROMPT,
       userPrompt,
       {
-        model: 'gpt-4-turbo-preview',
         maxTokens: 800, // Enough for structured JSON output
         temperature: 0.3, // Low temperature for consistent structured output
       },

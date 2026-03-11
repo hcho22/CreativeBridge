@@ -41,6 +41,7 @@ module.exports = {
     '^@react-native-community/netinfo$':
       '<rootDir>/src/__tests__/mocks/reactNativeMocks',
     '^react-native-url-polyfill/auto$': 'identity-obj-proxy',
+    '^@env$': '<rootDir>/src/__tests__/__mocks__/@env',
   },
   testTimeout: 10000,
   // Global setup for security tests
