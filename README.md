@@ -1,46 +1,64 @@
 # CreativeBridge: Interactive Story Writing App
 
-A mobile story-writing application where users create engaging narratives with AI assistance while building their creative writing skills across different grade levels.
+A mobile story-writing application where users create engaging narratives with AI assistance while building their creative writing skills across different grade levels. Built with React Native, Expo, and a multi-AI backend.
 
 ## 📱 Features
 
 ### 🎮 Core Functionality
 
 - **Grade-level Story Creation** - Choose from K-2, 3-5, 6-8, or 9-12 difficulty levels
-- **AI-Assisted Writing** - Collaborative storytelling with intelligent AI support
+- **AI-Assisted Writing** - Collaborative 5-round storytelling powered by GPT-4o-mini
+- **AI Image Generation** - Story-specific illustrations via Stable Diffusion 3.5 with grade-appropriate art styles
 - **Voice Input Support** - Accessibility-focused voice-to-text functionality using ElevenLabs Voice AI
-- **Story Library Management** - Import and continue previous stories from your personal database
+- **Story Library Management** - Import, search, and continue stories from your personal library
 - **Profile Management** - Track writing progress, XP, streaks, and achievements
-- **Cross-platform Support** - Native iOS and Android applications
+- **Cross-platform Support** - Native iOS and Android applications via Expo
 
 ### 👤 User Profile System
 
-- **User Authentication** - Secure login/signup with Supabase
-  - **OAuth Sign-In** - Sign in with Google or Apple for quick authentication
-  - **Email/Password** - Traditional email and password authentication
+- **User Authentication** - Dual authentication system
+  - **OAuth Sign-In (Primary)** - Sign in with Google or Apple via Clerk
+  - **Email/Password (Legacy)** - Traditional authentication via Supabase
   - **Account Linking** - Automatic linking of accounts with the same email
-- **XP & Streak Tracking** - Gamified writing experience
+- **XP & Streak Tracking** - Gamified writing experience with XP economy
+- **Onboarding System** - Guided onboarding with milestone rewards (150 XP)
 - **Statistics Dashboard** - Games played, words written, best scores
 - **Grade Level Preferences** - Personalized content difficulty
-- **Story History** - Access to all previously created stories
 
 ### 📖 Story Features
 
-- **Story Import** - Load stories from your database or upload text files
-- **Collaborative Writing** - Turn-based storytelling with AI
-- **Grade-appropriate Content** - Age-appropriate challenges and prompts
-- **Progress Saving** - Continue stories across multiple sessions
+- **Story Import** - Load stories from database, upload text files, or import from Story Quest
+- **Collaborative Writing** - 5-round turn-based storytelling with AI
+- **Grade-appropriate Content** - Vocabulary, complexity, and art style adapt to grade level
+- **AI Image Generation** - Generate story illustrations (costs 1000 XP)
+- **Story Quality Assessment** - Claude Skills SDK integration for content quality scoring
+- **Story Element Extraction** - Automatic character, setting, and plot pattern detection
+- **Diversity Tracking** - Story diversity scoring to encourage creative variety
+- **Story Download & Export** - Download stories with theme-based formatting
+
+### 🎨 Art Style System
+
+Image generation adapts art style by grade level:
+
+- **K-2**: Watercolor illustrations
+- **3-5**: Digital art style
+- **6-8**: Realistic art style
+- **9-12**: Sophisticated art style
 
 ## 🛠 Tech Stack
 
-- **Frontend**: React Native 0.81.1 with TypeScript
-- **Backend**: Supabase (Authentication, Database, Storage)
-- **Authentication**: Clerk (OAuth with Google & Apple) + Supabase (JWT verification)
+- **Frontend**: React Native 0.81.5 + Expo 54 + TypeScript 5.8
+- **Backend (Primary)**: Convex (real-time database, native Clerk auth, file storage)
+- **Backend (Fallback)**: Supabase (PostgreSQL with RLS for legacy users)
+- **AI - Stories**: OpenAI GPT-4o-mini (configurable via environment variable)
+- **AI - Images**: Replicate Stable Diffusion 3.5 Large
+- **AI - Quality**: Claude Skills SDK for content assessment
+- **Authentication**: Clerk (OAuth) → Convex JWT verification
 - **Voice AI**: ElevenLabs Voice AI integration
-- **Navigation**: React Navigation v7
+- **Navigation**: React Navigation v7 (tabs + stack)
 - **State Management**: React Context API
-- **Styling**: React Native StyleSheet
-- **Icons**: React Native Vector Icons
+- **Testing**: Jest + Detox (E2E)
+- **Build**: EAS Build for iOS/Android
 
 ## 📋 Prerequisites
 
@@ -48,18 +66,21 @@ A mobile story-writing application where users create engaging narratives with A
 - React Native development environment setup
 - iOS development: Xcode, CocoaPods
 - Android development: Android Studio, Java JDK
-- Supabase account
-- Clerk account (for OAuth authentication)
+- Convex account (primary backend)
+- Clerk account (OAuth authentication)
+- OpenAI API key (story generation)
+- Replicate API key (image generation)
 - Google Cloud Console account (for Google OAuth)
 - Apple Developer account (for Apple Sign In)
 - ElevenLabs API key (for voice features)
+- Supabase account (optional, for legacy user support)
 
 ## 🚀 Installation
 
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/CreativeBridge.git
+git clone https://github.com/hcho22/CreativeBridge.git
 cd CreativeBridge
 ```
 
@@ -69,76 +90,53 @@ cd CreativeBridge
 # Install Node.js dependencies
 npm install
 
+# Generate native projects
+npm run prebuild
+
 # iOS: Install CocoaPods dependencies
 cd ios && pod install && cd ..
 ```
 
 ### 3. Environment Setup
 
-#### 3.1: Supabase Setup
-
-Create a Supabase project at [supabase.com](https://supabase.com) and configure your environment:
-
-1. **Database Setup**: Run the following SQL in your Supabase SQL Editor:
-
-```sql
--- User profiles table
-CREATE TABLE user_profiles (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  username TEXT UNIQUE NOT NULL,
-  display_name TEXT,
-  total_xp INTEGER DEFAULT 0,
-  current_streak INTEGER DEFAULT 0,
-  longest_streak INTEGER DEFAULT 0,
-  total_games_played INTEGER DEFAULT 0,
-  total_words_written INTEGER DEFAULT 0,
-  best_score INTEGER DEFAULT 0,
-  preferred_grade_level TEXT DEFAULT 'K-2',
-  speech_enabled BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Stories/scores table
-CREATE TABLE scores (
-  id SERIAL PRIMARY KEY,
-  player_email TEXT NOT NULL,
-  story TEXT NOT NULL,
-  grade_level TEXT NOT NULL,
-  points INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
-2. **Configuration**: Update `src/services/supabase.ts` with your Supabase credentials:
-
-```typescript
-const supabaseUrl = 'your-supabase-url';
-const supabaseAnonKey = 'your-supabase-anon-key';
-```
-
-#### 3.2: OAuth Setup (Google & Apple)
-
-CreativeBridge supports OAuth authentication via Clerk. See the [Clerk OAuth Setup Guide](docs/developer/clerk-oauth-setup-guide.md) for detailed instructions.
-
-**Quick Setup:**
-
-1. **Clerk Configuration**: 
-   - Create a Clerk account at [clerk.com](https://clerk.com)
-   - Configure Google and Apple OAuth providers
-   - Obtain Clerk publishable key and JWKS URL
-
-2. **Environment Variables**: Add to your `.env` file:
+Create a `.env` file in the project root (see `.env.example` for reference):
 
 ```bash
 # Clerk Configuration
 CLERK_PUBLISHABLE_KEY=pk_test_xxxxxxxxxxxxxxxxxxxxx
 CLERK_JWKS_URL=https://your-instance.clerk.accounts.dev/.well-known/jwks.json
+
+# Convex (Primary Backend)
+CONVEX_URL=https://your-project.convex.cloud
+
+# OpenAI
+OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxx
+OPENAI_MODEL=gpt-4o-mini
+
+# Supabase (Legacy Fallback)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-supabase-anon-key
+
+# ElevenLabs (Voice AI)
+ELEVENLABS_API_KEY=your-elevenlabs-api-key
 ```
 
-3. **Supabase JWT Verification**: Configure Supabase to verify Clerk JWTs (see [Supabase JWT Verification Setup](docs/developer/supabase-jwt-verification-setup.md))
+#### OAuth Setup (Google & Apple)
+
+CreativeBridge supports OAuth authentication via Clerk. See the [Clerk OAuth Setup Guide](docs/developer/clerk-oauth-setup-guide.md) for detailed instructions.
+
+**Quick Setup:**
+
+1. **Clerk Configuration**:
+
+   - Create a Clerk account at [clerk.com](https://clerk.com)
+   - Configure Google and Apple OAuth providers
+   - Obtain Clerk publishable key and JWKS URL
+
+2. **Convex Integration**: Convex verifies Clerk JWTs natively via `ConvexProviderWithClerk`
 
 For complete OAuth setup instructions, see:
+
 - [Clerk OAuth Setup Guide](docs/developer/clerk-oauth-setup-guide.md)
 - [Deep Linking Setup](docs/developer/clerk-deep-linking-setup.md)
 - [OAuth Dependencies](docs/developer/oauth-dependencies.md)
@@ -165,99 +163,155 @@ npm start
 npm run android
 ```
 
+#### Convex Backend
+
+```bash
+# Start Convex dev server (run alongside Metro)
+npx convex dev
+```
+
 ## 📁 Project Structure
 
 ```
 CreativeBridge/
-├── App.tsx                      # Main application component
+├── App.tsx                          # Entry point with ConvexProviderWithClerk
 ├── src/
+│   ├── components/
+│   │   ├── common/                  # Shared UI (ImageGeneration, VoiceInput, ErrorBoundary, etc.)
+│   │   ├── story/                   # Story-specific (StorySelectionModal, StoryPreviewEdit)
+│   │   ├── onboarding/              # Onboarding checklist & guidance
+│   │   └── analytics/               # Analytics dashboard components
+│   ├── config/
+│   │   └── environment.ts           # Environment variable configuration
+│   ├── constants/                    # Theme and app constants
 │   ├── context/
-│   │   └── AuthContext.tsx      # Authentication & user management
-│   ├── services/
-│   │   └── supabase.ts         # Supabase client configuration
-│   └── components/
-│       └── common/
-│           └── VoiceInput.tsx   # Voice input component
-├── ios/                        # iOS native code
-├── android/                    # Android native code
-├── scripts/                    # Build and icon generation scripts
-└── assets/                     # App icons and assets
+│   │   └── AuthContext.tsx           # Auth state management (Clerk + Supabase)
+│   ├── hooks/                        # Custom React hooks
+│   ├── navigation/
+│   │   └── AppNavigator.tsx          # Tab + stack navigation structure
+│   ├── screens/
+│   │   ├── AuthScreen.tsx            # Login/signup
+│   │   ├── HomeScreen.tsx            # Main story creation interface
+│   │   ├── StorySetupScreen.tsx      # Story configuration
+│   │   ├── StorySelectionScreen.tsx  # Story library browser
+│   │   ├── ProfileScreen.tsx         # User profile & stats
+│   │   └── SettingsScreen.tsx        # App settings
+│   ├── services/                     # Business logic layer (110+ services)
+│   │   ├── openaiClient.ts           # OpenAI API client
+│   │   ├── storyGenerationService.ts # Story continuation engine
+│   │   ├── imageGeneration.ts        # Replicate image generation
+│   │   ├── claudeSkillsManager.ts    # Claude Skills integration
+│   │   ├── convex.ts                 # Convex client initialization
+│   │   ├── supabase.ts               # Supabase fallback client
+│   │   └── xpEventTracker.ts         # XP economy tracking
+│   ├── types/                        # TypeScript type definitions
+│   └── utils/                        # Utility functions
+├── convex/                           # Convex backend functions
+│   ├── schema.ts                     # Database schema (PRIMARY)
+│   ├── auth.ts                       # Authentication helpers
+│   ├── userProfiles.ts               # User profile mutations/queries
+│   ├── gameSessions.ts               # Story session management
+│   ├── imageGeneration.ts            # Image generation event tracking
+│   ├── onboarding.ts                 # Onboarding milestones
+│   └── storage.ts                    # Image upload/storage
+├── .agent/                           # Documentation, PRDs, and SOPs
+├── ios/                              # iOS native code
+├── android/                          # Android native code
+├── scripts/                          # Build and icon generation scripts
+└── assets/                           # App icons and assets
 ```
 
-## 🎯 Usage
-
-### Getting Started
-
-1. **Sign Up/Login** - Create an account or log in with existing credentials
-2. **Select Grade Level** - Choose your preferred difficulty (K-2, 3-5, 6-8, 9-12)
-3. **Configure Speech** - Enable/disable voice input features
-4. **Start Creating** - Begin a new story or continue an existing one
-
-### Creating Stories
-
-1. **New Story** - Tap "Start Game" to begin a fresh story
-2. **Continue Story** - Import from your story library or upload a text file
-3. **AI Collaboration** - Write collaboratively with AI assistance
-4. **Save Progress** - Your stories are automatically saved to your profile
-
-### Profile Management
-
-- **View Statistics** - Track your writing progress and achievements
-- **Manage Preferences** - Update grade level, speech settings, and display name
-- **Story Library** - Access all your previously created stories
-
-## 🔧 Build Scripts
+## 🔧 Development Commands
 
 ```bash
 # Development
-npm start              # Start Metro bundler
-npm run ios           # Run on iOS simulator/device
-npm run android       # Run on Android emulator/device
+npm start                    # Start Expo/Metro bundler
+npm run ios                  # Run on iOS simulator
+npm run android              # Run on Android emulator
+npm run start:dev            # Start with dev client
+npx convex dev               # Start Convex dev server
 
-# Asset Generation
-npm run setup-icons   # Generate app icons for all platforms
-npm run generate-icons       # Generate iOS icons
-npm run generate-android-icons  # Generate Android icons
+# Testing
+npm test                     # Run all tests
+npm run test:coverage        # Generate coverage report
+npm run test:unit            # Unit tests only
+npm run test:integration     # Integration tests only
+npm run test:image-generation # Image generation tests
+npm run test:claude-skills   # Claude Skills tests
 
-# Production Builds
-npm run build:ios     # Build iOS app for distribution
-npm run build:android # Build Android app for distribution
-npm run build:all     # Build both platforms
+# Building
+npm run prebuild             # Generate native projects
+npm run prebuild:clean       # Clean rebuild of native projects
+npm run eas:build:ios        # EAS Build for iOS
+npm run eas:build:android    # EAS Build for Android
+npm run eas:submit:testflight # Submit to TestFlight
 
 # Code Quality
-npm run lint         # Run ESLint
-npm test            # Run Jest tests
+npm run lint                 # Run ESLint
+npm run lint:fix             # Auto-fix lint issues
+npm run format               # Format with Prettier
+
+# Convex
+npx convex dev               # Start Convex dev server
+npx convex deploy            # Deploy to production
 ```
 
 ## 🌟 Key Features Deep Dive
 
 ### Grade Level System
 
-- **K-2**: Simple vocabulary, basic sentence structure
-- **3-5**: Intermediate complexity, creative prompts
-- **6-8**: Advanced storytelling, character development
-- **9-12**: Complex narratives, literary techniques
+Content adapts across four levels:
 
-### Voice Integration
+| Level | Vocabulary                              | Art Style     | Complexity            |
+| ----- | --------------------------------------- | ------------- | --------------------- |
+| K-2   | Simple, basic sentence structure        | Watercolor    | Basic prompts         |
+| 3-5   | Intermediate, creative prompts          | Digital art   | Moderate challenges   |
+| 6-8   | Advanced, character development         | Realistic     | Complex storytelling  |
+| 9-12  | Complex narratives, literary techniques | Sophisticated | Full creative freedom |
 
-- **Speech-to-Text**: Convert voice to written text
-- **AI Voice Reading**: ElevenLabs integration for story playback
-- **Accessibility**: Full voice navigation support
-- **Quick Toggle**: Alt+S keyboard shortcut for speech
+Horror content is automatically softened for younger grade levels.
 
-### Story Management
+### Authentication Architecture
 
-- **Database Storage**: Stories saved to Supabase
-- **File Import**: Upload .txt files from device
-- **Version Control**: Track story iterations and changes
-- **Export Options**: Share stories in various formats
+**OAuth Users (Primary - Clerk → Convex):**
+
+1. User initiates Google/Apple OAuth via Clerk
+2. Clerk handles OAuth flow and issues JWT
+3. Deep link callback (`creativebridge://auth/callback`)
+4. Convex verifies Clerk JWT via `ConvexProviderWithClerk`
+5. User profile created/updated in Convex
+
+**Legacy Users (Fallback - Supabase):**
+
+- Email/password authentication via Supabase
+- Automatic account linking for matching email addresses
+
+### Database Architecture
+
+**Convex (Primary)** — Real-time, TypeScript-first database:
+
+- `userProfiles` — User data, XP, streaks, preferences
+- `gameSessions` — Story sessions with game progress
+- `imageGenerationEvents` — Image generation tracking and analytics
+- `storyElements` — Extracted story elements for diversity tracking
+- `featureFlags` — Remote feature flag configuration
+
+**Supabase (Fallback)** — PostgreSQL with Row Level Security for legacy users
+
+### XP Economy
+
+- Story completion awards XP based on performance
+- Image generation costs 1000 XP
+- Onboarding milestones reward 150 XP total
+- XP tracked via streaks and leaderboard
 
 ## 🔒 Privacy & Security
 
 - **Data Encryption**: All data encrypted in transit and at rest
-- **User Authentication**: Secure JWT-based authentication
+- **JWT Authentication**: Clerk-issued JWTs verified by Convex
+- **Row Level Security**: Supabase RLS policies for legacy data isolation
 - **Privacy Compliance**: COPPA and privacy regulation compliant
-- **Local Storage**: Sensitive data stored securely on device
+- **Secure API Keys**: Managed via environment variables
 
 ## 🤝 Contributing
 
@@ -273,7 +327,8 @@ npm test            # Run Jest tests
 - Use React Native best practices
 - Maintain accessibility standards
 - Write comprehensive tests
-- Document all API changes
+- Document features in `.agent/` directory
+- Use path aliases (`@/services/*`, `@/components/*`, etc.)
 
 ## 🐛 Troubleshooting
 
@@ -300,9 +355,17 @@ cd ios && rm -rf Pods Podfile.lock && pod install && cd ..
 cd android && ./gradlew clean && cd ..
 ```
 
+**Convex issues:**
+
+```bash
+# Reset Convex dev server
+npx convex dev --once
+```
+
 ### Getting Help
 
 - Check the [React Native Troubleshooting Guide](https://reactnative.dev/docs/troubleshooting)
+- Review [Convex Documentation](https://docs.convex.dev)
 - Review [Supabase Documentation](https://supabase.com/docs)
 - Create an issue in this repository
 
@@ -312,10 +375,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- **React Native Team** - For the excellent mobile development framework
-- **Supabase** - For backend-as-a-service platform
-- **ElevenLabs** - For voice AI integration
-- **OpenAI** - For AI-powered story collaboration
+- **React Native & Expo** - Mobile development framework
+- **Convex** - Real-time backend platform
+- **Supabase** - PostgreSQL backend-as-a-service
+- **OpenAI** - AI-powered story collaboration
+- **Replicate** - AI image generation infrastructure
+- **Anthropic** - Claude Skills SDK for content quality assessment
+- **Clerk** - Authentication and user management
+- **ElevenLabs** - Voice AI integration
 - **Story_Quest** - Original inspiration and reference implementation
 
 ## 📞 Support
