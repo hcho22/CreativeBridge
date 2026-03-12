@@ -25,7 +25,7 @@ const convertConvexSessionToLegacy = (
   convexSession: Doc<'gameSessions'>,
 ): GameSession => ({
   id: convexSession._id as unknown as string,
-  user_id: convexSession.userId as unknown as string,
+  user_id: convexSession.clerkUserId, // Clerk ID for profile lookups
   created_at: new Date(convexSession._creationTime).toISOString(),
   completed_at: convexSession.completedAt || undefined,
   grade_level: convexSession.gradeLevel as GradeLevel,
