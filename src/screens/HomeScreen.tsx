@@ -49,7 +49,6 @@ import { challengeService } from '../services/challengeService';
 import { Challenge, ChallengeProgress } from '../types/challenges';
 import ChallengeDisplay from '../components/common/ChallengeDisplay';
 import ImageGeneration from '../components/common/ImageGeneration';
-import StoryImageDisplay from '../components/common/StoryImageDisplay';
 import { storyDownloadService } from '../services/storyDownloadService';
 import { imageStorageService } from '../services/imageStorageService';
 import RNFS, { rnfsWrapper } from '../utils/rnfsWrapper';
@@ -63,6 +62,7 @@ import {
 import { onboardingMilestoneTracker } from '../services/onboardingMilestoneTracker';
 import { onboardingService } from '../services/onboardingService';
 import { AdaptiveGlassBackground } from '../components/common/AdaptiveGlassBackground';
+import { ImageDisplayModal } from '../components/common/ImageDisplayModal';
 
 type HomeScreenNavigationProp = BottomTabNavigationProp<TabParamList, 'Home'>;
 
@@ -156,6 +156,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [isGameCompleted, setIsGameCompleted] = useState(false);
   const [showCompletionOptions, setShowCompletionOptions] = useState(false);
   const [showImageGeneration, setShowImageGeneration] = useState(false);
+  const [showImageDisplayModal, setShowImageDisplayModal] = useState(false);
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(
     null,
   );
@@ -2724,77 +2725,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 </ScrollView>
               </View>
 
-              {/* Generated Image Display */}
-              {(() => {
-                const shouldShowImage =
-                  (generatedImageUrl ||
-                    currentSession?.generated_image_url ||
-                    currentSession?.supabase_image_url) &&
-                  currentSession;
-                console.log('🖼️ [DEBUG] Image display check:', {
-                  generatedImageUrl:
-                    generatedImageUrl?.substring(0, 50) + '...',
-                  sessionImageUrl:
-                    currentSession?.generated_image_url?.substring(0, 50) +
-                    '...',
-                  supabaseImageUrl:
-                    currentSession?.supabase_image_url?.substring(0, 50) +
-                    '...',
-                  uploadStatus: currentSession?.image_upload_status,
-                  hasCurrentSession: !!currentSession,
-                  shouldShowImage,
-                });
-                return shouldShowImage;
-              })() ? (
-                <View style={styles.imageDisplayContainerOverlay}>
-                  <StoryImageDisplay
-                    replicateUrl={
-                      generatedImageUrl ||
-                      currentSession?.generated_image_url ||
-                      undefined
-                    }
-                    supabaseUrl={
-                      currentSession?.supabase_image_url || undefined
-                    }
-                    uploadStatus={currentSession?.image_upload_status}
-                    storyTitle={`${
-                      currentSession?.story_content
-                        ?.split(' ')
-                        .slice(0, 6)
-                        .join(' ') || 'Your Story'
-                    }...`}
-                    sessionId={currentSession?.id || ''}
-                    userId={effectiveUserId || ''}
-                    showBackButton={true}
-                    displayMode="responsive"
-                    enableFullScreen={false}
-                    onBackToOptions={() => {
-                      // Scroll to top to ensure completion options modal is visible
-                      storyScrollViewRef.current?.scrollTo({
-                        y: 0,
-                        animated: true,
-                      });
-                      setShowCompletionOptions(true);
-                    }}
-                    onRetryUpload={handleRetryImageUpload}
-                    onImageSaved={localPath => {
-                      console.log('✅ [DEBUG] Image saved locally:', localPath);
-                      // Update session with local image path
-                      if (currentSession?.id) {
-                        storySessionManager.updateSessionWithLocalImage(
-                          currentSession.id,
-                          localPath,
-                        );
-                      }
-                    }}
-                    onError={error => {
-                      console.error('❌ [DEBUG] Image display error:', error);
-                      // Error is already handled gracefully by StoryImageDisplay component
-                    }}
-                  />
-                </View>
-              ) : null}
-
               {/* Back to Options Button - Show when game is completed but options are hidden, image generation is not active, and no generated image is displayed */}
               {isGameCompleted &&
                 !showCompletionOptions &&
@@ -3214,6 +3144,45 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             </Pressable>
           </Pressable>
         )}
+
+        {/* Image Display Modal — shows generated image in dismissable overlay */}
+        <ImageDisplayModal
+          visible={showImageDisplayModal}
+          onClose={() => setShowImageDisplayModal(false)}
+          onBackToOptions={() => {
+            setShowImageDisplayModal(false);
+            setShowCompletionOptions(true);
+          }}
+          replicateUrl={
+            generatedImageUrl ||
+            currentSession?.generated_image_url ||
+            undefined
+          }
+          supabaseUrl={currentSession?.supabase_image_url || undefined}
+          uploadStatus={currentSession?.image_upload_status}
+          storyTitle={
+            currentSession?.story_content
+              ? currentSession.story_content
+                  .split(/\s+/)
+                  .slice(0, 6)
+                  .join(' ') + '...'
+              : 'Story Illustration'
+          }
+          sessionId={currentSession?.id || ''}
+          userId={effectiveUserId || ''}
+          onRetryUpload={handleRetryImageUpload}
+          onImageSaved={localPath => {
+            if (currentSession?.id) {
+              storySessionManager.updateSessionWithLocalImage(
+                currentSession.id,
+                localPath,
+              );
+            }
+          }}
+          onError={error => {
+            console.error('❌ ImageDisplayModal error:', error);
+          }}
+        />
 
         {/* Absolute-positioned Challenge Display — story content scrolls behind it */}
         {currentChallenge && !showCompletionOptions && (
@@ -3708,11 +3677,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     marginRight: 8,
     color: '#ffffff',
-  },
-  imageDisplayContainerOverlay: {
-    marginVertical: 8,
-    alignItems: 'center', // Center the overlay image
-    justifyContent: 'center',
   },
   // Story Completion Options Styles - Full Screen Modal
   completionModalOverlay: {
