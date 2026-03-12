@@ -1920,6 +1920,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     setIsUserStarting(false); // US-011: Reset user-starts-first mode
     setShowCompletionOptions(false);
     setShowImageGeneration(false);
+    setShowImageDisplayModal(false);
     setGeneratedImageUrl(null); // Reset image URL to prevent showing expired images
   };
 
@@ -1970,6 +1971,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const handleFirstImageCelebrationCta = useCallback(async () => {
     await onboardingMilestoneTracker.markFirstImageCelebrationShown();
     setShowFirstImageCelebration(false);
+    setShowImageDisplayModal(true);
   }, []);
 
   // Handler for first streak achievement celebration modal (US-006)
@@ -2044,6 +2046,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       }
 
       // Check if this is the user's first image generation (US-005)
+      let celebrationShown = false;
       try {
         const { shouldShowCelebration } =
           await onboardingMilestoneTracker.markFirstImageGenerated();
@@ -2057,15 +2060,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             );
           }
           setShowFirstImageCelebration(true);
+          celebrationShown = true;
         }
       } catch (error) {
         console.error('❌ Error checking first image milestone:', error);
       }
 
-      // Auto-scroll to show the generated image after modal dismisses and image renders
-      setTimeout(() => {
-        storyScrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 300); // Delay to allow modal dismissal and image rendering
+      // Open the image display modal automatically after generation
+      // (unless the first-image celebration is showing — US-007 handles opening from celebration CTA)
+      if (!celebrationShown) {
+        setShowImageDisplayModal(true);
+      }
 
       console.log('✅ [DEBUG] handleImageGenerated completed');
     },
@@ -2725,11 +2730,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 </ScrollView>
               </View>
 
-              {/* Back to Options Button - Show when game is completed but options are hidden, image generation is not active, and no generated image is displayed */}
+              {/* Back to Options Button - Show when game is completed and no modal overlay is active */}
               {isGameCompleted &&
                 !showCompletionOptions &&
                 !showImageGeneration &&
-                !(generatedImageUrl || currentSession?.generated_image_url) && (
+                !showImageDisplayModal && (
                   <View style={styles.backToOptionsContainer}>
                     <TouchableOpacity
                       style={styles.backToOptionsButton}
@@ -3049,14 +3054,30 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                     </Text>
                   </TouchableOpacity>
 
-                  <TouchableOpacity
-                    style={styles.completionOptionButton}
-                    onPress={handleImageGeneration}
-                  >
-                    <Text style={styles.completionOptionText}>
-                      🎨 Generate Image
-                    </Text>
-                  </TouchableOpacity>
+                  {generatedImageUrl ||
+                  currentSession?.generated_image_url ||
+                  currentSession?.supabase_image_url ? (
+                    <TouchableOpacity
+                      style={styles.completionOptionButton}
+                      onPress={() => {
+                        setShowCompletionOptions(false);
+                        setShowImageDisplayModal(true);
+                      }}
+                    >
+                      <Text style={styles.completionOptionText}>
+                        🖼️ View Generated Image
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.completionOptionButton}
+                      onPress={handleImageGeneration}
+                    >
+                      <Text style={styles.completionOptionText}>
+                        🎨 Generate Image
+                      </Text>
+                    </TouchableOpacity>
+                  )}
 
                   <TouchableOpacity
                     style={[

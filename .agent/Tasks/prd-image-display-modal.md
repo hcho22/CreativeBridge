@@ -140,12 +140,12 @@ Test file: src/__tests__/components/ImageDisplayModal.test.tsx
 
 **Acceptance Criteria:**
 
-- [ ] In `handleImageGenerated` callback (~line 2016), after `setShowImageGeneration(false)` (line 2022), add `setShowImageDisplayModal(true)`
-- [ ] Remove the `setTimeout` auto-scroll-to-bottom block (~lines 2064-2067) since the image is no longer inline in the ScrollView
-- [ ] Flow after generation: ImageGeneration modal closes → Image Display Modal opens automatically
-- [ ] All existing behavior preserved: `generatedImageUrl` state set, session reloaded from DB, first-image celebration check
-- [ ] Typecheck passes: `npx tsc --noEmit`
-- [ ] Lint passes: `npm run lint`
+- [x] In `handleImageGenerated` callback (~line 2017), after `setShowImageGeneration(false)`, add `setShowImageDisplayModal(true)` (conditionally skipped when first-image celebration is shown)
+- [x] Remove the `setTimeout` auto-scroll-to-bottom block since the image is no longer inline in the ScrollView
+- [x] Flow after generation: ImageGeneration modal closes → Image Display Modal opens automatically
+- [x] All existing behavior preserved: `generatedImageUrl` state set, session reloaded from DB, first-image celebration check
+- [x] Typecheck passes: `npx tsc --noEmit`
+- [x] Lint passes: `npm run lint`
 
 **Validation Test:**
 
@@ -171,14 +171,14 @@ Test file: src/__tests__/components/ImageDisplayModal.test.tsx
 
 **Acceptance Criteria:**
 
-- [ ] Replace the static "Generate Image" `TouchableOpacity` (~lines 3122-3129) with a conditional:
+- [x] Replace the static "Generate Image" `TouchableOpacity` (~lines 3055-3062) with a conditional:
   - **If image exists** (`generatedImageUrl || currentSession?.generated_image_url || currentSession?.supabase_image_url`): render a "View Generated Image" button with icon text `🖼️ View Generated Image`
   - **If no image exists**: render the existing "Generate Image" button with icon text `🎨 Generate Image`
-- [ ] "View Generated Image" `onPress`: `setShowCompletionOptions(false); setShowImageDisplayModal(true);`
-- [ ] "Generate Image" `onPress`: unchanged (`handleImageGeneration`)
-- [ ] Both buttons use the same `styles.completionOptionButton` style
-- [ ] Typecheck passes: `npx tsc --noEmit`
-- [ ] Lint passes: `npm run lint`
+- [x] "View Generated Image" `onPress`: `setShowCompletionOptions(false); setShowImageDisplayModal(true);`
+- [x] "Generate Image" `onPress`: unchanged (`handleImageGeneration`)
+- [x] Both buttons use the same `styles.completionOptionButton` style
+- [x] Typecheck passes: `npx tsc --noEmit`
+- [x] Lint passes: `npm run lint`
 
 **Validation Test:**
 
@@ -204,7 +204,7 @@ Test file: src/__tests__/components/ImageDisplayModal.test.tsx
 
 **Acceptance Criteria:**
 
-- [ ] Change the "Back to Options" button visibility condition (~lines 2798-2802) from:
+- [x] Change the "Back to Options" button visibility condition (~lines 2798-2802) from:
   ```tsx
   isGameCompleted &&
     !showCompletionOptions &&
@@ -218,10 +218,10 @@ Test file: src/__tests__/components/ImageDisplayModal.test.tsx
     !showImageGeneration &&
     !showImageDisplayModal;
   ```
-- [ ] The button is now visible whenever the game is completed and no modal overlay is active, regardless of whether an image has been generated
-- [ ] Button behavior unchanged: scrolls to top + opens CompletionOptions
-- [ ] Typecheck passes: `npx tsc --noEmit`
-- [ ] Lint passes: `npm run lint`
+- [x] The button is now visible whenever the game is completed and no modal overlay is active, regardless of whether an image has been generated
+- [x] Button behavior unchanged: scrolls to top + opens CompletionOptions
+- [x] Typecheck passes: `npx tsc --noEmit`
+- [x] Lint passes: `npm run lint`
 
 **Validation Test:**
 
@@ -244,12 +244,12 @@ Test file: src/__tests__/components/ImageDisplayModal.test.tsx
 
 **Acceptance Criteria:**
 
-- [ ] In `exitGame()` function (~line 1918), add `setShowImageDisplayModal(false)` alongside the existing `setGeneratedImageUrl(null)` reset
-- [ ] In `handleFirstImageCelebrationCta` callback (~line 1969), after `setShowFirstImageCelebration(false)`, add `setShowImageDisplayModal(true)`
-- [ ] Flow for first-ever image: generation completes → celebration modal appears → user taps "View My Illustration" → celebration closes → ImageDisplayModal opens
-- [ ] Exiting the game while modal is open does not leave stale state
-- [ ] Typecheck passes: `npx tsc --noEmit`
-- [ ] Lint passes: `npm run lint`
+- [x] In `exitGame()` function (~line 1914), add `setShowImageDisplayModal(false)` alongside the existing `setGeneratedImageUrl(null)` reset
+- [x] In `handleFirstImageCelebrationCta` callback (~line 1970), after `setShowFirstImageCelebration(false)`, add `setShowImageDisplayModal(true)`
+- [x] Flow for first-ever image: generation completes → celebration modal appears → user taps "View My Illustration" → celebration closes → ImageDisplayModal opens
+- [x] Exiting the game while modal is open does not leave stale state
+- [x] Typecheck passes: `npx tsc --noEmit`
+- [x] Lint passes: `npm run lint`
 
 **Validation Test:**
 
