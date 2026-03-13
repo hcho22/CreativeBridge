@@ -47,7 +47,7 @@ const convertConvexSessionToLegacy = (
 });
 
 export interface StoryContribution {
-  type: 'user' | 'ai';
+  type: 'user' | 'ai' | 'loaded';
   content: string;
   timestamp: number;
   wordCount: number;
@@ -243,7 +243,12 @@ class StorySessionManager {
     if (type === 'user') {
       session.words_written += wordCount;
     }
-    session.sentences_completed = session.contributions.length;
+    // US-005: Exclude 'loaded' contributions from sentences count —
+    // they represent pre-existing story text, not new round contributions
+    const activeContributions = session.contributions.filter(
+      c => c.type !== 'loaded',
+    );
+    session.sentences_completed = activeContributions.length;
 
     // NEW: Story completion tracking - increment round after AI response
     if (type === 'ai') {
@@ -266,8 +271,10 @@ class StorySessionManager {
       }
     }
 
-    // Update local stats
-    session.sessionStats.contributionCount = session.contributions.length;
+    // Update local stats (US-005: exclude loaded contributions from count)
+    session.sessionStats.contributionCount = session.contributions.filter(
+      c => c.type !== 'loaded',
+    ).length;
     if (type === 'user') {
       session.sessionStats.userWords += wordCount;
     } else {
@@ -375,14 +382,38 @@ class StorySessionManager {
         existingContributions.forEach(contribution => {
           if (contribution.type === 'user') {
             userWords += contribution.wordCount;
-          } else {
+          } else if (contribution.type === 'ai') {
             aiWords += contribution.wordCount;
           }
+          // 'loaded' contributions are excluded from round word counts
         });
 
         session.sessionStats.userWords = userWords;
         session.sessionStats.aiWords = aiWords;
         session.sessionStats.totalWords = userWords + aiWords;
+      }
+
+      // US-002: Synthesize a 'loaded' contribution from story_content
+      // when contributions array is empty but story_content exists.
+      // This preserves the loaded story text in the UI after continuation.
+      if (
+        session &&
+        (!session.contributions || session.contributions.length === 0) &&
+        session.story_content &&
+        session.story_content.trim().length > 0
+      ) {
+        const loadedWordCount = this.countWords(session.story_content);
+        const loadedContribution: StoryContribution = {
+          type: 'loaded',
+          content: session.story_content,
+          timestamp: new Date(session.created_at).getTime(),
+          wordCount: loadedWordCount,
+        };
+        session.contributions = [loadedContribution];
+        console.log('📖 Synthesized loaded contribution from story_content:', {
+          wordCount: loadedWordCount,
+          contentLength: session.story_content.length,
+        });
       }
 
       if (session) {

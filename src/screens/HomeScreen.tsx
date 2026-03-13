@@ -17,6 +17,7 @@ import {
   Alert,
   Animated,
   Easing,
+  LayoutAnimation,
   Platform,
   Keyboard,
   KeyboardEvent,
@@ -164,6 +165,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   // "User starts first" mode (US-011): user writes the opening line instead of AI
   const [isUserStarting, setIsUserStarting] = useState(false);
+
+  // US-004: Collapsible loaded story section
+  const [isLoadedStoryExpanded, setIsLoadedStoryExpanded] = useState(true);
 
   // First story celebration state (US-004)
   const [showFirstStoryCelebration, setShowFirstStoryCelebration] =
@@ -572,6 +576,16 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       return () => clearTimeout(scrollTimer);
     }
   }, [currentSession?.contributions?.length]);
+
+  // US-004: Reset loaded story expanded state when session changes
+  useEffect(() => {
+    const loaded = currentSession?.contributions?.find(
+      c => c.type === 'loaded',
+    );
+    if (loaded) {
+      setIsLoadedStoryExpanded(loaded.content.length <= 500);
+    }
+  }, [currentSession?.id]);
 
   // Check service availability
   const checkServiceAvailability = useCallback(async () => {
@@ -1220,9 +1234,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
       startSpinAnimation();
 
-      // Load the existing session from the database
+      // Load the existing session from the database (preserveContributions
+      // ensures cached contributions survive the Convex fetch, and triggers
+      // synthesis of a 'loaded' contribution when cache is empty)
       const existingSession = await storySessionManager.getSession(
         continueParams.sessionId,
+        true, // preserveContributions — US-002
       );
 
       if (existingSession) {
@@ -2683,34 +2700,102 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 >
                   {currentSession?.contributions &&
                   currentSession.contributions.length > 0 ? (
-                    currentSession.contributions.map((contribution, index) => (
-                      <View
-                        key={`${contribution.timestamp}-${index}`}
-                        style={styles.compactContributionContainer}
-                      >
-                        <View style={styles.compactContributionHeader}>
-                          <Text
-                            style={[
-                              styles.compactContributionLabel,
-                              contribution.type === 'ai'
-                                ? styles.aiLabel
-                                : styles.userLabel,
-                            ]}
-                          >
-                            {contribution.type === 'ai' ? '🤖' : '✍️'}
-                          </Text>
-                          <Text style={styles.compactWordCount}>
-                            {contribution.wordCount}w
-                          </Text>
-                        </View>
-                        <Text
-                          style={[styles.storyText, styles.selectableText]}
-                          selectable={true}
-                        >
-                          {contribution.content}
-                        </Text>
-                      </View>
-                    ))
+                    <>
+                      {/* US-004: Collapsible loaded story section */}
+                      {(() => {
+                        const loadedContribution =
+                          currentSession.contributions.find(
+                            c => c.type === 'loaded',
+                          );
+                        const newContributions =
+                          currentSession.contributions.filter(
+                            c => c.type !== 'loaded',
+                          );
+                        return (
+                          <>
+                            {loadedContribution && (
+                              <>
+                                <TouchableOpacity
+                                  style={styles.collapsibleHeader}
+                                  onPress={() => {
+                                    LayoutAnimation.configureNext(
+                                      LayoutAnimation.Presets.easeInEaseOut,
+                                    );
+                                    setIsLoadedStoryExpanded(
+                                      !isLoadedStoryExpanded,
+                                    );
+                                  }}
+                                  activeOpacity={0.7}
+                                >
+                                  <Text style={styles.collapsibleHeaderText}>
+                                    📖 Previously Written
+                                  </Text>
+                                  <Text style={styles.collapsibleWordCount}>
+                                    {loadedContribution.wordCount}w
+                                  </Text>
+                                  <Text style={styles.collapsibleChevron}>
+                                    {isLoadedStoryExpanded ? '▼' : '▶'}
+                                  </Text>
+                                </TouchableOpacity>
+                                {isLoadedStoryExpanded ? (
+                                  <Text
+                                    style={[
+                                      styles.storyText,
+                                      styles.selectableText,
+                                    ]}
+                                    selectable={true}
+                                  >
+                                    {loadedContribution.content}
+                                  </Text>
+                                ) : (
+                                  <Text style={styles.collapsiblePreview}>
+                                    {loadedContribution.content.substring(
+                                      0,
+                                      100,
+                                    )}
+                                    ...
+                                  </Text>
+                                )}
+                                {newContributions.length > 0 && (
+                                  <View style={styles.loadedSeparator} />
+                                )}
+                              </>
+                            )}
+                            {newContributions.map((contribution, index) => (
+                              <View
+                                key={`${contribution.timestamp}-${index}`}
+                                style={styles.compactContributionContainer}
+                              >
+                                <View style={styles.compactContributionHeader}>
+                                  <Text
+                                    style={[
+                                      styles.compactContributionLabel,
+                                      contribution.type === 'ai'
+                                        ? styles.aiLabel
+                                        : styles.userLabel,
+                                    ]}
+                                  >
+                                    {contribution.type === 'ai' ? '🤖' : '✍️'}
+                                  </Text>
+                                  <Text style={styles.compactWordCount}>
+                                    {contribution.wordCount}w
+                                  </Text>
+                                </View>
+                                <Text
+                                  style={[
+                                    styles.storyText,
+                                    styles.selectableText,
+                                  ]}
+                                  selectable={true}
+                                >
+                                  {contribution.content}
+                                </Text>
+                              </View>
+                            ))}
+                          </>
+                        );
+                      })()}
+                    </>
                   ) : isUserStarting ? (
                     /* US-011: "User starts first" prompt card */
                     <View style={styles.userStartsPromptCard}>
@@ -3646,6 +3731,47 @@ const styles = StyleSheet.create({
   },
   userLabel: {
     color: '#22c55e',
+  },
+  loadedLabel: {
+    color: '#8b5cf6',
+  },
+  // US-004: Collapsible loaded story section styles
+  collapsibleHeader: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    marginBottom: 4,
+  },
+  collapsibleHeaderText: {
+    fontSize: 14,
+    fontWeight: 'bold' as const,
+    color: '#8b5cf6',
+    fontFamily: 'ArchitectsDaughter_400Regular',
+    flex: 1,
+  },
+  collapsibleWordCount: {
+    fontSize: 11,
+    color: '#888',
+    fontWeight: '500' as const,
+    marginRight: 8,
+  },
+  collapsibleChevron: {
+    fontSize: 12,
+    color: '#8b5cf6',
+  },
+  collapsiblePreview: {
+    fontSize: 18,
+    lineHeight: 24,
+    color: '#999',
+    fontFamily: 'ArchitectsDaughter_400Regular',
+    fontStyle: 'italic' as const,
+    marginBottom: 4,
+  },
+  loadedSeparator: {
+    height: 1,
+    backgroundColor: '#e5e7eb',
+    marginVertical: 12,
   },
   compactContributionContainer: {
     marginBottom: 4,
