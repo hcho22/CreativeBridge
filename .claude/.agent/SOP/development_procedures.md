@@ -9,6 +9,7 @@ This document outlines the standard operating procedures for developing and main
 ### 1. Feature Development Process
 
 #### Branch Management
+
 ```bash
 # Create feature branch from main
 git checkout main
@@ -24,12 +25,14 @@ git push origin feature/[feature-name]
 ```
 
 #### Code Quality Standards
+
 - **TypeScript**: All new code must use TypeScript with strict type checking
 - **ESLint**: Code must pass all linting rules before commit
 - **Prettier**: Consistent code formatting enforced via pre-commit hooks
 - **Testing**: New features require unit and integration tests
 
 #### Pre-commit Checklist
+
 ```bash
 # Run linting and fix issues
 npm run lint:fix
@@ -47,6 +50,7 @@ npm run build
 ### 2. Database Migration Procedures
 
 #### Creating a New Migration
+
 ```bash
 # 1. Create migration file in /sql/ directory
 touch sql/[timestamp]_[descriptive_name].sql
@@ -77,12 +81,14 @@ COMMIT;
 ```
 
 #### Migration Testing Process
+
 1. **Local Testing**: Apply migration to local development database
 2. **Validation**: Run application tests to ensure no breaking changes
 3. **Staging**: Deploy to staging environment for integration testing
 4. **Production**: Apply during maintenance window with rollback plan
 
 #### Migration Best Practices
+
 - Always include rollback procedures
 - Test migrations on database copies
 - Update TypeScript types after schema changes
@@ -91,6 +97,7 @@ COMMIT;
 ### 3. Adding New API Routes/Services
 
 #### Service Layer Structure
+
 ```typescript
 // src/services/[serviceName].ts
 import { supabase } from './supabase';
@@ -118,6 +125,7 @@ export const serviceName = new ServiceName();
 ```
 
 #### Integration Checklist
+
 1. **Type Safety**: Define interfaces in `src/types/`
 2. **Error Handling**: Implement comprehensive error handling
 3. **Testing**: Create unit tests in `src/__tests__/services/`
@@ -127,6 +135,7 @@ export const serviceName = new ServiceName();
 ### 4. Component Development Guidelines
 
 #### Component Structure
+
 ```typescript
 // src/components/[category]/[ComponentName].tsx
 import React from 'react';
@@ -139,12 +148,8 @@ interface Props {
 
 export const ComponentName: React.FC<Props> = ({ prop1, prop2 }) => {
   // Component logic
-  
-  return (
-    <View style={styles.container}>
-      {/* Component JSX */}
-    </View>
-  );
+
+  return <View style={styles.container}>{/* Component JSX */}</View>;
 };
 
 const styles = StyleSheet.create({
@@ -155,6 +160,7 @@ const styles = StyleSheet.create({
 ```
 
 #### Testing Components
+
 ```typescript
 // src/__tests__/components/[ComponentName].test.tsx
 import React from 'react';
@@ -170,7 +176,7 @@ describe('ComponentName', () => {
   it('handles user interaction', () => {
     const mockCallback = jest.fn();
     const { getByTestId } = render(<ComponentName onPress={mockCallback} />);
-    
+
     fireEvent.press(getByTestId('button'));
     expect(mockCallback).toHaveBeenCalled();
   });
@@ -182,6 +188,7 @@ describe('ComponentName', () => {
 ### 1. API Key Management
 
 #### Secure Storage
+
 ```typescript
 // src/services/secureApiKeyManager.ts
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -201,6 +208,7 @@ class SecureApiKeyManager {
 ```
 
 #### Environment Configuration
+
 ```bash
 # .env.example
 OPENAI_API_KEY=your_openai_key_here
@@ -212,23 +220,25 @@ SUPABASE_ANON_KEY=your_supabase_anon_key
 ### 2. Data Validation Procedures
 
 #### Input Validation
+
 ```typescript
 // Always validate user input
 const validateStoryContent = (content: string): boolean => {
   if (!content || content.trim().length === 0) {
     throw new Error('Story content cannot be empty');
   }
-  
+
   if (content.length > 10000) {
     throw new Error('Story content exceeds maximum length');
   }
-  
+
   // Additional validation rules
   return true;
 };
 ```
 
 #### Database Query Safety
+
 ```typescript
 // Use parameterized queries
 const { data, error } = await supabase
@@ -247,16 +257,19 @@ if (error) {
 ### 1. Test Categories
 
 #### Unit Tests
+
 - **Location**: `src/__tests__/services/`, `src/__tests__/utils/`
 - **Purpose**: Test individual functions and classes
 - **Coverage**: Aim for 80%+ coverage on critical business logic
 
 #### Integration Tests
+
 - **Location**: `src/__tests__/integration/`
 - **Purpose**: Test component interactions and API integrations
 - **Focus**: User workflows and data flow
 
 #### Acceptance Tests
+
 - **Location**: `src/__tests__/acceptance/`
 - **Purpose**: End-to-end user journey testing
 - **Scenarios**: Key user stories and edge cases
@@ -264,6 +277,7 @@ if (error) {
 ### 2. Test Execution
 
 #### Local Testing
+
 ```bash
 # Run all tests
 npm test
@@ -279,6 +293,7 @@ npm test -- --watch
 ```
 
 #### Continuous Integration
+
 - All tests must pass before merge
 - Coverage reports generated automatically
 - Performance regression testing
@@ -288,6 +303,7 @@ npm test -- --watch
 ### 1. Environment Setup
 
 #### Development Environment
+
 ```bash
 # Install dependencies
 npm install
@@ -303,6 +319,7 @@ npm start
 ```
 
 #### Staging Deployment
+
 ```bash
 # Build staging version
 npm run build:staging
@@ -317,6 +334,7 @@ npm run deploy:android:staging
 ### 2. Production Deployment
 
 #### Pre-deployment Checklist
+
 - [ ] All tests passing
 - [ ] Code review completed
 - [ ] Database migrations tested
@@ -325,6 +343,7 @@ npm run deploy:android:staging
 - [ ] Changelog updated
 
 #### Deployment Process
+
 ```bash
 # Create release branch
 git checkout -b release/v[version]
@@ -348,6 +367,7 @@ git push origin v[version]
 ### 1. Performance Monitoring
 
 #### Key Metrics
+
 - App launch time
 - API response times
 - Memory usage
@@ -355,6 +375,7 @@ git push origin v[version]
 - User engagement metrics
 
 #### Monitoring Tools
+
 - **Reactotron**: Development debugging
 - **Supabase Analytics**: Database performance
 - **Custom Analytics**: User behavior tracking
@@ -362,35 +383,37 @@ git push origin v[version]
 ### 2. Error Handling and Logging
 
 #### Error Logging
+
 ```typescript
 // src/services/errorLogger.ts
 export const logError = (
   context: string,
   error: Error,
-  additionalInfo?: Record<string, any>
+  additionalInfo?: Record<string, any>,
 ) => {
   console.error(`[${context}] ${error.message}`, {
     stack: error.stack,
     ...additionalInfo,
   });
-  
+
   // Send to monitoring service
   // analytics.logError(context, error, additionalInfo);
 };
 ```
 
 #### User Error Handling
+
 ```typescript
 // User-friendly error messages
 const handleApiError = (error: Error): string => {
   if (error.message.includes('network')) {
     return 'Please check your internet connection and try again.';
   }
-  
+
   if (error.message.includes('auth')) {
     return 'Please log in again to continue.';
   }
-  
+
   return 'Something went wrong. Please try again later.';
 };
 ```
@@ -400,18 +423,21 @@ const handleApiError = (error: Error): string => {
 ### 1. Review Checklist
 
 #### Functionality
+
 - [ ] Code meets requirements
 - [ ] Edge cases handled
 - [ ] Error handling implemented
 - [ ] Performance considerations addressed
 
 #### Code Quality
+
 - [ ] TypeScript types properly defined
 - [ ] Code follows project conventions
 - [ ] No console.log statements in production code
 - [ ] Proper component lifecycle management
 
 #### Security
+
 - [ ] Input validation implemented
 - [ ] No hardcoded secrets
 - [ ] RLS policies respected
@@ -429,6 +455,7 @@ const handleApiError = (error: Error): string => {
 ### 1. Production Issues
 
 #### Incident Response
+
 1. **Assess Impact**: Determine severity and user impact
 2. **Immediate Action**: Implement temporary fix if possible
 3. **Communication**: Notify stakeholders of issue and status
@@ -437,6 +464,7 @@ const handleApiError = (error: Error): string => {
 6. **Post-Mortem**: Document lessons learned
 
 #### Rollback Procedures
+
 ```bash
 # Database rollback
 -- Execute rollback SQL from migration file
@@ -449,6 +477,7 @@ npm run deploy:production
 ### 2. Security Incidents
 
 #### Immediate Actions
+
 1. **Isolate**: Identify and contain the security issue
 2. **Assess**: Determine scope of potential data exposure
 3. **Notify**: Inform security team and stakeholders
@@ -456,6 +485,7 @@ npm run deploy:production
 5. **Remediate**: Fix vulnerability and implement safeguards
 
 ## Related Documentation
+
 - [Project Architecture](../project_architecture.md) - System overview and design
 - [Database Schema](../database_schema.md) - Database structure and relationships
 - [API Integration Guide](../api_integration.md) - External service integration

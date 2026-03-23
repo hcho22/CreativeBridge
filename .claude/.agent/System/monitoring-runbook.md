@@ -1,4 +1,5 @@
 # Monitoring Runbook: Story Completion & Image Persistence
+
 **Feature:** Story Completion Tracking & Image Persistence
 **Version:** 1.0
 **Last Updated:** 2026-01-08
@@ -23,12 +24,12 @@
 
 ### Critical Contacts
 
-| Role | Contact | When to Escalate |
-|------|---------|------------------|
-| On-Call Engineer | Slack: `@oncall` | All critical alerts |
+| Role             | Contact            | When to Escalate             |
+| ---------------- | ------------------ | ---------------------------- |
+| On-Call Engineer | Slack: `@oncall`   | All critical alerts          |
 | Engineering Lead | Slack: `@eng-lead` | Incidents > 30min unresolved |
-| Product Manager | Slack: `@product` | User-facing degradation |
-| Database Admin | Slack: `@dba` | Database performance issues |
+| Product Manager  | Slack: `@product`  | User-facing degradation      |
+| Database Admin   | Slack: `@dba`      | Database performance issues  |
 
 ### Key Dashboards
 
@@ -71,11 +72,13 @@ User → App → Image Generation Service → Replicate API
 ### Key Components
 
 1. **Story Session Manager** (`src/services/storySessionManager.ts`)
+
    - Tracks `current_round` (1-5)
    - Auto-completes stories at round 5
    - Handles offline caching
 
 2. **Image Storage Service** (`src/services/imageStorageService.ts`)
+
    - Uploads to Supabase Storage
    - Retry logic (3 attempts, exponential backoff)
    - 10MB file size limit
@@ -100,11 +103,13 @@ User → App → Image Generation Service → Replicate API
 ### Issue 1: High Upload Failure Rate (>15%)
 
 **Symptoms:**
+
 - Alert: `upload_failure_rate_critical` triggered
 - Dashboard shows success rate < 85%
 - Users report "Image backup failed" messages
 
 **Diagnosis:**
+
 ```sql
 -- Check error patterns
 SELECT
@@ -120,15 +125,16 @@ ORDER BY count DESC;
 
 **Common Causes & Solutions:**
 
-| Cause | Indicators | Solution |
-|-------|-----------|----------|
-| Supabase API outage | All uploads failing, error: "503 Service Unavailable" | Check [Supabase Status](https://status.supabase.com), wait for resolution |
-| Storage quota exceeded | Error: "Storage limit reached" | Increase quota via Supabase dashboard |
-| Network timeouts | Error: "Request timeout after 10000ms" | Increase timeout in `imageStorageService.ts`, check network |
-| RLS policy issue | Error: "Permission denied" | Verify RLS policies in Supabase SQL Editor |
-| Large image files | Error: "File size exceeds 10MB" | Check Replicate output sizes, adjust limit if needed |
+| Cause                  | Indicators                                            | Solution                                                                  |
+| ---------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------- |
+| Supabase API outage    | All uploads failing, error: "503 Service Unavailable" | Check [Supabase Status](https://status.supabase.com), wait for resolution |
+| Storage quota exceeded | Error: "Storage limit reached"                        | Increase quota via Supabase dashboard                                     |
+| Network timeouts       | Error: "Request timeout after 10000ms"                | Increase timeout in `imageStorageService.ts`, check network               |
+| RLS policy issue       | Error: "Permission denied"                            | Verify RLS policies in Supabase SQL Editor                                |
+| Large image files      | Error: "File size exceeds 10MB"                       | Check Replicate output sizes, adjust limit if needed                      |
 
 **Immediate Actions:**
+
 1. Check Supabase Status page
 2. Run diagnostic query above
 3. If quota issue: Increase storage quota
@@ -136,6 +142,7 @@ ORDER BY count DESC;
 5. If persistent: Enable Replicate-only fallback mode
 
 **Prevention:**
+
 - Set up storage quota alert at 80%
 - Monitor average image file sizes
 - Regular RLS policy audits
@@ -145,11 +152,13 @@ ORDER BY count DESC;
 ### Issue 2: Stories Not Auto-Completing at Round 5
 
 **Symptoms:**
+
 - Alert: `completion_rate_crashed` triggered
 - Sessions with `current_round` = 5 but no `completed_at`
 - Users report stuck at round 5
 
 **Diagnosis:**
+
 ```sql
 -- Find stuck sessions
 SELECT
@@ -170,11 +179,13 @@ LIMIT 20;
 **Common Causes & Solutions:**
 
 1. **Bug in round increment logic**
+
    - Check: `storySessionManager.addContribution()` method
    - Verify: `session.current_round` increments after AI response
    - Fix: Deploy hotfix if logic broken
 
 2. **Race condition in state updates**
+
    - Check: AsyncStorage vs Database sync
    - Verify: No conflicting updates to `current_round`
    - Fix: Add transaction locking
@@ -185,6 +196,7 @@ LIMIT 20;
    - Fix: Backfill script to complete old sessions
 
 **Immediate Actions:**
+
 ```sql
 -- Manually complete stuck sessions (if confirmed completed)
 UPDATE game_sessions
@@ -198,6 +210,7 @@ WHERE current_round >= 5
 ```
 
 **Prevention:**
+
 - Add integration test for auto-completion
 - Monitor `current_round` distribution daily
 - Data integrity checks in CI/CD
@@ -207,11 +220,13 @@ WHERE current_round >= 5
 ### Issue 3: Stuck Pending Uploads (>30 minutes)
 
 **Symptoms:**
+
 - Alert: `stuck_pending_uploads` triggered
 - Images visible to users but status = 'pending'
 - Background upload not completing
 
 **Diagnosis:**
+
 ```sql
 -- Find stuck uploads
 SELECT
@@ -234,11 +249,13 @@ LIMIT 50;
 **Common Causes & Solutions:**
 
 1. **Background worker crashed**
+
    - Check: Application logs for exceptions
    - Verify: No hung processes
    - Fix: Restart application or trigger manual retry
 
 2. **Replicate URL expired**
+
    - Check: Try downloading `generated_image_url`
    - Verify: Replicate URLs valid for 60 minutes
    - Fix: Mark as failed, user keeps Replicate URL
@@ -249,6 +266,7 @@ LIMIT 50;
    - Fix: Trigger manual retry
 
 **Immediate Actions:**
+
 ```bash
 # Manually retry stuck uploads via admin API
 curl -X POST https://api.creativebridge.app/admin/retry-stuck-uploads \
@@ -261,6 +279,7 @@ curl -X POST https://api.creativebridge.app/admin/retry-stuck-uploads \
 ```
 
 Or via SQL:
+
 ```sql
 -- Mark very old pending uploads as failed (>2 hours)
 UPDATE game_sessions
@@ -273,6 +292,7 @@ WHERE image_upload_status = 'pending'
 ```
 
 **Prevention:**
+
 - Monitor stuck uploads every 15 minutes
 - Set up automatic retry job for stuck uploads
 - Add timeout for background uploads
@@ -282,11 +302,13 @@ WHERE image_upload_status = 'pending'
 ### Issue 4: XP Refund Spike (>20%)
 
 **Symptoms:**
+
 - Alert: `xp_refund_spike_critical` triggered
 - Many failed image generations
 - Users complaining about wasted XP
 
 **Diagnosis:**
+
 ```sql
 -- Check refund patterns
 SELECT
@@ -304,11 +326,13 @@ ORDER BY date DESC;
 **Common Causes & Solutions:**
 
 1. **Replicate API outage**
+
    - Check: [Replicate Status](https://status.replicate.com)
    - Verify: Error messages contain "Replicate" or "503"
    - Fix: Wait for Replicate recovery, refunds are automatic
 
 2. **Replicate quota exceeded**
+
    - Check: Replicate dashboard for quota usage
    - Verify: Error: "Rate limit exceeded"
    - Fix: Increase Replicate quota or add rate limiting
@@ -319,12 +343,14 @@ ORDER BY date DESC;
    - Fix: Update prompt sanitization
 
 **Immediate Actions:**
+
 1. Check Replicate Status page
 2. Verify Replicate API key and quota
 3. If quota issue: Increase limit or pause feature
 4. If outage: Communicate to users, wait for recovery
 
 **Prevention:**
+
 - Monitor Replicate API uptime
 - Set up Replicate quota alerts
 - Test prompt generation edge cases
@@ -334,11 +360,13 @@ ORDER BY date DESC;
 ### Issue 5: Data Integrity Violations
 
 **Symptoms:**
+
 - Alert: `data_integrity_violations` triggered
 - Inconsistent data in `game_sessions`
 - Analytics showing impossible states
 
 **Diagnosis:**
+
 ```sql
 -- Run full data integrity check
 SELECT * FROM (
@@ -375,10 +403,12 @@ WHERE count > 0;
 **Common Causes & Solutions:**
 
 1. **Race condition in state updates**
+
    - Fix: Add database constraints
    - Review: Concurrent update logic
 
 2. **Migration data inconsistency**
+
    - Fix: Run data migration repair script
    - Review: Migration SQL for bugs
 
@@ -387,6 +417,7 @@ WHERE count > 0;
    - Review: Who has write access
 
 **Immediate Actions:**
+
 ```sql
 -- Fix: Cap current_round at 5
 UPDATE game_sessions
@@ -409,6 +440,7 @@ WHERE current_round >= 5
 ```
 
 **Prevention:**
+
 - Add database CHECK constraints
 - Run data integrity tests in CI
 - Weekly data quality reviews
@@ -420,6 +452,7 @@ WHERE current_round >= 5
 ### Critical Alerts (P0) - Response Time: 5 minutes
 
 **General Response Flow:**
+
 1. **Acknowledge** alert within 5 minutes
 2. **Assess** severity via dashboards
 3. **Diagnose** root cause using queries
@@ -608,6 +641,7 @@ WHERE created_at >= NOW() - INTERVAL '24 hours';
 ### Rollback Procedure
 
 **When to Rollback:**
+
 - Critical bug affecting >50% of users
 - Data corruption detected
 - Security vulnerability discovered
@@ -679,13 +713,13 @@ RETURNING id, user_id, current_round, sentences_completed;
 
 ### When to Escalate
 
-| Situation | Escalate To | Timeframe |
-|-----------|------------|-----------|
-| Cannot resolve P0 within 15min | Engineering Lead | Immediately |
-| Database performance degradation | Database Admin | Within 10min |
-| User-facing outage >30min | Product Manager | Within 30min |
-| Security concern | Security Team | Immediately |
-| Third-party API outage | CTO | Within 1 hour |
+| Situation                        | Escalate To      | Timeframe     |
+| -------------------------------- | ---------------- | ------------- |
+| Cannot resolve P0 within 15min   | Engineering Lead | Immediately   |
+| Database performance degradation | Database Admin   | Within 10min  |
+| User-facing outage >30min        | Product Manager  | Within 30min  |
+| Security concern                 | Security Team    | Immediately   |
+| Third-party API outage           | CTO              | Within 1 hour |
 
 ### Escalation Template
 
@@ -730,14 +764,17 @@ DASHBOARDS:
 **Status:** Resolved
 
 ## Summary
+
 [One paragraph describing what happened]
 
 ## Impact
+
 - **Users Affected:** [Number or percentage]
 - **Services Affected:** [List]
 - **Duration:** [Minutes/Hours]
 
 ## Timeline
+
 - HH:MM - Alert triggered
 - HH:MM - Engineer acknowledged
 - HH:MM - Root cause identified
@@ -745,16 +782,20 @@ DASHBOARDS:
 - HH:MM - Incident resolved
 
 ## Root Cause
+
 [Detailed explanation of what caused the incident]
 
 ## Resolution
+
 [What was done to fix it]
 
 ## Action Items
+
 - [ ] [Preventive measure 1] - Owner: [Name] - Due: [Date]
 - [ ] [Preventive measure 2] - Owner: [Name] - Due: [Date]
 
 ## Lessons Learned
+
 [What we learned and how to prevent this in the future]
 ```
 
@@ -773,17 +814,20 @@ DASHBOARDS:
 ## Additional Resources
 
 ### Documentation Links
+
 - [Feature PRD](../Tasks/story-completion-and-image-persistence-PRD.md)
 - [Implementation Tasks](../Tasks/TASKS-story-completion-and-image-persistence.md)
 - [Database Schema](./database_schema.md)
 - [API Documentation](./api_documentation.md)
 
 ### External Resources
+
 - [Supabase Storage Docs](https://supabase.com/docs/guides/storage)
 - [Replicate API Docs](https://replicate.com/docs)
 - [PostgreSQL Monitoring](https://www.postgresql.org/docs/current/monitoring.html)
 
 ### Team Channels
+
 - `#engineering` - General engineering discussion
 - `#alerts-critical` - Critical alerts only
 - `#alerts-warnings` - Warning level alerts
@@ -793,6 +837,7 @@ DASHBOARDS:
 ---
 
 **Document Maintenance:**
+
 - Review and update quarterly
 - Update after each major incident
 - Keep contact information current

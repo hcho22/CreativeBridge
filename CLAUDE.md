@@ -12,6 +12,12 @@ Before starting any task, read `.agent/README.md` for context. All important doc
 
 Always update `.agent/` docs after implementing features.
 
+## Environment Setup
+
+- Copy `.env.example` to `.env` and fill in API keys (Convex, Supabase, OpenAI, Replicate, ElevenLabs)
+- `.npmrc` has `legacy-peer-deps=true` — required for dependency installation
+- Convex dev deployment: run `npx convex dev` alongside Metro
+
 ## Common Commands
 
 ### Development
@@ -21,6 +27,7 @@ npm start                    # Start Expo/Metro bundler
 npm run ios                  # Run on iOS simulator
 npm run android              # Run on Android emulator
 npm run start:dev            # Start with dev client
+npx convex dev               # Start Convex dev server (run alongside Metro)
 ```
 
 ### Testing
@@ -47,6 +54,15 @@ npm run eas:build:android    # EAS Build for Android
 npm run eas:submit:testflight # Submit to TestFlight
 ```
 
+### E2E Testing (Detox)
+
+```bash
+npx detox build -c ios.sim.debug    # Build for iOS simulator
+npx detox test -c ios.sim.debug     # Run E2E tests on iOS simulator
+npx detox build -c android.emu.debug # Build for Android emulator
+npx detox test -c android.emu.debug  # Run E2E tests on Android emulator
+```
+
 ### Code Quality
 
 ```bash
@@ -54,6 +70,10 @@ npm run lint                 # Run ESLint
 npm run lint:fix             # Auto-fix lint issues
 npm run format               # Format with Prettier
 ```
+
+**Pre-commit hooks**: Husky + lint-staged runs Prettier and ESLint on staged files automatically.
+
+**ESLint note**: All TypeScript/ESLint rules are configured as warnings (not errors) to allow autonomous agent workflows. `npm run lint` will report issues but won't fail the build.
 
 ## Architecture Overview
 
@@ -143,6 +163,12 @@ Content adapts to four levels (K-2, 3-5, 6-8, 9-12):
 - Art style (watercolor → realistic → sophisticated)
 - Prompt difficulty
 
+## Testing Infrastructure
+
+- Jest with `react-native` preset, coverage threshold at **70%** (branches, functions, lines, statements)
+- Test setup files: `src/__tests__/setup.ts` and `src/__tests__/setupAfterEnv.ts` — contain comprehensive mocks for Clerk, Supabase, AsyncStorage, React Navigation, and RN modules
+- Test flag: Set `DISABLE_XP_COSTS_FOR_TESTING=true` in `.env` to bypass XP cost checks in tests
+
 ## Key Patterns
 
 ### Service Pattern
@@ -175,6 +201,22 @@ npx convex dev                    # Start Convex dev server
 npx convex deploy                 # Deploy to production
 npx convex run migration:migrateUserProfiles  # Run migration
 ```
+
+## CI/CD
+
+- **PR Code Review**: GitHub Actions runs automated Claude code review on PRs (`.github/workflows/claude-code-review.yml`)
+- **Interactive Claude**: Mention `@claude` in PR comments or issues for on-demand assistance (`.github/workflows/claude.yml`)
+- **EAS Build**: Version source is `remote` (EAS-managed). Production builds auto-increment. Three profiles: development, preview, production.
+
+## Deployment & Monitoring Scripts
+
+Key scripts in `scripts/`:
+
+- `pre-deployment-check.sh` - Run before deploying
+- `deploy-production.js` - Production deployment
+- `submit-testflight.sh` - TestFlight submission
+- `smoke-tests-production.ts` - Post-deploy smoke tests
+- `monitor-deployment.ts`, `monitor-errors-daily.ts` - Production monitoring
 
 ## TestFlight Deployment
 

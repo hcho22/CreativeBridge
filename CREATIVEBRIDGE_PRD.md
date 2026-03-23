@@ -2,11 +2,12 @@
 
 ## Executive Summary
 
-**Product Name**: CreativeBridge  
-**Version**: 1.0.0  
-**Document Date**: January 2025  
-**Product Type**: Educational Mobile Application  
-**Target Platform**: iOS & Android (React Native)
+**Product Name**: CreativeBridge
+**Version**: 0.0.4
+**Document Date**: March 2026 (Updated)
+**Original Date**: January 2025
+**Product Type**: Educational Mobile Application
+**Target Platform**: iOS & Android (React Native + Expo)
 
 CreativeBridge is an innovative educational mobile application designed to revolutionize creative writing education through AI-assisted collaborative storytelling. The app bridges the gap between traditional writing instruction and modern interactive technology, providing students across K-12 grade levels with an engaging platform to develop their creative writing skills.
 
@@ -238,125 +239,165 @@ CreativeBridge solves these challenges by providing:
 
 ### Platform Strategy
 
-**Primary Platform**: React Native 0.81.1
+**Primary Platform**: React Native 0.81.5 + Expo 54
 
 - **Rationale**: Cross-platform development efficiency, native performance, strong community
-- **Target Platforms**: iOS 13+ and Android 8+ (API level 26+)
-- **Development Benefits**: Single codebase, rapid iteration, native feature access
+- **Target Platforms**: iOS (including iPad native support) and Android
+- **Development Benefits**: Single codebase, rapid iteration, native feature access, EAS Build for deployment
 
 ### Technology Stack
 
 #### Frontend Technology
 
-**Framework**: React Native 0.81.1 with TypeScript
+**Framework**: React Native 0.81.5 with Expo 54 and TypeScript 5.8
 
-- **UI Library**: React Native with custom component library
-- **Navigation**: React Navigation v7 for screen management
+- **UI Library**: React Native with custom component library (glass effects, blur, gradients)
+- **Navigation**: React Navigation v7 (bottom tabs + stack navigator)
 - **State Management**: React Context API with custom hooks
 - **Styling**: StyleSheet with custom theming system
-- **Animation**: React Native Animated API
+- **Animation**: React Native Animated API + Reanimated
+- **Forms**: React Hook Form with Yup validation
 
 #### Backend & Services
 
-**Backend-as-a-Service**: Supabase
+**Primary Backend**: Convex (real-time database with native Clerk auth)
+
+- **Database**: Convex document database with TypeScript schema
+- **Authentication**: Clerk OAuth (Google/Apple) → Convex JWT verification via `ConvexProviderWithClerk`
+- **Real-time**: Native real-time subscriptions
+- **Storage**: Convex Storage for image uploads and assets
+- **Functions**: Convex mutations, queries, and actions for all server-side logic
+
+**Fallback Backend**: Supabase (legacy users)
 
 - **Database**: PostgreSQL with Row Level Security (RLS)
-- **Authentication**: Supabase Auth with JWT tokens
-- **Real-time**: WebSocket connections for live features
-- **Storage**: File storage for user content and assets
-- **Edge Functions**: Serverless functions for complex operations
+- **Authentication**: Supabase Auth with email/password for legacy users
+- **Migration**: Active migration path from Supabase UUIDs to Clerk IDs
 
 **AI & ML Services**:
 
-- **Primary AI**: OpenAI GPT-4 for story generation
-- **Image Generation**: Stable Diffusion (primary) and DALL-E 3 (backup) for story illustrations
+- **Primary AI**: OpenAI GPT-4o-mini for story generation (configurable via `OPENAI_MODEL` env var)
+- **Image Generation**: Replicate Stable Diffusion 3.5 with grade-appropriate art style enforcement
+- **Quality Assessment**: Claude Skills SDK for content quality evaluation
 - **Voice Services**: ElevenLabs for text-to-speech
 - **Voice Input**: React Native Voice for speech-to-text
+- **Embeddings**: OpenAI embeddings (1536-dim) for story diversity/similarity detection
 
 #### Development & Deployment
 
 **Development Tools**:
 
-- TypeScript for type safety
-- ESLint and Prettier for code quality
-- Husky for pre-commit hooks
-- Jest and React Native Testing Library for testing
+- TypeScript 5.8 for type safety
+- ESLint and Prettier for code quality (ESLint rules configured as warnings for autonomous agent workflows)
+- Husky + lint-staged for pre-commit hooks
+- Jest with react-native preset for testing (70% coverage threshold)
+- Detox for E2E testing (iOS simulator + Android emulator)
 - Reactotron for debugging
 
 **CI/CD Pipeline**:
 
-- GitHub Actions for automated testing
-- Fastlane for automated builds
-- CodePush for over-the-air updates
-- Crashlytics for error reporting
+- GitHub Actions for automated Claude code review on PRs
+- EAS Build for iOS and Android builds (development, preview, production profiles)
+- EAS Submit for TestFlight distribution
+- Remote version management with auto-increment for production builds
 
 ### Database Architecture
 
-#### Core Tables
+#### Primary Database: Convex (OAuth Users)
 
-**User Profiles** (`user_profiles`)
+Schema defined in `convex/schema.ts` with auto-generated TypeScript types.
 
-```sql
-- id (UUID, Primary Key)
-- username (TEXT, Unique)
-- display_name (TEXT)
-- total_xp (INTEGER)
-- current_streak (INTEGER)
-- longest_streak (INTEGER)
-- total_games_played (INTEGER)
-- total_words_written (INTEGER)
-- best_score (INTEGER)
-- preferred_grade_level (ENUM: K-2, 3-5, 6-8, 9-12)
-- speech_enabled (BOOLEAN)
-- created_at, updated_at (TIMESTAMP)
+**User Profiles** (`userProfiles`)
+
+```
+- clerkUserId (STRING, indexed) - Clerk OAuth user ID
+- username (STRING), displayName (STRING)
+- totalXp (NUMBER), currentStreak (NUMBER), longestStreak (NUMBER)
+- lastActivityDate (STRING)
+- totalGamesPlayed (NUMBER), totalWordsWritten (NUMBER), bestScore (NUMBER)
+- preferredGradeLevel (STRING: K-2, 3-5, 6-8, 9-12)
+- preferredGenre (STRING)
+- speechEnabled (BOOLEAN)
+- onboardingProgress (OBJECT), onboardingCompleted (BOOLEAN)
+- Milestone timestamps: firstStoryCompletedAt, firstImageGeneratedAt, etc.
 ```
 
-**Game Sessions** (`game_sessions`)
+**Game Sessions** (`gameSessions`)
 
-```sql
-- id (UUID, Primary Key)
-- user_id (UUID, Foreign Key)
-- grade_level (ENUM)
-- story_content (TEXT)
-- final_score (INTEGER)
-- words_written (INTEGER)
-- challenges_completed (INTEGER)
-- xp_earned (INTEGER)
-- created_at, completed_at (TIMESTAMP)
+```
+- userId (STRING), clerkUserId (STRING) - Dual lookup pattern
+- gradeLevel (STRING), currentRound (NUMBER, 1-5)
+- storySource (STRING: New, CreativeBridge, Story_Quest, File)
+- storyContent (STRING), importedStoryContent (STRING), storyMetadata (OBJECT)
+- finalScore (NUMBER), wordsWritten (NUMBER), sentencesCompleted (NUMBER)
+- challengesCompleted (NUMBER), xpEarned (NUMBER)
+- generatedImageUrl (STRING), storageId (Convex Storage reference)
+- imageUploadStatus, imageUploadAttempts, imageUploadError
 ```
 
-**Security & Audit Tables**:
+**Image Generation Events** (`imageGenerationEvents`)
 
-- `audit_logs`: Comprehensive security event logging
-- `user_devices`: Device registration and trust management
-- `rate_limits`: API rate limiting and abuse prevention
-- `active_sessions`: Session tracking and management
+```
+- User + session references
+- xpCost (NUMBER), generationStatus (STRING), errorType (STRING)
+- serviceUsed (STRING), apiResponseTime (NUMBER)
+- imageUrl (STRING), promptUsed (STRING)
+- storyGradeLevel (STRING), storyWordCount (NUMBER)
+```
+
+**Story Elements** (`storyElements`)
+
+```
+- storyId, sessionId, elementType (character/setting/object/plot_pattern)
+- elementText (STRING), embeddingVector (1536-dim OpenAI embeddings)
+```
+
+**Additional Tables**:
+
+- `storyDiversityScores`: Diversity metrics per story (0.0-1.0 score)
+- `featureFlags`: Remote feature configuration
+- `storyDownloadHistory`: Download analytics tracking
+- `migrationEvents`: Supabase → Clerk migration funnel tracking
+
+#### Fallback Database: Supabase (Legacy Users)
+
+- PostgreSQL with Row Level Security (RLS) policies
+- SQL migrations archived in `.agent/archive/sql/`
+- TypeScript types in `src/types/database.ts`
+- Security & audit tables: `audit_logs`, `user_devices`, `rate_limits`, `active_sessions`
 
 #### Data Relationships
 
 - Users have one-to-many relationships with game sessions
-- Audit logs track all user activities with proper isolation
-- Device management enables trusted device workflows
-- Rate limiting prevents abuse and ensures fair usage
+- Game sessions reference Convex Storage for generated images
+- Story elements link to sessions for diversity tracking with vector embeddings
+- Migration events track users transitioning from Supabase to Clerk/Convex
 
 ### Security Architecture
 
 #### Authentication & Authorization
 
-**Authentication Flow**:
+**Primary Authentication Flow (OAuth via Clerk)**:
+
+1. OAuth sign-in (Google/Apple) via Clerk SDK (`@clerk/clerk-expo`)
+2. Clerk issues JWT token
+3. Convex verifies Clerk JWT via `ConvexProviderWithClerk`
+4. User profile created/retrieved in Convex `userProfiles` table
+5. Deep link callback via `creativebridge://` scheme
+
+**Legacy Authentication Flow (Supabase)**:
 
 1. Email/password registration with validation
 2. Email confirmation via Supabase Auth
 3. JWT token generation and management
-4. Session persistence with secure storage
-5. Logout and session cleanup
+4. Session persistence with secure storage via `AuthContext.tsx`
 
 **Authorization Strategy**:
 
-- Row Level Security (RLS) at database level
-- User data isolation through PostgreSQL policies
-- API endpoint protection via middleware
-- Role-based access for future educator features
+- Convex: Authentication enforced via `requireAuth` helper in all mutations/queries
+- Supabase: Row Level Security (RLS) at database level for legacy users
+- User data isolation through Clerk user IDs (primary) or Supabase UUIDs (fallback)
+- Migration path: Users can transition from Supabase to Clerk with data preservation
 
 #### Data Protection
 
@@ -505,40 +546,69 @@ CreativeBridge solves these challenges by providing:
 
 ### Advanced Features (Post-MVP)
 
-#### 1. Advanced Visual Story Generation
+#### 1. Visual Story Generation ✅ IMPLEMENTED
 
-**AI-Powered Illustration System**:
+**AI-Powered Illustration System** (Current Implementation):
 
-- Stable Diffusion integration for primary story scene generation
-- DALL-E 3 as backup service for reliability and variety
-- Grade-appropriate visual style adaptation (cartoon for K-2, realistic for 9-12)
+- ✅ Replicate Stable Diffusion 3.5 integration for story scene generation
+- ✅ Grade-appropriate visual style adaptation via `ART_STYLE_MAPPING`:
+  - K-2: Watercolor illustration style
+  - 3-5: Digital art style
+  - 6-8: Realistic illustration style
+  - 9-12: Sophisticated art style
+- ✅ 3-tier prompt generation: story-specific → advanced NER → grade-appropriate fallback
+- ✅ Image storage in Convex Storage with upload tracking
+- ✅ Image display modal with glass background
+
+**XP-Based System** (Current Implementation):
+
+- ✅ Image generation costs 1000 XP per generation
+- ✅ XP refunded on generation failure
+- ⬜ Tiered illustration quality based on XP milestones (future)
+
+**Future Enhancements**:
+
 - Character consistency across story illustrations
-- Multiple illustration styles (watercolor, digital art, sketch)
-- Custom illustration requests based on story themes
 - Animated story presentations with voice narration
-- Story-to-video generation for sharing and presentations
-- Collaborative illustration editing and customization
-
-**XP-Based Unlock System**:
-
-- Tiered illustration quality based on XP milestones
-- Basic illustrations unlock at 100 XP per story
-- Enhanced illustrations with character consistency at 250 XP
-- Full scene illustrations with backgrounds at 500 XP
-- Animated sequences and story videos at 1000 XP
-- Custom illustration styles unlock at 2500 XP
-- Professional-quality art generation at 5000 XP
-
-**Visual Gallery & Sharing**:
-
-- Personal illustrated story gallery
-- Digital portfolio creation for academic use
-- Safe sharing within classroom environments
+- Personal illustrated story gallery with sharing
 - Print-ready story book generation
-- Interactive story presentations with embedded visuals
-- Parent/teacher access to visual story collections
+- Digital portfolio creation for academic use
 
-#### 2. Educator Dashboard
+#### 2. Story Import & Continuation ✅ IMPLEMENTED
+
+**Story Import System**:
+
+- ✅ Three import paths: Load from story library, upload text file, import from Story Quest
+- ✅ Story preview and editing before continuation
+- ✅ Collapsible "Previously Written" section preserving loaded story context
+- ✅ Story source tracking (New, CreativeBridge, Story_Quest, File)
+- ✅ Session state and stats reset on story continuation
+- ✅ No hard length limit blocking continuation
+- ✅ Metadata preservation across continuation rounds
+- ✅ Advanced story search with similarity detection (cosine similarity on embeddings)
+
+#### 3. Onboarding & Guided Experience ✅ IMPLEMENTED
+
+**Onboarding System**:
+
+- ✅ Profile completion wizard (username, display name, grade level, speech preference)
+- ✅ Onboarding checklist with 5 milestones (150 XP total)
+  - Create account, complete first story, generate first image, use voice, achieve first streak
+- ✅ First story guidance modal for new users
+- ✅ Enhanced empty states with CTAs
+- ✅ Story setup wizard (grade → genre → character → setting → starter)
+
+#### 4. Story Diversity & Quality Tracking ✅ IMPLEMENTED
+
+**Diversity System**:
+
+- ✅ Story element extraction (characters, settings, objects, plot patterns)
+- ✅ OpenAI embeddings (1536-dim) for semantic similarity
+- ✅ Cosine similarity scoring for diversity metrics
+- ✅ Diversity scores per story (0.0-1.0 scale)
+- ✅ Claude Skills SDK integration for content quality assessment
+
+#### 6. Educator Dashboard (Future)
 
 **Teacher Tools**:
 
@@ -548,7 +618,7 @@ CreativeBridge solves these challenges by providing:
 - Parent communication features
 - Curriculum alignment resources
 
-#### 2. Social Features
+#### 7. Social Features (Future)
 
 **Collaboration Tools**:
 
@@ -558,7 +628,7 @@ CreativeBridge solves these challenges by providing:
 - Creative writing contests and events
 - Recognition and showcase features
 
-#### 3. Advanced AI Features
+#### 8. Advanced AI Features (Future)
 
 **Enhanced Intelligence**:
 
@@ -568,7 +638,7 @@ CreativeBridge solves these challenges by providing:
 - Genre-specific writing modes (fantasy, sci-fi, mystery)
 - Writing style analysis and recommendations
 
-#### 4. Assessment & Analytics
+#### 9. Assessment & Analytics (Future)
 
 **Learning Analytics**:
 
@@ -699,10 +769,11 @@ CreativeBridge solves these challenges by providing:
 
 **AI Generation**:
 
-1. OpenAI GPT-4 API integration with custom prompts
+1. OpenAI GPT-4o-mini API integration with custom prompts (configurable via `OPENAI_MODEL` env var)
 2. Grade-specific prompt engineering for appropriate complexity
 3. Multi-attempt generation with quality selection
 4. Content validation against educational standards
+5. Claude Skills SDK for quality assessment and scoring
 
 **Output Processing**:
 
@@ -968,82 +1039,64 @@ CreativeBridge solves these challenges by providing:
 
 ### Development Phases
 
-#### Phase 1: Foundation (Months 1-4) ✅ COMPLETED
+#### Phase 1: Foundation ✅ COMPLETED
 
 **Milestone 1**: Core App Infrastructure
 
-- React Native application setup with TypeScript
-- Supabase backend integration and database schema
-- User authentication and profile management
-- Basic navigation and UI framework
-- Security implementation and testing
+- ✅ React Native + Expo application setup with TypeScript
+- ✅ Supabase backend integration and database schema (now fallback)
+- ✅ User authentication and profile management
+- ✅ Basic navigation and UI framework (3-tab bottom navigation)
+- ✅ Security implementation and testing
+- ✅ Comprehensive testing infrastructure (Jest + Detox)
 
-**Key Deliverables**:
-
-- ✅ Functional iOS and Android applications
-- ✅ User registration, login, and profile management
-- ✅ Database schema with proper security (RLS)
-- ✅ Basic navigation between Home, Settings, Profile
-- ✅ Comprehensive testing infrastructure
-- ✅ Security audit and compliance verification
-
-#### Phase 2: Core Story Engine (Months 5-8)
+#### Phase 2: Core Story Engine ✅ COMPLETED
 
 **Milestone 2**: AI-Powered Story Creation
 
-- OpenAI GPT-4 integration with educational prompts
-- Grade-level adaptive content generation
-- Interactive story creation workflow
-- Basic gamification (XP, streaks, achievements)
-- Content safety and validation systems
+- ✅ OpenAI GPT-4o-mini integration with educational prompts (upgraded from GPT-4-turbo-preview)
+- ✅ Grade-level adaptive content generation (K-2, 3-5, 6-8, 9-12)
+- ✅ Interactive 5-round story creation workflow with turn-based AI collaboration
+- ✅ XP, streaks, and gamification system
+- ✅ Content safety and validation systems
+- ✅ Story saving and session management via Convex
+- ✅ Story setup wizard (grade level → genre → character → setting → story starter)
+- ✅ Grade-adaptive genre labels (Horror → "Spooky" for K-2/3-5, "Suspense" for 6-8)
 
-**Key Deliverables**:
+#### Phase 3: Enhanced Experience ✅ COMPLETED
 
-- AI story generation with grade-appropriate content
-- Turn-based collaborative writing interface
-- XP and achievement tracking system
-- Content filtering and safety measures
-- Story saving and session management
+**Milestone 3**: Voice Integration, Visual Rewards & Backend Migration
 
-#### Phase 3: Enhanced Experience (Months 9-12)
+- ✅ ElevenLabs voice AI integration (text-to-speech)
+- ✅ Speech-to-text via React Native Voice
+- ✅ Replicate Stable Diffusion 3.5 integration for story illustrations
+- ✅ Grade-appropriate art styles (watercolor → digital → realistic → sophisticated)
+- ✅ XP-based image generation (1000 XP cost, refundable on failure)
+- ✅ Image display modal with glass background
+- ✅ Image storage in Convex Storage
+- ✅ Challenge system with dynamic writing challenges
+- ✅ **Convex migration**: Primary backend migrated from Supabase to Convex
+- ✅ **Clerk OAuth**: Google/Apple OAuth via Clerk replacing Supabase Auth as primary
+- ✅ Onboarding checklist with milestone XP rewards (150 XP total across 5 milestones)
+- ✅ Story continuation/import feature (load from library, upload text file, Story Quest)
+- ✅ Story diversity tracking with OpenAI embeddings and cosine similarity
+- ✅ Claude Skills SDK integration for quality assessment
+- ✅ iPad native support
+- ✅ Advanced story search with similarity detection
+- ✅ CI/CD via GitHub Actions + EAS Build
 
-**Milestone 3**: Voice Integration & Visual Rewards
-
-- ElevenLabs voice AI integration
-- Speech-to-text and text-to-speech features
-- Stable Diffusion integration for story illustrations
-- XP-based visual unlock system
-- Advanced challenge system
-- Performance optimization
-- Beta testing and user feedback integration
-
-**Key Deliverables**:
-
-- Full voice accessibility features
-- AI-generated story illustrations with XP rewards
-- Visual story gallery and sharing features
-- Advanced writing challenges and prompts
-- Optimized performance across devices
-- Comprehensive user testing results
-- Market-ready application polish
-
-#### Phase 4: Market Launch (Months 13-16)
+#### Phase 4: Market Launch (In Progress)
 
 **Milestone 4**: Commercial Release
 
-- App Store and Google Play Store launch
-- Premium subscription implementation
-- Marketing and user acquisition campaigns
-- Customer support systems
-- Analytics and monitoring infrastructure
-
-**Key Deliverables**:
-
-- Public app store availability
-- Functional premium subscription tiers
-- User acquisition and growth metrics
-- Customer support processes
-- Business analytics dashboard
+- ✅ TestFlight distribution pipeline (EAS Build → EAS Submit)
+- ✅ Production monitoring scripts (deployment, error monitoring, smoke tests)
+- ✅ Analytics infrastructure (adoption analytics, behavior analytics, user engagement)
+- ⬜ App Store and Google Play Store public launch
+- ⬜ Premium subscription implementation
+- ⬜ Marketing and user acquisition campaigns
+- ⬜ Educator dashboard and classroom management tools
+- ⬜ XP deduction re-enablement (currently disabled during beta: `XP_DEDUCTION_ENABLED = false`)
 
 ### Technical Milestones
 
@@ -1051,9 +1104,9 @@ CreativeBridge solves these challenges by providing:
 
 **Code Quality Requirements**:
 
-- 90%+ test coverage for critical features
-- TypeScript strict mode compliance
-- ESLint and Prettier code formatting
+- 70% test coverage threshold (branches, functions, lines, statements) — enforced via Jest config
+- TypeScript 5.8 with path aliases (`@/*` → `src/*`)
+- ESLint (rules as warnings) and Prettier code formatting with Husky pre-commit hooks
 - Comprehensive security testing
 - Performance benchmarks met
 
@@ -1289,10 +1342,10 @@ CreativeBridge solves these challenges by providing:
 
 **Secondary Metrics**:
 
-- Feature adoption rates (voice input: 60%, challenges: 80%, visual generation: 70%)
-- XP milestone achievement rates and visual unlock progression
+- Feature adoption rates (voice input: 60%, challenges: 80%, visual generation: 70%, story continuation: TBD)
+- XP milestone achievement rates and onboarding completion rates
 - Story illustration generation success rates (>95% target)
-- Visual gallery engagement and story sharing rates
+- Story import/continuation usage (from library, file upload, Story Quest)
 - User progression through grade levels and content
 - Social sharing and recommendation rates
 - Support ticket volume and satisfaction scores
@@ -1389,9 +1442,10 @@ CreativeBridge solves these challenges by providing:
 **AI Service Metrics**:
 
 - Story generation success rate (>95%)
-- Image generation success rate (>95% Stable Diffusion, >98% with DALL-E 3 backup)
+- Image generation success rate (>95% Replicate Stable Diffusion 3.5)
 - Visual content appropriateness accuracy (>99%)
 - Story illustration generation time (<10 seconds 95th percentile)
+- XP refund success rate on generation failure (100% target)
 - Content appropriateness accuracy (>99%)
 - Generation time consistency (<5 seconds 95th percentile)
 - Fallback system activation rates (<5% of requests)
@@ -1463,8 +1517,9 @@ CreativeBridge is positioned to become the leading educational technology platfo
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: January 2025  
-**Next Review**: March 2025  
-**Document Owner**: Product Management Team  
-**Approval Status**: Ready for Implementation
+**Document Version**: 2.0
+**Last Updated**: March 2026
+**Previous Update**: January 2025
+**Next Review**: June 2026
+**Document Owner**: Product Management Team
+**Approval Status**: Updated to reflect current implementation (Phases 1-3 complete, Phase 4 in progress)

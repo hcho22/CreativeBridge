@@ -48,7 +48,7 @@
 **Expected**: "Testing 123"
 **Old Buggy Behavior**: "Test Testing Testing one Testing 12 Testing 123 Testing 123"
 
-**Actual Result**: **\_**PASS******\*\*\*\*******\_\_\_******\*\*\*\*******
+**Actual Result**: **\_**PASS**\*\***\*\*\*\***\*\***\_\_\_**\*\***\*\*\*\***\*\***
 
 **Status**: ⬜ ✅ PASS (Bug Fixed) | ⬜ ❌ FAIL (Bug Still Exists)
 
@@ -58,7 +58,7 @@
 [Paste relevant logs here]
 ```
 
-**Notes**: **********\*\***********\_\_\_**********\*\***********
+**Notes**: ****\*\*****\*\*****\*\*****\_\_\_****\*\*****\*\*****\*\*****
 
 ---
 
@@ -385,7 +385,7 @@
 - **Memory Usage**: ⬜ Stable | ⬜ Increasing | ⬜ Leaks detected
 - **CPU Usage**: ⬜ Low | ⬜ Moderate | ⬜ High
 
-**Notes**: **********\*\***********\_\_\_**********\*\***********
+**Notes**: ****\*\*****\*\*****\*\*****\_\_\_****\*\*****\*\*****\*\*****
 
 ---
 
@@ -439,7 +439,7 @@ Based on test results:
 
 **Selected**: ⬜ APPROVE | ⬜ APPROVE WITH CONDITIONS | ⬜ REJECT
 
-**Justification**: **********\*\***********\_\_\_**********\*\***********
+**Justification**: ****\*\*****\*\*****\*\*****\_\_\_****\*\*****\*\*****\*\*****
 
 ---
 
