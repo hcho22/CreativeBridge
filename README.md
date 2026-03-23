@@ -2,30 +2,35 @@
 
 A mobile story-writing application where users create engaging narratives with AI assistance while building their creative writing skills across different grade levels. Built with React Native, Expo, and a multi-AI backend.
 
-## 📱 Features
+## Features
 
-### 🎮 Core Functionality
+### Core Functionality
 
 - **Grade-level Story Creation** - Choose from K-2, 3-5, 6-8, or 9-12 difficulty levels
 - **AI-Assisted Writing** - Collaborative 5-round storytelling powered by GPT-4o-mini
 - **AI Image Generation** - Story-specific illustrations via Stable Diffusion 3.5 with grade-appropriate art styles
-- **Voice Input Support** - Accessibility-focused voice-to-text functionality using ElevenLabs Voice AI
+- **Image Display Modal** - Dismissable modal overlay with adaptive glass background for viewing illustrations in full screen
+- **Voice Input Support** - Native speech recognition for input + ElevenLabs TTS for read-aloud
 - **Story Library Management** - Import, search, and continue stories from your personal library
-- **Profile Management** - Track writing progress, XP, streaks, and achievements
+- **Story Continuation** - Resume stories with collapsible "Previously Written" section preserving full context
+- **Advanced Search** - Story search with similarity detection and cosine-similarity scoring
+- **Story Download & Theming** - Download stories with theme-based formatting, animations, and localized UI
+- **Challenge System** - Writing challenges to encourage diverse storytelling across genres and themes
 - **Cross-platform Support** - Native iOS and Android applications via Expo
 
-### 👤 User Profile System
+### User Profile System
 
 - **User Authentication** - Dual authentication system
   - **OAuth Sign-In (Primary)** - Sign in with Google or Apple via Clerk
   - **Email/Password (Legacy)** - Traditional authentication via Supabase
   - **Account Linking** - Automatic linking of accounts with the same email
+- **Profile Completion** - Guided profile setup with progress tracking
 - **XP & Streak Tracking** - Gamified writing experience with XP economy
 - **Onboarding System** - Guided onboarding with milestone rewards (150 XP)
 - **Statistics Dashboard** - Games played, words written, best scores
 - **Grade Level Preferences** - Personalized content difficulty
 
-### 📖 Story Features
+### Story Features
 
 - **Story Import** - Load stories from database, upload text files, or import from Story Quest
 - **Collaborative Writing** - 5-round turn-based storytelling with AI
@@ -36,7 +41,7 @@ A mobile story-writing application where users create engaging narratives with A
 - **Diversity Tracking** - Story diversity scoring to encourage creative variety
 - **Story Download & Export** - Download stories with theme-based formatting
 
-### 🎨 Art Style System
+### Art Style System
 
 Image generation adapts art style by grade level:
 
@@ -45,7 +50,7 @@ Image generation adapts art style by grade level:
 - **6-8**: Realistic art style
 - **9-12**: Sophisticated art style
 
-## 🛠 Tech Stack
+## Tech Stack
 
 - **Frontend**: React Native 0.81.5 + Expo 54 + TypeScript 5.8
 - **Backend (Primary)**: Convex (real-time database, native Clerk auth, file storage)
@@ -54,13 +59,14 @@ Image generation adapts art style by grade level:
 - **AI - Images**: Replicate Stable Diffusion 3.5 Large
 - **AI - Quality**: Claude Skills SDK for content assessment
 - **Authentication**: Clerk (OAuth) → Convex JWT verification
-- **Voice AI**: ElevenLabs Voice AI integration
+- **Voice**: Native speech recognition (input) + ElevenLabs TTS (read-aloud)
 - **Navigation**: React Navigation v7 (tabs + stack)
 - **State Management**: React Context API
+- **Monitoring**: Custom service health checks, error logging, anomaly detection
 - **Testing**: Jest + Detox (E2E)
 - **Build**: EAS Build for iOS/Android
 
-## 📋 Prerequisites
+## Prerequisites
 
 - Node.js 20 or higher
 - React Native development environment setup
@@ -75,7 +81,7 @@ Image generation adapts art style by grade level:
 - ElevenLabs API key (for voice features)
 - Supabase account (optional, for legacy user support)
 
-## 🚀 Installation
+## Installation
 
 ### 1. Clone the Repository
 
@@ -170,33 +176,60 @@ npm run android
 npx convex dev
 ```
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 CreativeBridge/
 ├── App.tsx                          # Entry point with ConvexProviderWithClerk
 ├── src/
 │   ├── components/
-│   │   ├── common/                  # Shared UI (ImageGeneration, VoiceInput, ErrorBoundary, etc.)
-│   │   ├── story/                   # Story-specific (StorySelectionModal, StoryPreviewEdit)
+│   │   ├── auth/                    # AppleSignInButton, GoogleSignInButton
+│   │   ├── common/                  # Shared UI (21 components)
+│   │   │   ├── ImageDisplayModal    # Dismissable image overlay with glass background
+│   │   │   ├── AdaptiveGlassBackground  # Blur/gradient backdrop for modals
+│   │   │   ├── CelebrationModal     # Achievement celebration overlays
+│   │   │   ├── ImageGeneration      # AI image generation controls
+│   │   │   ├── VoiceInput           # Voice-to-text input component
+│   │   │   ├── ErrorBoundary        # React error boundary wrapper
+│   │   │   ├── ErrorRecoveryModal   # User-facing error recovery UI
+│   │   │   ├── FullScreenImageModal # Full-screen image viewer
+│   │   │   ├── DownloadProgressIndicator  # Story download progress UI
+│   │   │   └── ...                  # OptimizedImage, StoryQualityIndicator, etc.
+│   │   ├── story/                   # Story-specific components
+│   │   │   ├── AdvancedSearchModal  # Search with similarity detection
+│   │   │   ├── StoryPreviewEdit     # Story preview and editing
+│   │   │   └── StorySelectionModal  # Story library browser modal
 │   │   ├── onboarding/              # Onboarding checklist & guidance
-│   │   └── analytics/               # Analytics dashboard components
+│   │   ├── analytics/               # Analytics dashboard components
+│   │   └── test/                    # ClaudeSkillsDemo, DependencyVerification
 │   ├── config/
 │   │   └── environment.ts           # Environment variable configuration
 │   ├── constants/                    # Theme and app constants
 │   ├── context/
 │   │   └── AuthContext.tsx           # Auth state management (Clerk + Supabase)
-│   ├── hooks/                        # Custom React hooks
+│   ├── hooks/                        # Custom React hooks (6 hooks)
+│   │   ├── useABTesting             # A/B test variant selection
+│   │   ├── useClaudeSkillsDashboard # Claude Skills monitoring dashboard
+│   │   ├── useGlassAvailability     # Glass effect platform detection
+│   │   ├── useReactotron            # Reactotron dev tools integration
+│   │   ├── useSafeClerkAuth         # Safe Clerk auth with fallbacks
+│   │   └── useTheme                 # Theme context consumer
+│   ├── interfaces/
+│   │   └── StoryServiceInterfaces.ts  # Story service type contracts
 │   ├── navigation/
 │   │   └── AppNavigator.tsx          # Tab + stack navigation structure
-│   ├── screens/
+│   ├── screens/                      # 10 screens
 │   │   ├── AuthScreen.tsx            # Login/signup
 │   │   ├── HomeScreen.tsx            # Main story creation interface
 │   │   ├── StorySetupScreen.tsx      # Story configuration
 │   │   ├── StorySelectionScreen.tsx  # Story library browser
+│   │   ├── ImportOptionsScreen.tsx   # Story import method picker
+│   │   ├── StoryQuestImportScreen.tsx # Import from Story Quest
+│   │   ├── StoryPreviewEditScreen.tsx # Preview & edit before play
 │   │   ├── ProfileScreen.tsx         # User profile & stats
+│   │   ├── ProfileCompletionScreen.tsx # Guided profile setup
 │   │   └── SettingsScreen.tsx        # App settings
-│   ├── services/                     # Business logic layer (110+ services)
+│   ├── services/                     # Business logic layer (108 services)
 │   │   ├── openaiClient.ts           # OpenAI API client
 │   │   ├── storyGenerationService.ts # Story continuation engine
 │   │   ├── imageGeneration.ts        # Replicate image generation
@@ -208,20 +241,82 @@ CreativeBridge/
 │   └── utils/                        # Utility functions
 ├── convex/                           # Convex backend functions
 │   ├── schema.ts                     # Database schema (PRIMARY)
+│   ├── auth.config.ts                # Clerk JWT auth configuration
 │   ├── auth.ts                       # Authentication helpers
 │   ├── userProfiles.ts               # User profile mutations/queries
 │   ├── gameSessions.ts               # Story session management
 │   ├── imageGeneration.ts            # Image generation event tracking
 │   ├── onboarding.ts                 # Onboarding milestones
-│   └── storage.ts                    # Image upload/storage
+│   ├── storage.ts                    # Image upload/storage
+│   ├── adminAnalytics.ts             # Admin analytics queries
+│   └── migration.ts                  # Data migration functions
 ├── .agent/                           # Documentation, PRDs, and SOPs
 ├── ios/                              # iOS native code
 ├── android/                          # Android native code
-├── scripts/                          # Build and icon generation scripts
+├── scripts/                          # Build, deploy, and monitoring scripts
 └── assets/                           # App icons and assets
 ```
 
-## 🔧 Development Commands
+## Services Architecture
+
+The 108 services in `src/services/` are organized into functional categories:
+
+### Story Engine (12 services)
+
+Story generation, AI agents, session management, caching, import, and analytics:
+`storyGenerationService`, `storyAgent`, `enhancedStoryAgent`, `storySessionManager`, `storyManagementService`, `storyImportService`, `storyQuestService`, `storyCache`, `predictiveStoryCache`, `storyAnalytics`, `storyAwareFallbackGenerator`, `storyElementExtractionService`
+
+### Image Generation (3 services)
+
+Replicate API integration, post-generation storage, and image optimization:
+`imageGeneration`, `imageStorageService`, `postGenerationStorageService`
+
+### Story Download (7 services)
+
+Download engine with theming, animations, localization, and performance monitoring:
+`storyDownloadService`, `optimizedStoryDownloadService`, `downloadThemeService`, `downloadAnimations`, `downloadLocalization`, `downloadPerformanceMonitor`, `downloadKeyboardNavigation`
+
+### AI Quality & Skills (7 services)
+
+Claude Skills SDK integration, reliability, credential management, and content assessment:
+`claudeSkillsManager`, `claudeSkillsConfigManager`, `claudeSkillsCredentialRotation`, `claudeSkillsMonitor`, `skillErrorAggregation`, `skillErrorRecovery`, `contentQuality`
+
+### Voice & Accessibility (4 services)
+
+Text-to-speech with isolation layers and native speech recognition:
+`textToSpeech`, `textToSpeechIsolated`, `textToSpeechSafe`, `nativeSpeechRecognizer`
+
+### Diversity & Educational (9 services)
+
+Diversity scoring, guidance, session tracking, and educational optimization:
+`diversityScoreService`, `diversityGuidanceService`, `diversitySessionService`, `diversityDebugService`, `diversityPerformanceMonitoringService`, `diversityScoreStorageService`, `educationalOptimizer`, `readingComprehensionOptimizer`, `challengeService`
+
+### Auth & Security (7 services)
+
+OAuth, JWT verification, session management, and security hardening:
+`oauthService`, `clerkJWTVerification`, `sessionManager`, `twoFactorAuth`, `secureApiKeyManager`, `securityAuditor`, `auditLogger`
+
+### Error Handling & Resilience (9 services)
+
+Error management, graceful degradation, fallback strategies, and recovery:
+`errorHandler`, `errorLogger`, `enhancedErrorHandling`, `seamlessErrorMasking`, `contextualFallback`, `automaticFallbackManager`, `predictiveFailurePrevention`, `serviceRestoration`, `progressiveEnhancement`
+
+### Base Architecture (3 services)
+
+Core patterns for service orchestration and fallback strategy:
+`interfaceAdapter`, `enhancedPromptGenerator`, `enhancedContentAnalysis`
+
+### Monitoring & Analytics (10 services)
+
+User analytics, system monitoring, performance tracking, and anomaly detection:
+`analyticsService`, `behaviorAnalytics`, `adoptionAnalyticsService`, `monitoringService`, `serviceHealth`, `anomalyDetector`, `performanceService`, `performanceOptimizer`, `uiPerformanceMonitor`, `costTrackingService`
+
+### Infrastructure & Utilities (~37 services)
+
+Networking, configuration, A/B testing, device info, and platform services:
+`api`, `convex`, `supabase`, `openaiClient`, `environment`, `networkAdapter`, `networkMonitor`, `rateLimiter`, `resourceManager`, `deviceInfo`, `abTesting`, `featureFlags`, `rolloutAutomation`, `userPreferences`, `xpEventTracker`, `onboardingMilestoneTracker`, `onboardingService`, `syncService`, `hapticFeedbackService`, `navigationOptimizer`, `dynamicUICoordinator`, `systemWideOptimizer`, `performanceTuner`, `reactotron`, `advancedSearchService`, `similarityDetectionService`, `cosineSimilarityService`, `embeddingGenerationService`, `statisticalAnalysisService`, `recentElementsService`, `contentPrediction`, `engagementOptimizer`, `feedbackCollectionService`, `iterationPlanningService`, `prdSuccessCriteriaValidator`, `accessibilityService`, `downloadHistoryDatabase`
+
+## Development Commands
 
 ```bash
 # Development
@@ -256,7 +351,24 @@ npx convex dev               # Start Convex dev server
 npx convex deploy            # Deploy to production
 ```
 
-## 🌟 Key Features Deep Dive
+### Scripts
+
+Key scripts in `scripts/` for deployment and monitoring:
+
+```bash
+# Deployment
+node scripts/deploy-production.js       # Production deployment
+bash scripts/pre-deployment-check.sh    # Pre-deploy validation
+bash scripts/build-ios.sh               # iOS build
+bash scripts/submit-testflight.sh       # TestFlight submission
+
+# Monitoring
+npx ts-node scripts/monitor-deployment.ts      # Deployment monitoring
+npx ts-node scripts/smoke-tests-production.ts   # Production smoke tests
+npx ts-node scripts/monitor-errors-daily.ts      # Daily error monitoring
+```
+
+## Key Features Deep Dive
 
 ### Grade Level System
 
@@ -270,6 +382,24 @@ Content adapts across four levels:
 | 9-12  | Complex narratives, literary techniques | Sophisticated | Full creative freedom |
 
 Horror content is automatically softened for younger grade levels.
+
+### Story Continuation & Loaded Stories
+
+When a user resumes a story from their library, the system preserves full context:
+
+- Stories are loaded with a `StoryContribution` entry marked with `source: 'loaded'`
+- The HomeScreen renders a collapsible "Previously Written" section showing prior content
+- AI receives the full story context to maintain narrative coherence across sessions
+- The continuation flow supports all story sources: database imports, text file uploads, and Story Quest imports
+
+### Image Display System
+
+Generated illustrations are presented through a layered modal system:
+
+- **ImageDisplayModal** — dismissable overlay triggered after image generation completes
+- **AdaptiveGlassBackground** — platform-aware blur/gradient backdrop (uses `BlurView` on iOS, gradient fallback on Android)
+- **FullScreenImageModal** — tap-to-expand full-screen image viewer
+- Adaptive `CompletionOptions` adjust layout based on whether an image is displayed
 
 ### Authentication Architecture
 
@@ -305,7 +435,7 @@ Horror content is automatically softened for younger grade levels.
 - Onboarding milestones reward 150 XP total
 - XP tracked via streaks and leaderboard
 
-## 🔒 Privacy & Security
+## Privacy & Security
 
 - **Data Encryption**: All data encrypted in transit and at rest
 - **JWT Authentication**: Clerk-issued JWTs verified by Convex
@@ -313,7 +443,7 @@ Horror content is automatically softened for younger grade levels.
 - **Privacy Compliance**: COPPA and privacy regulation compliant
 - **Secure API Keys**: Managed via environment variables
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
@@ -321,7 +451,7 @@ Horror content is automatically softened for younger grade levels.
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-## 📝 Development Guidelines
+## Development Guidelines
 
 - Follow TypeScript strict mode
 - Use React Native best practices
@@ -330,7 +460,7 @@ Horror content is automatically softened for younger grade levels.
 - Document features in `.agent/` directory
 - Use path aliases (`@/services/*`, `@/components/*`, etc.)
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -369,11 +499,11 @@ npx convex dev --once
 - Review [Supabase Documentation](https://supabase.com/docs)
 - Create an issue in this repository
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **React Native & Expo** - Mobile development framework
 - **Convex** - Real-time backend platform
@@ -385,10 +515,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **ElevenLabs** - Voice AI integration
 - **Story_Quest** - Original inspiration and reference implementation
 
-## 📞 Support
+## Support
 
 For support, email support@creativebridge.app or create an issue in this repository.
 
 ---
 
-**Built with ❤️ for creative writers of all ages**
+**Built with love for creative writers of all ages**
