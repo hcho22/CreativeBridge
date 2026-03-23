@@ -1121,10 +1121,21 @@ ${vocabularyGuidance[gradeLevel]}`;
         ? `Maintain the ${request.genre} genre throughout.`
         : '';
 
+      // For long stories, send only the recent context to avoid wasting tokens.
+      // The AI only needs recent narrative to produce a coherent continuation.
+      const MAX_CONTEXT_CHARS = 8000;
+      const storyContext =
+        request.storySoFar.length > MAX_CONTEXT_CHARS
+          ? '...' +
+            request.storySoFar.substring(
+              request.storySoFar.length - MAX_CONTEXT_CHARS,
+            )
+          : request.storySoFar;
+
       return `Continue this story in a creative and engaging way. The story is for ${
         request.gradeLevel
       } students.
-Story so far: ${request.storySoFar}
+Story so far: ${storyContext}
 ${request.challenge ? `Current challenge: ${request.challenge}` : ''}
 ${simplicityGuidance}
 ${genreGuidance}
@@ -1255,23 +1266,10 @@ Continue the story with 1-3 sentences. Keep your response under 200 words.`;
       violations.push('User input too long (max 1000 characters)');
     }
 
-    // Story length limits account for multi-round accumulation (up to 5 rounds).
-    // Each round adds user input (~1000 chars) + AI continuation (~500 chars).
-    // GPT-4 Turbo 128K context handles these sizes easily.
-    const storyLengthLimits: Record<GradeLevel, number> = {
-      'K-2': 10000,
-      '3-5': 15000,
-      '6-8': 25000,
-      '9-12': 35000,
-    };
-
-    const maxLength = storyLengthLimits[request.gradeLevel] || 8000;
-
-    if (request.storySoFar && request.storySoFar.length > maxLength) {
-      violations.push(
-        `Story content too long (max ${maxLength} characters for ${request.gradeLevel})`,
-      );
-    }
+    // No hard limit on storySoFar length — loaded/continued stories can
+    // legitimately exceed earlier round-count assumptions. GPT-4 Turbo 128K
+    // context handles large inputs, and buildUserPrompt truncates the context
+    // sent to the API to keep only the most relevant recent text.
 
     // Skip validation of user input - it's just a prompt, not story content
     // Validation should only apply to generated story content, not input prompts
