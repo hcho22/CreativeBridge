@@ -64,6 +64,8 @@ import { onboardingMilestoneTracker } from '../services/onboardingMilestoneTrack
 import { onboardingService } from '../services/onboardingService';
 import { AdaptiveGlassBackground } from '../components/common/AdaptiveGlassBackground';
 import { ImageDisplayModal } from '../components/common/ImageDisplayModal';
+import { getConvexClient, api, isConvexReady } from '../services/convex';
+import type { Id } from '../../convex/_generated/dataModel';
 
 type HomeScreenNavigationProp = BottomTabNavigationProp<TabParamList, 'Home'>;
 
@@ -168,6 +170,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   // US-004: Collapsible loaded story section
   const [isLoadedStoryExpanded, setIsLoadedStoryExpanded] = useState(true);
+  // US-007: Independent collapse state for previous continuation segment
+  const [isPrevContinuationExpanded, setIsPrevContinuationExpanded] =
+    useState(false);
 
   // First story celebration state (US-004)
   const [showFirstStoryCelebration, setShowFirstStoryCelebration] =
@@ -1234,6 +1239,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
       startSpinAnimation();
 
+      // Clear stale contribution cache so getSession re-synthesizes
+      // the 'loaded' contribution from the latest storyContent
+      await storySessionManager.clearCachedContributions(
+        continueParams.sessionId,
+      );
+
       // Load the existing session from the database (preserveContributions
       // ensures cached contributions survive the Convex fetch, and triggers
       // synthesis of a 'loaded' contribution when cache is empty)
@@ -1244,6 +1255,38 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
       if (existingSession) {
         console.log('✅ Loaded existing session:', existingSession.id);
+
+        // Reset Convex DB state (completion, image, scores) for fresh continuation
+        if (isConvexReady()) {
+          const convexClient = getConvexClient();
+          if (convexClient) {
+            await convexClient.mutation(
+              api.gameSessions.resetSessionForContinuation,
+              {
+                sessionId: continueParams.sessionId as Id<'gameSessions'>,
+              },
+            );
+          }
+        }
+
+        // Reset React state for image generation
+        setGeneratedImageUrl(null);
+        setShowImageGeneration(false);
+        setShowImageDisplayModal(false);
+
+        // Reset local session object fields for fresh continuation
+        existingSession.current_round = 1;
+        existingSession.isCompleted = false;
+        existingSession.completed_at = undefined;
+        existingSession.generated_image_url = undefined;
+        existingSession.image_generation_timestamp = undefined;
+        existingSession.image_generation_cost = undefined;
+        existingSession.image_upload_status = undefined;
+        existingSession.image_upload_attempts = undefined;
+        existingSession.image_upload_error = undefined;
+        existingSession.xp_earned = 0;
+        existingSession.final_score = 0;
+        existingSession.words_written = 0;
 
         // Set up the game with the imported story
         setCurrentSession(existingSession);
@@ -2713,54 +2756,180 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                           );
                         return (
                           <>
-                            {loadedContribution && (
-                              <>
-                                <TouchableOpacity
-                                  style={styles.collapsibleHeader}
-                                  onPress={() => {
-                                    LayoutAnimation.configureNext(
-                                      LayoutAnimation.Presets.easeInEaseOut,
-                                    );
-                                    setIsLoadedStoryExpanded(
-                                      !isLoadedStoryExpanded,
-                                    );
-                                  }}
-                                  activeOpacity={0.7}
-                                >
-                                  <Text style={styles.collapsibleHeaderText}>
-                                    📖 Previously Written
-                                  </Text>
-                                  <Text style={styles.collapsibleWordCount}>
-                                    {loadedContribution.wordCount}w
-                                  </Text>
-                                  <Text style={styles.collapsibleChevron}>
-                                    {isLoadedStoryExpanded ? '▼' : '▶'}
-                                  </Text>
-                                </TouchableOpacity>
-                                {isLoadedStoryExpanded ? (
-                                  <Text
-                                    style={[
-                                      styles.storyText,
-                                      styles.selectableText,
-                                    ]}
-                                    selectable={true}
-                                  >
-                                    {loadedContribution.content}
-                                  </Text>
-                                ) : (
-                                  <Text style={styles.collapsiblePreview}>
-                                    {loadedContribution.content.substring(
-                                      0,
-                                      100,
+                            {loadedContribution &&
+                              (() => {
+                                const importedContent =
+                                  currentSession?.imported_story_content;
+                                const loadedContent =
+                                  loadedContribution.content;
+                                const hasContinuationSegment =
+                                  importedContent &&
+                                  importedContent.length <
+                                    loadedContent.length &&
+                                  loadedContent.startsWith(importedContent);
+                                const continuationContent =
+                                  hasContinuationSegment
+                                    ? loadedContent
+                                        .slice(importedContent.length)
+                                        .trim()
+                                    : null;
+                                const originalWordCount = hasContinuationSegment
+                                  ? importedContent.split(/\s+/).filter(Boolean)
+                                      .length
+                                  : loadedContribution.wordCount;
+                                const continuationWordCount =
+                                  continuationContent
+                                    ? continuationContent
+                                        .split(/\s+/)
+                                        .filter(Boolean).length
+                                    : 0;
+
+                                if (!hasContinuationSegment) {
+                                  // First continuation — single "Previously Written" block
+                                  return (
+                                    <>
+                                      <TouchableOpacity
+                                        style={styles.collapsibleHeader}
+                                        onPress={() => {
+                                          LayoutAnimation.configureNext(
+                                            LayoutAnimation.Presets
+                                              .easeInEaseOut,
+                                          );
+                                          setIsLoadedStoryExpanded(
+                                            !isLoadedStoryExpanded,
+                                          );
+                                        }}
+                                        activeOpacity={0.7}
+                                      >
+                                        <Text
+                                          style={styles.collapsibleHeaderText}
+                                        >
+                                          Previously Written
+                                        </Text>
+                                        <Text
+                                          style={styles.collapsibleWordCount}
+                                        >
+                                          {loadedContribution.wordCount}w
+                                        </Text>
+                                        <Text style={styles.collapsibleChevron}>
+                                          {isLoadedStoryExpanded ? '▼' : '▶'}
+                                        </Text>
+                                      </TouchableOpacity>
+                                      {isLoadedStoryExpanded ? (
+                                        <Text
+                                          style={[
+                                            styles.storyText,
+                                            styles.selectableText,
+                                          ]}
+                                          selectable={true}
+                                        >
+                                          {loadedContribution.content}
+                                        </Text>
+                                      ) : (
+                                        <Text style={styles.collapsiblePreview}>
+                                          {loadedContribution.content.substring(
+                                            0,
+                                            100,
+                                          )}
+                                          ...
+                                        </Text>
+                                      )}
+                                      {newContributions.length > 0 && (
+                                        <View style={styles.loadedSeparator} />
+                                      )}
+                                    </>
+                                  );
+                                }
+
+                                // 3rd+ continuation — segmented into Original Story + Previous Continuation
+                                return (
+                                  <>
+                                    <TouchableOpacity
+                                      style={styles.collapsibleHeader}
+                                      onPress={() => {
+                                        LayoutAnimation.configureNext(
+                                          LayoutAnimation.Presets.easeInEaseOut,
+                                        );
+                                        setIsLoadedStoryExpanded(
+                                          !isLoadedStoryExpanded,
+                                        );
+                                      }}
+                                      activeOpacity={0.7}
+                                    >
+                                      <Text
+                                        style={styles.collapsibleHeaderText}
+                                      >
+                                        Original Story
+                                      </Text>
+                                      <Text style={styles.collapsibleWordCount}>
+                                        {originalWordCount}w
+                                      </Text>
+                                      <Text style={styles.collapsibleChevron}>
+                                        {isLoadedStoryExpanded ? '▼' : '▶'}
+                                      </Text>
+                                    </TouchableOpacity>
+                                    {isLoadedStoryExpanded ? (
+                                      <Text
+                                        style={[
+                                          styles.storyText,
+                                          styles.selectableText,
+                                        ]}
+                                        selectable={true}
+                                      >
+                                        {importedContent}
+                                      </Text>
+                                    ) : (
+                                      <Text style={styles.collapsiblePreview}>
+                                        {importedContent.substring(0, 100)}
+                                        ...
+                                      </Text>
                                     )}
-                                    ...
-                                  </Text>
-                                )}
-                                {newContributions.length > 0 && (
-                                  <View style={styles.loadedSeparator} />
-                                )}
-                              </>
-                            )}
+                                    <TouchableOpacity
+                                      style={styles.collapsibleHeader}
+                                      onPress={() => {
+                                        LayoutAnimation.configureNext(
+                                          LayoutAnimation.Presets.easeInEaseOut,
+                                        );
+                                        setIsPrevContinuationExpanded(
+                                          !isPrevContinuationExpanded,
+                                        );
+                                      }}
+                                      activeOpacity={0.7}
+                                    >
+                                      <Text
+                                        style={styles.collapsibleHeaderText}
+                                      >
+                                        Previous Continuation
+                                      </Text>
+                                      <Text style={styles.collapsibleWordCount}>
+                                        {continuationWordCount}w
+                                      </Text>
+                                      <Text style={styles.collapsibleChevron}>
+                                        {isPrevContinuationExpanded ? '▼' : '▶'}
+                                      </Text>
+                                    </TouchableOpacity>
+                                    {isPrevContinuationExpanded ? (
+                                      <Text
+                                        style={[
+                                          styles.storyText,
+                                          styles.selectableText,
+                                        ]}
+                                        selectable={true}
+                                      >
+                                        {continuationContent}
+                                      </Text>
+                                    ) : (
+                                      <Text style={styles.collapsiblePreview}>
+                                        {continuationContent!.substring(0, 100)}
+                                        ...
+                                      </Text>
+                                    )}
+                                    {newContributions.length > 0 && (
+                                      <View style={styles.loadedSeparator} />
+                                    )}
+                                  </>
+                                );
+                              })()}
                             {newContributions.map((contribution, index) => (
                               <View
                                 key={`${contribution.timestamp}-${index}`}
@@ -3102,7 +3271,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                     </Text>
                     <Text style={styles.completionStat}>
                       📚 Story Length:{' '}
-                      {currentSession?.story_content?.length || 0} characters
+                      {(() => {
+                        const totalLength =
+                          currentSession?.story_content?.length || 0;
+                        const loadedContent =
+                          currentSession?.contributions?.find(
+                            c => c.type === 'loaded',
+                          )?.content;
+                        return Math.max(
+                          0,
+                          totalLength - (loadedContent?.length || 0),
+                        );
+                      })()}{' '}
+                      characters
                     </Text>
                     <Text style={styles.completionStat}>
                       💰 XP Earned: {currentSession?.xp_earned || 0}

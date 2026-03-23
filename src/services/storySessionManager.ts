@@ -43,6 +43,7 @@ const convertConvexSessionToLegacy = (
   image_upload_status: convexSession.imageUploadStatus,
   image_upload_attempts: convexSession.imageUploadAttempts,
   image_upload_error: convexSession.imageUploadError,
+  imported_story_content: convexSession.importedStoryContent,
   isCompleted: !!convexSession.completedAt,
 });
 
@@ -70,6 +71,9 @@ export interface StorySession {
 
   // Story source tracking (for progress indicator visibility)
   story_source: StorySource;
+
+  // Original imported content (for segmenting "Previously Written" in UI)
+  imported_story_content?: string;
 
   // Image generation fields
   generated_image_url?: string;
@@ -342,9 +346,9 @@ class StorySessionManager {
                 ...baseSession,
                 contributions: existingContributions,
                 sessionStats: {
-                  userWords: convexSession.wordsWritten || 0,
+                  userWords: 0,
                   aiWords: 0,
-                  totalWords: convexSession.wordsWritten || 0,
+                  totalWords: 0,
                   sessionDuration: convexSession.completedAt
                     ? new Date(convexSession.completedAt).getTime() -
                       convexSession._creationTime
@@ -1185,6 +1189,30 @@ class StorySessionManager {
    */
   private invalidateCache(sessionId: string): void {
     this.sessionCache.delete(sessionId);
+  }
+
+  /**
+   * Clear cached contributions for a specific session so that the
+   * `loaded` contribution is re-synthesized from the latest storyContent
+   * on the next continuation.
+   */
+  public async clearCachedContributions(sessionId: string): Promise<void> {
+    try {
+      const sessionsData = await AsyncStorage.getItem(this.SESSIONS_KEY);
+      if (sessionsData) {
+        const sessions: Record<string, StorySession> = JSON.parse(sessionsData);
+        if (sessions[sessionId]) {
+          sessions[sessionId].contributions = [];
+          await AsyncStorage.setItem(
+            this.SESSIONS_KEY,
+            JSON.stringify(sessions),
+          );
+        }
+      }
+      this.invalidateCache(sessionId);
+    } catch (error) {
+      console.error('Error clearing cached contributions:', error);
+    }
   }
 
   /**

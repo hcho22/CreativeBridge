@@ -167,10 +167,6 @@ export const createStoryContinuationSession = mutation({
         'User profile not found. Please complete account setup first.',
       );
     }
-
-    // Calculate word count from imported content
-    const wordCount = countWords(args.importedContent);
-
     // Create the continuation session
     const sessionId = await ctx.db.insert('gameSessions', {
       userId: userProfile._id,
@@ -182,7 +178,7 @@ export const createStoryContinuationSession = mutation({
       storyMetadata: args.storyMetadata ?? {},
       currentRound: 1,
       finalScore: 0,
-      wordsWritten: wordCount, // Start with imported word count
+      wordsWritten: 0, // Track only new contributions, not imported content
       sentencesCompleted: 0,
       challengesCompleted: 0,
       xpEarned: 0,
@@ -190,6 +186,51 @@ export const createStoryContinuationSession = mutation({
     });
 
     return sessionId;
+  },
+});
+
+/**
+ * Reset a session's state for re-continuation.
+ *
+ * Called when a user continues a previously completed story. Clears completion,
+ * image, and scoring fields while preserving story content and metadata.
+ * This allows the user to play a fresh continuation round.
+ *
+ * @param sessionId - The Convex ID of the session to reset
+ */
+export const resetSessionForContinuation = mutation({
+  args: {
+    sessionId: v.id('gameSessions'),
+  },
+  handler: async (ctx, args) => {
+    const authClerkId = await getClerkUserId(ctx);
+
+    const session = await ctx.db.get(args.sessionId);
+    if (!session) {
+      throw new Error('Session not found.');
+    }
+
+    if (session.clerkUserId !== authClerkId) {
+      throw new Error('Not authorized to reset this session.');
+    }
+
+    await ctx.db.patch(args.sessionId, {
+      // Reset progress
+      currentRound: 1,
+      wordsWritten: 0,
+      xpEarned: 0,
+      finalScore: 0,
+      // Clear completion
+      completedAt: undefined,
+      // Clear image fields
+      generatedImageUrl: undefined,
+      imageGenerationTimestamp: undefined,
+      imageGenerationCost: undefined,
+      storageId: undefined,
+      imageUploadStatus: undefined,
+      imageUploadAttempts: undefined,
+      imageUploadError: undefined,
+    });
   },
 });
 
