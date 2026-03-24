@@ -158,7 +158,7 @@ export const OAuthSessionHelpModal: React.FC<OAuthSessionHelpModalProps> = ({
   provider,
 }) => {
   const instructions = getProviderInstructions(provider);
-  const { openURL, ParentalGateModal } = useParentalGate();
+  const { openURL, parentalGateModal } = useParentalGate();
 
   const handleOpenSettings = () => {
     if (Platform.OS === 'ios' && provider === 'apple') {
@@ -283,7 +283,7 @@ export const OAuthSessionHelpModal: React.FC<OAuthSessionHelpModalProps> = ({
       </Modal>
 
       {/* US-009: Parental Gate for external links */}
-      <ParentalGateModal />
+      {parentalGateModal}
     </>
   );
 };

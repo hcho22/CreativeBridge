@@ -35,9 +35,9 @@ function generateProblem(): { a: number; b: number } {
  * Hook that provides a parental gate for external links.
  *
  * Usage:
- *   const { openURL, ParentalGateModal } = useParentalGate();
+ *   const { openURL, parentalGateModal } = useParentalGate();
  *   // Replace Linking.openURL(url) with openURL(url)
- *   // Render <ParentalGateModal /> somewhere in the component tree
+ *   // Render {parentalGateModal} somewhere in the component tree
  */
 export function useParentalGate() {
   const [state, setState] = useState<ParentalGateState>(() => ({
@@ -81,64 +81,60 @@ export function useParentalGate() {
     }
   }, [answer, state.a, state.b, state.pendingUrl]);
 
-  const ParentalGateModal = useCallback(
-    () => (
-      <Modal
-        visible={state.visible}
-        animationType="fade"
-        transparent
-        onRequestClose={handleCancel}
-        accessibilityViewIsModal
-      >
-        <View style={styles.backdrop}>
-          <View style={styles.container}>
-            <Text style={styles.title}>Grown-Up Check</Text>
-            <Text style={styles.description}>
-              Please ask a parent or guardian to answer this question to
-              continue.
-            </Text>
-            <Text style={styles.problem}>
-              What is {state.a} + {state.b}?
-            </Text>
-            <TextInput
-              ref={inputRef}
-              style={styles.input}
-              keyboardType="number-pad"
-              placeholder="Your answer"
-              placeholderTextColor="#999"
-              value={answer}
-              onChangeText={setAnswer}
-              onSubmitEditing={handleSubmit}
-              returnKeyType="done"
-              autoFocus
-              accessibilityLabel={`What is ${state.a} plus ${state.b}`}
-            />
-            <View style={styles.buttonRow}>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={handleCancel}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.submitButton,
-                  !answer && styles.submitButtonDisabled,
-                ]}
-                onPress={handleSubmit}
-                disabled={!answer}
-              >
-                <Text style={styles.submitButtonText}>Continue</Text>
-              </TouchableOpacity>
-            </View>
+  const parentalGateModal = (
+    <Modal
+      visible={state.visible}
+      animationType="fade"
+      transparent
+      onRequestClose={handleCancel}
+      accessibilityViewIsModal
+    >
+      <View style={styles.backdrop}>
+        <View style={styles.container}>
+          <Text style={styles.title}>Grown-Up Check</Text>
+          <Text style={styles.description}>
+            Please ask a parent or guardian to answer this question to continue.
+          </Text>
+          <Text style={styles.problem}>
+            What is {state.a} + {state.b}?
+          </Text>
+          <TextInput
+            ref={inputRef}
+            style={styles.input}
+            keyboardType="number-pad"
+            placeholder="Your answer"
+            placeholderTextColor="#999"
+            value={answer}
+            onChangeText={setAnswer}
+            onSubmitEditing={handleSubmit}
+            returnKeyType="done"
+            autoFocus
+            accessibilityLabel={`What is ${state.a} plus ${state.b}`}
+          />
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={handleCancel}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.submitButton,
+                !answer && styles.submitButtonDisabled,
+              ]}
+              onPress={handleSubmit}
+              disabled={!answer}
+            >
+              <Text style={styles.submitButtonText}>Continue</Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </Modal>
-    ),
-    [state.visible, state.a, state.b, answer, handleCancel, handleSubmit],
+      </View>
+    </Modal>
   );
 
-  return { openURL, ParentalGateModal };
+  return { openURL, parentalGateModal };
 }
 
 const styles = StyleSheet.create({

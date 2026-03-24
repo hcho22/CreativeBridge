@@ -128,7 +128,7 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
   enableTouchFeedback = true,
   displayMode = 'responsive',
 }) => {
-  const { openURL, ParentalGateModal } = useParentalGate();
+  const { openURL, parentalGateModal } = useParentalGate();
 
   // NEW: URL Priority Logic - Prioritize Supabase URL over Replicate URL
   // Falls back to legacy imageUrl if neither is provided
@@ -1624,7 +1624,7 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
       )}
 
       {/* US-009: Parental Gate for external links */}
-      <ParentalGateModal />
+      {parentalGateModal}
     </>
   );
 };

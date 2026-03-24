@@ -56,7 +56,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
     migrateFromSupabase,
     resumeMigrationWithNewPassword,
   } = useAuth();
-  const { openURL, ParentalGateModal } = useParentalGate();
+  const { openURL, parentalGateModal } = useParentalGate();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -1742,7 +1742,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
       />
 
       {/* US-009: Parental Gate for external links */}
-      <ParentalGateModal />
+      {parentalGateModal}
     </KeyboardAvoidingView>
   );
 };

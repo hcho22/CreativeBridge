@@ -31,7 +31,7 @@ interface SettingsScreenProps {
 const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { userProfile, updateProfile, signOut } = useAuth();
-  const { openURL, ParentalGateModal } = useParentalGate();
+  const { openURL, parentalGateModal } = useParentalGate();
   const [speechEnabled, setSpeechEnabled] = useState(
     userProfile?.speech_enabled || false,
   );
@@ -344,7 +344,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
       </ScrollView>
 
       {/* US-009: Parental Gate for external links */}
-      <ParentalGateModal />
+      {parentalGateModal}
     </View>
   );
 };
