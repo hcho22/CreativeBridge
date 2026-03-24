@@ -6,6 +6,14 @@ import { StoryDownloadHistoryRecord } from './storyDownload';
 // Grade level options
 export type GradeLevel = 'K-2' | '3-5' | '6-8' | '9-12';
 
+// COPPA compliance types (US-001)
+export type AgeGroup = 'under_13' | '13_to_17' | '18_plus';
+export type ConsentStatus =
+  | 'not_required'
+  | 'pending'
+  | 'granted'
+  | 'withdrawn';
+
 // Story genre options (US-003)
 export type StoryGenre =
   | 'Mystery'
@@ -66,6 +74,10 @@ export interface UserProfile {
   // Profile Data (optional)
   avatar_url?: string;
   bio?: string;
+
+  // COPPA Compliance (US-001)
+  age_group?: AgeGroup;
+  consent_status?: ConsentStatus;
 
   // Onboarding Progress (US-007)
   onboarding_completed: boolean;

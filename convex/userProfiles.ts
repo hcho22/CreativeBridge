@@ -19,10 +19,16 @@
  * @implements US-010: Create User Profile Functions
  */
 
-import { query, mutation } from './_generated/server';
+import { query, mutation, action, internalMutation } from './_generated/server';
 import { v } from 'convex/values';
+import { internal } from './_generated/api';
 import { requireAuth, getClerkUserId } from './auth';
-import { gradeLevelValidator, genreValidator } from './schema';
+import {
+  gradeLevelValidator,
+  genreValidator,
+  ageGroupValidator,
+  consentStatusValidator,
+} from './schema';
 
 // TEMPORARY: Disable XP deduction during beta. Image generation is free.
 // TODO: Set to true before production release.
@@ -66,6 +72,8 @@ export const createOAuthProfile = mutation({
     displayName: v.string(),
     preferredGradeLevel: v.optional(gradeLevelValidator),
     speechEnabled: v.optional(v.boolean()),
+    ageGroup: v.optional(ageGroupValidator),
+    consentStatus: v.optional(consentStatusValidator),
   },
   handler: async (ctx, args) => {
     // Verify user is authenticated
@@ -112,6 +120,10 @@ export const createOAuthProfile = mutation({
       // User preferences
       preferredGradeLevel: args.preferredGradeLevel ?? 'K-2',
       speechEnabled: args.speechEnabled ?? true,
+
+      // COPPA compliance (US-001, US-002)
+      ageGroup: args.ageGroup,
+      consentStatus: args.consentStatus,
 
       // Onboarding - account creation is complete
       onboardingCompleted: false,
@@ -248,6 +260,49 @@ export const updateProfile = mutation({
     await ctx.db.patch(profile._id, updateFields);
 
     return { success: true };
+  },
+});
+
+/**
+ * Set a user's age group for COPPA compliance (US-001).
+ * Determines the consent status based on the age group:
+ * - under_13: consentStatus set to "pending" (requires VPC)
+ * - 13_to_17: consentStatus set to "not_required"
+ * - 18_plus: consentStatus set to "not_required"
+ *
+ * @param ageGroup - The user's age group classification
+ * @returns Updated consent status
+ */
+export const setAgeGroup = mutation({
+  args: {
+    ageGroup: ageGroupValidator,
+  },
+  handler: async (ctx, args) => {
+    const clerkUserId = await getClerkUserId(ctx);
+
+    const profile = await ctx.db
+      .query('userProfiles')
+      .withIndex('by_clerk_user_id', q => q.eq('clerkUserId', clerkUserId))
+      .first();
+
+    if (!profile) {
+      throw new Error('Profile not found.');
+    }
+
+    const consentStatus =
+      args.ageGroup === 'under_13' ? 'pending' : 'not_required';
+
+    await ctx.db.patch(profile._id, {
+      ageGroup: args.ageGroup,
+      consentStatus: consentStatus as 'pending' | 'not_required',
+    });
+
+    return {
+      success: true,
+      ageGroup: args.ageGroup,
+      consentStatus,
+      requiresConsent: args.ageGroup === 'under_13',
+    };
   },
 });
 
@@ -843,6 +898,212 @@ export const validateXpBalance = query({
       currentBalance: profile.totalXp,
       requiredXp: args.requiredXp,
       shortfall: hasEnough ? 0 : args.requiredXp - profile.totalXp,
+    };
+  },
+});
+
+// ============================================================================
+// ACCOUNT DELETION (US-004)
+// ============================================================================
+
+/**
+ * Delete all user data from Convex across all tables.
+ * This is an internal mutation called by the deleteAccount action.
+ *
+ * Cascades across:
+ * - gameSessions (and associated Convex Storage images)
+ * - imageGenerationEvents
+ * - storyElements
+ * - storyDiversityScores
+ * - storyDownloadHistory
+ * - consentRecords
+ * - migrationEvents
+ * - userProfiles
+ *
+ * @param clerkUserId - The Clerk user ID whose data should be deleted
+ * @returns Summary of deleted records
+ */
+export const deleteAllUserDataInternal = internalMutation({
+  args: {
+    clerkUserId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const summary: Record<string, number> = {};
+
+    // 1. Find the user profile
+    const profile = await ctx.db
+      .query('userProfiles')
+      .withIndex('by_clerk_user_id', q => q.eq('clerkUserId', args.clerkUserId))
+      .first();
+
+    if (!profile) {
+      return { success: false, error: 'Profile not found', summary };
+    }
+
+    // 2. Delete gameSessions and their stored images
+    const sessions = await ctx.db
+      .query('gameSessions')
+      .withIndex('by_clerk_user', q => q.eq('clerkUserId', args.clerkUserId))
+      .collect();
+
+    let storageDeleted = 0;
+    for (const session of sessions) {
+      // Delete stored image from Convex Storage
+      if (session.storageId) {
+        try {
+          await ctx.storage.delete(session.storageId);
+          storageDeleted++;
+        } catch {
+          // Storage file may already be deleted; continue
+        }
+      }
+
+      // Delete related storyElements
+      const elements = await ctx.db
+        .query('storyElements')
+        .withIndex('by_story', q => q.eq('storyId', session._id))
+        .collect();
+      for (const el of elements) {
+        await ctx.db.delete(el._id);
+      }
+      summary.storyElements = (summary.storyElements ?? 0) + elements.length;
+
+      // Delete related storyDiversityScores
+      const scores = await ctx.db
+        .query('storyDiversityScores')
+        .withIndex('by_story', q => q.eq('storyId', session._id))
+        .collect();
+      for (const score of scores) {
+        await ctx.db.delete(score._id);
+      }
+      summary.storyDiversityScores =
+        (summary.storyDiversityScores ?? 0) + scores.length;
+
+      await ctx.db.delete(session._id);
+    }
+    summary.gameSessions = sessions.length;
+    summary.storageFiles = storageDeleted;
+
+    // 3. Delete imageGenerationEvents
+    const imageEvents = await ctx.db
+      .query('imageGenerationEvents')
+      .withIndex('by_user', q => q.eq('userId', profile._id))
+      .collect();
+    for (const event of imageEvents) {
+      await ctx.db.delete(event._id);
+    }
+    summary.imageGenerationEvents = imageEvents.length;
+
+    // 4. Delete storyDownloadHistory
+    const downloads = await ctx.db
+      .query('storyDownloadHistory')
+      .withIndex('by_user', q => q.eq('userId', profile._id))
+      .collect();
+    for (const dl of downloads) {
+      await ctx.db.delete(dl._id);
+    }
+    summary.storyDownloadHistory = downloads.length;
+
+    // 5. Retain consentRecords for 3 years (COPPA requirement, US-016)
+    // Mark records with deletion timestamp and anonymize parent email, but do NOT delete
+    const consentRecords = await ctx.db
+      .query('consentRecords')
+      .withIndex('by_child', q => q.eq('childUserId', args.clerkUserId))
+      .collect();
+    const now = Date.now();
+    for (const record of consentRecords) {
+      await ctx.db.patch(record._id, {
+        accountDeletedAt: now,
+        parentEmail: '[deleted]',
+      });
+    }
+    summary.consentRecords = consentRecords.length;
+
+    // 6. Delete migrationEvents (if any)
+    const migrationEvents = await ctx.db
+      .query('migrationEvents')
+      .withIndex('by_clerk_user', q => q.eq('clerkUserId', args.clerkUserId))
+      .collect();
+    for (const event of migrationEvents) {
+      await ctx.db.delete(event._id);
+    }
+    summary.migrationEvents = migrationEvents.length;
+
+    // 7. Delete the user profile itself (last)
+    await ctx.db.delete(profile._id);
+    summary.userProfiles = 1;
+
+    return { success: true, summary };
+  },
+});
+
+/**
+ * Delete user account and all associated data (US-004).
+ *
+ * This action:
+ * 1. Verifies the authenticated user is requesting their own deletion
+ * 2. Deletes all user data from Convex (via internal mutation)
+ * 3. Deletes the user from Clerk (via Clerk Backend API)
+ *
+ * After this action completes, the user's client-side session becomes invalid
+ * and the frontend should sign the user out.
+ *
+ * @returns Deletion result with summary
+ */
+export const deleteAccount = action({
+  args: {},
+  handler: async (
+    ctx,
+  ): Promise<{
+    success: boolean;
+    message: string;
+    summary: Record<string, number>;
+  }> => {
+    // Verify authentication
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error('Not authenticated');
+    }
+    const clerkUserId = identity.subject;
+
+    // Step 1: Delete all Convex data
+    const result: {
+      success: boolean;
+      error?: string;
+      summary: Record<string, number>;
+    } = await ctx.runMutation(internal.userProfiles.deleteAllUserDataInternal, {
+      clerkUserId,
+    });
+
+    if (!result.success) {
+      throw new Error(result.error ?? 'Failed to delete user data');
+    }
+
+    // Step 2: Delete the Clerk user account
+    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+    if (clerkSecretKey) {
+      const response = await fetch(
+        `https://api.clerk.com/v1/users/${clerkUserId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${clerkSecretKey}`,
+          },
+        },
+      );
+
+      if (!response.ok && response.status !== 404) {
+        // Log but don't fail — Convex data is already deleted
+        console.error(
+          `Failed to delete Clerk user ${clerkUserId}: ${response.status}`,
+        );
+      }
+    }
+
+    return {
+      success: true,
+      message: 'Account and all data have been permanently deleted.',
+      summary: result.summary,
     };
   },
 });

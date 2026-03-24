@@ -330,7 +330,7 @@ class XPEventTracker {
     endDate?: string,
   ): Promise<any> {
     try {
-      console.log('📈 Fetching XP analytics:', { userId, startDate, endDate });
+      console.log('📈 Fetching XP analytics:', { startDate, endDate });
 
       if (!isConvexReady()) {
         console.error('❌ Convex is not ready');

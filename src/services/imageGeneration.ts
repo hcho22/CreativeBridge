@@ -6,6 +6,9 @@ import { errorLogger } from './errorLogger';
 import { getImageGenerationConfig, Environment } from './environment';
 import { imageStorageService } from './imageStorageService';
 import { openaiClient } from './openaiClient';
+import { moderateImage } from './imageModeration';
+import { piiScrubber } from './piiScrubber';
+import { checkOutputSafety } from './contentSafetyService';
 import type {
   GradeLevel,
   GenerationStatus,
@@ -8551,7 +8554,36 @@ class ImageGenerationService {
         prompt = this.generatePrompt(request.storyContent, request.gradeLevel);
       }
 
-      // Validate prompt safety before API call
+      // US-008: Scrub PII from image prompt before sending to Replicate
+      prompt = piiScrubber.scrubText(prompt);
+
+      // US-014: Check prompt against centralized content blocklist
+      const blocklistSafety = checkOutputSafety(prompt);
+      if (!blocklistSafety.safe) {
+        errorType = 'content_safety';
+        console.log('🛡️ [CONTENT SAFETY] Image prompt blocked by blocklist:', {
+          matchedCategories: blocklistSafety.matchedCategories,
+        });
+        if (eventId) {
+          await this.updateImageGenerationEvent(eventId, {
+            generation_status: 'failed',
+            error_type: errorType,
+            service_used: serviceUsed,
+            api_response_time: Date.now() - startTime,
+            prompt_used: prompt.substring(0, 100) + '...',
+          });
+        }
+        return {
+          success: false,
+          error: "We couldn't create that image. Let's try a different scene!",
+          errorType,
+          serviceUsed,
+          responseTimeMs: Date.now() - startTime,
+          eventId,
+        };
+      }
+
+      // Validate prompt safety before API call (grade-level specific filter)
       const promptSafety = this.enhancedContentFilter(
         prompt,
         request.gradeLevel,
@@ -8688,6 +8720,42 @@ class ImageGenerationService {
         }
       }
 
+      // US-007: Post-generation image safety moderation
+      const moderationResult = await moderateImage(imageUrl);
+
+      if (!moderationResult.safe) {
+        errorType = 'content_safety';
+        console.log(
+          `🛡️ Image blocked by moderation (${
+            moderationResult.moderationTimeMs
+          }ms): ${moderationResult.flaggedCategories.join(', ')}`,
+        );
+
+        if (eventId) {
+          await this.updateImageGenerationEvent(eventId, {
+            generation_status: 'failed',
+            error_type: errorType,
+            service_used: serviceUsed,
+            api_response_time: Date.now() - startTime,
+            prompt_used: prompt.substring(0, 100) + '...',
+            metadata: {
+              moderation_blocked: true,
+              moderation_categories: moderationResult.flaggedCategories,
+              moderation_time_ms: moderationResult.moderationTimeMs,
+            },
+          });
+        }
+
+        return {
+          success: false,
+          error: "We couldn't create that image. Try a different scene!",
+          errorType,
+          serviceUsed,
+          responseTimeMs: Date.now() - startTime,
+          eventId,
+        };
+      }
+
       // Update database with successful generation
       await Promise.all([
         this.updateGameSessionWithImage(
@@ -8702,6 +8770,13 @@ class ImageGenerationService {
               service_used: serviceUsed,
               api_response_time: Date.now() - startTime,
               prompt_used: prompt,
+              metadata: {
+                moderation_passed: true,
+                moderation_time_ms: moderationResult.moderationTimeMs,
+                ...(moderationResult.error
+                  ? { moderation_fallback: moderationResult.error }
+                  : {}),
+              },
             })
           : Promise.resolve(),
       ]);

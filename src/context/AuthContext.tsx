@@ -8,10 +8,22 @@ import React, {
   useMemo,
 } from 'react';
 import AsyncStorage from '../utils/asyncStorageWrapper';
+import {
+  setSecureItem,
+  getSecureItem,
+  removeSecureItem,
+  migrateAndGet,
+} from '../utils/sensitiveStorage';
 import { supabase } from '../services/supabase';
 import { useSafeClerkAuth } from '../hooks/useSafeClerkAuth';
 // Note (US-016): completeOAuthFlow, ClerkAuthMethods, ClerkUser removed — no longer needed
-import type { UserProfile, GradeLevel, StoryGenre } from '../types/database';
+import type {
+  UserProfile,
+  GradeLevel,
+  StoryGenre,
+  AgeGroup,
+  ConsentStatus,
+} from '../types/database';
 import { RememberMeStorage } from '../utils/rememberMeStorage';
 import { xpEventTracker } from '../services/xpEventTracker';
 import {
@@ -59,6 +71,8 @@ export const convertConvexProfileToLegacy = (
   preferred_genre: convexProfile.preferredGenre as StoryGenre | undefined,
   avatar_url: convexProfile.avatarUrl,
   bio: convexProfile.bio,
+  age_group: convexProfile.ageGroup as AgeGroup | undefined,
+  consent_status: convexProfile.consentStatus as ConsentStatus | undefined,
   onboarding_completed: convexProfile.onboardingCompleted,
   onboarding_progress: convexProfile.onboardingProgress,
   first_story_completed_at: convexProfile.firstStoryCompletedAt,
@@ -150,6 +164,8 @@ interface AuthContextType {
   loading: boolean;
   emailConfirmed: boolean;
   needsProfileCompletion: boolean;
+  needsAgeVerification: boolean;
+  isConsentPending: boolean;
   oauthError: string | null; // Latest OAuth error (for display)
   signIn: (
     email: string,
@@ -315,6 +331,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     api.migration.migrateUserGameSessions,
   );
   const convexLogMigrationEvent = useMutation(api.migration.logMigrationEvent);
+  const convexRecordTermsConsent = useMutation(api.consent.recordTermsConsent);
 
   // Convex reactive query for current user's profile
   // This will automatically update when the profile changes in the database
@@ -375,7 +392,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     needsSecondFactor?: boolean;
   }> => {
     try {
-      console.log('🔐 Attempting sign in (Clerk-first)', { email, rememberMe });
+      console.log('🔐 Attempting sign in (Clerk-first)', { rememberMe });
 
       // US-005: Try Clerk sign-in first
       const clerkResult = await signInWithClerk(email, password);
@@ -435,7 +452,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       });
 
       if (keysToRemove.length > 0) {
-        console.log('🗑️ Removing keys:', keysToRemove);
+        console.log('🗑️ Removing', keysToRemove.length, 'keys from storage');
         await AsyncStorage.multiRemove(keysToRemove);
       }
 
@@ -672,7 +689,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         if (profile.bio !== undefined) convexUpdates.bio = profile.bio;
 
         // Update in Convex
-        console.log('📝 [Convex] Updating profile for:', activeClerkUserId);
+        console.log('📝 [Convex] Updating profile');
         try {
           await convexUpdateProfile({
             clerkUserId: activeClerkUserId,
@@ -745,7 +762,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       const speechEnabled = profile.speech_enabled ?? true;
 
       // Create profile in Convex
-      console.log('📝 [Convex] Creating profile for user:', activeClerkUserId);
+      console.log('📝 [Convex] Creating profile');
       try {
         const convexProfileId = await convexCreateProfile({
           clerkUserId: activeClerkUserId,
@@ -1106,9 +1123,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     // 4. Sign out of Supabase (no longer needed)
     await supabase.auth.signOut();
 
-    // 5. Clear migration data from AsyncStorage
-    await AsyncStorage.removeItem(PENDING_MIGRATION_KEY);
-    await AsyncStorage.removeItem(PENDING_CLERK_PROFILE_KEY);
+    // 5. Clear migration data from secure storage (US-019)
+    await removeSecureItem(PENDING_MIGRATION_KEY);
+    await removeSecureItem(PENDING_CLERK_PROFILE_KEY);
 
     logMigrationEvent({
       eventType: 'migration_completed',
@@ -1294,10 +1311,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       // Step 4: Persist migration data BEFORE Clerk account creation
       // This ensures the expensive Supabase data fetch is preserved if Clerk
       // rejects the password (e.g., breached password, too weak).
-      await AsyncStorage.setItem(
-        PENDING_MIGRATION_KEY,
-        JSON.stringify(migrationData),
-      );
+      await setSecureItem(PENDING_MIGRATION_KEY, JSON.stringify(migrationData));
 
       // Step 5: Create Clerk account
       if (!clerkSignUp?.signUp) {
@@ -1391,7 +1405,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         email,
         createdAt: new Date().toISOString(),
       };
-      await AsyncStorage.setItem(
+      await setSecureItem(
         PENDING_CLERK_PROFILE_KEY,
         JSON.stringify(pendingProfile),
       );
@@ -1433,8 +1447,8 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     newPassword: string,
   ): Promise<{ needsVerification?: boolean; error?: string }> => {
     try {
-      // Step 1: Read cached migration data
-      const migrationJson = await AsyncStorage.getItem(PENDING_MIGRATION_KEY);
+      // Step 1: Read cached migration data (auto-migrates from plaintext if needed, US-019)
+      const migrationJson = await migrateAndGet(PENDING_MIGRATION_KEY);
       if (!migrationJson) {
         return {
           error:
@@ -1520,7 +1534,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         email,
         createdAt: new Date().toISOString(),
       };
-      await AsyncStorage.setItem(
+      await setSecureItem(
         PENDING_CLERK_PROFILE_KEY,
         JSON.stringify(pendingProfile),
       );
@@ -1611,7 +1625,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       };
 
       console.log('📧 [AuthContext] Storing pending profile data...');
-      await AsyncStorage.setItem(
+      await setSecureItem(
         PENDING_CLERK_PROFILE_KEY,
         JSON.stringify(pendingProfile),
       );
@@ -1709,9 +1723,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Step 3: Retrieve pending profile from AsyncStorage
       console.log('📧 [AuthContext] Retrieving pending profile data...');
-      const pendingProfileJson = await AsyncStorage.getItem(
-        PENDING_CLERK_PROFILE_KEY,
-      );
+      const pendingProfileJson = await migrateAndGet(PENDING_CLERK_PROFILE_KEY);
 
       if (!pendingProfileJson) {
         console.warn(
@@ -1734,7 +1746,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           '❌ [AuthContext] No Clerk user ID available after verification',
         );
         // Session is active but we can't create the profile without a user ID
-        await AsyncStorage.removeItem(PENDING_CLERK_PROFILE_KEY);
+        await removeSecureItem(PENDING_CLERK_PROFILE_KEY);
         return {
           error:
             'Account verified but profile could not be created. Please complete your profile in settings.',
@@ -1752,9 +1764,21 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         preferredGradeLevel: pendingProfile.gradeLevel,
       });
 
+      // Step 4b (US-016): Persist terms/privacy consent records
+      try {
+        await convexRecordTermsConsent({});
+        console.log('📧 [AuthContext] Terms/privacy consent recorded');
+      } catch (consentError) {
+        // Non-fatal: consent recording failure shouldn't block signup
+        console.warn(
+          '⚠️ [AuthContext] Failed to record terms consent:',
+          consentError,
+        );
+      }
+
       // Step 5 (US-007): Check for pending migration data and complete Phase B
       try {
-        const migrationJson = await AsyncStorage.getItem(PENDING_MIGRATION_KEY);
+        const migrationJson = await migrateAndGet(PENDING_MIGRATION_KEY);
 
         if (migrationJson) {
           console.log(
@@ -1812,8 +1836,8 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           // Sign out of Supabase (legacy session no longer needed)
           await supabase.auth.signOut();
 
-          // Clear migration data
-          await AsyncStorage.removeItem(PENDING_MIGRATION_KEY);
+          // Clear migration data (US-019: from secure storage)
+          await removeSecureItem(PENDING_MIGRATION_KEY);
 
           logMigrationEvent({
             eventType: 'migration_completed',
@@ -1842,9 +1866,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         });
       }
 
-      // Step 6: Clear pending profile from AsyncStorage
+      // Step 6: Clear pending profile from secure storage (US-019)
       console.log('📧 [AuthContext] Clearing pending profile data...');
-      await AsyncStorage.removeItem(PENDING_CLERK_PROFILE_KEY);
+      await removeSecureItem(PENDING_CLERK_PROFILE_KEY);
 
       console.log(
         '✅ [AuthContext] Email verification complete, session active, profile created',
@@ -2262,7 +2286,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         identifier: email,
       });
 
-      console.log('✅ [AuthContext] Password reset code sent to', email);
+      console.log('✅ [AuthContext] Password reset code sent');
       return { needsCode: true };
     } catch (error: any) {
       console.error('❌ [AuthContext] Password reset request failed:', error);
@@ -2926,6 +2950,14 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
       console.log('✅ [AuthContext] Google OAuth flow completed successfully');
 
+      // US-016: Record terms/privacy consent for OAuth users (fire-and-forget, deduped)
+      convexRecordTermsConsent({}).catch((e: unknown) =>
+        console.warn(
+          '⚠️ [AuthContext] Failed to record OAuth terms consent:',
+          e,
+        ),
+      );
+
       // Return success - the auth state change listener will handle the rest
       return {};
     } catch (error) {
@@ -3357,6 +3389,14 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
       console.log('✅ [AuthContext] Apple OAuth flow completed successfully');
 
+      // US-016: Record terms/privacy consent for OAuth users (fire-and-forget, deduped)
+      convexRecordTermsConsent({}).catch((e: unknown) =>
+        console.warn(
+          '⚠️ [AuthContext] Failed to record OAuth terms consent:',
+          e,
+        ),
+      );
+
       // Return success - the auth state change listener will handle the rest
       return {};
     } catch (error) {
@@ -3494,7 +3534,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
       // US-017: Convex PRIMARY, Supabase FALLBACK for UUID users
       // PRIMARY: Deduct XP via Convex
-      console.log('💸 [Convex] Deducting XP:', { clerkUserIdForXp, amount });
+      console.log('💸 [Convex] Deducting XP:', { amount });
       try {
         const convexResult = await convexDeductXp({
           clerkUserId: clerkUserIdForXp,
@@ -4112,6 +4152,14 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
     setOAuthError(null);
   }, []);
 
+  // Derive COPPA age-gating state from user profile
+  const needsAgeVerification = !!(userProfile && !userProfile.age_group);
+  const isConsentPending = !!(
+    userProfile &&
+    userProfile.age_group === 'under_13' &&
+    userProfile.consent_status === 'pending'
+  );
+
   // Memoize context value to prevent unnecessary re-renders of consumers
   // Only include state values in deps - callbacks are stable via useCallback
   const value: AuthContextType = useMemo(
@@ -4121,6 +4169,8 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       loading,
       emailConfirmed,
       needsProfileCompletion,
+      needsAgeVerification,
+      isConsentPending,
       oauthError,
       signIn,
       signOut,
@@ -4155,6 +4205,8 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       loading,
       emailConfirmed,
       needsProfileCompletion,
+      needsAgeVerification,
+      isConsentPending,
       oauthError,
       signIn,
       signOut,

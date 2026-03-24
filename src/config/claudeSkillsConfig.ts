@@ -2,10 +2,13 @@
 // Enhanced secure configuration management for Claude Skills SDK integration
 // Task 1.2: Authentication & Configuration System
 
-import { SkillConfig, SkillType, PerformanceMode } from '@claude/skills-react-native';
+import {
+  SkillConfig,
+  SkillType,
+  PerformanceMode,
+} from '@claude/skills-react-native';
 import { Environment } from './environment';
 import Keychain, { Options, Result } from 'react-native-keychain';
-import DeviceInfo from 'react-native-device-info';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface ClaudeSkillsConfig extends SkillConfig {
@@ -62,12 +65,15 @@ export class ClaudeSkillsCredentialManager {
   private static readonly KEYCHAIN_SERVICE = 'CreativeBridge_ClaudeSkills';
   private static readonly API_KEY_KEY = 'claude_skills_api_key';
   private static readonly BACKUP_KEY_PREFIX = 'claude_skills_backup_key_';
-  private static readonly ROTATION_METADATA_KEY = 'claude_skills_rotation_metadata';
+  private static readonly ROTATION_METADATA_KEY =
+    'claude_skills_rotation_metadata';
   private static readonly FAILED_ATTEMPTS_KEY = 'claude_skills_failed_attempts';
   private static readonly SESSION_KEY = 'claude_skills_session_token';
 
   // Enhanced keychain options with biometric support
-  private static getKeychainOptions(requireBiometric: boolean = false): Options {
+  private static getKeychainOptions(
+    requireBiometric: boolean = false,
+  ): Options {
     const options: Options = {
       service: this.KEYCHAIN_SERVICE,
       accessControl: Keychain.ACCESS_CONTROL.BIOMETRY_CURRENT_SET,
@@ -85,15 +91,21 @@ export class ClaudeSkillsCredentialManager {
   }
 
   // Store API key with enhanced security options
-  static async storeApiKey(apiKey: string, options: { requireBiometric?: boolean; rotationInfo?: CredentialRotationInfo } = {}): Promise<void> {
+  static async storeApiKey(
+    apiKey: string,
+    options: {
+      requireBiometric?: boolean;
+      rotationInfo?: CredentialRotationInfo;
+    } = {},
+  ): Promise<void> {
     try {
       const keychainOptions = this.getKeychainOptions(options.requireBiometric);
-      
+
       await Keychain.setInternetCredentials(
         this.KEYCHAIN_SERVICE,
         this.API_KEY_KEY,
         apiKey,
-        keychainOptions
+        keychainOptions,
       );
 
       // Store rotation metadata if provided
@@ -102,20 +114,28 @@ export class ClaudeSkillsCredentialManager {
       }
 
       // Log security event
-      await this.logSecurityEvent('API_KEY_STORED', { requireBiometric: options.requireBiometric });
-
+      await this.logSecurityEvent('API_KEY_STORED', {
+        requireBiometric: options.requireBiometric,
+      });
     } catch (error) {
       console.error('Failed to store Claude Skills API key:', error);
-      await this.logSecurityEvent('API_KEY_STORE_FAILED', { error: error.message });
+      await this.logSecurityEvent('API_KEY_STORE_FAILED', {
+        error: error.message,
+      });
       throw new Error('Failed to securely store API credentials');
     }
   }
 
   // Retrieve API key with session management
-  static async getApiKey(options: { requireBiometric?: boolean; sessionToken?: string } = {}): Promise<string | null> {
+  static async getApiKey(
+    options: { requireBiometric?: boolean; sessionToken?: string } = {},
+  ): Promise<string | null> {
     try {
       // Check if session is still valid
-      if (options.sessionToken && !(await this.validateSession(options.sessionToken))) {
+      if (
+        options.sessionToken &&
+        !(await this.validateSession(options.sessionToken))
+      ) {
         await this.logSecurityEvent('INVALID_SESSION_ATTEMPT');
         return null;
       }
@@ -123,25 +143,34 @@ export class ClaudeSkillsCredentialManager {
       // Check for too many failed attempts
       if (await this.isTooManyFailedAttempts()) {
         await this.logSecurityEvent('TOO_MANY_FAILED_ATTEMPTS');
-        throw new Error('Too many failed authentication attempts. Please try again later.');
+        throw new Error(
+          'Too many failed authentication attempts. Please try again later.',
+        );
       }
 
       const keychainOptions = this.getKeychainOptions(options.requireBiometric);
-      
-      const credentials = await Keychain.getInternetCredentials(this.KEYCHAIN_SERVICE, keychainOptions);
-      
+
+      const credentials = await Keychain.getInternetCredentials(
+        this.KEYCHAIN_SERVICE,
+        keychainOptions,
+      );
+
       if (credentials && credentials.password) {
         // Reset failed attempts on success
         await this.resetFailedAttempts();
-        await this.logSecurityEvent('API_KEY_RETRIEVED', { requireBiometric: options.requireBiometric });
+        await this.logSecurityEvent('API_KEY_RETRIEVED', {
+          requireBiometric: options.requireBiometric,
+        });
         return credentials.password;
       }
-      
+
       return null;
     } catch (error) {
       console.error('Failed to retrieve Claude Skills API key:', error);
       await this.incrementFailedAttempts();
-      await this.logSecurityEvent('API_KEY_RETRIEVAL_FAILED', { error: error.message });
+      await this.logSecurityEvent('API_KEY_RETRIEVAL_FAILED', {
+        error: error.message,
+      });
       return null;
     }
   }
@@ -156,14 +185,18 @@ export class ClaudeSkillsCredentialManager {
       await this.logSecurityEvent('API_KEY_CLEARED');
     } catch (error) {
       console.error('Failed to clear Claude Skills API key:', error);
-      await this.logSecurityEvent('API_KEY_CLEAR_FAILED', { error: error.message });
+      await this.logSecurityEvent('API_KEY_CLEAR_FAILED', {
+        error: error.message,
+      });
     }
   }
 
   // Check if API key is stored
   static async isApiKeyStored(): Promise<boolean> {
     try {
-      const credentials = await Keychain.getInternetCredentials(this.KEYCHAIN_SERVICE);
+      const credentials = await Keychain.getInternetCredentials(
+        this.KEYCHAIN_SERVICE,
+      );
       return !!(credentials && credentials.password);
     } catch (error) {
       return false;
@@ -171,11 +204,14 @@ export class ClaudeSkillsCredentialManager {
   }
 
   // Credential rotation functionality
-  static async rotateApiKey(newApiKey: string, options: { keepBackups?: number } = {}): Promise<void> {
+  static async rotateApiKey(
+    newApiKey: string,
+    options: { keepBackups?: number } = {},
+  ): Promise<void> {
     try {
       // Get current key for backup
       const currentKey = await this.getApiKey();
-      
+
       if (currentKey) {
         await this.createBackupKey(currentKey, options.keepBackups || 3);
       }
@@ -190,10 +226,11 @@ export class ClaudeSkillsCredentialManager {
 
       await this.storeApiKey(newApiKey, { rotationInfo });
       await this.logSecurityEvent('API_KEY_ROTATED', { rotationInfo });
-
     } catch (error) {
       console.error('Failed to rotate Claude Skills API key:', error);
-      await this.logSecurityEvent('API_KEY_ROTATION_FAILED', { error: error.message });
+      await this.logSecurityEvent('API_KEY_ROTATION_FAILED', {
+        error: error.message,
+      });
       throw new Error('Failed to rotate API credentials');
     }
   }
@@ -204,8 +241,7 @@ export class ClaudeSkillsCredentialManager {
     const sessionData = {
       token: sessionToken,
       createdAt: new Date(),
-      deviceId: await DeviceInfo.getDeviceId(),
-      expiresAt: new Date(Date.now() + (30 * 60 * 1000)), // 30 minutes
+      expiresAt: new Date(Date.now() + 30 * 60 * 1000), // 30 minutes
     };
 
     await AsyncStorage.setItem(this.SESSION_KEY, JSON.stringify(sessionData));
@@ -240,15 +276,18 @@ export class ClaudeSkillsCredentialManager {
   }
 
   // Backup key management
-  private static async createBackupKey(apiKey: string, maxBackups: number): Promise<void> {
+  private static async createBackupKey(
+    apiKey: string,
+    maxBackups: number,
+  ): Promise<void> {
     const timestamp = Date.now();
     const backupKey = `${this.BACKUP_KEY_PREFIX}${timestamp}`;
-    
+
     await Keychain.setInternetCredentials(
       backupKey,
       'backup',
       apiKey,
-      this.getKeychainOptions(false)
+      this.getKeychainOptions(false),
     );
 
     // Clean up old backups if we exceed the limit
@@ -262,8 +301,13 @@ export class ClaudeSkillsCredentialManager {
   }
 
   // Rotation metadata management
-  private static async storeRotationMetadata(rotationInfo: CredentialRotationInfo): Promise<void> {
-    await AsyncStorage.setItem(this.ROTATION_METADATA_KEY, JSON.stringify(rotationInfo));
+  private static async storeRotationMetadata(
+    rotationInfo: CredentialRotationInfo,
+  ): Promise<void> {
+    await AsyncStorage.setItem(
+      this.ROTATION_METADATA_KEY,
+      JSON.stringify(rotationInfo),
+    );
   }
 
   static async getRotationMetadata(): Promise<CredentialRotationInfo | null> {
@@ -279,7 +323,10 @@ export class ClaudeSkillsCredentialManager {
   private static async incrementFailedAttempts(): Promise<void> {
     try {
       const attempts = await this.getFailedAttempts();
-      await AsyncStorage.setItem(this.FAILED_ATTEMPTS_KEY, (attempts + 1).toString());
+      await AsyncStorage.setItem(
+        this.FAILED_ATTEMPTS_KEY,
+        (attempts + 1).toString(),
+      );
     } catch (error) {
       console.error('Failed to increment failed attempts:', error);
     }
@@ -315,16 +362,18 @@ export class ClaudeSkillsCredentialManager {
 
   private static calculateNextRotation(): Date {
     const now = new Date();
-    return new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000)); // 30 days
+    return new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
   }
 
   // Security audit logging
-  private static async logSecurityEvent(event: string, details: any = {}): Promise<void> {
+  private static async logSecurityEvent(
+    event: string,
+    details: any = {},
+  ): Promise<void> {
     const logEntry = {
       timestamp: new Date().toISOString(),
       event,
       details,
-      deviceId: await DeviceInfo.getDeviceId().catch(() => 'unknown'),
     };
 
     // In production, send to secure logging service
@@ -346,16 +395,22 @@ export class ClaudeSkillsConfigFactory {
   private static configCache: ClaudeSkillsConfig | null = null;
   private static configVersion: number = 0;
 
-  static async createConfig(options: { forceRefresh?: boolean; requireBiometric?: boolean } = {}): Promise<ClaudeSkillsConfig> {
+  static async createConfig(
+    options: { forceRefresh?: boolean; requireBiometric?: boolean } = {},
+  ): Promise<ClaudeSkillsConfig> {
     // Return cached config unless force refresh is requested
     if (!options.forceRefresh && this.configCache) {
       return this.configCache;
     }
 
-    const apiKey = await ClaudeSkillsCredentialManager.getApiKey({ requireBiometric: options.requireBiometric });
-    
+    const apiKey = await ClaudeSkillsCredentialManager.getApiKey({
+      requireBiometric: options.requireBiometric,
+    });
+
     if (!apiKey) {
-      throw new Error('Claude Skills API key not found. Please configure credentials.');
+      throw new Error(
+        'Claude Skills API key not found. Please configure credentials.',
+      );
     }
 
     const environment = this.getEnvironment();
@@ -379,18 +434,23 @@ export class ClaudeSkillsConfigFactory {
   }
 
   // Runtime configuration updates
-  static async updateConfig(updates: Partial<ClaudeSkillsConfig>): Promise<ClaudeSkillsConfig> {
+  static async updateConfig(
+    updates: Partial<ClaudeSkillsConfig>,
+  ): Promise<ClaudeSkillsConfig> {
     const currentConfig = await this.createConfig({ forceRefresh: true });
-    
+
     const updatedConfig = {
       ...currentConfig,
       ...updates,
     };
 
     // Validate the updated configuration
-    const validation = ClaudeSkillsConfigValidator.validateConfig(updatedConfig);
+    const validation =
+      ClaudeSkillsConfigValidator.validateConfig(updatedConfig);
     if (!validation.isValid) {
-      throw new Error(`Configuration update failed: ${validation.errors.join(', ')}`);
+      throw new Error(
+        `Configuration update failed: ${validation.errors.join(', ')}`,
+      );
     }
 
     // Update cache
@@ -417,10 +477,14 @@ export class ClaudeSkillsConfigFactory {
 
   private static getEnvironment(): 'development' | 'staging' | 'production' {
     // Enhanced environment detection with multiple sources
-    
+
     // 1. Check explicit environment variable
     const explicitEnv = process.env.CLAUDE_SKILLS_ENVIRONMENT;
-    if (explicitEnv === 'development' || explicitEnv === 'staging' || explicitEnv === 'production') {
+    if (
+      explicitEnv === 'development' ||
+      explicitEnv === 'staging' ||
+      explicitEnv === 'production'
+    ) {
       return explicitEnv;
     }
 
@@ -441,12 +505,14 @@ export class ClaudeSkillsConfigFactory {
     if (Environment.app.environment === 'development') {
       return 'development';
     }
-    
+
     // 5. Safe default - production
     return 'production';
   }
 
-  private static async getEnabledSkills(environment: string): Promise<SkillType[]> {
+  private static async getEnabledSkills(
+    environment: string,
+  ): Promise<SkillType[]> {
     // Check for persisted skill configuration
     const persistedSkills = await this.getPersistedSkillConfiguration();
     if (persistedSkills.length > 0) {
@@ -456,33 +522,30 @@ export class ClaudeSkillsConfigFactory {
     // Default skill configurations by environment
     const allSkills: SkillType[] = [
       'ContentPredictionSkill',
-      'ResourceOptimizationSkill', 
+      'ResourceOptimizationSkill',
       'QualityAssessmentSkill',
       'BehaviorAnalysisSkill',
-      'ErrorRecoverySkill'
+      'ErrorRecoverySkill',
     ];
 
     switch (environment) {
       case 'development':
         // Enable all skills for testing
         return allSkills;
-      
+
       case 'staging':
         // Enable most skills for validation
         return [
           'ContentPredictionSkill',
           'ResourceOptimizationSkill',
           'QualityAssessmentSkill',
-          'ErrorRecoverySkill'
+          'ErrorRecoverySkill',
         ];
-      
+
       case 'production':
         // Conservative approach - start with essential skills
-        return [
-          'ResourceOptimizationSkill',
-          'ErrorRecoverySkill'
-        ];
-      
+        return ['ResourceOptimizationSkill', 'ErrorRecoverySkill'];
+
       default:
         return ['ErrorRecoverySkill']; // Minimum viable skill set
     }
@@ -515,21 +578,21 @@ export class ClaudeSkillsConfigFactory {
           maxCacheSize: 100, // Larger cache for testing
           cacheTTL: 1800, // 30 minutes for faster iteration
         };
-      
+
       case 'staging':
         return {
           ...baseConfig,
           maxCacheSize: 75, // Medium cache size
           cacheTTL: 3600, // 1 hour
         };
-      
+
       case 'production':
         return {
           ...baseConfig,
           maxCacheSize: 50, // Conservative cache size
           cacheTTL: 7200, // 2 hours for stability
         };
-      
+
       default:
         return {
           ...baseConfig,
@@ -552,7 +615,7 @@ export class ClaudeSkillsConfigFactory {
           retryBackoffMs: 500, // Faster retries
           circuitBreakerThreshold: 10,
         };
-      
+
       case 'staging':
         return {
           ...baseConfig,
@@ -560,7 +623,7 @@ export class ClaudeSkillsConfigFactory {
           retryBackoffMs: 1000,
           circuitBreakerThreshold: 7,
         };
-      
+
       case 'production':
         return {
           ...baseConfig,
@@ -568,7 +631,7 @@ export class ClaudeSkillsConfigFactory {
           retryBackoffMs: 2000, // Longer backoff
           circuitBreakerThreshold: 5,
         };
-      
+
       default:
         return {
           ...baseConfig,
@@ -579,7 +642,9 @@ export class ClaudeSkillsConfigFactory {
     }
   }
 
-  private static getMonitoringConfig(environment: string): MonitoringConfiguration {
+  private static getMonitoringConfig(
+    environment: string,
+  ): MonitoringConfiguration {
     switch (environment) {
       case 'development':
         return {
@@ -588,7 +653,7 @@ export class ClaudeSkillsConfigFactory {
           metricsCollectionInterval: 5000, // Frequent monitoring
           enableDebugLogs: true,
         };
-      
+
       case 'staging':
         return {
           enablePerformanceTracking: true,
@@ -596,7 +661,7 @@ export class ClaudeSkillsConfigFactory {
           metricsCollectionInterval: 15000,
           enableDebugLogs: true, // Keep debug logs for staging
         };
-      
+
       case 'production':
         return {
           enablePerformanceTracking: true,
@@ -604,7 +669,7 @@ export class ClaudeSkillsConfigFactory {
           metricsCollectionInterval: 60000, // Less frequent in production
           enableDebugLogs: false,
         };
-      
+
       default:
         return {
           enablePerformanceTracking: false,
@@ -626,7 +691,7 @@ export class ClaudeSkillsConfigFactory {
           maxFailedAttempts: 10, // More lenient
           enableAuditLogging: true,
         };
-      
+
       case 'staging':
         return {
           encryptionLevel: 'enhanced',
@@ -635,7 +700,7 @@ export class ClaudeSkillsConfigFactory {
           maxFailedAttempts: 7,
           enableAuditLogging: true,
         };
-      
+
       case 'production':
         return {
           encryptionLevel: 'enhanced',
@@ -644,7 +709,7 @@ export class ClaudeSkillsConfigFactory {
           maxFailedAttempts: 5,
           enableAuditLogging: true,
         };
-      
+
       default:
         return {
           encryptionLevel: 'standard',
@@ -657,7 +722,9 @@ export class ClaudeSkillsConfigFactory {
   }
 
   // Credential rotation configuration
-  private static getRotationConfig(environment: string): CredentialRotationConfiguration {
+  private static getRotationConfig(
+    environment: string,
+  ): CredentialRotationConfiguration {
     switch (environment) {
       case 'development':
         return {
@@ -667,7 +734,7 @@ export class ClaudeSkillsConfigFactory {
           expiryWarningDays: 14,
           backupKeyCount: 2,
         };
-      
+
       case 'staging':
         return {
           enableAutoRotation: true,
@@ -676,7 +743,7 @@ export class ClaudeSkillsConfigFactory {
           expiryWarningDays: 7,
           backupKeyCount: 3,
         };
-      
+
       case 'production':
         return {
           enableAutoRotation: true,
@@ -685,7 +752,7 @@ export class ClaudeSkillsConfigFactory {
           expiryWarningDays: 7,
           backupKeyCount: 5,
         };
-      
+
       default:
         return {
           enableAutoRotation: false,
@@ -700,7 +767,9 @@ export class ClaudeSkillsConfigFactory {
   // Skill configuration persistence
   private static readonly SKILL_CONFIG_KEY = 'claude_skills_enabled_skills';
 
-  private static async persistSkillConfiguration(skills: SkillType[]): Promise<void> {
+  private static async persistSkillConfiguration(
+    skills: SkillType[],
+  ): Promise<void> {
     try {
       await AsyncStorage.setItem(this.SKILL_CONFIG_KEY, JSON.stringify(skills));
     } catch (error) {
@@ -731,7 +800,10 @@ export class ClaudeSkillsConfigFactory {
 
 // Enhanced configuration validation with security checks
 export class ClaudeSkillsConfigValidator {
-  static validateConfig(config: ClaudeSkillsConfig): { isValid: boolean; errors: string[] } {
+  static validateConfig(config: ClaudeSkillsConfig): {
+    isValid: boolean;
+    errors: string[];
+  } {
     const errors: string[] = [];
 
     // Validate API key
@@ -740,8 +812,12 @@ export class ClaudeSkillsConfigValidator {
     }
 
     // Validate environment
-    if (!['development', 'staging', 'production'].includes(config.environment)) {
-      errors.push('Invalid environment: must be development, staging, or production');
+    if (
+      !['development', 'staging', 'production'].includes(config.environment)
+    ) {
+      errors.push(
+        'Invalid environment: must be development, staging, or production',
+      );
     }
 
     // Validate enabled skills
@@ -750,16 +826,25 @@ export class ClaudeSkillsConfigValidator {
     }
 
     // Validate cache configuration
-    if (config.cacheConfig.maxCacheSize < 10 || config.cacheConfig.maxCacheSize > 200) {
+    if (
+      config.cacheConfig.maxCacheSize < 10 ||
+      config.cacheConfig.maxCacheSize > 200
+    ) {
       errors.push('Invalid cache size: must be between 10MB and 200MB');
     }
 
-    if (config.cacheConfig.cacheTTL < 300 || config.cacheConfig.cacheTTL > 86400) {
+    if (
+      config.cacheConfig.cacheTTL < 300 ||
+      config.cacheConfig.cacheTTL > 86400
+    ) {
       errors.push('Invalid cache TTL: must be between 5 minutes and 24 hours');
     }
 
     // Validate fallback configuration
-    if (config.fallbackConfig.maxRetryAttempts < 1 || config.fallbackConfig.maxRetryAttempts > 10) {
+    if (
+      config.fallbackConfig.maxRetryAttempts < 1 ||
+      config.fallbackConfig.maxRetryAttempts > 10
+    ) {
       errors.push('Invalid retry attempts: must be between 1 and 10');
     }
 
@@ -769,13 +854,16 @@ export class ClaudeSkillsConfigValidator {
 
     return {
       isValid: errors.length === 0,
-      errors
+      errors,
     };
   }
 
-  private static validateSecurityConfig(config: ClaudeSkillsConfig, errors: string[]): void {
+  private static validateSecurityConfig(
+    config: ClaudeSkillsConfig,
+    errors: string[],
+  ): void {
     const security = config.securityConfig;
-    
+
     if (!security) {
       errors.push('Security configuration is required');
       return;
@@ -794,15 +882,21 @@ export class ClaudeSkillsConfigValidator {
     }
   }
 
-  private static validateRotationConfig(config: ClaudeSkillsConfig, errors: string[]): void {
+  private static validateRotationConfig(
+    config: ClaudeSkillsConfig,
+    errors: string[],
+  ): void {
     const rotation = config.rotationConfig;
-    
+
     if (!rotation) {
       errors.push('Rotation configuration is required');
       return;
     }
 
-    if (rotation.rotationIntervalDays < 1 || rotation.rotationIntervalDays > 365) {
+    if (
+      rotation.rotationIntervalDays < 1 ||
+      rotation.rotationIntervalDays > 365
+    ) {
       errors.push('Invalid rotation interval: must be between 1 and 365 days');
     }
 
@@ -816,18 +910,25 @@ export class ClaudeSkillsConfigValidator {
   }
 
   // Validate configuration for specific environment
-  static validateForEnvironment(config: ClaudeSkillsConfig, environment: string): { isValid: boolean; errors: string[]; warnings: string[] } {
+  static validateForEnvironment(
+    config: ClaudeSkillsConfig,
+    environment: string,
+  ): { isValid: boolean; errors: string[]; warnings: string[] } {
     const baseValidation = this.validateConfig(config);
     const warnings: string[] = [];
 
     // Environment-specific validations
     if (environment === 'production') {
       if (config.securityConfig.encryptionLevel !== 'enhanced') {
-        baseValidation.errors.push('Production environment requires enhanced encryption');
+        baseValidation.errors.push(
+          'Production environment requires enhanced encryption',
+        );
       }
 
       if (!config.securityConfig.requireBiometricAuth) {
-        warnings.push('Consider enabling biometric authentication for production');
+        warnings.push(
+          'Consider enabling biometric authentication for production',
+        );
       }
 
       if (config.monitoringConfig.enableDebugLogs) {
@@ -835,38 +936,57 @@ export class ClaudeSkillsConfigValidator {
       }
     }
 
-    if (environment === 'development' && config.rotationConfig.enableAutoRotation) {
-      warnings.push('Auto-rotation might be unnecessary for development environment');
+    if (
+      environment === 'development' &&
+      config.rotationConfig.enableAutoRotation
+    ) {
+      warnings.push(
+        'Auto-rotation might be unnecessary for development environment',
+      );
     }
 
     return {
       ...baseValidation,
-      warnings
+      warnings,
     };
   }
 }
 
 // Environment-specific configuration manager
 export class ClaudeSkillsEnvironmentManager {
-  static async switchEnvironment(newEnvironment: 'development' | 'staging' | 'production'): Promise<void> {
+  static async switchEnvironment(
+    newEnvironment: 'development' | 'staging' | 'production',
+  ): Promise<void> {
     // Clear current configuration
     ClaudeSkillsConfigFactory.clearCache();
-    
+
     // Set environment variable for future config creation
     process.env.CLAUDE_SKILLS_ENVIRONMENT = newEnvironment;
-    
+
     // Create new configuration
-    const newConfig = await ClaudeSkillsConfigFactory.createConfig({ forceRefresh: true });
-    
+    const newConfig = await ClaudeSkillsConfigFactory.createConfig({
+      forceRefresh: true,
+    });
+
     // Validate the new configuration
-    const validation = ClaudeSkillsConfigValidator.validateForEnvironment(newConfig, newEnvironment);
+    const validation = ClaudeSkillsConfigValidator.validateForEnvironment(
+      newConfig,
+      newEnvironment,
+    );
     if (!validation.isValid) {
-      throw new Error(`Invalid configuration for ${newEnvironment}: ${validation.errors.join(', ')}`);
+      throw new Error(
+        `Invalid configuration for ${newEnvironment}: ${validation.errors.join(
+          ', ',
+        )}`,
+      );
     }
 
     // Notify listeners of the change
-    ClaudeSkillsConfigNotificationManager.notifyConfigChange(newConfig, ClaudeSkillsConfigFactory.getConfigVersion());
-    
+    ClaudeSkillsConfigNotificationManager.notifyConfigChange(
+      newConfig,
+      ClaudeSkillsConfigFactory.getConfigVersion(),
+    );
+
     console.log(`🔄 Switched to ${newEnvironment} environment`);
     if (validation.warnings.length > 0) {
       console.warn('⚠️ Configuration warnings:', validation.warnings);
@@ -874,25 +994,33 @@ export class ClaudeSkillsEnvironmentManager {
   }
 
   static getCurrentEnvironment(): string {
-    return process.env.CLAUDE_SKILLS_ENVIRONMENT || 
-           (Environment.app.environment) || 
-           (__DEV__ ? 'development' : 'production');
+    return (
+      process.env.CLAUDE_SKILLS_ENVIRONMENT ||
+      Environment.app.environment ||
+      (__DEV__ ? 'development' : 'production')
+    );
   }
 
-  static async validateCurrentEnvironment(): Promise<{ isValid: boolean; issues: string[] }> {
+  static async validateCurrentEnvironment(): Promise<{
+    isValid: boolean;
+    issues: string[];
+  }> {
     try {
       const currentEnv = this.getCurrentEnvironment();
       const config = await ClaudeSkillsConfigFactory.createConfig();
-      const validation = ClaudeSkillsConfigValidator.validateForEnvironment(config, currentEnv);
-      
+      const validation = ClaudeSkillsConfigValidator.validateForEnvironment(
+        config,
+        currentEnv,
+      );
+
       return {
         isValid: validation.isValid && validation.warnings.length === 0,
-        issues: [...validation.errors, ...validation.warnings]
+        issues: [...validation.errors, ...validation.warnings],
       };
     } catch (error) {
       return {
         isValid: false,
-        issues: [error.message]
+        issues: [error.message],
       };
     }
   }
@@ -900,11 +1028,15 @@ export class ClaudeSkillsEnvironmentManager {
 
 // Configuration change notification system
 export class ClaudeSkillsConfigNotificationManager {
-  private static listeners: Array<(config: ClaudeSkillsConfig, version: number) => void> = [];
+  private static listeners: Array<
+    (config: ClaudeSkillsConfig, version: number) => void
+  > = [];
 
-  static addListener(listener: (config: ClaudeSkillsConfig, version: number) => void): () => void {
+  static addListener(
+    listener: (config: ClaudeSkillsConfig, version: number) => void,
+  ): () => void {
     this.listeners.push(listener);
-    
+
     // Return unsubscribe function
     return () => {
       const index = this.listeners.indexOf(listener);
@@ -926,11 +1058,11 @@ export class ClaudeSkillsConfigNotificationManager {
 }
 
 // Export all components
-export { 
-  ClaudeSkillsConfigFactory, 
-  ClaudeSkillsCredentialManager, 
+export {
+  ClaudeSkillsConfigFactory,
+  ClaudeSkillsCredentialManager,
   ClaudeSkillsConfigNotificationManager,
-  ClaudeSkillsEnvironmentManager 
+  ClaudeSkillsEnvironmentManager,
 };
 
 // Default export

@@ -6,4 +6,7 @@ export { default as ImportOptionsScreen } from './ImportOptionsScreen';
 export { default as StorySelectionScreen } from './StorySelectionScreen';
 export { default as StoryPreviewEditScreen } from './StoryPreviewEditScreen';
 export { default as ProfileCompletionScreen } from './ProfileCompletionScreen';
+export { default as AgeGatingScreen } from './AgeGatingScreen';
+export { default as ConsentPendingScreen } from './ConsentPendingScreen';
 export { default as StorySetupScreen } from './StorySetupScreen';
+export { default as ParentDashboardScreen } from './ParentDashboardScreen';

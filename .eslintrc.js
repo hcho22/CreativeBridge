@@ -12,5 +12,18 @@ module.exports = {
     'react-hooks/rules-of-hooks': 'warn',
     'no-catch-shadow': 'warn',
     'no-unreachable': 'warn',
+
+    // COPPA US-012: Prevent PII from leaking into logs.
+    // Do not log variables named email, userEmail, parentEmail, password,
+    // token, apiKey, userId, userName, userPhone, ssn, or similar identifiers.
+    'no-restricted-syntax': [
+      'warn',
+      {
+        selector:
+          "CallExpression[callee.object.name='console'] Identifier[name=/^(email|userEmail|parentEmail|password|token|apiKey|userId|userName|userPhone|ssn)$/]",
+        message:
+          'Do not log PII (email, userId, password, token, etc.). Redact or remove before logging. See COPPA US-012.',
+      },
+    ],
   },
 };

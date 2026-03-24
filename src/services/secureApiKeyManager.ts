@@ -23,7 +23,6 @@ export enum ApiService {
   REPLICATE_PRIMARY = 'replicate_primary',
   REPLICATE_BACKUP = 'replicate_backup',
   OPENAI = 'openai',
-  ELEVENLABS = 'elevenlabs',
 }
 
 // API key access tracking
@@ -122,20 +121,6 @@ class SecureApiKeyManager {
           };
         }
         break;
-
-      case ApiService.ELEVENLABS:
-        if (!key.startsWith('sk_')) {
-          return {
-            code: 'INVALID_ELEVENLABS_KEY_FORMAT',
-            message: `Invalid ElevenLabs API key format for ${service}`,
-            severity: 'MEDIUM', // Optional service
-            context: this.securityContext,
-            timestamp: new Date(),
-            userFriendlyMessage: 'Invalid voice service configuration',
-            retryable: false,
-          };
-        }
-        break;
     }
 
     return null; // Valid
@@ -206,9 +191,6 @@ class SecureApiKeyManager {
         break;
       case ApiService.OPENAI:
         rawKey = env.OPENAI_API_KEY;
-        break;
-      case ApiService.ELEVENLABS:
-        rawKey = env.ELEVENLABS_API_KEY;
         break;
       default:
         return {
@@ -297,9 +279,6 @@ class SecureApiKeyManager {
         case ApiService.OPENAI:
           rawKey = env.OPENAI_API_KEY;
           break;
-        case ApiService.ELEVENLABS:
-          rawKey = env.ELEVENLABS_API_KEY;
-          break;
       }
 
       const configured = Boolean(rawKey && rawKey.trim().length > 0);
@@ -340,19 +319,14 @@ class SecureApiKeyManager {
     }
 
     // Check optional keys and add warnings
-    const optionalServices = [
-      ApiService.REPLICATE_BACKUP,
-      ApiService.ELEVENLABS,
-    ];
+    const optionalServices = [ApiService.REPLICATE_BACKUP];
 
     for (const service of optionalServices) {
       const { error } = this.getApiKey(service);
-      if (error && service === ApiService.REPLICATE_BACKUP) {
+      if (error) {
         warnings.push(
           `Backup image generation service not configured: ${service}`,
         );
-      } else if (error && service === ApiService.ELEVENLABS) {
-        warnings.push(`Voice service not configured: ${service}`);
       }
     }
 

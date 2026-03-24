@@ -6,7 +6,7 @@
  * monitoring, and automated reporting system.
  */
 
-import { analyticsService } from '../../services/analyticsService';
+import { analyticsService, hashUserId } from '../../services/analyticsService';
 import { supabase } from '../../services/supabase';
 
 // Mock Supabase
@@ -236,7 +236,11 @@ describe('AnalyticsService', () => {
         'user-123',
       );
 
-      expect(mockBuilder.eq).toHaveBeenCalledWith('userId', 'user-123');
+      // US-013: Service hashes userId before querying
+      expect(mockBuilder.eq).toHaveBeenCalledWith(
+        'userId',
+        hashUserId('user-123'),
+      );
       expect(metrics.uniqueUsers).toBe(1);
     });
   });
@@ -261,7 +265,8 @@ describe('AnalyticsService', () => {
         'user-123',
       );
 
-      expect(engagement).toHaveProperty('userId', 'user-123');
+      // US-013: Returned userId is hashed
+      expect(engagement).toHaveProperty('userId', hashUserId('user-123'));
       expect(engagement).toHaveProperty('sessionsThisWeek');
       expect(engagement).toHaveProperty('sessionsThisMonth');
       expect(engagement).toHaveProperty('totalStoryImports');
@@ -799,6 +804,92 @@ describe('AnalyticsService', () => {
 
       // Should not throw errors
       expect(true).toBe(true);
+    });
+  });
+
+  describe('US-013: Anonymization', () => {
+    it('hashUserId produces deterministic output', () => {
+      const hash1 = hashUserId('user-123');
+      const hash2 = hashUserId('user-123');
+      expect(hash1).toBe(hash2);
+    });
+
+    it('hashUserId produces different output for different inputs', () => {
+      const hash1 = hashUserId('user-123');
+      const hash2 = hashUserId('user-456');
+      expect(hash1).not.toBe(hash2);
+    });
+
+    it('hashUserId output starts with anon_ prefix', () => {
+      const hash = hashUserId('user-123');
+      expect(hash).toMatch(/^anon_/);
+    });
+
+    it('hashUserId does not contain the original userId', () => {
+      const hash = hashUserId('user-123');
+      expect(hash).not.toContain('user-123');
+    });
+
+    it('trackEvent strips deviceInfo from metadata', async () => {
+      const service = analyticsService as any;
+      service.localEventQueue = [];
+
+      await analyticsService.trackEvent({
+        type: 'user_engagement',
+        subtype: 'test',
+        userId: 'user-123',
+        sessionId: 'session-test',
+        timestamp: new Date().toISOString(),
+        metadata: {
+          deviceInfo: { platform: 'ios', model: 'iPhone 15' },
+          someOtherField: 'kept',
+        },
+      });
+
+      const lastEvent =
+        service.localEventQueue[service.localEventQueue.length - 1];
+      expect(lastEvent.metadata).not.toHaveProperty('deviceInfo');
+      expect(lastEvent.metadata).toHaveProperty('someOtherField', 'kept');
+    });
+
+    it('trackEvent hashes userId in stored events', async () => {
+      const service = analyticsService as any;
+      service.localEventQueue = [];
+
+      await analyticsService.trackEvent({
+        type: 'user_engagement',
+        subtype: 'test',
+        userId: 'user-123',
+        sessionId: 'session-test',
+        timestamp: new Date().toISOString(),
+        metadata: {},
+      });
+
+      const lastEvent =
+        service.localEventQueue[service.localEventQueue.length - 1];
+      expect(lastEvent.userId).toBe(hashUserId('user-123'));
+      expect(lastEvent.userId).not.toBe('user-123');
+    });
+
+    it('trackEvent preserves "system" userId without hashing', async () => {
+      const service = analyticsService as any;
+      service.localEventQueue = [];
+
+      await analyticsService.trackPerformance('test_op', 100, true);
+
+      const lastEvent =
+        service.localEventQueue[service.localEventQueue.length - 1];
+      expect(lastEvent.userId).toBe('system');
+    });
+
+    it('aggregate analysis still works with hashed userIds', async () => {
+      // Verify that unique user counting works with hashed IDs
+      const hash1 = hashUserId('user-123');
+      const hash2 = hashUserId('user-456');
+      const hash1Again = hashUserId('user-123');
+
+      const uniqueUsers = new Set([hash1, hash2, hash1Again]);
+      expect(uniqueUsers.size).toBe(2); // 2 unique users
     });
   });
 

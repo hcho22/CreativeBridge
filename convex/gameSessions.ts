@@ -79,6 +79,16 @@ export const createSession = mutation({
       );
     }
 
+    // US-002: Block session creation for under-13 users without granted consent
+    if (
+      userProfile.ageGroup === 'under_13' &&
+      userProfile.consentStatus !== 'granted'
+    ) {
+      throw new Error(
+        'Parental consent is required before you can create stories. Please ask a parent to check their email.',
+      );
+    }
+
     // Create the new session with initialized tracking fields
     const sessionId = await ctx.db.insert('gameSessions', {
       userId: userProfile._id,
@@ -167,6 +177,17 @@ export const createStoryContinuationSession = mutation({
         'User profile not found. Please complete account setup first.',
       );
     }
+
+    // US-002: Block session creation for under-13 users without granted consent
+    if (
+      userProfile.ageGroup === 'under_13' &&
+      userProfile.consentStatus !== 'granted'
+    ) {
+      throw new Error(
+        'Parental consent is required before you can create stories.',
+      );
+    }
+
     // Create the continuation session
     const sessionId = await ctx.db.insert('gameSessions', {
       userId: userProfile._id,

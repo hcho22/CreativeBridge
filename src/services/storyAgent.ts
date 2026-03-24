@@ -13,6 +13,8 @@ import {
   QualityAssessmentResult,
 } from './contentQuality';
 import { SkillManager } from '../types/claudeSkills';
+import { sanitizePromptInput } from './promptSanitizer';
+import { checkOutputSafety } from './contentSafetyService';
 
 interface StoryStarterRequest {
   gradeLevel: GradeLevel;
@@ -527,19 +529,30 @@ class StoryAgentService {
   }
 
   private buildStarterRequest(request: StoryStarterRequest): StoryRequest {
+    // US-011: Sanitize user-provided fields before prompt assembly
+    const safeTheme = request.theme
+      ? sanitizePromptInput(request.theme)
+      : undefined;
+    const safeCharacter = request.character
+      ? sanitizePromptInput(request.character)
+      : undefined;
+    const safeSetting = request.setting
+      ? sanitizePromptInput(request.setting)
+      : undefined;
+
     let prompt =
       'Create a sophisticated and engaging story opening that will captivate readers at the specified grade level';
 
-    if (request.theme) {
-      prompt += ` exploring the rich theme of ${request.theme} with depth and nuance`;
+    if (safeTheme) {
+      prompt += ` exploring the rich theme of ${safeTheme} with depth and nuance`;
     }
 
-    if (request.character) {
-      prompt += ` featuring a compelling character inspired by ${request.character} with distinct personality, motivations, and challenges`;
+    if (safeCharacter) {
+      prompt += ` featuring a compelling character inspired by ${safeCharacter} with distinct personality, motivations, and challenges`;
     }
 
-    if (request.setting) {
-      prompt += ` set in the vivid and immersive world of ${request.setting} with rich sensory details and authentic atmosphere`;
+    if (safeSetting) {
+      prompt += ` set in the vivid and immersive world of ${safeSetting} with rich sensory details and authentic atmosphere`;
     }
 
     const safetyWords = this.safetyKeywords[request.gradeLevel];
@@ -664,20 +677,9 @@ class StoryAgentService {
       storyLower.includes(word.toLowerCase()),
     );
 
-    const inappropriateContent = [
-      'violence',
-      'scary',
-      'death',
-      'weapon',
-      'fight',
-      'hurt',
-      'angry',
-    ];
-    const foundInappropriate = inappropriateContent.filter(word =>
-      storyLower.includes(word),
-    );
-
-    if (foundInappropriate.length > 0) {
+    // US-014: Use centralized content blocklist for appropriateness scoring
+    const outputSafety = checkOutputSafety(story);
+    if (!outputSafety.safe) {
       return 0.0;
     }
 

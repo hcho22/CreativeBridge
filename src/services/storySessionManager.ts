@@ -140,7 +140,7 @@ class StorySessionManager {
     metadata?: Partial<StorySession['metadata']>,
   ): Promise<StorySession> {
     try {
-      console.log('Creating new session for user:', userId);
+      console.log('Creating new session');
 
       if (!isConvexReady()) {
         throw new Error('Convex is not ready');
@@ -461,7 +461,7 @@ class StorySessionManager {
   // Get all sessions for a user (Convex only - US-013)
   public async getUserSessions(userId: string): Promise<SessionSummary[]> {
     try {
-      console.log('Fetching user sessions for user:', userId);
+      console.log('Fetching user sessions');
 
       if (!isConvexReady()) {
         console.warn('⚠️ Convex not ready, returning empty sessions');

@@ -16,12 +16,19 @@ import ImportOptionsScreen from '../screens/ImportOptionsScreen';
 import StorySelectionScreen from '../screens/StorySelectionScreen';
 import StoryPreviewEditScreen from '../screens/StoryPreviewEditScreen';
 import StorySetupScreen from '../screens/StorySetupScreen';
+import ParentDashboardScreen from '../screens/ParentDashboardScreen';
 
 // Type definitions for navigation
 export type TabParamList = {
   HomeStack: undefined;
-  Settings: undefined;
+  SettingsStack: undefined;
   Profile: undefined;
+};
+
+// Settings stack navigation types (US-021: ParentDashboard)
+export type SettingsStackParamList = {
+  Settings: undefined;
+  ParentDashboard: undefined;
 };
 
 // Stack navigation types for story continuation flow
@@ -60,6 +67,7 @@ export type AuthStackParamList = {
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const HomeStack = createStackNavigator<HomeStackParamList>();
+const SettingsStack = createStackNavigator<SettingsStackParamList>();
 
 // HomeStack component for story continuation flow
 const HomeStackNavigator: React.FC = () => {
@@ -130,6 +138,19 @@ const HomeStackNavigator: React.FC = () => {
   );
 };
 
+// SettingsStack component for parent dashboard navigation (US-021)
+const SettingsStackNavigator: React.FC = () => {
+  return (
+    <SettingsStack.Navigator screenOptions={{ headerShown: false }}>
+      <SettingsStack.Screen name="Settings" component={SettingsScreen} />
+      <SettingsStack.Screen
+        name="ParentDashboard"
+        component={ParentDashboardScreen}
+      />
+    </SettingsStack.Navigator>
+  );
+};
+
 // Extract icon component to avoid nested component definition
 const TabBarIcon: React.FC<{
   route: { name: keyof TabParamList };
@@ -142,7 +163,7 @@ const TabBarIcon: React.FC<{
     case 'HomeStack':
       emoji = '🏠';
       break;
-    case 'Settings':
+    case 'SettingsStack':
       emoji = '⚙️';
       break;
     case 'Profile':
@@ -217,8 +238,8 @@ const AppNavigator: React.FC = () => {
           }}
         />
         <Tab.Screen
-          name="Settings"
-          component={SettingsScreen}
+          name="SettingsStack"
+          component={SettingsStackNavigator}
           options={{
             title: 'Settings',
             headerShown: false,

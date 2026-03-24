@@ -137,6 +137,39 @@ export const downloadMethodValidator = v.union(
 );
 
 /**
+ * Age group classification for COPPA compliance.
+ * Determines whether verifiable parental consent is required.
+ */
+export const ageGroupValidator = v.union(
+  v.literal('under_13'),
+  v.literal('13_to_17'),
+  v.literal('18_plus'),
+);
+
+/**
+ * Consent status for COPPA compliance.
+ * Tracks the parental consent lifecycle for under-13 users.
+ */
+export const consentStatusValidator = v.union(
+  v.literal('not_required'),
+  v.literal('pending'),
+  v.literal('granted'),
+  v.literal('withdrawn'),
+  v.literal('renewal_required'),
+);
+
+/**
+ * Consent type categories.
+ * Tracks what kind of consent was granted.
+ */
+export const consentTypeValidator = v.union(
+  v.literal('terms'),
+  v.literal('privacy'),
+  v.literal('data_collection'),
+  v.literal('vpc'),
+);
+
+/**
  * Migration event types.
  * Tracks the lifecycle of a Supabase → Clerk user migration.
  */
@@ -196,6 +229,10 @@ export default defineSchema({
     preferredGradeLevel: gradeLevelValidator,
     speechEnabled: v.boolean(),
     preferredGenre: v.optional(genreValidator),
+
+    // COPPA Compliance (US-001, US-002)
+    ageGroup: v.optional(ageGroupValidator),
+    consentStatus: v.optional(consentStatusValidator),
 
     // Optional Profile Data
     avatarUrl: v.optional(v.string()),
@@ -472,4 +509,49 @@ export default defineSchema({
   })
     .index('by_event_type', ['eventType'])
     .index('by_clerk_user', ['clerkUserId']),
+
+  /**
+   * Consent Records Table (US-002, US-016)
+   *
+   * Stores verifiable parental consent (VPC) records for COPPA compliance.
+   * Records are retained for 3 years after account deletion per COPPA requirements.
+   *
+   * @index by_child - Lookup consent records by child user ID
+   * @index by_parent - Lookup consent records by parent email
+   * @index by_token - Lookup by consent verification token
+   */
+  consentRecords: defineTable({
+    // Child-parent relationship
+    childUserId: v.string(), // Clerk user ID of the child
+    parentEmail: v.string(),
+
+    // Consent details
+    consentType: consentTypeValidator,
+    consentVersion: v.string(), // Privacy policy version (e.g., "1.0.0")
+    consentTimestamp: v.optional(v.number()), // When consent was granted (epoch ms)
+    verificationMethod: v.string(), // e.g., "email_plus"
+
+    // Token for email verification flow (VPC only — not used for terms/privacy consent)
+    consentToken: v.optional(v.string()), // Unique token sent in consent email
+    consentTokenExpiresAt: v.optional(v.number()), // Token expiry timestamp (epoch ms)
+
+    // Lifecycle
+    status: v.union(
+      v.literal('pending'),
+      v.literal('granted'),
+      v.literal('expired'),
+      v.literal('withdrawn'),
+      v.literal('renewal_required'),
+    ),
+    withdrawnAt: v.optional(v.number()),
+
+    // Annual consent renewal tracking (US-022)
+    renewalReminderSentAt: v.optional(v.number()), // When the 11-month reminder was sent (epoch ms)
+
+    // Deletion tracking — consent records retained 3 years post-deletion (COPPA)
+    accountDeletedAt: v.optional(v.number()), // When the child's account was deleted (epoch ms)
+  })
+    .index('by_child', ['childUserId'])
+    .index('by_parent', ['parentEmail'])
+    .index('by_token', ['consentToken']),
 });

@@ -24,6 +24,7 @@ import Share from '../../utils/shareWrapper';
 import RNFS, { rnfsWrapper } from '../../utils/rnfsWrapper';
 import FullScreenImageModal, { StoryImage } from './FullScreenImageModal';
 import FolderPickerUtil from '../../utils/folderPicker';
+import { useParentalGate } from './ParentalGate';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -127,6 +128,8 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
   enableTouchFeedback = true,
   displayMode = 'responsive',
 }) => {
+  const { openURL, ParentalGateModal } = useParentalGate();
+
   // NEW: URL Priority Logic - Prioritize Supabase URL over Replicate URL
   // Falls back to legacy imageUrl if neither is provided
   const effectiveImageUrl = React.useMemo(() => {
@@ -1189,22 +1192,11 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
               ) : (
                 <TouchableOpacity
                   style={styles.openUrlButton}
-                  onPress={async () => {
-                    console.log('🖼️ [DEBUG] User opening image URL externally');
-                    try {
-                      const supported = await Linking.canOpenURL(imageUrl);
-                      if (supported) {
-                        await Linking.openURL(imageUrl);
-                      } else {
-                        Alert.alert(
-                          'Cannot open URL',
-                          'Unable to open the image URL in an external browser.',
-                        );
-                      }
-                    } catch (error) {
-                      console.error('Error opening URL:', error);
-                      Alert.alert('Error', 'Failed to open the image URL.');
-                    }
+                  onPress={() => {
+                    console.log(
+                      '🖼️ [DEBUG] User opening image URL externally (via parental gate)',
+                    );
+                    openURL(imageUrl);
                   }}
                 >
                   <Text style={styles.openUrlButtonText}>Open in Browser</Text>
@@ -1630,6 +1622,9 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
           darkMode={true}
         />
       )}
+
+      {/* US-009: Parental Gate for external links */}
+      <ParentalGateModal />
     </>
   );
 };

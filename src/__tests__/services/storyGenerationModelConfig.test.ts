@@ -14,7 +14,6 @@ describe('StoryGenerationService model config', () => {
       OPENAI_MODEL: 'gpt-4o-mini',
       SUPABASE_URL: '',
       SUPABASE_ANON_KEY: '',
-      ELEVENLABS_API_KEY: '',
       CLERK_PUBLISHABLE_KEY: '',
       CLERK_SECRET_KEY: '',
       CLERK_JWKS_URL: '',

@@ -113,12 +113,11 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
         case 'content_safety':
           return {
             icon: '🛡️',
-            title: 'Content Safety Check',
+            title: "Let's Try Something Different!",
             message:
-              'Your story content needs adjustment for image generation. Please try rewriting some parts.',
-            action: 'Learn More',
-            actionHint:
-              'Make sure your story is appropriate and follows community guidelines',
+              "We couldn't create that image. Try a different scene for your story!",
+            action: 'Got It',
+            actionHint: 'Try changing the scene or characters in your story',
             canRetry: false,
             severity: 'warning' as const,
           };

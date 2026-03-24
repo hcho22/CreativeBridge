@@ -59,24 +59,17 @@ function useAuthWithConvexDebug() {
           console.log(
             `✅ [Convex Auth Debug] Token received for template "${template}"`,
           );
-          console.log(`🔑 [Convex Auth Debug] Token length: ${token.length}`);
+          console.log('🔑 [Convex Auth Debug] Token received');
 
           // Decode and log JWT HEADER for debugging
           const header = decodeJwtHeader(token);
           if (header) {
-            console.log(
-              `🔑 [Convex Auth Debug] JWT HEADER:`,
-              JSON.stringify(header, null, 2),
-            );
+            console.log(`🔑 [Convex Auth Debug] JWT HEADER alg:`, header.alg);
           }
 
           // Decode and log ALL claims for debugging
           const payload = decodeJwtPayload(token);
           if (payload) {
-            console.log(
-              `🔑 [Convex Auth Debug] Token claims (ALL):`,
-              JSON.stringify(payload, null, 2),
-            );
             console.log(`🔑 [Convex Auth Debug] OIDC Required claims check:`, {
               iss: payload.iss ? '✅' : '❌ MISSING',
               sub: payload.sub ? '✅' : '❌ MISSING',

@@ -9,7 +9,6 @@ import {
   SUPABASE_URL as ENV_SUPABASE_URL,
   SUPABASE_ANON_KEY as ENV_SUPABASE_ANON_KEY,
   OPENAI_API_KEY as ENV_OPENAI_API_KEY,
-  ELEVENLABS_API_KEY as ENV_ELEVENLABS_API_KEY,
   REPLICATE_API_TOKEN as ENV_REPLICATE_API_TOKEN,
   BACKUP_IMAGE_API_TOKEN as ENV_BACKUP_IMAGE_API_TOKEN,
   IMAGE_GENERATION_ENABLED as ENV_IMAGE_GENERATION_ENABLED,
@@ -28,9 +27,6 @@ export interface EnvironmentConfig {
 
   // OpenAI Configuration
   OPENAI_API_KEY: string;
-
-  // ElevenLabs Voice AI (Optional)
-  ELEVENLABS_API_KEY?: string;
 
   // Image Generation Configuration
   REPLICATE_API_TOKEN: string;
@@ -120,9 +116,6 @@ const loadEnvironmentConfig = (): EnvironmentConfig => {
 
     // OpenAI Configuration
     OPENAI_API_KEY: getEnvVar(ENV_OPENAI_API_KEY),
-
-    // ElevenLabs Voice AI (Optional)
-    ELEVENLABS_API_KEY: ENV_ELEVENLABS_API_KEY,
 
     // Image Generation Configuration
     REPLICATE_API_TOKEN: getEnvVar(ENV_REPLICATE_API_TOKEN),
@@ -224,13 +217,6 @@ const validateEnvironmentConfig = (config: EnvironmentConfig): void => {
     console.log(`   🎨 Replicate: ${maskKey(config.REPLICATE_API_TOKEN)}`);
     console.log(
       `   🔄 Backup Service: ${maskKey(config.BACKUP_IMAGE_API_TOKEN)}`,
-    );
-    console.log(
-      `   🎤 ElevenLabs: ${
-        config.ELEVENLABS_API_KEY
-          ? maskKey(config.ELEVENLABS_API_KEY)
-          : '➖ (Optional)'
-      }`,
     );
     console.log(
       `   🖼️  Image Generation: ${

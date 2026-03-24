@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   StatusBar,
   View,
@@ -13,7 +13,13 @@ import { KaushanScript_400Regular } from '@expo-google-fonts/kaushan-script';
 import { ArchitectsDaughter_400Regular } from '@expo-google-fonts/architects-daughter';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { AppNavigator } from './src/navigation';
-import { AuthScreen, ProfileCompletionScreen } from './src/screens';
+import {
+  AuthScreen,
+  ProfileCompletionScreen,
+  AgeGatingScreen,
+  ConsentPendingScreen,
+} from './src/screens';
+import ParentEmailScreen from './src/screens/ParentEmailScreen';
 import ErrorBoundary from './src/components/common/ErrorBoundary';
 import { ConditionalClerkProvider } from './src/components/common/ConditionalClerkProvider';
 import { isClerkConfigured } from './src/config/environment';
@@ -22,6 +28,8 @@ import {
   handleClerkCallback,
 } from './src/utils/clerkDeepLink';
 import { useSafeClerkAuth } from './src/hooks/useSafeClerkAuth';
+import { useQuery } from 'convex/react';
+import { api } from './src/services/convex';
 // Note (US-016): Supabase import removed — auth handled by Clerk only
 
 // Import expo-web-browser with error handling for native module linking
@@ -52,10 +60,22 @@ const MainApp: React.FC = () => {
     KaushanScript_400Regular,
     ArchitectsDaughter_400Regular,
   });
-  const { loading, needsProfileCompletion, refreshProfile } = useAuth();
+  const {
+    loading,
+    needsProfileCompletion,
+    needsAgeVerification,
+    refreshProfile,
+    signOut,
+  } = useAuth();
   const { clerkUser, clerkAuth } = useSafeClerkAuth();
   const appState = useRef(AppState.currentState);
   const clerkCallbackProcessed = useRef(false);
+
+  // COPPA consent check (US-002) — Convex reactive query
+  const consentCheck = useQuery(
+    api.consent.isConsentRequired,
+    clerkAuth?.userId ? { clerkUserId: clerkAuth.userId } : 'skip',
+  );
 
   // ALL useEffect hooks must be called at the top level, before any returns
   useEffect(() => {
@@ -251,6 +271,57 @@ const MainApp: React.FC = () => {
           await refreshProfile();
           // Re-check profile completion to update needsProfileCompletion state
           // This ensures the app navigates to main content after skip
+        }}
+      />
+    );
+  }
+
+  // US-001: Age-gating — prompt for age group if not yet provided
+  if (needsAgeVerification) {
+    return (
+      <AgeGatingScreen
+        onComplete={async () => {
+          await refreshProfile();
+        }}
+      />
+    );
+  }
+
+  // US-002 / US-022: COPPA consent gating for under-13 users
+  if (consentCheck?.required) {
+    if (consentCheck.reason === 'consent_pending') {
+      // Parent email was submitted, waiting for parent to grant consent
+      return (
+        <ConsentPendingScreen
+          onConsentGranted={async () => {
+            await refreshProfile();
+          }}
+          onSignOut={async () => {
+            await signOut();
+          }}
+        />
+      );
+    }
+
+    // US-022: renewal_required — annual consent has expired, needs re-verification
+    if (consentCheck.reason === 'renewal_required') {
+      return (
+        <ParentEmailScreen
+          isRenewal
+          onConsentInitiated={async () => {
+            await refreshProfile();
+          }}
+        />
+      );
+    }
+
+    // consent_needed: age-gating identified under-13 but no parent email submitted yet
+    return (
+      <ParentEmailScreen
+        onConsentInitiated={async () => {
+          // The Convex query will reactively update consentCheck
+          // which will switch to ConsentPendingScreen
+          await refreshProfile();
         }}
       />
     );

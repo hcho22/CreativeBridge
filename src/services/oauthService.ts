@@ -187,7 +187,7 @@ export async function completeOAuthFlow(
     let userEmail: string | undefined;
     if (clerkUser?.emailAddresses && clerkUser.emailAddresses.length > 0) {
       userEmail = clerkUser.emailAddresses[0].emailAddress;
-      console.log('📧 [OAuth Service] User email extracted:', userEmail);
+      console.log('📧 [OAuth Service] User email extracted: [REDACTED]');
 
       // Log if this appears to be an Apple private relay email
       if (

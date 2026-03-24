@@ -107,7 +107,7 @@ export const clerkTokenCache: TokenCache = {
     const sanitizedKey = sanitizeKey(key);
     const prefixedKey = `${CLERK_TOKEN_PREFIX}${sanitizedKey}`;
 
-    console.log(`🧹 clearToken called for: ${key} (stored as: ${prefixedKey})`);
+    console.log('🧹 clearToken called');
 
     // Remove from tracking Set
     tokenKeys.delete(prefixedKey);
@@ -115,10 +115,10 @@ export const clerkTokenCache: TokenCache = {
     // Fire-and-forget deletion per Clerk interface (don't await)
     SecureStore.deleteItemAsync(prefixedKey)
       .then(() => {
-        console.log(`✅ clearToken: Successfully deleted ${prefixedKey}`);
+        console.log('✅ clearToken: Successfully deleted token');
       })
       .catch(error => {
-        console.error(`❌ clearToken: Failed to delete ${prefixedKey}:`, error);
+        console.error('❌ clearToken: Failed to delete token:', error);
       });
   },
 
@@ -240,9 +240,9 @@ export async function clearAllClerkTokens(): Promise<boolean> {
       try {
         await SecureStore.deleteItemAsync(key);
         successCount++;
-        console.log(`✅ Deleted token: ${key}`);
+        console.log('✅ Deleted token');
       } catch (error) {
-        console.error(`❌ Failed to delete token ${key}:`, error);
+        console.error('❌ Failed to delete token:', error);
         failureCount++;
       }
     }

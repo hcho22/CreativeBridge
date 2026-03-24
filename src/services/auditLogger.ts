@@ -1,6 +1,5 @@
 import { supabase } from './supabase';
-import { Platform } from 'react-native';
-import DeviceInfo from './deviceInfo';
+import { Platform, Dimensions } from 'react-native';
 
 export enum EventType {
   // Authentication Events
@@ -116,8 +115,7 @@ export interface AuditLogEntry {
 }
 
 export interface DeviceFingerprint {
-  deviceId: string;
-  deviceName: string;
+  sessionFingerprint: string;
   deviceType: 'MOBILE' | 'TABLET' | 'DESKTOP' | 'UNKNOWN';
   osName: string;
   osVersion: string;
@@ -139,37 +137,19 @@ class AuditLogger {
     if (this.isInitialized) return;
 
     try {
-      // Generate session ID
+      // Generate session ID (ephemeral, not persisted across app launches)
       this.sessionId = this.generateSessionId();
 
-      // Collect device information
-      const [
-        deviceId,
-        deviceName,
-        systemName,
-        systemVersion,
-        appVersion,
-        dimensions,
-      ] = await Promise.all([
-        DeviceInfo.getUniqueId(),
-        DeviceInfo.getDeviceName(),
-        DeviceInfo.getSystemName(),
-        DeviceInfo.getSystemVersion(),
-        DeviceInfo.getVersion(),
-        DeviceInfo.getDeviceDimensions(),
-      ]);
+      // Collect non-identifying device info only (COPPA: no persistent device IDs)
+      const { width, height } = Dimensions.get('window');
 
       this.deviceFingerprint = {
-        deviceId,
-        deviceName,
+        sessionFingerprint: this.sessionId,
         deviceType: this.getDeviceType(),
-        osName: systemName,
-        osVersion: systemVersion,
-        appVersion,
-        screenDimensions: {
-          width: dimensions.width,
-          height: dimensions.height,
-        },
+        osName: Platform.OS,
+        osVersion: Platform.Version.toString(),
+        appVersion: '1.0.0',
+        screenDimensions: { width, height },
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         locale: Intl.DateTimeFormat().resolvedOptions().locale,
       };
@@ -177,10 +157,8 @@ class AuditLogger {
       this.isInitialized = true;
     } catch (error) {
       console.error('Failed to initialize audit logger:', error);
-      // Fallback device info
       this.deviceFingerprint = {
-        deviceId: 'unknown',
-        deviceName: 'Unknown Device',
+        sessionFingerprint: this.sessionId || 'unknown',
         deviceType: this.getDeviceType(),
         osName: Platform.OS,
         osVersion: Platform.Version.toString(),
@@ -433,7 +411,7 @@ class AuditLogger {
     });
   }
 
-  // Device registration
+  // Device registration (COPPA: no persistent device IDs or names collected)
   async registerDevice(userId: string): Promise<void> {
     if (!this.deviceFingerprint) {
       await this.initialize();
@@ -442,13 +420,13 @@ class AuditLogger {
     try {
       const { error } = await supabase.rpc('register_device', {
         p_user_id: userId,
-        p_device_id: this.deviceFingerprint!.deviceId,
-        p_device_name: this.deviceFingerprint!.deviceName,
+        p_device_id: this.deviceFingerprint!.sessionFingerprint,
+        p_device_name: 'Anonymous Device',
         p_device_type: this.deviceFingerprint!.deviceType,
         p_os_name: this.deviceFingerprint!.osName,
         p_os_version: this.deviceFingerprint!.osVersion,
         p_app_version: this.deviceFingerprint!.appVersion,
-        p_ip_address: null, // Would need to get from a service
+        p_ip_address: null,
         p_location_info: null,
       });
 
@@ -458,10 +436,9 @@ class AuditLogger {
           eventType: EventType.DEVICE_REGISTERED,
           eventCategory: EventCategory.SECURITY,
           severity: Severity.LOW,
-          description: 'Device registered successfully',
+          description: 'Device session registered successfully',
           metadata: {
-            deviceId: this.deviceFingerprint!.deviceId,
-            deviceName: this.deviceFingerprint!.deviceName,
+            deviceType: this.deviceFingerprint!.deviceType,
           },
         });
       }

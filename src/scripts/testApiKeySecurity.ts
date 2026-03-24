@@ -21,17 +21,14 @@ const TEST_SCENARIOS = {
   validKeys: {
     replicate: 'r8_test123456789abcdef',
     openai: 'sk-test123456789abcdef',
-    elevenlabs: 'sk_test123456789abcdef',
   },
   invalidKeys: {
     replicate: 'invalid_replicate_key',
     openai: 'invalid_openai_key',
-    elevenlabs: 'invalid_elevenlabs_key',
   },
   emptyKeys: {
     replicate: '',
     openai: '',
-    elevenlabs: '',
   },
 };
 
@@ -119,11 +116,7 @@ class ApiKeySecurityTester {
 
     try {
       // Test getting API keys (this should log masked versions)
-      const services = [
-        ApiService.REPLICATE_PRIMARY,
-        ApiService.OPENAI,
-        ApiService.ELEVENLABS,
-      ];
+      const services = [ApiService.REPLICATE_PRIMARY, ApiService.OPENAI];
 
       for (const service of services) {
         const result = getApiKey(service);

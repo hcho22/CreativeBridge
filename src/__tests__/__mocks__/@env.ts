@@ -7,7 +7,6 @@ module.exports = {
   OPENAI_MODEL: '',
   SUPABASE_URL: 'https://mock.supabase.co',
   SUPABASE_ANON_KEY: 'mock-anon-key',
-  ELEVENLABS_API_KEY: '',
   CLERK_PUBLISHABLE_KEY: '',
   CLERK_SECRET_KEY: '',
   CLERK_JWKS_URL: '',

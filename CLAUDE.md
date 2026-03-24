@@ -4,17 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Documentation
 
-Before starting any task, read `.agent/README.md` for context. All important documentation lives in `.agent/`:
+Before starting any task, read `.claude/.agent/README.md` for context. All important documentation lives in `.claude/.agent/`:
 
 - **Tasks/**: PRDs and implementation plans for features
 - **System/**: Architecture, database schema, integration points
 - **SOP/**: Procedures for migrations, deployments, testing
 
-Always update `.agent/` docs after implementing features.
+Always update `.claude/.agent/` docs after implementing features.
 
 ## Environment Setup
 
-- Copy `.env.example` to `.env` and fill in API keys (Convex, Supabase, OpenAI, Replicate, ElevenLabs)
+- Copy `.env.example` to `.env` and fill in API keys (Convex, Supabase, OpenAI, Replicate)
 - `.npmrc` has `legacy-peer-deps=true` — required for dependency installation
 - Convex dev deployment: run `npx convex dev` alongside Metro
 

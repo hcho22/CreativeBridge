@@ -23,6 +23,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../../constants/theme';
+import { useParentalGate } from './ParentalGate';
 
 export type OAuthProvider = 'google' | 'apple';
 
@@ -157,127 +158,133 @@ export const OAuthSessionHelpModal: React.FC<OAuthSessionHelpModalProps> = ({
   provider,
 }) => {
   const instructions = getProviderInstructions(provider);
+  const { openURL, ParentalGateModal } = useParentalGate();
 
   const handleOpenSettings = () => {
     if (Platform.OS === 'ios' && provider === 'apple') {
       Linking.openSettings();
     } else if (provider === 'google') {
-      Linking.openURL('https://accounts.google.com');
+      openURL('https://accounts.google.com');
     }
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="fade"
-      transparent
-      onRequestClose={onClose}
-      accessibilityViewIsModal
-      statusBarTranslucent
-    >
-      <View style={styles.backdrop}>
-        {/* Backdrop touch handler */}
-        <TouchableOpacity
-          style={StyleSheet.absoluteFill}
-          activeOpacity={1}
-          onPress={onClose}
-          accessible={false}
-        />
+    <>
+      <Modal
+        visible={visible}
+        animationType="fade"
+        transparent
+        onRequestClose={onClose}
+        accessibilityViewIsModal
+        statusBarTranslucent
+      >
+        <View style={styles.backdrop}>
+          {/* Backdrop touch handler */}
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={onClose}
+            accessible={false}
+          />
 
-        <SafeAreaView style={styles.safeArea} pointerEvents="box-none">
-          <View
-            style={styles.modalContainer}
-            accessible
-            accessibilityRole="alert"
-            accessibilityLabel={`${instructions.title}. ${instructions.intro}`}
-          >
-            {/* Close button */}
-            <TouchableOpacity
-              onPress={onClose}
-              style={styles.closeButton}
-              accessibilityLabel="Close help"
-              accessibilityRole="button"
-              accessibilityHint="Dismisses this help modal"
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          <SafeAreaView style={styles.safeArea} pointerEvents="box-none">
+            <View
+              style={styles.modalContainer}
+              accessible
+              accessibilityRole="alert"
+              accessibilityLabel={`${instructions.title}. ${instructions.intro}`}
             >
-              <Text style={styles.closeButtonText}>✕</Text>
-            </TouchableOpacity>
+              {/* Close button */}
+              <TouchableOpacity
+                onPress={onClose}
+                style={styles.closeButton}
+                accessibilityLabel="Close help"
+                accessibilityRole="button"
+                accessibilityHint="Dismisses this help modal"
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
 
-            {/* Header */}
-            <View style={styles.iconContainer}>
-              <Text style={styles.iconText}>{instructions.icon}</Text>
-            </View>
-
-            <Text style={styles.title} accessibilityRole="header">
-              {instructions.title}
-            </Text>
-
-            {/* Scrollable content */}
-            <ScrollView
-              style={styles.scrollView}
-              contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={false}
-            >
-              {/* Intro text */}
-              <Text style={styles.introText}>{instructions.intro}</Text>
-
-              {/* Steps */}
-              <View style={styles.stepsContainer}>
-                {instructions.steps.map(step => (
-                  <View key={step.step} style={styles.stepItem}>
-                    <View style={styles.stepNumber}>
-                      <Text style={styles.stepNumberText}>{step.step}</Text>
-                    </View>
-                    <View style={styles.stepContent}>
-                      <Text style={styles.stepTitle}>{step.title}</Text>
-                      <Text style={styles.stepDescription}>
-                        {step.description}
-                      </Text>
-                    </View>
-                  </View>
-                ))}
+              {/* Header */}
+              <View style={styles.iconContainer}>
+                <Text style={styles.iconText}>{instructions.icon}</Text>
               </View>
 
-              {/* Tip */}
-              {instructions.tip && (
-                <View style={styles.tipContainer}>
-                  <Text style={styles.tipIcon}>💡</Text>
-                  <Text style={styles.tipText}>{instructions.tip}</Text>
+              <Text style={styles.title} accessibilityRole="header">
+                {instructions.title}
+              </Text>
+
+              {/* Scrollable content */}
+              <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+              >
+                {/* Intro text */}
+                <Text style={styles.introText}>{instructions.intro}</Text>
+
+                {/* Steps */}
+                <View style={styles.stepsContainer}>
+                  {instructions.steps.map(step => (
+                    <View key={step.step} style={styles.stepItem}>
+                      <View style={styles.stepNumber}>
+                        <Text style={styles.stepNumberText}>{step.step}</Text>
+                      </View>
+                      <View style={styles.stepContent}>
+                        <Text style={styles.stepTitle}>{step.title}</Text>
+                        <Text style={styles.stepDescription}>
+                          {step.description}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
                 </View>
-              )}
-            </ScrollView>
 
-            {/* Buttons */}
-            <View style={styles.buttonContainer}>
-              {/* Quick action button (open settings/browser) */}
-              <TouchableOpacity
-                style={styles.secondaryButton}
-                onPress={handleOpenSettings}
-                accessibilityLabel={
-                  provider === 'apple' ? 'Open Settings' : 'Open Google'
-                }
-                accessibilityRole="button"
-              >
-                <Text style={styles.secondaryButtonText}>
-                  {provider === 'apple' ? 'Open Settings' : 'Open Google'}
-                </Text>
-              </TouchableOpacity>
+                {/* Tip */}
+                {instructions.tip && (
+                  <View style={styles.tipContainer}>
+                    <Text style={styles.tipIcon}>💡</Text>
+                    <Text style={styles.tipText}>{instructions.tip}</Text>
+                  </View>
+                )}
+              </ScrollView>
 
-              {/* Try Again button */}
-              <TouchableOpacity
-                style={styles.primaryButton}
-                onPress={onClose}
-                accessibilityLabel="Try Again"
-                accessibilityRole="button"
-                accessibilityHint="Closes the help and lets you try signing in again"
-              >
-                <Text style={styles.primaryButtonText}>Try Again</Text>
-              </TouchableOpacity>
+              {/* Buttons */}
+              <View style={styles.buttonContainer}>
+                {/* Quick action button (open settings/browser) */}
+                <TouchableOpacity
+                  style={styles.secondaryButton}
+                  onPress={handleOpenSettings}
+                  accessibilityLabel={
+                    provider === 'apple' ? 'Open Settings' : 'Open Google'
+                  }
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.secondaryButtonText}>
+                    {provider === 'apple' ? 'Open Settings' : 'Open Google'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Try Again button */}
+                <TouchableOpacity
+                  style={styles.primaryButton}
+                  onPress={onClose}
+                  accessibilityLabel="Try Again"
+                  accessibilityRole="button"
+                  accessibilityHint="Closes the help and lets you try signing in again"
+                >
+                  <Text style={styles.primaryButtonText}>Try Again</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </SafeAreaView>
-      </View>
-    </Modal>
+          </SafeAreaView>
+        </View>
+      </Modal>
+
+      {/* US-009: Parental Gate for external links */}
+      <ParentalGateModal />
+    </>
   );
 };
 

@@ -7,17 +7,23 @@ import {
   ScrollView,
   Switch,
   Alert,
+  Linking,
+  ActivityIndicator,
 } from 'react-native';
-import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAction } from 'convex/react';
 import { useAuth } from '../context/AuthContext';
 import type { GradeLevel } from '../types/database';
-import { TabParamList } from '../navigation/AppNavigator';
+import type { SettingsStackParamList } from '../navigation/AppNavigator';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import { OnboardingChecklistModal } from '../components/onboarding/OnboardingChecklistModal';
 import { onboardingMilestoneTracker } from '../services/onboardingMilestoneTracker';
+import { LEGAL_URLS } from '../config/legalUrls';
+import { useParentalGate } from '../components/common/ParentalGate';
+import { api } from '../services/convex';
 
-type SettingsScreenNavigationProp = BottomTabNavigationProp<
-  TabParamList,
+type SettingsScreenNavigationProp = StackNavigationProp<
+  SettingsStackParamList,
   'Settings'
 >;
 
@@ -25,11 +31,10 @@ interface SettingsScreenProps {
   navigation: SettingsScreenNavigationProp;
 }
 
-const SettingsScreen: React.FC<SettingsScreenProps> = ({
-  navigation: _navigation,
-}) => {
+const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { userProfile, updateProfile, signOut } = useAuth();
+  const { openURL, ParentalGateModal } = useParentalGate();
   const [speechEnabled, setSpeechEnabled] = useState(
     userProfile?.speech_enabled || false,
   );
@@ -39,6 +44,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   // Onboarding progress modal state (US-018)
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(true);
+
+  // Account deletion state (US-004)
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const deleteAccountAction = useAction(api.userProfiles.deleteAccount);
 
   // Check if onboarding is complete on mount
   useEffect(() => {
@@ -124,6 +133,63 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
         },
       },
     ]);
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account & Data',
+      'This will permanently delete your account and ALL associated data including stories, images, and progress. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Everything',
+          style: 'destructive',
+          onPress: () => {
+            // Second confirmation with typed input
+            Alert.prompt(
+              'Confirm Deletion',
+              'Type DELETE to permanently delete your account and all data.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete',
+                  style: 'destructive',
+                  onPress: async (confirmText?: string) => {
+                    if (confirmText?.trim().toUpperCase() !== 'DELETE') {
+                      Alert.alert(
+                        'Deletion Cancelled',
+                        'You must type DELETE to confirm.',
+                      );
+                      return;
+                    }
+
+                    setIsDeletingAccount(true);
+                    try {
+                      await deleteAccountAction();
+                      // Sign out after deletion
+                      await signOut();
+                      Alert.alert(
+                        'Account Deleted',
+                        'Your account and all data have been permanently deleted.',
+                      );
+                    } catch (error) {
+                      console.error('Account deletion error:', error);
+                      Alert.alert(
+                        'Error',
+                        'Failed to delete account. Please try again or contact support.',
+                      );
+                    } finally {
+                      setIsDeletingAccount(false);
+                    }
+                  },
+                },
+              ],
+              'plain-text',
+            );
+          },
+        },
+      ],
+    );
   };
 
   const gradeLevelDescriptions = useMemo(
@@ -236,6 +302,34 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
             </View>
           )}
 
+          {/* Parent Dashboard Section (US-021) — only for under-13 users */}
+          {userProfile?.age_group === 'under_13' && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>👨‍👩‍👧 Family</Text>
+
+              <TouchableOpacity
+                style={styles.parentDashboardButton}
+                onPress={() => navigation.navigate('ParentDashboard')}
+                accessibilityRole="button"
+                accessibilityLabel="Open parent dashboard"
+                accessibilityHint="Opens the parent dashboard to review data and manage consent"
+              >
+                <View style={styles.onboardingButtonContent}>
+                  <Text style={styles.onboardingButtonIcon}>🛡️</Text>
+                  <View style={styles.onboardingButtonText}>
+                    <Text style={styles.onboardingButtonTitle}>
+                      Parent Dashboard
+                    </Text>
+                    <Text style={styles.onboardingButtonDescription}>
+                      Review data, export, manage consent
+                    </Text>
+                  </View>
+                  <Text style={styles.onboardingButtonArrow}>›</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* User Account Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>👤 Account</Text>
@@ -262,6 +356,21 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
             >
               <Text style={styles.logoutButtonText}>🚪 Logout</Text>
             </TouchableOpacity>
+
+            {/* Delete Account Button (US-004) */}
+            <TouchableOpacity
+              style={styles.deleteAccountButton}
+              onPress={handleDeleteAccount}
+              disabled={isDeletingAccount}
+            >
+              {isDeletingAccount ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.deleteAccountButtonText}>
+                  Delete Account & Data
+                </Text>
+              )}
+            </TouchableOpacity>
           </View>
 
           {/* About Section */}
@@ -281,6 +390,22 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 grade level and start creating amazing stories today!
               </Text>
             </View>
+
+            {/* Legal Links (US-003, US-009: gated with ParentalGate) */}
+            <View style={styles.legalLinksRow}>
+              <TouchableOpacity
+                style={styles.legalLinkButton}
+                onPress={() => openURL(LEGAL_URLS.PRIVACY_POLICY)}
+              >
+                <Text style={styles.legalLinkText}>Privacy Policy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.legalLinkButton}
+                onPress={() => openURL(LEGAL_URLS.TERMS_OF_SERVICE)}
+              >
+                <Text style={styles.legalLinkText}>Terms of Service</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -296,6 +421,9 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           }}
         />
       </ScrollView>
+
+      {/* US-009: Parental Gate for external links */}
+      <ParentalGateModal />
     </View>
   );
 };
@@ -394,11 +522,51 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
+  // Delete account styles (US-004)
+  deleteAccountButton: {
+    backgroundColor: '#8B0000',
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  deleteAccountButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   aboutText: {
     fontSize: 16,
     color: '#666',
     lineHeight: 20,
     marginTop: 5,
+  },
+  // Legal link styles (US-003)
+  legalLinksRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 10,
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  legalLinkButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  legalLinkText: {
+    fontSize: 15,
+    color: '#4CAF50',
+    fontWeight: '500',
+  },
+  // Parent dashboard button style (US-021)
+  parentDashboardButton: {
+    backgroundColor: '#f0f7ff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#4A90D9',
+    overflow: 'hidden',
   },
   // Onboarding button styles (US-018)
   onboardingButton: {

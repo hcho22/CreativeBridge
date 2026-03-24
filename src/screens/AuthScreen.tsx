@@ -11,6 +11,7 @@ import {
   Platform,
   ActivityIndicator,
   Dimensions,
+  Linking,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useAuth } from '../context/AuthContext';
@@ -32,6 +33,8 @@ import {
   OAuthSessionHelpModal,
   OAuthProvider,
 } from '../components/common/OAuthSessionHelpModal';
+import { LEGAL_URLS } from '../config/legalUrls';
+import { useParentalGate } from '../components/common/ParentalGate';
 
 type AuthScreenNavigationProp = StackNavigationProp<AuthStackParamList, 'Auth'>;
 
@@ -53,6 +56,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
     migrateFromSupabase,
     resumeMigrationWithNewPassword,
   } = useAuth();
+  const { openURL, ParentalGateModal } = useParentalGate();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -1703,17 +1707,26 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
               </TouchableOpacity>
             )}
 
-            {/* Legal Links */}
+            {/* Legal Links (US-003, US-009: gated with ParentalGate) */}
             <View style={styles.legalLinksContainer}>
-              <TouchableOpacity disabled={loading}>
+              <TouchableOpacity
+                disabled={loading}
+                onPress={() => openURL(LEGAL_URLS.PRIVACY_POLICY)}
+              >
                 <Text style={styles.legalLinkText}>Privacy Policy</Text>
               </TouchableOpacity>
               <Text style={styles.legalDivider}>•</Text>
-              <TouchableOpacity disabled={loading}>
+              <TouchableOpacity
+                disabled={loading}
+                onPress={() => openURL(LEGAL_URLS.TERMS_OF_SERVICE)}
+              >
                 <Text style={styles.legalLinkText}>Terms of Service</Text>
               </TouchableOpacity>
               <Text style={styles.legalDivider}>•</Text>
-              <TouchableOpacity disabled={loading}>
+              <TouchableOpacity
+                disabled={loading}
+                onPress={() => openURL(LEGAL_URLS.EULA)}
+              >
                 <Text style={styles.legalLinkText}>EULA</Text>
               </TouchableOpacity>
             </View>
@@ -1727,6 +1740,9 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
         onClose={() => setShowSessionHelp(false)}
         provider={helpProvider}
       />
+
+      {/* US-009: Parental Gate for external links */}
+      <ParentalGateModal />
     </KeyboardAvoidingView>
   );
 };

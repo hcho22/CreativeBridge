@@ -3,6 +3,17 @@
 
 // Removed OpenAI SDK - using React Native compatible client
 import { openaiClient } from './openaiClient';
+import { piiScrubber } from './piiScrubber';
+import {
+  sanitizePromptInput,
+  ANTI_INJECTION_SYSTEM_INSTRUCTIONS,
+} from './promptSanitizer';
+import { checkInputSafety, checkOutputSafety } from './contentSafetyService';
+import {
+  getAllBlocklistTerms,
+  CONTENT_BLOCKED_USER_MESSAGE,
+  CONTENT_BLOCKED_OUTPUT_MESSAGE,
+} from '../config/contentBlocklist';
 import { Environment } from '../config/environment';
 import {
   StoryRequest,
@@ -38,7 +49,7 @@ class StoryGenerationService {
       contentFilter: {
         maxSentences: 8, // Increased from 5 - OpenAI might generate longer responses
         minSentences: 1,
-        inappropriateWords: ['kill', 'murder', 'blood', 'war', 'hate'],
+        inappropriateWords: getAllBlocklistTerms(), // US-014: 200+ terms from centralized blocklist
         gradeAppropriate: true,
       },
       fallbackEnabled: true,
@@ -211,6 +222,24 @@ class StoryGenerationService {
           error: `Validation failed: ${validationResult.violations.join(', ')}`,
           gradeLevel: request.gradeLevel,
         };
+      }
+
+      // US-014: Check user input against content blocklist + OpenAI Moderation API
+      if (request.userInput) {
+        const inputSafety = await checkInputSafety(request.userInput);
+        if (!inputSafety.safe) {
+          console.log('🛡️ [CONTENT SAFETY] User input blocked:', {
+            matchedCategories: inputSafety.matchedCategories,
+            moderationCategories: inputSafety.moderationCategories,
+            checkTimeMs: inputSafety.checkTimeMs,
+          });
+          return {
+            story: '',
+            success: false,
+            error: CONTENT_BLOCKED_USER_MESSAGE,
+            gradeLevel: request.gradeLevel,
+          };
+        }
       }
 
       // Try OpenAI generation
@@ -799,6 +828,16 @@ class StoryGenerationService {
       request.gradeLevel,
     );
 
+    // US-014: Check AI output against content blocklist before display
+    const outputSafety = checkOutputSafety(content);
+    if (!outputSafety.safe) {
+      console.warn('🛡️ [CONTENT SAFETY] AI output blocked:', {
+        matchedCategories: outputSafety.matchedCategories,
+        checkTimeMs: outputSafety.checkTimeMs,
+      });
+      throw new Error(CONTENT_BLOCKED_OUTPUT_MESSAGE);
+    }
+
     if (!filteredContent.isValid) {
       // Check if violations are only about complexity (not inappropriate content)
       const hasInappropriateWords = filteredContent.violations.some(v =>
@@ -810,9 +849,7 @@ class StoryGenerationService {
           '❌ Blocking content for inappropriate words:',
           filteredContent.violations,
         );
-        throw new Error(
-          `Content filter violations: ${filteredContent.violations.join(', ')}`,
-        );
+        throw new Error(CONTENT_BLOCKED_OUTPUT_MESSAGE);
       } else {
         // Allow content with complexity warnings - OpenAI handles age-appropriateness
         console.log('✅ OpenAI content approved (complexity warnings ignored)');
@@ -1062,6 +1099,9 @@ ${vocabularyGuidance[gradeLevel]}`;
       systemPrompt += `\n\n${diversityGuidance}`;
     }
 
+    // US-011: Anti-injection instructions to prevent prompt manipulation
+    systemPrompt += `\n${ANTI_INJECTION_SYSTEM_INSTRUCTIONS}`;
+
     return systemPrompt;
   }
 
@@ -1108,8 +1148,17 @@ ${vocabularyGuidance[gradeLevel]}`;
   }
 
   private buildUserPrompt(request: StoryRequest): string {
+    // US-011: Sanitize user input to neutralize prompt injection attempts
+    // US-008: Then scrub PII from user-provided content before sending to OpenAI
+    const scrubbedStorySoFar = request.storySoFar
+      ? piiScrubber.scrubText(sanitizePromptInput(request.storySoFar))
+      : undefined;
+    const scrubbedUserInput = request.userInput
+      ? piiScrubber.scrubText(sanitizePromptInput(request.userInput))
+      : undefined;
+
     // Use Story_Quest's simple and effective approach
-    if (request.storySoFar) {
+    if (scrubbedStorySoFar) {
       // Story continuation - Story_Quest style
       const simplicityGuidance =
         request.gradeLevel === 'K-2'
@@ -1125,12 +1174,12 @@ ${vocabularyGuidance[gradeLevel]}`;
       // The AI only needs recent narrative to produce a coherent continuation.
       const MAX_CONTEXT_CHARS = 8000;
       const storyContext =
-        request.storySoFar.length > MAX_CONTEXT_CHARS
+        scrubbedStorySoFar.length > MAX_CONTEXT_CHARS
           ? '...' +
-            request.storySoFar.substring(
-              request.storySoFar.length - MAX_CONTEXT_CHARS,
+            scrubbedStorySoFar.substring(
+              scrubbedStorySoFar.length - MAX_CONTEXT_CHARS,
             )
-          : request.storySoFar;
+          : scrubbedStorySoFar;
 
       return `Continue this story in a creative and engaging way. The story is for ${
         request.gradeLevel
@@ -1151,8 +1200,8 @@ Continue the story with 1-3 sentences. Keep your response under 200 words.`;
       prompt += `- Use rich sensory details appropriate for the grade level\n`;
       prompt += `- End with a compelling hook that encourages continuation\n\n`;
 
-      if (request.userInput) {
-        prompt += `STUDENT CREATIVE INPUT TO INCORPORATE:\n"${request.userInput}"\n\n`;
+      if (scrubbedUserInput) {
+        prompt += `STUDENT CREATIVE INPUT TO INCORPORATE:\n"${scrubbedUserInput}"\n\n`;
         prompt += `Weave this student input naturally into your story opening.\n\n`;
       }
 

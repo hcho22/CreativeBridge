@@ -10,7 +10,7 @@ A mobile story-writing application where users create engaging narratives with A
 - **AI-Assisted Writing** - Collaborative 5-round storytelling powered by GPT-4o-mini
 - **AI Image Generation** - Story-specific illustrations via Stable Diffusion 3.5 with grade-appropriate art styles
 - **Image Display Modal** - Dismissable modal overlay with adaptive glass background for viewing illustrations in full screen
-- **Voice Input Support** - Native speech recognition for input + ElevenLabs TTS for read-aloud
+- **Voice Input Support** - Native speech recognition for input + on-device TTS for read-aloud
 - **Story Library Management** - Import, search, and continue stories from your personal library
 - **Story Continuation** - Resume stories with collapsible "Previously Written" section preserving full context
 - **Advanced Search** - Story search with similarity detection and cosine-similarity scoring
@@ -59,7 +59,7 @@ Image generation adapts art style by grade level:
 - **AI - Images**: Replicate Stable Diffusion 3.5 Large
 - **AI - Quality**: Claude Skills SDK for content assessment
 - **Authentication**: Clerk (OAuth) → Convex JWT verification
-- **Voice**: Native speech recognition (input) + ElevenLabs TTS (read-aloud)
+- **Voice**: Native speech recognition (input) + on-device TTS (read-aloud)
 - **Navigation**: React Navigation v7 (tabs + stack)
 - **State Management**: React Context API
 - **Monitoring**: Custom service health checks, error logging, anomaly detection
@@ -78,7 +78,6 @@ Image generation adapts art style by grade level:
 - Replicate API key (image generation)
 - Google Cloud Console account (for Google OAuth)
 - Apple Developer account (for Apple Sign In)
-- ElevenLabs API key (for voice features)
 - Supabase account (optional, for legacy user support)
 
 ## Installation
@@ -123,8 +122,6 @@ OPENAI_MODEL=gpt-4o-mini
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your-supabase-anon-key
 
-# ElevenLabs (Voice AI)
-ELEVENLABS_API_KEY=your-elevenlabs-api-key
 ```
 
 #### OAuth Setup (Google & Apple)
@@ -512,7 +509,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Replicate** - AI image generation infrastructure
 - **Anthropic** - Claude Skills SDK for content quality assessment
 - **Clerk** - Authentication and user management
-- **ElevenLabs** - Voice AI integration
 - **Story_Quest** - Original inspiration and reference implementation
 
 ## Support

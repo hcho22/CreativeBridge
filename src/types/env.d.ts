@@ -11,9 +11,7 @@ declare module '@env' {
   // OpenAI Configuration
   export const OPENAI_API_KEY: string;
   export const OPENAI_MODEL: string;
-
-  // ElevenLabs Voice AI (Optional)
-  export const ELEVENLABS_API_KEY: string;
+  export const OPENAI_ORG_ID: string;
 
   // Image Generation Configuration
   export const REPLICATE_API_TOKEN: string;

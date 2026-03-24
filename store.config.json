@@ -1,0 +1,39 @@
+{
+  "configVersion": 0,
+  "apple": {
+    "info": {
+      "en-US": {
+        "title": "CreativeBridge - AI Story Creator",
+        "subtitle": "Educational Storytelling for K-12",
+        "description": "CreativeBridge is an AI-powered educational storytelling app designed for students in grades K-12 (ages 5-18). Create, continue, and illustrate stories with the help of AI, featuring grade-appropriate vocabulary, themes, and art styles.\n\nKey Features:\n- AI-assisted story creation with grade-adapted content (K-2, 3-5, 6-8, 9-12)\n- Beautiful AI-generated illustrations that match your grade level\n- Gamification with XP, streaks, and achievements\n- Story library to save and revisit your creations\n- Voice input for younger students\n- Collaborative storytelling with AI agents\n\nChild Safety & Privacy:\n- COPPA compliant: Verifiable Parental Consent required for users under 13\n- Content safety filters actively monitor all AI-generated content\n- No behavioral advertising or third-party ad networks\n- No social features, chat, or user-to-user communication\n- Minimal data collection focused only on app functionality\n- Parents can review and delete their child's data at any time via the Parent Dashboard\n- Full privacy policy available at [Privacy Policy URL]",
+        "keywords": "education,storytelling,AI,creative writing,kids,students,K-12,stories,reading,writing",
+        "privacyPolicyUrl": "https://creativebridge.app/privacy",
+        "privacyChoicesUrl": "https://creativebridge.app/privacy#choices"
+      }
+    },
+    "advisory": {
+      "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+      "contests": "NONE",
+      "gamblingSimulated": "NONE",
+      "gambling": false,
+      "horrorOrFearThemes": "NONE",
+      "matureOrSuggestiveThemes": "INFREQUENT_OR_MILD",
+      "medicalOrTreatmentInformation": "NONE",
+      "profanityOrCrudeHumor": "NONE",
+      "sexualContentGraphicAndNudity": "NONE",
+      "sexualContentOrNudity": "NONE",
+      "violenceCartoonOrFantasy": "NONE",
+      "violenceRealistic": "NONE",
+      "violenceRealisticProlonged": "NONE",
+      "unrestrictedWebAccess": false,
+      "kidsAgeBand": null
+    },
+    "categories": {
+      "primary": "EDUCATION",
+      "secondary": "BOOKS"
+    },
+    "review": {
+      "notes": "CreativeBridge is an educational storytelling app for K-12 students. For users under 13, verifiable parental consent (COPPA Email Plus method) is required before the child can access AI-generated content. Grade 9-12 content includes age-appropriate themes for young adults (e.g., complex emotions, moral dilemmas) but all content passes through automated safety filters that block explicit material. The app does NOT target the Apple Kids Category — it serves the full K-12 age range with appropriate safeguards for younger users."
+    }
+  }
+}

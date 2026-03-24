@@ -10,13 +10,14 @@ import {
   SUPABASE_ANON_KEY,
   OPENAI_API_KEY,
   OPENAI_MODEL,
-  ELEVENLABS_API_KEY,
+  OPENAI_ORG_ID,
   CONVEX_URL,
 } from '@env';
 
 export interface EnvironmentConfig {
   openai: {
     apiKey: string;
+    orgId: string;
     baseUrl: string;
     model: string;
     maxTokens: number;
@@ -25,9 +26,6 @@ export interface EnvironmentConfig {
   supabase: {
     url: string;
     anonKey: string;
-  };
-  elevenlabs?: {
-    apiKey: string;
   };
   clerk?: {
     publishableKey: string;
@@ -77,6 +75,7 @@ const getEnvironmentConfig = (): EnvironmentConfig => {
         (__DEV__
           ? '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'
           : ''),
+      orgId: OPENAI_ORG_ID || '',
       baseUrl: 'https://api.openai.com/v1',
       model: OPENAI_MODEL || 'gpt-4o-mini',
       maxTokens: 2000,
@@ -85,9 +84,6 @@ const getEnvironmentConfig = (): EnvironmentConfig => {
     supabase: {
       url: SUPABASE_URL || 'https://your-project-ref.supabase.co',
       anonKey: SUPABASE_ANON_KEY || 'your_supabase_anon_key_here',
-    },
-    elevenlabs: {
-      apiKey: ELEVENLABS_API_KEY || '',
     },
     clerk: {
       publishableKey: CLERK_PUBLISHABLE_KEY || '',
@@ -133,10 +129,20 @@ export const isOpenAIConfigured = (): boolean => {
 };
 
 // Helper to get OpenAI headers
-export const getOpenAIHeaders = () => ({
-  'Content-Type': 'application/json',
-  Authorization: `Bearer ${Environment.openai.apiKey}`,
-});
+export const getOpenAIHeaders = (): Record<string, string> => {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${Environment.openai.apiKey}`,
+  };
+
+  // Include Organization header when configured (US-017: ensures org-level
+  // data policies like training opt-out are applied to all API calls)
+  if (Environment.openai.orgId) {
+    headers['OpenAI-Organization'] = Environment.openai.orgId;
+  }
+
+  return headers;
+};
 
 // Clerk Configuration Helpers
 

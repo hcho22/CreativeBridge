@@ -9,6 +9,32 @@
 import { supabase } from './supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// US-013: Anonymization salt — in production, load from environment variable
+const ANALYTICS_HASH_SALT = 'cb-analytics-v1';
+
+/**
+ * US-013: One-way hash for userId anonymization.
+ * Uses a djb2a variant with salt, producing a hex string that cannot be reversed
+ * to recover the original userId. Deterministic: same input always yields same output,
+ * so aggregate analytics (unique users, per-user session counts) still work.
+ */
+function hashUserId(rawUserId: string): string {
+  const salted = `${ANALYTICS_HASH_SALT}:${rawUserId}`;
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < salted.length; i++) {
+    const ch = salted.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+  h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
+  h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  const hash = 4294967296 * (2097151 & h2) + (h1 >>> 0);
+  return 'anon_' + hash.toString(36);
+}
+
 // Types for analytics events and metrics
 export interface AnalyticsEvent {
   id?: string;
@@ -19,7 +45,7 @@ export interface AnalyticsEvent {
     | 'performance'
     | 'error';
   subtype?: string;
-  userId: string;
+  userId: string; // US-013: Now stores hashed/anonymized userId
   sessionId: string;
   timestamp: string;
   metadata: {
@@ -29,7 +55,7 @@ export interface AnalyticsEvent {
     success?: boolean;
     errorCode?: string;
     duration?: number;
-    deviceInfo?: any;
+    // US-013: deviceInfo removed — no device identifiers in analytics
     [key: string]: any;
   };
   properties?: Record<string, any>;
@@ -51,7 +77,7 @@ export interface UsageMetrics {
 }
 
 export interface UserEngagementMetrics {
-  userId: string;
+  userId: string; // US-013: anonymized (hashed) userId
   sessionsThisWeek: number;
   sessionsThisMonth: number;
   totalStoryImports: number;
@@ -139,15 +165,14 @@ class AnalyticsService {
       this.startBatchUpload();
 
       // Track session start
+      // US-013: No deviceInfo collected in analytics events
       await this.trackEvent({
         type: 'user_engagement',
         subtype: 'session_start',
-        userId: 'current_user', // Would be replaced with actual user ID
+        userId: 'current_user',
         sessionId: this.sessionId,
         timestamp: new Date().toISOString(),
-        metadata: {
-          deviceInfo: await this.getDeviceInfo(),
-        },
+        metadata: {},
       });
 
       console.log('📊 Analytics service initialized');
@@ -158,12 +183,17 @@ class AnalyticsService {
 
   /**
    * Track an analytics event
+   * US-013: userId is hashed before storage; deviceInfo is stripped from metadata
    */
   async trackEvent(event: Omit<AnalyticsEvent, 'id'>): Promise<void> {
     try {
+      // US-013: Anonymize userId and strip deviceInfo
+      const { deviceInfo, ...cleanMetadata } = event.metadata || {};
       const eventWithId: AnalyticsEvent = {
         ...event,
         id: this.generateEventId(),
+        userId: event.userId === 'system' ? 'system' : hashUserId(event.userId),
+        metadata: cleanMetadata,
         timestamp: event.timestamp || new Date().toISOString(),
       };
 
@@ -311,7 +341,8 @@ class AnalyticsService {
         .lte('timestamp', endDate);
 
       if (userId) {
-        query = query.eq('userId', userId);
+        // US-013: Query by hashed userId since stored data is anonymized
+        query = query.eq('userId', hashUserId(userId));
       }
 
       const { data: events, error } = await query;
@@ -341,21 +372,23 @@ class AnalyticsService {
         Date.now() - 30 * 24 * 60 * 60 * 1000,
       ).toISOString();
 
+      // US-013: Query by hashed userId
+      const hashedId = hashUserId(userId);
       const { data: events, error } = await supabase
         .from('analytics_events')
         .select('*')
-        .eq('userId', userId)
+        .eq('userId', hashedId)
         .gte('timestamp', thirtyDaysAgo);
 
       if (error) {
         console.warn('Failed to fetch user engagement metrics');
-        return this.getDefaultUserEngagement(userId);
+        return this.getDefaultUserEngagement(hashedId);
       }
 
-      return this.calculateUserEngagement(userId, events || []);
+      return this.calculateUserEngagement(hashedId, events || []);
     } catch (error) {
       console.error('Get user engagement metrics error:', error);
-      return this.getDefaultUserEngagement(userId);
+      return this.getDefaultUserEngagement(hashUserId(userId));
     }
   }
 
@@ -934,15 +967,6 @@ class AnalyticsService {
     }
   }
 
-  private async getDeviceInfo(): Promise<any> {
-    // This would integrate with react-native-device-info
-    return {
-      platform: 'unknown',
-      version: 'unknown',
-      model: 'unknown',
-    };
-  }
-
   private generateSessionId(): string {
     return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
@@ -1019,4 +1043,6 @@ class AnalyticsService {
 
 // Export singleton instance
 export const analyticsService = new AnalyticsService();
+// US-013: Export hash function for cleanup scripts and testing
+export { hashUserId };
 export default analyticsService;

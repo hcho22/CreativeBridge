@@ -1,4 +1,12 @@
 import AsyncStorage from './asyncStorageWrapper';
+import {
+  setSecureJSON,
+  getSecureJSON,
+  removeSecureItem,
+  migrateAndGet,
+  setSecureItem,
+  getSecureItem,
+} from './sensitiveStorage';
 
 const REMEMBER_ME_KEY = '@CreativeBridge:rememberMe';
 const USER_EMAIL_KEY = '@CreativeBridge:userEmail';
@@ -10,7 +18,7 @@ export interface RememberMeData {
 }
 
 export class RememberMeStorage {
-  // Save remember me preference
+  // Save remember me preference (email stored encrypted via expo-secure-store)
   static async setRememberMe(
     enabled: boolean,
     userEmail?: string,
@@ -22,28 +30,29 @@ export class RememberMeStorage {
         savedAt: new Date().toISOString(),
       };
 
-      await AsyncStorage.setItem(REMEMBER_ME_KEY, JSON.stringify(data));
+      await setSecureJSON(REMEMBER_ME_KEY, data);
 
-      // Store email separately for easy access
+      // Store email separately for easy access (encrypted)
       if (enabled && userEmail) {
-        await AsyncStorage.setItem(USER_EMAIL_KEY, userEmail);
+        await setSecureItem(USER_EMAIL_KEY, userEmail);
       } else {
-        await AsyncStorage.removeItem(USER_EMAIL_KEY);
+        await removeSecureItem(USER_EMAIL_KEY);
       }
     } catch (error) {
       console.error('Error saving remember me preference:', error);
     }
   }
 
-  // Get remember me preference
+  // Get remember me preference (with auto-migration from plaintext)
   static async getRememberMe(): Promise<RememberMeData | null> {
     try {
-      const data = await AsyncStorage.getItem(REMEMBER_ME_KEY);
-      if (!data) {
+      // migrateAndGet handles the plaintext → encrypted migration transparently
+      const raw = await migrateAndGet(REMEMBER_ME_KEY);
+      if (!raw) {
         return null;
       }
 
-      const parsed: RememberMeData = JSON.parse(data);
+      const parsed: RememberMeData = JSON.parse(raw);
 
       // Check if data is older than 30 days (optional expiration)
       const savedDate = new Date(parsed.savedAt);
@@ -64,10 +73,11 @@ export class RememberMeStorage {
     }
   }
 
-  // Get saved email (for quick access)
+  // Get saved email (for quick access, encrypted)
   static async getSavedEmail(): Promise<string | null> {
     try {
-      const email = await AsyncStorage.getItem(USER_EMAIL_KEY);
+      // Auto-migrate from plaintext AsyncStorage if needed
+      const email = await migrateAndGet(USER_EMAIL_KEY);
       return email;
     } catch (error) {
       console.error('Error getting saved email:', error);
@@ -75,9 +85,12 @@ export class RememberMeStorage {
     }
   }
 
-  // Clear remember me data
+  // Clear remember me data (both secure store and any legacy plaintext)
   static async clearRememberMe(): Promise<void> {
     try {
+      await removeSecureItem(REMEMBER_ME_KEY);
+      await removeSecureItem(USER_EMAIL_KEY);
+      // Also clean up any remaining plaintext (belt-and-suspenders)
       await AsyncStorage.multiRemove([REMEMBER_ME_KEY, USER_EMAIL_KEY]);
     } catch (error) {
       console.error('Error clearing remember me data:', error);
