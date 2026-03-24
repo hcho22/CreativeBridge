@@ -359,7 +359,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
             legacyProfile.preferred_grade_level &&
           currentProfile.current_streak === legacyProfile.current_streak &&
           currentProfile.username === legacyProfile.username &&
-          currentProfile.preferred_genre === legacyProfile.preferred_genre
+          currentProfile.preferred_genre === legacyProfile.preferred_genre &&
+          currentProfile.age_group === legacyProfile.age_group &&
+          currentProfile.consent_status === legacyProfile.consent_status
         ) {
           // No meaningful change, return current state to prevent re-render
           return currentProfile;

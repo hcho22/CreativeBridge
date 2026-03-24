@@ -18,7 +18,6 @@ import {
   UsernameValidationResult,
 } from '../utils/usernameValidation';
 import { GradeLevel } from '../types/database';
-import { supabase } from '../services/supabase';
 
 interface ProfileCompletionScreenProps {
   onComplete?: () => void;
@@ -29,7 +28,7 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
   onComplete,
   onSkip,
 }) => {
-  const { user, refreshProfile } = useAuth();
+  const { user, updateProfile, refreshProfile } = useAuth();
   const { clerkUser } = useSafeClerkAuth();
 
   const [username, setUsername] = useState('');
@@ -189,117 +188,19 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
     setLoading(true);
 
     try {
-      // Get Clerk user ID
-      const clerkUserObj = clerkUser?.user;
-      const clerkUserId = clerkUserObj?.id;
-      if (!clerkUserId) {
-        Alert.alert(
-          'Error',
-          'Unable to identify your account. Please try signing in again.',
-        );
+      // Use AuthContext's updateProfile which routes through Convex
+      // It handles both create (new user) and update (existing profile) cases
+      const { error } = await updateProfile({
+        username: username.trim(),
+        display_name: displayName.trim() || username.trim(),
+        preferred_grade_level: gradeLevel as GradeLevel,
+      });
+
+      if (error) {
+        console.error('Error completing profile:', error);
+        Alert.alert('Error', error);
         setLoading(false);
         return;
-      }
-
-      // Check if profile already exists
-      let profileId = user?.id;
-
-      // If no Supabase user ID, we need to create a profile using Clerk user ID
-      // First, check if a profile exists with this Clerk user ID
-      const { data: profiles, error: fetchError } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('clerk_user_id', clerkUserId)
-        .limit(1);
-
-      if (fetchError) {
-        console.error('Error fetching profile:', fetchError);
-        Alert.alert(
-          'Error',
-          'Unable to verify your profile. Please try again.',
-        );
-        setLoading(false);
-        return;
-      }
-
-      // Handle case where query returns array
-      const existingProfile =
-        profiles && profiles.length > 0 ? profiles[0] : null;
-
-      // Log warning if multiple profiles found (data integrity issue)
-      if (profiles && profiles.length > 1) {
-        console.warn(
-          '⚠️ [ProfileCompletion] Multiple profiles found for Clerk user ID. Using oldest profile.',
-          `Found ${profiles.length} profiles for clerk_user_id: ${clerkUserId}`,
-        );
-      }
-
-      if (existingProfile) {
-        // Profile exists, update it
-        profileId = existingProfile.id;
-        // For OAuth users, update by clerk_user_id to avoid RLS issues
-        const { error: updateError } = await supabase
-          .from('user_profiles')
-          .update({
-            username: username.trim(),
-            display_name: displayName.trim() || username.trim(),
-            preferred_grade_level: gradeLevel as GradeLevel,
-            clerk_user_id: clerkUserId, // Ensure Clerk user ID is set
-          })
-          .eq('clerk_user_id', clerkUserId);
-
-        if (updateError) {
-          console.error('Error updating profile:', updateError);
-          Alert.alert('Error', 'Failed to update profile. Please try again.');
-          setLoading(false);
-          return;
-        }
-      } else {
-        // Create new profile using RPC function (generates proper UUID)
-        // For OAuth users, user.id is the Clerk user ID which is not a valid UUID
-        // The RPC function handles UUID generation internally
-        const clerkEmail =
-          clerkUser?.user?.emailAddresses?.[0]?.emailAddress || null;
-
-        console.log('📝 [ProfileCompletion] Creating new profile via RPC:', {
-          clerkUserId,
-          username: username.trim(),
-          displayName: displayName.trim() || username.trim(),
-          gradeLevel,
-        });
-
-        const { data: createdProfile, error: insertError } = await (
-          supabase as any
-        )
-          .rpc('create_oauth_user_profile', {
-            p_clerk_user_id: clerkUserId,
-            p_username: username.trim(),
-            p_display_name: displayName.trim() || username.trim(),
-            p_preferred_grade_level: gradeLevel as GradeLevel,
-            p_email: clerkEmail,
-            p_speech_enabled: true,
-          })
-          .single();
-
-        if (insertError) {
-          // Check if profile already exists (race condition)
-          if (insertError.message?.includes('already exists')) {
-            console.log(
-              '✅ [ProfileCompletion] Profile already exists, proceeding with update',
-            );
-            // Profile exists, we can proceed - it will be refreshed below
-          } else {
-            console.error('Error creating profile:', insertError);
-            Alert.alert('Error', 'Failed to create profile. Please try again.');
-            setLoading(false);
-            return;
-          }
-        } else {
-          console.log(
-            '✅ [ProfileCompletion] Profile created successfully:',
-            createdProfile,
-          );
-        }
       }
 
       // Refresh profile in AuthContext
@@ -309,7 +210,6 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
       if (onComplete) {
         onComplete();
       } else {
-        // Default: just show success message
         Alert.alert('Success', 'Profile completed successfully!', [
           {
             text: 'OK',
@@ -341,131 +241,53 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
           onPress: async () => {
             setIsSkipping(true);
             try {
-              // Get Clerk user object and ID - required for profile creation
+              // Use the username/displayName already populated in the form
+              // (auto-filled from Clerk data), or generate defaults
               const clerkUserObj = clerkUser?.user;
-              const clerkUserId = clerkUserObj?.id;
-              if (!clerkUserId) {
-                console.error(
-                  '❌ [ProfileCompletion] Cannot create minimal profile: No Clerk user ID',
-                );
-                // Still allow skip, user can fix in Settings later
-                if (onSkip) {
-                  onSkip();
-                }
-                return;
-              }
-
-              // Generate username from email or fallback to clerk user ID suffix
-              const generateUsername = (): string => {
-                // Try email prefix first
-                const email =
-                  clerkUserObj?.emailAddresses?.[0]?.emailAddress ||
-                  user?.email;
-                if (email) {
-                  const emailPrefix = email.split('@')[0];
-                  // Sanitize: lowercase, replace dots/special chars with underscores
-                  // Also handle edge cases like leading/trailing/consecutive underscores
-                  const sanitized = emailPrefix
-                    .toLowerCase()
-                    .replace(/[^a-z0-9_-]/g, '_') // Replace invalid chars with underscore
-                    .replace(/^[_-]+/, '') // Remove leading underscores/hyphens
-                    .replace(/[_-]+$/, '') // Remove trailing underscores/hyphens
-                    .replace(/[_-]{2,}/g, '_'); // Replace consecutive special chars
-                  // If sanitization resulted in empty string, use fallback
-                  if (sanitized.length >= 3) {
-                    return sanitized;
+              const skipUsername =
+                username.trim() ||
+                (() => {
+                  const email =
+                    clerkUserObj?.emailAddresses?.[0]?.emailAddress ||
+                    user?.email;
+                  if (email) {
+                    const sanitized = email
+                      .split('@')[0]
+                      .toLowerCase()
+                      .replace(/[^a-z0-9_-]/g, '_')
+                      .replace(/^[_-]+/, '')
+                      .replace(/[_-]+$/, '')
+                      .replace(/[_-]{2,}/g, '_');
+                    if (sanitized.length >= 3) return sanitized;
                   }
-                }
-                // Fallback: use last 8 chars of clerk user ID
-                return `user_${clerkUserId.slice(-8)}`;
-              };
+                  return `user_${(clerkUserObj?.id || 'unknown').slice(-8)}`;
+                })();
 
-              // Generate display name from Clerk firstName + lastName
-              const generateDisplayName = (): string => {
-                const firstName = clerkUserObj?.firstName || '';
-                const lastName = clerkUserObj?.lastName || '';
-                const fullName = `${firstName} ${lastName}`.trim();
-                if (fullName) {
-                  return fullName;
-                }
-                // Fallback to capitalized username
-                // For 'user_xxx' format (Apple hidden email), create friendlier display
-                const generatedUsername = generateUsername();
-                if (generatedUsername.startsWith('user_')) {
-                  // Transform 'user_abc12345' to 'User abc12345' for display
-                  return 'User ' + generatedUsername.slice(5);
-                }
-                // For email-derived usernames, capitalize first letter
-                return (
-                  generatedUsername.charAt(0).toUpperCase() +
-                  generatedUsername.slice(1)
-                );
-              };
-
-              const generatedUsername = generateUsername();
-              const generatedDisplayName = generateDisplayName();
-
-              // Log edge case detection for debugging
-              const hasEmail = !!(
-                clerkUserObj?.emailAddresses?.[0]?.emailAddress || user?.email
-              );
-              const hasName = !!(
-                clerkUserObj?.firstName || clerkUserObj?.lastName
-              );
-              if (!hasEmail) {
-                console.log(
-                  '🍎 [ProfileCompletion] Apple Sign In hidden email detected - using Clerk ID fallback for username',
-                );
-              }
-              if (!hasName) {
-                console.log(
-                  '🍎 [ProfileCompletion] No name available - using username-derived display name',
-                );
-              }
+              const skipDisplayName =
+                displayName.trim() ||
+                `${clerkUserObj?.firstName || ''} ${
+                  clerkUserObj?.lastName || ''
+                }`.trim() ||
+                skipUsername.charAt(0).toUpperCase() + skipUsername.slice(1);
 
               console.log(
                 '🔄 [ProfileCompletion] Creating minimal profile for skipped user...',
-                {
-                  username: generatedUsername,
-                  displayName: generatedDisplayName,
-                  hasEmail,
-                  hasName,
-                },
+                { username: skipUsername, displayName: skipDisplayName },
               );
 
-              // Use RPC function to create profile (bypasses RLS)
-              const { data: createdProfile, error: createError } = await (
-                supabase as any
-              )
-                .rpc('create_oauth_user_profile', {
-                  p_clerk_user_id: clerkUserId,
-                  p_username: generatedUsername,
-                  p_display_name: generatedDisplayName,
-                  p_preferred_grade_level: 'K-2', // Default for skipped users
-                  p_email:
-                    clerkUserObj?.emailAddresses?.[0]?.emailAddress || null,
-                  p_speech_enabled: true,
-                })
-                .single();
+              // Use AuthContext's updateProfile which routes through Convex
+              const { error } = await updateProfile({
+                username: skipUsername,
+                display_name: skipDisplayName,
+                preferred_grade_level: 'K-2' as GradeLevel,
+              });
 
-              if (createError) {
-                // Check if profile already exists (not an error, just skip creation)
-                if (createError.message?.includes('already exists')) {
-                  console.log(
-                    '✅ [ProfileCompletion] Profile already exists, skipping creation',
-                  );
-                } else {
-                  console.error(
-                    '❌ [ProfileCompletion] Error creating minimal profile:',
-                    createError,
-                  );
-                }
-                // Don't block navigation on error - user can fix in Settings
-              } else {
-                console.log(
-                  '✅ [ProfileCompletion] Minimal profile created successfully:',
-                  createdProfile,
+              if (error) {
+                console.error(
+                  '❌ [ProfileCompletion] Error creating minimal profile:',
+                  error,
                 );
+                // Don't block navigation on error - user can fix in Settings
               }
 
               // Refresh profile in AuthContext to load the new data

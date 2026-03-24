@@ -710,6 +710,23 @@ export const initiateConsentRenewal = mutation({
  * @param consentToken - The unique consent verification token
  * @param childDisplayName - The child's display name (for email personalization)
  */
+export const getConsentUrl = action({
+  args: {
+    consentToken: v.string(),
+  },
+  handler: async (_ctx, args) => {
+    const siteUrl = process.env.CONVEX_SITE_URL;
+    if (!siteUrl) {
+      throw new Error(
+        'CONVEX_SITE_URL environment variable is not configured.',
+      );
+    }
+    return {
+      consentUrl: `${siteUrl}/consent/verify?token=${args.consentToken}`,
+    };
+  },
+});
+
 export const sendConsentEmail = action({
   args: {
     parentEmail: v.string(),
@@ -749,7 +766,7 @@ export const sendConsentEmail = action({
 
     const fromAddress =
       process.env.CONSENT_EMAIL_FROM ||
-      'CreativeBridge <consent@creativebridge.app>';
+      'CreativeBridge <onboarding@resend.dev>';
 
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -813,7 +830,7 @@ export const sendRenewalReminderEmail = action({
 
     const fromAddress =
       process.env.CONSENT_EMAIL_FROM ||
-      'CreativeBridge <consent@creativebridge.app>';
+      'CreativeBridge <onboarding@resend.dev>';
 
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',

@@ -1,11 +1,11 @@
 /**
  * Consent Pending Screen (US-002)
  *
- * Displayed while waiting for a parent to grant consent via the email link.
- * Shows the pending state, allows resending the consent email, and
- * polls for consent status updates via Convex real-time queries.
+ * Displayed while waiting for a parent to grant consent via a shared link.
+ * The child shares the consent URL with their parent using the native Share sheet
+ * (Messages, email, AirDrop, etc.). The parent opens the link and clicks "I Consent."
  *
- * The child cannot access any app features while on this screen.
+ * Convex real-time query detects when consent is granted and unblocks the child.
  */
 
 import React, { useState, useCallback } from 'react';
@@ -16,6 +16,9 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  Share,
+  Clipboard,
+  Linking,
 } from 'react-native';
 import { theme } from '../constants/theme';
 import { useQuery, useMutation, useAction } from 'convex/react';
@@ -34,8 +37,8 @@ const ConsentPendingScreen: React.FC<ConsentPendingScreenProps> = ({
   const { clerkUser } = useSafeClerkAuth();
   const clerkUserId = clerkUser?.user?.id;
 
-  const [resending, setResending] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [consentUrl, setConsentUrl] = useState<string | null>(null);
 
   // Real-time consent status query — Convex will reactively update
   const consentStatus = useQuery(
@@ -44,7 +47,7 @@ const ConsentPendingScreen: React.FC<ConsentPendingScreenProps> = ({
   );
 
   const submitParentEmail = useMutation(api.consent.submitParentEmail);
-  const sendConsentEmail = useAction(api.consent.sendConsentEmail);
+  const getConsentUrl = useAction(api.consent.getConsentUrl);
 
   // If consent is granted, notify parent component
   React.useEffect(() => {
@@ -53,52 +56,66 @@ const ConsentPendingScreen: React.FC<ConsentPendingScreenProps> = ({
     }
   }, [consentStatus?.status, onConsentGranted]);
 
-  const handleResendEmail = useCallback(async () => {
-    if (!consentStatus?.parentEmail || resendCooldown) return;
+  // Generate the consent URL on mount (or when parent email becomes available)
+  React.useEffect(() => {
+    if (!consentStatus?.parentEmail || consentUrl) return;
 
-    setResending(true);
-    try {
-      // Create new consent record (expires old one)
-      const result = await submitParentEmail({
-        parentEmail: consentStatus.parentEmail,
-      });
+    const generateUrl = async () => {
+      setLoading(true);
+      try {
+        const result = await submitParentEmail({
+          parentEmail: consentStatus.parentEmail,
+        });
+        const { consentUrl: url } = await getConsentUrl({
+          consentToken: result.consentToken,
+        });
+        setConsentUrl(url);
+      } catch (err) {
+        console.error('[ConsentPending] Failed to generate consent URL:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-      // Send email
-      await sendConsentEmail({
-        parentEmail: consentStatus.parentEmail,
-        consentToken: result.consentToken,
-      });
-
-      // Set cooldown to prevent spam
-      setResendCooldown(true);
-      setTimeout(() => setResendCooldown(false), 60000); // 1 minute cooldown
-
-      Alert.alert(
-        'Email Sent',
-        'A new consent email has been sent to your parent.',
-      );
-    } catch (err) {
-      Alert.alert(
-        'Error',
-        'Could not resend the email. Please try again later.',
-      );
-    } finally {
-      setResending(false);
-    }
+    generateUrl();
   }, [
     consentStatus?.parentEmail,
-    resendCooldown,
+    consentUrl,
     submitParentEmail,
-    sendConsentEmail,
+    getConsentUrl,
   ]);
+
+  const handleShare = useCallback(async () => {
+    if (!consentUrl) return;
+    try {
+      await Share.share({
+        title: 'CreativeBridge - Parental Consent',
+        message:
+          `Hi! I signed up for CreativeBridge, an educational storytelling app. ` +
+          `Since I'm under 13, they need your permission before I can use it.\n\n` +
+          `Please open this link to review and approve:\n${consentUrl}\n\n` +
+          `The link expires in 48 hours.`,
+        url: consentUrl, // iOS uses this as a tappable link
+      });
+    } catch {
+      // User dismissed the share sheet — not an error
+    }
+  }, [consentUrl]);
+
+  const handleCopyLink = useCallback(() => {
+    if (!consentUrl) return;
+    Clipboard.setString(consentUrl);
+    Alert.alert('Copied!', 'Consent link copied to clipboard.');
+  }, [consentUrl]);
+
+  const handleOpenInBrowser = useCallback(() => {
+    if (!consentUrl) return;
+    Linking.openURL(consentUrl);
+  }, [consentUrl]);
 
   const maskedEmail = consentStatus?.parentEmail
     ? maskEmail(consentStatus.parentEmail)
     : '...';
-
-  const expiresIn = consentStatus?.tokenExpiresAt
-    ? formatTimeRemaining(consentStatus.tokenExpiresAt - Date.now())
-    : '';
 
   return (
     <View style={styles.container}>
@@ -108,47 +125,51 @@ const ConsentPendingScreen: React.FC<ConsentPendingScreenProps> = ({
 
         <View style={styles.statusCard}>
           <Text style={styles.statusText}>
-            We sent an email to{' '}
-            <Text style={styles.emailHighlight}>{maskedEmail}</Text>
+            Your parent ({maskedEmail}) needs to approve your account.
           </Text>
           <Text style={styles.statusSubtext}>
-            Your parent needs to open the email and click the consent link. Once
-            they do, you'll be all set to start creating stories!
+            Share the consent link with your parent. Once they open it and
+            approve, you'll be all set to start creating stories!
           </Text>
-          {expiresIn && (
-            <Text style={styles.expiryText}>Link expires in {expiresIn}</Text>
-          )}
         </View>
 
         <View style={styles.stepsContainer}>
           <Text style={styles.stepsTitle}>What happens next:</Text>
-          <Step number={1} text="Your parent opens their email" />
-          <Step number={2} text="They click the consent link" />
+          <Step number={1} text="Share the link with your parent" />
+          <Step number={2} text="They open the link" />
           <Step number={3} text="They review and approve" />
           <Step number={4} text="You can start making stories!" active />
         </View>
 
-        <TouchableOpacity
-          style={[
-            styles.resendButton,
-            (resendCooldown || resending) && styles.resendButtonDisabled,
-          ]}
-          onPress={handleResendEmail}
-          disabled={resendCooldown || resending}
-        >
-          {resending ? (
-            <ActivityIndicator color={theme.colors.primary} size="small" />
-          ) : (
-            <Text
-              style={[
-                styles.resendButtonText,
-                resendCooldown && styles.resendButtonTextDisabled,
-              ]}
+        {loading ? (
+          <ActivityIndicator
+            color={theme.colors.primary}
+            size="large"
+            style={{ marginBottom: 24 }}
+          />
+        ) : consentUrl ? (
+          <>
+            <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
+              <Text style={styles.shareButtonText}>Share with Parent</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.copyButton}
+              onPress={handleCopyLink}
             >
-              {resendCooldown ? 'Email sent! Wait a moment...' : 'Resend Email'}
-            </Text>
-          )}
-        </TouchableOpacity>
+              <Text style={styles.copyButtonText}>Copy Link</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.openButton}
+              onPress={handleOpenInBrowser}
+            >
+              <Text style={styles.openButtonText}>
+                Open in Browser (for testing)
+              </Text>
+            </TouchableOpacity>
+          </>
+        ) : null}
 
         <TouchableOpacity style={styles.signOutButton} onPress={onSignOut}>
           <Text style={styles.signOutButtonText}>Sign Out</Text>
@@ -185,14 +206,6 @@ function maskEmail(email: string): string {
   return `${masked}@${domain}`;
 }
 
-function formatTimeRemaining(ms: number): string {
-  if (ms <= 0) return 'expired';
-  const hours = Math.floor(ms / (1000 * 60 * 60));
-  if (hours >= 1) return `${hours} hour${hours !== 1 ? 's' : ''}`;
-  const minutes = Math.floor(ms / (1000 * 60));
-  return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
-}
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -227,21 +240,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 8,
   },
-  emailHighlight: {
-    fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.primary,
-  },
   statusSubtext: {
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
-  },
-  expiryText: {
-    fontSize: theme.typography.fontSize.xs,
-    color: theme.colors.textDisabled,
-    textAlign: 'center',
-    marginTop: 8,
   },
   stepsContainer: {
     width: '100%',
@@ -286,25 +289,43 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontWeight: theme.typography.fontWeight.medium,
   },
-  resendButton: {
+  shareButton: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: 10,
+    padding: 16,
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  shareButtonText: {
+    color: '#fff',
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+  },
+  copyButton: {
     borderWidth: 1,
     borderColor: theme.colors.primary,
     borderRadius: 10,
     padding: 14,
     width: '100%',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
-  resendButtonDisabled: {
-    borderColor: theme.colors.disabled,
-  },
-  resendButtonText: {
+  copyButtonText: {
     color: theme.colors.primary,
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.semibold,
   },
-  resendButtonTextDisabled: {
-    color: theme.colors.textDisabled,
+  openButton: {
+    padding: 12,
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  openButtonText: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.fontSize.sm,
+    textDecorationLine: 'underline',
   },
   signOutButton: {
     padding: 14,

@@ -289,18 +289,21 @@ export const setAgeGroup = mutation({
       throw new Error('Profile not found.');
     }
 
-    const consentStatus =
-      args.ageGroup === 'under_13' ? 'pending' : 'not_required';
+    // For under_13: leave consentStatus undefined so the app routes to
+    // ParentEmailScreen first (consent_needed). It becomes 'pending' only
+    // after submitParentEmail creates the consent record.
+    // For 13+ users: consent is not required.
+    const updates: Record<string, unknown> = { ageGroup: args.ageGroup };
+    if (args.ageGroup !== 'under_13') {
+      updates.consentStatus = 'not_required';
+    }
 
-    await ctx.db.patch(profile._id, {
-      ageGroup: args.ageGroup,
-      consentStatus: consentStatus as 'pending' | 'not_required',
-    });
+    await ctx.db.patch(profile._id, updates);
 
     return {
       success: true,
       ageGroup: args.ageGroup,
-      consentStatus,
+      consentStatus: args.ageGroup === 'under_13' ? undefined : 'not_required',
       requiresConsent: args.ageGroup === 'under_13',
     };
   },
@@ -936,11 +939,7 @@ export const deleteAllUserDataInternal = internalMutation({
       .withIndex('by_clerk_user_id', q => q.eq('clerkUserId', args.clerkUserId))
       .first();
 
-    if (!profile) {
-      return { success: false, error: 'Profile not found', summary };
-    }
-
-    // 2. Delete gameSessions and their stored images
+    // 2. Delete gameSessions and their stored images (indexed by clerkUserId)
     const sessions = await ctx.db
       .query('gameSessions')
       .withIndex('by_clerk_user', q => q.eq('clerkUserId', args.clerkUserId))
@@ -984,25 +983,26 @@ export const deleteAllUserDataInternal = internalMutation({
     summary.gameSessions = sessions.length;
     summary.storageFiles = storageDeleted;
 
-    // 3. Delete imageGenerationEvents
-    const imageEvents = await ctx.db
-      .query('imageGenerationEvents')
-      .withIndex('by_user', q => q.eq('userId', profile._id))
-      .collect();
-    for (const event of imageEvents) {
-      await ctx.db.delete(event._id);
-    }
-    summary.imageGenerationEvents = imageEvents.length;
+    // 3-4. Delete profile-linked data (only if profile exists)
+    if (profile) {
+      const imageEvents = await ctx.db
+        .query('imageGenerationEvents')
+        .withIndex('by_user', q => q.eq('userId', profile._id))
+        .collect();
+      for (const event of imageEvents) {
+        await ctx.db.delete(event._id);
+      }
+      summary.imageGenerationEvents = imageEvents.length;
 
-    // 4. Delete storyDownloadHistory
-    const downloads = await ctx.db
-      .query('storyDownloadHistory')
-      .withIndex('by_user', q => q.eq('userId', profile._id))
-      .collect();
-    for (const dl of downloads) {
-      await ctx.db.delete(dl._id);
+      const downloads = await ctx.db
+        .query('storyDownloadHistory')
+        .withIndex('by_user', q => q.eq('userId', profile._id))
+        .collect();
+      for (const dl of downloads) {
+        await ctx.db.delete(dl._id);
+      }
+      summary.storyDownloadHistory = downloads.length;
     }
-    summary.storyDownloadHistory = downloads.length;
 
     // 5. Retain consentRecords for 3 years (COPPA requirement, US-016)
     // Mark records with deletion timestamp and anonymize parent email, but do NOT delete
@@ -1030,8 +1030,10 @@ export const deleteAllUserDataInternal = internalMutation({
     summary.migrationEvents = migrationEvents.length;
 
     // 7. Delete the user profile itself (last)
-    await ctx.db.delete(profile._id);
-    summary.userProfiles = 1;
+    if (profile) {
+      await ctx.db.delete(profile._id);
+      summary.userProfiles = 1;
+    }
 
     return { success: true, summary };
   },
