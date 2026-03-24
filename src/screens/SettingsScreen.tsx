@@ -8,10 +8,8 @@ import {
   Switch,
   Alert,
   Linking,
-  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAction } from 'convex/react';
 import { useAuth } from '../context/AuthContext';
 import type { GradeLevel } from '../types/database';
 import type { SettingsStackParamList } from '../navigation/AppNavigator';
@@ -20,7 +18,6 @@ import { OnboardingChecklistModal } from '../components/onboarding/OnboardingChe
 import { onboardingMilestoneTracker } from '../services/onboardingMilestoneTracker';
 import { LEGAL_URLS } from '../config/legalUrls';
 import { useParentalGate } from '../components/common/ParentalGate';
-import { api } from '../services/convex';
 
 type SettingsScreenNavigationProp = StackNavigationProp<
   SettingsStackParamList,
@@ -44,10 +41,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
   // Onboarding progress modal state (US-018)
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(true);
-
-  // Account deletion state (US-004)
-  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
-  const deleteAccountAction = useAction(api.userProfiles.deleteAccount);
 
   // Check if onboarding is complete on mount
   useEffect(() => {
@@ -133,63 +126,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
         },
       },
     ]);
-  };
-
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      'Delete Account & Data',
-      'This will permanently delete your account and ALL associated data including stories, images, and progress. This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete Everything',
-          style: 'destructive',
-          onPress: () => {
-            // Second confirmation with typed input
-            Alert.prompt(
-              'Confirm Deletion',
-              'Type DELETE to permanently delete your account and all data.',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Delete',
-                  style: 'destructive',
-                  onPress: async (confirmText?: string) => {
-                    if (confirmText?.trim().toUpperCase() !== 'DELETE') {
-                      Alert.alert(
-                        'Deletion Cancelled',
-                        'You must type DELETE to confirm.',
-                      );
-                      return;
-                    }
-
-                    setIsDeletingAccount(true);
-                    try {
-                      await deleteAccountAction();
-                      // Sign out after deletion
-                      await signOut();
-                      Alert.alert(
-                        'Account Deleted',
-                        'Your account and all data have been permanently deleted.',
-                      );
-                    } catch (error) {
-                      console.error('Account deletion error:', error);
-                      Alert.alert(
-                        'Error',
-                        'Failed to delete account. Please try again or contact support.',
-                      );
-                    } finally {
-                      setIsDeletingAccount(false);
-                    }
-                  },
-                },
-              ],
-              'plain-text',
-            );
-          },
-        },
-      ],
-    );
   };
 
   const gradeLevelDescriptions = useMemo(
@@ -356,21 +292,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
             >
               <Text style={styles.logoutButtonText}>🚪 Logout</Text>
             </TouchableOpacity>
-
-            {/* Delete Account Button (US-004) */}
-            <TouchableOpacity
-              style={styles.deleteAccountButton}
-              onPress={handleDeleteAccount}
-              disabled={isDeletingAccount}
-            >
-              {isDeletingAccount ? (
-                <ActivityIndicator color="#ffffff" />
-              ) : (
-                <Text style={styles.deleteAccountButtonText}>
-                  Delete Account & Data
-                </Text>
-              )}
-            </TouchableOpacity>
           </View>
 
           {/* About Section */}
@@ -521,20 +442,6 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 18,
     fontWeight: 'bold',
-  },
-  // Delete account styles (US-004)
-  deleteAccountButton: {
-    backgroundColor: '#8B0000',
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  deleteAccountButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
   },
   aboutText: {
     fontSize: 16,
