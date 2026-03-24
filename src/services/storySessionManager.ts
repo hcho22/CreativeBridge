@@ -11,6 +11,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GradeLevel, StorySource } from '../types';
 import { ChallengeService } from './challengeService';
+import { piiScrubber } from './piiScrubber';
 
 // Convex imports - primary database
 import { getConvexClient, api, isConvexReady } from './convex';
@@ -223,10 +224,22 @@ class StorySessionManager {
 
     if (!session) return null;
 
-    const wordCount = this.countWords(content);
+    // US-008: Scrub PII from all contributions before storing.
+    // User input is the primary vector, but AI responses are also scrubbed
+    // as defense-in-depth in case the model echoes back PII from context.
+    const scrubResult = piiScrubber.scrub(content);
+    const cleanContent = scrubResult.text;
+    if (scrubResult.redactionsCount > 0) {
+      console.log(
+        `🛡️ [PII] Scrubbed ${scrubResult.redactionsCount} PII item(s) from ${type} contribution:`,
+        scrubResult.redactionTypes,
+      );
+    }
+
+    const wordCount = this.countWords(cleanContent);
     const contribution: StoryContribution = {
       type,
-      content,
+      content: cleanContent,
       timestamp: Date.now(),
       wordCount,
     };
@@ -239,7 +252,7 @@ class StorySessionManager {
 
     // Update fields - append to existing story content instead of rebuilding
     if (session.story_content) {
-      session.story_content = session.story_content + ' ' + content.trim();
+      session.story_content = session.story_content + ' ' + cleanContent.trim();
     } else {
       session.story_content = this.buildCurrentStory(session.contributions);
     }

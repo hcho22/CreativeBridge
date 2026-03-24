@@ -31,6 +31,21 @@ const ZIP_REGEX = /\b[A-Z]{2}\s+\d{5}(?:-\d{4})?\b/g;
 const NAME_INTRO_REGEX =
   /\b(?:[Mm]y name is|[Tt]hey call me|[Pp]eople call me)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\b|(?:[Ii]'m|[Ii] am)\s+(?!from\b|at\b|in\b|a\b|the\b|so\b|very\b|really\b|not\b|going\b|here\b|there\b)([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\b/g;
 
+// Narrative name patterns: "named X Y", "whose name was X Y", "full name was X Y"
+// These appear in stories when children embed real names in narrative form.
+// Excludes fictional titles common in storytelling (Sir, Lord, Princess, etc.)
+const FICTIONAL_TITLES =
+  'Sir|Lord|Lady|King|Queen|Prince|Princess|Captain|Doctor|Professor|Wizard|Master|Chief';
+const NARRATIVE_NAME_REGEX = new RegExp(
+  `\\b(?:named|whose (?:full )?name (?:is|was)|full name (?:is|was)|known as)\\s+(?!(?:${FICTIONAL_TITLES})\\b)([A-Z][a-z]+(?:\\s+(?:["'][A-Z][a-z]+["']\\s+)?[A-Z][a-z]+){1,2})\\b`,
+  'g',
+);
+
+// Age disclosure: "age 7", "age seven", "7 years old", "7-year-old"
+// Important for COPPA — revealing a child's age alongside other PII.
+const AGE_DISCLOSURE_REGEX =
+  /\bage\s+(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen)\b|\b(\d{1,2})[\s-]+years?\s*old\b|\b(\d{1,2})-year-old\b/gi;
+
 // School references: "I go to X school", "my school is X", "I attend X"
 const SCHOOL_REGEX =
   /\b(?:[Ii] (?:go|went) to|[Mm]y school is|[Ii] attend|[Ii]'m at|[Ss]tudent at)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){0,4}(?:\s+(?:School|Elementary|Middle|High|Academy|Prep|College|University))?)\b/g;
@@ -127,6 +142,20 @@ export function scrub(text: string): ScrubResult {
     redactionsCount++;
     redactionTypesSet.add('name');
     return 'my name is [NAME]';
+  });
+
+  // Narrative name patterns ("named Emma Chen", "whose full name was Robert Mackenzie")
+  scrubbed = scrubbed.replace(NARRATIVE_NAME_REGEX, () => {
+    redactionsCount++;
+    redactionTypesSet.add('name');
+    return 'named [NAME]';
+  });
+
+  // Age disclosures ("age 7", "7 years old") — important for COPPA
+  scrubbed = scrubbed.replace(AGE_DISCLOSURE_REGEX, () => {
+    redactionsCount++;
+    redactionTypesSet.add('age');
+    return '[AGE]';
   });
 
   return {

@@ -155,6 +155,56 @@ describe('piiScrubber', () => {
     });
   });
 
+  // ─── Narrative Name Patterns ──────────────────────
+  describe('narrative name patterns', () => {
+    it('redacts "named Emma Chen"', () => {
+      expect(scrubText('A little girl named Emma Chen watched.')).toContain(
+        '[NAME]',
+      );
+    });
+
+    it('redacts "whose full name was Robert Mackenzie"', () => {
+      expect(
+        scrubText('Booger, whose full name was Robert Mackenzie, lived here.'),
+      ).toContain('[NAME]');
+    });
+
+    it('redacts "known as John Davis"', () => {
+      expect(scrubText('He was known as John Davis around town.')).toContain(
+        '[NAME]',
+      );
+    });
+
+    it('does not redact fictional titled names', () => {
+      const story = 'A knight named Sir Galahad appeared.';
+      expect(scrubText(story)).toBe(story);
+    });
+
+    it('does not redact "named Princess Aurora"', () => {
+      const story = 'The fairy named Princess Aurora slept.';
+      expect(scrubText(story)).toBe(story);
+    });
+  });
+
+  // ─── Age Disclosure Detection ───────────────────────
+  describe('age disclosures', () => {
+    it('redacts "age 7"', () => {
+      expect(scrubText('Emma, age 7, played outside.')).toContain('[AGE]');
+    });
+
+    it('redacts "7 years old"', () => {
+      expect(scrubText('She was 7 years old.')).toContain('[AGE]');
+    });
+
+    it('redacts "10-year-old"', () => {
+      expect(scrubText('A 10-year-old boy ran past.')).toContain('[AGE]');
+    });
+
+    it('redacts spelled-out ages', () => {
+      expect(scrubText('She is age twelve.')).toContain('[AGE]');
+    });
+  });
+
   // ─── ZIP Code Detection ────────────────────────────
   describe('zip codes with state', () => {
     it('redacts state + zip code', () => {
