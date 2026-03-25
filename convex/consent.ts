@@ -76,6 +76,7 @@ export const getConsentStatus = query({
       consentTimestamp: record.consentTimestamp,
       consentVersion: record.consentVersion,
       tokenExpiresAt: record.consentTokenExpiresAt,
+      consentToken: record.consentToken,
     };
   },
 });
@@ -785,12 +786,20 @@ export const sendConsentEmail = action({
 
     if (!response.ok) {
       const errorText = await response.text();
+      // 403 = Resend domain not verified; fall back to share-based flow
+      if (response.status === 403) {
+        console.warn(
+          `[VPC] Resend domain not verified. Verify a domain at resend.com/domains ` +
+            `and set CONSENT_EMAIL_FROM env var. Details: ${errorText}`,
+        );
+        return { sent: false, consentUrl, reason: 'domain_not_verified' };
+      }
       throw new Error(
         `Failed to send consent email: ${response.status} ${errorText}`,
       );
     }
 
-    return { sent: true };
+    return { sent: true, consentUrl };
   },
 });
 

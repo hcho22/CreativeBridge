@@ -21,7 +21,7 @@ import {
   Linking,
 } from 'react-native';
 import { theme } from '../constants/theme';
-import { useQuery, useMutation, useAction } from 'convex/react';
+import { useQuery, useAction } from 'convex/react';
 import { api } from '../services/convex';
 import { useSafeClerkAuth } from '../hooks/useSafeClerkAuth';
 
@@ -46,7 +46,6 @@ const ConsentPendingScreen: React.FC<ConsentPendingScreenProps> = ({
     clerkUserId ? { clerkUserId } : 'skip',
   );
 
-  const submitParentEmail = useMutation(api.consent.submitParentEmail);
   const getConsentUrl = useAction(api.consent.getConsentUrl);
 
   // If consent is granted, notify parent component
@@ -56,18 +55,15 @@ const ConsentPendingScreen: React.FC<ConsentPendingScreenProps> = ({
     }
   }, [consentStatus?.status, onConsentGranted]);
 
-  // Generate the consent URL on mount (or when parent email becomes available)
+  // Build consent URL from the existing token (no need to create a new record)
   React.useEffect(() => {
-    if (!consentStatus?.parentEmail || consentUrl) return;
+    if (!consentStatus?.consentToken || consentUrl) return;
 
     const generateUrl = async () => {
       setLoading(true);
       try {
-        const result = await submitParentEmail({
-          parentEmail: consentStatus.parentEmail,
-        });
         const { consentUrl: url } = await getConsentUrl({
-          consentToken: result.consentToken,
+          consentToken: consentStatus.consentToken,
         });
         setConsentUrl(url);
       } catch (err) {
@@ -78,12 +74,7 @@ const ConsentPendingScreen: React.FC<ConsentPendingScreenProps> = ({
     };
 
     generateUrl();
-  }, [
-    consentStatus?.parentEmail,
-    consentUrl,
-    submitParentEmail,
-    getConsentUrl,
-  ]);
+  }, [consentStatus?.consentToken, consentUrl, getConsentUrl]);
 
   const handleShare = useCallback(async () => {
     if (!consentUrl) return;

@@ -23,7 +23,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { theme } from '../constants/theme';
-import { useMutation } from 'convex/react';
+import { useMutation, useAction } from 'convex/react';
 import { api } from '../services/convex';
 
 interface ParentEmailScreenProps {
@@ -46,6 +46,7 @@ const ParentEmailScreen: React.FC<ParentEmailScreenProps> = ({
   const initiateConsentRenewal = useMutation(
     api.consent.initiateConsentRenewal,
   );
+  const sendConsentEmail = useAction(api.consent.sendConsentEmail);
   const isValidEmail = (email: string) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
@@ -61,9 +62,19 @@ const ParentEmailScreen: React.FC<ParentEmailScreenProps> = ({
     try {
       // Create consent record (renewal uses initiateConsentRenewal)
       const submitFn = isRenewal ? initiateConsentRenewal : submitParentEmail;
-      await submitFn({ parentEmail: parentEmail.trim() });
+      const result = await submitFn({ parentEmail: parentEmail.trim() });
 
-      // Consent record created — child will share the link from the next screen
+      // Send the consent email to the parent
+      try {
+        await sendConsentEmail({
+          parentEmail: parentEmail.trim(),
+          consentToken: result.consentToken,
+        });
+      } catch (emailErr) {
+        // Log but don't block — the consent link can still be shared manually
+        console.warn('[ParentEmail] Failed to send consent email:', emailErr);
+      }
+
       onConsentInitiated();
     } catch (err) {
       const message =
