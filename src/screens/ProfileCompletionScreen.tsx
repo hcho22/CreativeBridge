@@ -28,8 +28,11 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
   onComplete,
   onSkip,
 }) => {
-  const { user, updateProfile, refreshProfile } = useAuth();
+  const { user, userProfile, updateProfile, refreshProfile } = useAuth();
   const { clerkUser } = useSafeClerkAuth();
+
+  // US-010: Determine if user is under 13 to block real name auto-fill
+  const isUnder13 = userProfile?.age_group === 'under_13';
 
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -89,8 +92,9 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
     }
 
     // Pre-fill display name from Clerk user object
+    // US-010: For under-13 users, NEVER auto-fill real name from OAuth — leave blank
     // Only auto-fill if user hasn't touched the field yet (prevents overwriting user edits)
-    if (!displayName && !displayNameTouched) {
+    if (!displayName && !displayNameTouched && !isUnder13) {
       const firstName = clerkUserObj?.firstName || '';
       const lastName = clerkUserObj?.lastName || '';
       if (firstName || lastName) {
@@ -117,6 +121,7 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
     displayName,
     usernameTouched,
     displayNameTouched,
+    isUnder13,
   ]);
 
   // Real-time username validation
@@ -263,12 +268,15 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
                   return `user_${(clerkUserObj?.id || 'unknown').slice(-8)}`;
                 })();
 
-              const skipDisplayName =
-                displayName.trim() ||
-                `${clerkUserObj?.firstName || ''} ${
-                  clerkUserObj?.lastName || ''
-                }`.trim() ||
-                skipUsername.charAt(0).toUpperCase() + skipUsername.slice(1);
+              // US-010: For under-13, never fall back to OAuth real name
+              const skipDisplayName = isUnder13
+                ? displayName.trim() ||
+                  skipUsername.charAt(0).toUpperCase() + skipUsername.slice(1)
+                : displayName.trim() ||
+                  `${clerkUserObj?.firstName || ''} ${
+                    clerkUserObj?.lastName || ''
+                  }`.trim() ||
+                  skipUsername.charAt(0).toUpperCase() + skipUsername.slice(1);
 
               console.log(
                 '🔄 [ProfileCompletion] Creating minimal profile for skipped user...',
@@ -398,18 +406,25 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Display Name</Text>
+              <Text style={styles.inputLabel}>
+                {isUnder13 ? 'Nickname' : 'Display Name'}
+              </Text>
               <TextInput
                 style={styles.textInput}
                 value={displayName}
                 onChangeText={handleDisplayNameChange}
-                placeholder="How should we display your name?"
+                placeholder={
+                  isUnder13
+                    ? 'Choose a fun nickname!'
+                    : 'How should we display your name?'
+                }
                 autoCorrect={false}
                 editable={!loading}
               />
               <Text style={styles.hintText}>
-                This is how your name will appear to others. Leave blank to use
-                your username.
+                {isUnder13
+                  ? "Pick a creative nickname! Don't use your real name."
+                  : 'This is how your name will appear to others. Leave blank to use your username.'}
               </Text>
             </View>
 

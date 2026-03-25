@@ -47,7 +47,7 @@ This PRD defines the full remediation roadmap to bring CreativeBridge into compl
 - [x] Existing users without age data are prompted on next login
 - [x] No way to bypass or skip the age-gating screen
 - [x] Typecheck passes
-- [ ] Verify in browser/simulator using dev-browser skill
+- [x] Verify in browser/simulator using dev-browser skill
 
 ---
 
@@ -68,7 +68,7 @@ This PRD defines the full remediation roadmap to bring CreativeBridge into compl
 - [x] If consent is not granted within 48 hours, the pending account data is deleted (`convex/consent.ts:cleanupExpiredPendingConsent` internalMutation for cron)
 - [x] Parent can withdraw consent at any time (see US-004) (`convex/consent.ts:withdrawConsent` mutation)
 - [x] Typecheck passes (zero new type errors introduced; pre-existing errors in test files are unrelated)
-- [ ] Verify in browser/simulator using dev-browser skill
+- [x] Verify in browser/simulator using dev-browser skill
 
 ---
 
@@ -86,7 +86,7 @@ This PRD defines the full remediation roadmap to bring CreativeBridge into compl
 - [x] `AuthScreen.tsx` "Privacy Policy" and "Terms of Service" `TouchableOpacity` elements are wired to open the hosted URLs via `Linking.openURL()` (with parental gate per US-009)
 - [x] Privacy policy link is also accessible from app settings/profile screen
 - [x] Typecheck passes
-- [ ] Verify in browser/simulator using dev-browser skill
+- [x] Verify in browser/simulator using dev-browser skill
 
 ---
 
@@ -106,7 +106,7 @@ This PRD defines the full remediation roadmap to bring CreativeBridge into compl
 - [x] A Convex mutation `deleteAllUserData` is created that cascades across all tables (`deleteAllUserDataInternal` internalMutation in `convex/userProfiles.ts`)
 - [x] For parent-initiated deletion: parent can request via email (documented in privacy policy) — the operator must fulfill within 48 hours
 - [x] Typecheck passes (zero new type errors introduced; pre-existing errors in test files are unrelated)
-- [ ] Verify in browser/simulator using dev-browser skill
+- [x] Verify in browser/simulator using dev-browser skill
 
 ---
 
@@ -212,11 +212,11 @@ This PRD defines the full remediation roadmap to bring CreativeBridge into compl
 
 **Acceptance Criteria:**
 
-- [ ] `ProfileCompletionScreen.tsx` checks `ageGroup` before auto-populating `displayName`
-- [ ] For users under 13: `displayName` field is blank with placeholder text "Choose a fun nickname!"
-- [ ] For users 13+: existing auto-fill behavior is preserved
-- [ ] Real name from OAuth is never stored in `userProfiles` for under-13 users
-- [ ] Typecheck passes
+- [x] `ProfileCompletionScreen.tsx` checks `ageGroup` before auto-populating `displayName` (reads `userProfile.age_group` from `useAuth()`, derives `isUnder13` flag to gate auto-fill logic)
+- [x] For users under 13: `displayName` field is blank with placeholder text "Choose a fun nickname!" (label changes to "Nickname", hint warns "Don't use your real name")
+- [x] For users 13+: existing auto-fill behavior is preserved (auto-fill from Clerk firstName/lastName unchanged for non-under-13 users)
+- [x] Real name from OAuth is never stored in `userProfiles` for under-13 users (client: auto-fill blocked + skip flow strips real name fallback; server: `convex/userProfiles.ts:updateProfile` strips multi-word displayName for under_13 as defense-in-depth; App.tsx reordered so AgeGatingScreen runs before ProfileCompletionScreen)
+- [x] Typecheck passes (zero new type errors introduced; pre-existing errors in utility/web files are unrelated)
 - [ ] Verify in browser/simulator using dev-browser skill
 
 ---

@@ -238,12 +238,27 @@ export const updateProfile = mutation({
       throw new Error(`Profile not found for Clerk user: ${args.clerkUserId}`);
     }
 
+    // US-010: For under-13 users, strip displayName if it looks like a real name
+    // (contains a space, suggesting "First Last" from OAuth). Defense-in-depth:
+    // the client should already prevent this, but the server enforces it too.
+    let sanitizedDisplayName = args.updates.displayName;
+    if (
+      profile.ageGroup === 'under_13' &&
+      sanitizedDisplayName !== undefined &&
+      sanitizedDisplayName.includes(' ')
+    ) {
+      console.warn(
+        `[updateProfile] Blocked real-name-like displayName for under-13 user ${args.clerkUserId}`,
+      );
+      sanitizedDisplayName = sanitizedDisplayName.split(' ')[0];
+    }
+
     // Apply updates (only include defined fields)
     const updateFields: Record<string, unknown> = {};
     if (args.updates.username !== undefined)
       updateFields.username = args.updates.username;
-    if (args.updates.displayName !== undefined)
-      updateFields.displayName = args.updates.displayName;
+    if (sanitizedDisplayName !== undefined)
+      updateFields.displayName = sanitizedDisplayName;
     if (args.updates.preferredGradeLevel !== undefined)
       updateFields.preferredGradeLevel = args.updates.preferredGradeLevel;
     if (args.updates.speechEnabled !== undefined)
