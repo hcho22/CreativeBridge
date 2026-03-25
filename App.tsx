@@ -247,7 +247,21 @@ const MainApp: React.FC = () => {
     return <AuthScreen />;
   }
 
+  // US-001: Age-gating — prompt for age group if not yet provided
+  // Must run BEFORE profile completion so that ProfileCompletionScreen
+  // can check ageGroup and block real name auto-fill for under-13 users (US-010)
+  if (needsAgeVerification) {
+    return (
+      <AgeGatingScreen
+        onComplete={async () => {
+          await refreshProfile();
+        }}
+      />
+    );
+  }
+
   // Show profile completion screen for OAuth users who need to complete their profile
+  // By this point, ageGroup is already set (from AgeGatingScreen above)
   if (
     needsProfileCompletion &&
     clerkUser?.isLoaded &&
@@ -271,17 +285,6 @@ const MainApp: React.FC = () => {
           await refreshProfile();
           // Re-check profile completion to update needsProfileCompletion state
           // This ensures the app navigates to main content after skip
-        }}
-      />
-    );
-  }
-
-  // US-001: Age-gating — prompt for age group if not yet provided
-  if (needsAgeVerification) {
-    return (
-      <AgeGatingScreen
-        onComplete={async () => {
-          await refreshProfile();
         }}
       />
     );
