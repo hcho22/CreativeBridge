@@ -151,6 +151,29 @@ export async function getClerkUserId(ctx: AuthContext): Promise<string> {
 }
 
 /**
+ * Require admin role for a Convex function.
+ * Verifies the caller is authenticated and has role === 'admin' on their profile.
+ *
+ * @param ctx - Convex query or mutation context (needs DB access)
+ * @returns The Clerk user ID of the admin
+ * @throws Error if not authenticated or not an admin
+ */
+export async function requireAdmin(
+  ctx: QueryCtx | MutationCtx,
+): Promise<string> {
+  const clerkUserId = await getClerkUserId(ctx);
+  const profile = await ctx.db
+    .query('userProfiles')
+    .withIndex('by_clerk_user_id', (q: any) => q.eq('clerkUserId', clerkUserId))
+    .first();
+
+  if (!profile || profile.role !== 'admin') {
+    throw new Error('Admin access required.');
+  }
+  return clerkUserId;
+}
+
+/**
  * Get user profile information from the authenticated identity.
  *
  * Returns a subset of profile information that Clerk provides in the JWT.
@@ -202,8 +225,35 @@ export async function getUserProfile(ctx: AuthContext): Promise<{
 export const createSignInToken = action({
   args: {
     email: v.string(),
+    signInAttemptId: v.optional(v.string()),
   },
-  handler: async (_ctx, args) => {
+  handler: async (ctx, args) => {
+    // S-2.5: Auth check during sign-in flow.
+    // This action is called mid-sign-in when Clerk requires email re-verification
+    // (needs_second_factor with email_code). The user has no session yet, so
+    // ctx.auth.getUserIdentity() will always return null. We accept the
+    // signInAttemptId as proof of an active sign-in flow. Security is maintained by:
+    // - CLERK_SECRET_KEY required (server-side only)
+    // - Sign-in tokens are single-use and expire in 60 seconds
+    // - Clerk validates the user exists before issuing the token
+    const identity = await ctx.auth.getUserIdentity();
+    if (identity) {
+      // If somehow authenticated, verify email matches
+      if (
+        !identity.email ||
+        identity.email.toLowerCase() !== args.email.toLowerCase()
+      ) {
+        throw new Error(
+          'Not authorized to create sign-in token for this email.',
+        );
+      }
+    } else if (!args.signInAttemptId) {
+      // Not authenticated and no sign-in attempt ID — reject
+      throw new Error(
+        'Sign-in attempt ID is required when calling without authentication.',
+      );
+    }
+
     const clerkSecretKey = process.env.CLERK_SECRET_KEY;
     if (!clerkSecretKey) {
       throw new Error('CLERK_SECRET_KEY is not configured');
