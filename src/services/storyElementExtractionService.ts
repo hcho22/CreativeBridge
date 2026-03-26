@@ -92,6 +92,7 @@ NORMALIZATION RULES:
 - Use singular form for countable nouns (e.g., "books" → "book")
 - Use generic forms (e.g., "Luna the rabbit" → name: "luna", type: "animal")
 - Keep verbs in base form (e.g., "running" → "run")
+- NEVER return empty strings for any field — if a field value is unknown, omit the entire element from its array instead
 
 OUTPUT FORMAT:
 Return ONLY valid JSON with this exact structure (no markdown, no code blocks, no explanations):
@@ -310,24 +311,34 @@ Extract characters, settings, objects, and plot patterns. Return valid JSON only
    */
   private normalizeElements(elements: StoryElements): StoryElements {
     return {
-      characters: elements.characters.map(char => ({
-        name: this.normalizeText(char.name),
-        type: this.normalizeText(char.type),
-        role: this.normalizeText(char.role),
-      })),
-      settings: elements.settings.map(setting => ({
-        location: this.normalizeText(setting.location),
-        environment: this.normalizeText(setting.environment),
-      })),
-      objects: elements.objects.map(obj => ({
-        name: this.normalizeSingular(obj.name),
-        magical: obj.magical,
-        purpose: this.normalizeText(obj.purpose),
-      })),
-      plot_patterns: elements.plot_patterns.map(pattern => ({
-        action: this.normalizeVerb(pattern.action),
-        discovery_type: this.normalizeText(pattern.discovery_type),
-      })),
+      characters: elements.characters
+        .map(char => ({
+          name: this.normalizeText(char.name),
+          type: this.normalizeText(char.type),
+          role: this.normalizeText(char.role),
+        }))
+        .filter(char => char.name !== ''),
+      settings: elements.settings
+        .map(setting => ({
+          location: this.normalizeText(setting.location),
+          environment: this.normalizeText(setting.environment),
+        }))
+        .filter(
+          setting => setting.location !== '' || setting.environment !== '',
+        ),
+      objects: elements.objects
+        .map(obj => ({
+          name: this.normalizeSingular(obj.name),
+          magical: obj.magical,
+          purpose: this.normalizeText(obj.purpose),
+        }))
+        .filter(obj => obj.name !== ''),
+      plot_patterns: elements.plot_patterns
+        .map(pattern => ({
+          action: this.normalizeVerb(pattern.action),
+          discovery_type: this.normalizeText(pattern.discovery_type),
+        }))
+        .filter(pattern => pattern.action !== ''),
     };
   }
 
@@ -456,7 +467,8 @@ Extract characters, settings, objects, and plot patterns. Return valid JSON only
    *
    * @private
    */
-  private normalizeText(text: string): string {
+  private normalizeText(text: string | null | undefined): string {
+    if (!text) return '';
     return text.toLowerCase().trim();
   }
 
@@ -465,7 +477,7 @@ Extract characters, settings, objects, and plot patterns. Return valid JSON only
    *
    * @private
    */
-  private normalizeSingular(text: string): string {
+  private normalizeSingular(text: string | null | undefined): string {
     const normalized = this.normalizeText(text);
 
     // Simple pluralization rules (English)
@@ -491,7 +503,7 @@ Extract characters, settings, objects, and plot patterns. Return valid JSON only
    *
    * @private
    */
-  private normalizeVerb(text: string): string {
+  private normalizeVerb(text: string | null | undefined): string {
     const normalized = this.normalizeText(text);
 
     // Simple verb normalization
