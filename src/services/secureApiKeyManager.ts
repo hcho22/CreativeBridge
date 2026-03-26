@@ -12,7 +12,7 @@ import { SecurityContext, SecurityError } from '../types/security';
 
 // Security constants for API key management
 const API_KEY_SECURITY = {
-  MASK_LENGTH: 8, // Number of characters to show when logging (e.g., "sk-proj-abc...xyz")
+  MASK_LENGTH: 8, // Number of characters to show when logging (e.g., "sk-***-abc...xyz")
   LOG_THRESHOLD: 4, // Minimum characters to show in logs
   MAX_ACCESS_FREQUENCY: 100, // Max API key accesses per minute per service
   KEY_ROTATION_WARNING_DAYS: 30, // Warn about key rotation after 30 days

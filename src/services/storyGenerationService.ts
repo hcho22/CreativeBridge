@@ -1153,9 +1153,18 @@ ${vocabularyGuidance[gradeLevel]}`;
     const scrubbedStorySoFar = request.storySoFar
       ? piiScrubber.scrubText(sanitizePromptInput(request.storySoFar))
       : undefined;
-    const scrubbedUserInput = request.userInput
+    let scrubbedUserInput = request.userInput
       ? piiScrubber.scrubText(sanitizePromptInput(request.userInput))
       : undefined;
+
+    // Restore user-chosen character name if PII scrubber replaced it with [NAME].
+    // Character names from the story setup wizard are fictional, not real PII.
+    if (scrubbedUserInput && request.characterName) {
+      scrubbedUserInput = scrubbedUserInput.replace(
+        /\bnamed \[NAME\]/,
+        `named ${request.characterName}`,
+      );
+    }
 
     // Use Story_Quest's simple and effective approach
     if (scrubbedStorySoFar) {

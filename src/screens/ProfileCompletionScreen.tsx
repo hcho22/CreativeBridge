@@ -341,6 +341,7 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
 
   return (
     <KeyboardAvoidingView
+      testID="profile-completion-screen"
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >

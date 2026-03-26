@@ -1,13 +1,23 @@
 /**
+ * @deprecated Use src/services/performanceMonitor.ts instead.
+ * This service is retained for backward compatibility but should not be used in new code.
+ *
  * Performance Tuning Service
- * 
+ *
  * Fine-tuning algorithms based on testing results and real-world performance data
  * Task 4.2.4: Fine-tune algorithms based on testing results
  */
 
 import { structuredLogger } from '../utils/logger';
-import { dynamicResourceManager, DeviceConditions, ResourceAllocationStrategy } from './resourceManager';
-import { performanceOptimizer, PerformanceMetrics } from './performanceOptimizer';
+import {
+  dynamicResourceManager,
+  DeviceConditions,
+  ResourceAllocationStrategy,
+} from './resourceManager';
+import {
+  performanceOptimizer,
+  PerformanceMetrics,
+} from './performanceOptimizer';
 import { storyCache } from './storyCache';
 
 export interface PerformanceTuningMetrics {
@@ -66,40 +76,51 @@ const PERFORMANCE_TARGETS: Record<string, PerformanceTarget> = {
 
 export class PerformanceTuningService {
   private tuningHistory: Map<string, PerformanceTuningResult[]> = new Map();
-  private performanceBaseline: Map<string, PerformanceTuningMetrics> = new Map();
+  private performanceBaseline: Map<string, PerformanceTuningMetrics> =
+    new Map();
   private lastTuningTime = 0;
   private tuningCooldown = 300000; // 5 minutes between tunings
 
   /**
    * Analyze current performance and generate tuning recommendations
    */
-  async analyzeAndTune(deviceTier: 'low' | 'medium' | 'high'): Promise<PerformanceTuningResult> {
+  async analyzeAndTune(
+    deviceTier: 'low' | 'medium' | 'high',
+  ): Promise<PerformanceTuningResult> {
     try {
-      structuredLogger.info('Starting performance analysis and tuning', { deviceTier });
+      structuredLogger.info('Starting performance analysis and tuning', {
+        deviceTier,
+      });
 
       // Collect current performance metrics
       const currentMetrics = await this.collectPerformanceMetrics(deviceTier);
-      
+
       // Compare against baseline and targets
-      const performanceGaps = this.identifyPerformanceGaps(currentMetrics, deviceTier);
-      
+      const performanceGaps = this.identifyPerformanceGaps(
+        currentMetrics,
+        deviceTier,
+      );
+
       // Generate tuning recommendations
       const tuningRecommendations = await this.generateTuningRecommendations(
         performanceGaps,
         currentMetrics,
-        deviceTier
+        deviceTier,
       );
-      
+
       // Assess risk and overall improvement potential
       const riskAssessment = this.assessTuningRisk(tuningRecommendations);
-      const expectedImprovement = this.calculateExpectedImprovement(tuningRecommendations);
-      
+      const expectedImprovement = this.calculateExpectedImprovement(
+        tuningRecommendations,
+      );
+
       const result: PerformanceTuningResult = {
         deviceTier,
         tuningRecommendations,
         expectedOverallImprovement: expectedImprovement,
         riskAssessment,
-        validationRequired: riskAssessment !== 'low' || expectedImprovement > 25,
+        validationRequired:
+          riskAssessment !== 'low' || expectedImprovement > 25,
       };
 
       // Store tuning history
@@ -114,7 +135,11 @@ export class PerformanceTuningService {
 
       return result;
     } catch (error) {
-      structuredLogger.error('Performance tuning analysis failed', { deviceTier }, error as Error);
+      structuredLogger.error(
+        'Performance tuning analysis failed',
+        { deviceTier },
+        error as Error,
+      );
       throw error;
     }
   }
@@ -125,7 +150,7 @@ export class PerformanceTuningService {
   async applyTuningRecommendations(
     recommendations: TuningRecommendation[],
     deviceTier: 'low' | 'medium' | 'high',
-    validateChanges: boolean = true
+    validateChanges: boolean = true,
   ): Promise<{ applied: number; validated: boolean; rollback?: boolean }> {
     const now = Date.now();
     if (now - this.lastTuningTime < this.tuningCooldown) {
@@ -140,10 +165,16 @@ export class PerformanceTuningService {
       });
 
       let appliedCount = 0;
-      const appliedChanges: Array<{ parameter: string; oldValue: any; newValue: any }> = [];
+      const appliedChanges: Array<{
+        parameter: string;
+        oldValue: any;
+        newValue: any;
+      }> = [];
 
       // Take baseline measurements before changes
-      const baselineMetrics = validateChanges ? await this.collectPerformanceMetrics(deviceTier) : null;
+      const baselineMetrics = validateChanges
+        ? await this.collectPerformanceMetrics(deviceTier)
+        : null;
 
       // Apply recommendations in order of priority
       const sortedRecommendations = recommendations.sort((a, b) => {
@@ -182,15 +213,26 @@ export class PerformanceTuningService {
       let shouldRollback = false;
 
       if (validateChanges && baselineMetrics) {
-        const postTuningMetrics = await this.collectPerformanceMetrics(deviceTier);
-        validationPassed = await this.validateTuningChanges(baselineMetrics, postTuningMetrics, deviceTier);
+        const postTuningMetrics = await this.collectPerformanceMetrics(
+          deviceTier,
+        );
+        validationPassed = await this.validateTuningChanges(
+          baselineMetrics,
+          postTuningMetrics,
+          deviceTier,
+        );
 
         if (!validationPassed) {
-          shouldRollback = await this.shouldRollbackChanges(baselineMetrics, postTuningMetrics);
-          
+          shouldRollback = await this.shouldRollbackChanges(
+            baselineMetrics,
+            postTuningMetrics,
+          );
+
           if (shouldRollback) {
             await this.rollbackChanges(appliedChanges);
-            structuredLogger.warn('Performance tuning rolled back due to validation failure');
+            structuredLogger.warn(
+              'Performance tuning rolled back due to validation failure',
+            );
           }
         }
       }
@@ -207,7 +249,11 @@ export class PerformanceTuningService {
         rollback: shouldRollback,
       };
     } catch (error) {
-      structuredLogger.error('Performance tuning application failed', { deviceTier }, error as Error);
+      structuredLogger.error(
+        'Performance tuning application failed',
+        { deviceTier },
+        error as Error,
+      );
       throw error;
     }
   }
@@ -215,7 +261,9 @@ export class PerformanceTuningService {
   /**
    * Establish performance baseline for comparison
    */
-  async establishPerformanceBaseline(deviceTier: 'low' | 'medium' | 'high'): Promise<void> {
+  async establishPerformanceBaseline(
+    deviceTier: 'low' | 'medium' | 'high',
+  ): Promise<void> {
     try {
       const baselineMetrics = await this.collectPerformanceMetrics(deviceTier);
       this.performanceBaseline.set(deviceTier, baselineMetrics);
@@ -225,7 +273,11 @@ export class PerformanceTuningService {
         metrics: baselineMetrics,
       });
     } catch (error) {
-      structuredLogger.error('Failed to establish performance baseline', { deviceTier }, error as Error);
+      structuredLogger.error(
+        'Failed to establish performance baseline',
+        { deviceTier },
+        error as Error,
+      );
       throw error;
     }
   }
@@ -233,7 +285,9 @@ export class PerformanceTuningService {
   /**
    * Monitor performance after tuning and suggest further improvements
    */
-  async monitorPostTuningPerformance(deviceTier: 'low' | 'medium' | 'high'): Promise<{
+  async monitorPostTuningPerformance(
+    deviceTier: 'low' | 'medium' | 'high',
+  ): Promise<{
     performanceImprovement: number;
     targetsAchieved: boolean;
     furtherOptimizationNeeded: boolean;
@@ -246,9 +300,16 @@ export class PerformanceTuningService {
         throw new Error('No baseline metrics found for comparison');
       }
 
-      const improvementPercentage = this.calculateImprovementPercentage(baseline, currentMetrics);
-      const targetsAchieved = this.checkTargetsAchieved(currentMetrics, deviceTier);
-      const furtherOptimizationNeeded = !targetsAchieved || improvementPercentage < 15;
+      const improvementPercentage = this.calculateImprovementPercentage(
+        baseline,
+        currentMetrics,
+      );
+      const targetsAchieved = this.checkTargetsAchieved(
+        currentMetrics,
+        deviceTier,
+      );
+      const furtherOptimizationNeeded =
+        !targetsAchieved || improvementPercentage < 15;
 
       structuredLogger.info('Post-tuning performance monitoring', {
         deviceTier,
@@ -263,7 +324,11 @@ export class PerformanceTuningService {
         furtherOptimizationNeeded,
       };
     } catch (error) {
-      structuredLogger.error('Post-tuning monitoring failed', { deviceTier }, error as Error);
+      structuredLogger.error(
+        'Post-tuning monitoring failed',
+        { deviceTier },
+        error as Error,
+      );
       throw error;
     }
   }
@@ -291,7 +356,9 @@ export class PerformanceTuningService {
 
   // Private helper methods
 
-  private async collectPerformanceMetrics(deviceTier: 'low' | 'medium' | 'high'): Promise<PerformanceTuningMetrics> {
+  private async collectPerformanceMetrics(
+    deviceTier: 'low' | 'medium' | 'high',
+  ): Promise<PerformanceTuningMetrics> {
     try {
       // Get current device conditions and performance data
       const conditions = dynamicResourceManager.getCurrentConditions();
@@ -300,25 +367,27 @@ export class PerformanceTuningService {
       const memoryConfig = dynamicResourceManager.getMemoryConfig();
 
       // Simulate memory optimization measurement
-      const memoryOptimizationEffectiveness = await this.measureMemoryOptimization(deviceTier);
-      
+      const memoryOptimizationEffectiveness =
+        await this.measureMemoryOptimization(deviceTier);
+
       // Simulate cache performance measurement
       const cacheHitRatioScore = await this.measureCachePerformance();
-      
+
       // Simulate latency measurement
-      const latencyPerformanceScore = await this.measureLatencyPerformance(deviceTier);
-      
+      const latencyPerformanceScore = await this.measureLatencyPerformance(
+        deviceTier,
+      );
+
       // Simulate battery optimization measurement
       const batteryOptimizationScore = await this.measureBatteryOptimization();
 
       // Calculate weighted composite score
       const weights = { memory: 0.3, cache: 0.25, latency: 0.3, battery: 0.15 };
-      const overallPerformanceIndex = (
+      const overallPerformanceIndex =
         memoryOptimizationEffectiveness * weights.memory +
         cacheHitRatioScore * weights.cache +
         latencyPerformanceScore * weights.latency +
-        batteryOptimizationScore * weights.battery
-      );
+        batteryOptimizationScore * weights.battery;
 
       return {
         memoryOptimizationEffectiveness,
@@ -328,17 +397,21 @@ export class PerformanceTuningService {
         overallPerformanceIndex,
       };
     } catch (error) {
-      structuredLogger.error('Failed to collect performance metrics', { deviceTier }, error as Error);
+      structuredLogger.error(
+        'Failed to collect performance metrics',
+        { deviceTier },
+        error as Error,
+      );
       throw error;
     }
   }
 
   private identifyPerformanceGaps(
     metrics: PerformanceTuningMetrics,
-    deviceTier: 'low' | 'medium' | 'high'
+    deviceTier: 'low' | 'medium' | 'high',
   ): Record<string, number> {
     const targets = PERFORMANCE_TARGETS[deviceTier];
-    
+
     return {
       memoryGap: Math.max(0, 0.8 - metrics.memoryOptimizationEffectiveness), // Target 80% effectiveness
       cacheGap: Math.max(0, 0.8 - metrics.cacheHitRatioScore),
@@ -350,45 +423,53 @@ export class PerformanceTuningService {
   private async generateTuningRecommendations(
     performanceGaps: Record<string, number>,
     currentMetrics: PerformanceTuningMetrics,
-    deviceTier: 'low' | 'medium' | 'high'
+    deviceTier: 'low' | 'medium' | 'high',
   ): Promise<TuningRecommendation[]> {
     const recommendations: TuningRecommendation[] = [];
     const currentStrategy = dynamicResourceManager.getCurrentStrategy();
 
     // Memory optimization recommendations
     if (performanceGaps.memoryGap > 0.1) {
-      recommendations.push(await this.generateMemoryTuningRecommendation(
-        performanceGaps.memoryGap,
-        currentStrategy,
-        deviceTier
-      ));
+      recommendations.push(
+        await this.generateMemoryTuningRecommendation(
+          performanceGaps.memoryGap,
+          currentStrategy,
+          deviceTier,
+        ),
+      );
     }
 
     // Cache optimization recommendations
     if (performanceGaps.cacheGap > 0.1) {
-      recommendations.push(await this.generateCacheTuningRecommendation(
-        performanceGaps.cacheGap,
-        currentStrategy,
-        deviceTier
-      ));
+      recommendations.push(
+        await this.generateCacheTuningRecommendation(
+          performanceGaps.cacheGap,
+          currentStrategy,
+          deviceTier,
+        ),
+      );
     }
 
     // Latency optimization recommendations
     if (performanceGaps.latencyGap > 0.1) {
-      recommendations.push(await this.generateLatencyTuningRecommendation(
-        performanceGaps.latencyGap,
-        currentStrategy,
-        deviceTier
-      ));
+      recommendations.push(
+        await this.generateLatencyTuningRecommendation(
+          performanceGaps.latencyGap,
+          currentStrategy,
+          deviceTier,
+        ),
+      );
     }
 
     // Battery optimization recommendations
     if (performanceGaps.batteryGap > 0.1) {
-      recommendations.push(await this.generateBatteryTuningRecommendation(
-        performanceGaps.batteryGap,
-        currentStrategy,
-        deviceTier
-      ));
+      recommendations.push(
+        await this.generateBatteryTuningRecommendation(
+          performanceGaps.batteryGap,
+          currentStrategy,
+          deviceTier,
+        ),
+      );
     }
 
     return recommendations.filter(rec => rec.confidence > 0.6); // Only high-confidence recommendations
@@ -397,11 +478,11 @@ export class PerformanceTuningService {
   private async generateMemoryTuningRecommendation(
     gap: number,
     strategy: ResourceAllocationStrategy,
-    deviceTier: 'low' | 'medium' | 'high'
+    deviceTier: 'low' | 'medium' | 'high',
   ): Promise<TuningRecommendation> {
     const currentMemoryLimit = strategy.memoryLimitMB;
     const gapSeverity = gap > 0.3 ? 'high' : gap > 0.15 ? 'medium' : 'low';
-    
+
     let recommendedValue: number;
     let expectedImprovement: number;
     let priority: 'low' | 'medium' | 'high' | 'critical';
@@ -426,7 +507,9 @@ export class PerformanceTuningService {
       recommendedValue,
       expectedImprovement,
       confidence: 0.85,
-      reasoning: `Memory optimization gap of ${(gap * 100).toFixed(1)}% detected. Reducing memory limit can improve cleanup effectiveness.`,
+      reasoning: `Memory optimization gap of ${(gap * 100).toFixed(
+        1,
+      )}% detected. Reducing memory limit can improve cleanup effectiveness.`,
       priority,
     };
   }
@@ -434,12 +517,12 @@ export class PerformanceTuningService {
   private async generateCacheTuningRecommendation(
     gap: number,
     strategy: ResourceAllocationStrategy,
-    deviceTier: 'low' | 'medium' | 'high'
+    deviceTier: 'low' | 'medium' | 'high',
   ): Promise<TuningRecommendation> {
     const currentStrategy = strategy.cacheStrategy;
     const strategies = ['minimal', 'balanced', 'aggressive'];
     const currentIndex = strategies.indexOf(currentStrategy);
-    
+
     let recommendedValue: string;
     let expectedImprovement: number;
     let priority: 'low' | 'medium' | 'high' | 'critical';
@@ -460,7 +543,8 @@ export class PerformanceTuningService {
         recommendedValue: 0.75,
         expectedImprovement: 8,
         confidence: 0.7,
-        reasoning: 'Cache performance can be improved by adjusting eviction threshold.',
+        reasoning:
+          'Cache performance can be improved by adjusting eviction threshold.',
         priority: 'low',
       };
     }
@@ -471,7 +555,9 @@ export class PerformanceTuningService {
       recommendedValue,
       expectedImprovement,
       confidence: 0.8,
-      reasoning: `Cache hit ratio gap of ${(gap * 100).toFixed(1)}% can be improved with more aggressive caching.`,
+      reasoning: `Cache hit ratio gap of ${(gap * 100).toFixed(
+        1,
+      )}% can be improved with more aggressive caching.`,
       priority,
     };
   }
@@ -479,10 +565,10 @@ export class PerformanceTuningService {
   private async generateLatencyTuningRecommendation(
     gap: number,
     strategy: ResourceAllocationStrategy,
-    deviceTier: 'low' | 'medium' | 'high'
+    deviceTier: 'low' | 'medium' | 'high',
   ): Promise<TuningRecommendation> {
     const currentConcurrent = strategy.maxConcurrentOperations;
-    
+
     if (gap > 0.2 && currentConcurrent < 4 && deviceTier !== 'low') {
       return {
         parameter: 'maxConcurrentOperations',
@@ -490,7 +576,9 @@ export class PerformanceTuningService {
         recommendedValue: Math.min(4, currentConcurrent + 1),
         expectedImprovement: 18,
         confidence: 0.75,
-        reasoning: `Latency gap of ${(gap * 100).toFixed(1)}% can be improved by increasing concurrent operations.`,
+        reasoning: `Latency gap of ${(gap * 100).toFixed(
+          1,
+        )}% can be improved by increasing concurrent operations.`,
         priority: 'medium',
       };
     }
@@ -509,7 +597,7 @@ export class PerformanceTuningService {
   private async generateBatteryTuningRecommendation(
     gap: number,
     strategy: ResourceAllocationStrategy,
-    deviceTier: 'low' | 'medium' | 'high'
+    deviceTier: 'low' | 'medium' | 'high',
   ): Promise<TuningRecommendation> {
     if (gap > 0.15 && strategy.enableBackgroundTasks) {
       return {
@@ -518,7 +606,9 @@ export class PerformanceTuningService {
         recommendedValue: false,
         expectedImprovement: 15,
         confidence: 0.8,
-        reasoning: `Battery optimization gap of ${(gap * 100).toFixed(1)}% can be improved by reducing background activity.`,
+        reasoning: `Battery optimization gap of ${(gap * 100).toFixed(
+          1,
+        )}% can be improved by reducing background activity.`,
         priority: 'medium',
       };
     }
@@ -526,15 +616,19 @@ export class PerformanceTuningService {
     return {
       parameter: 'animationComplexity',
       currentValue: strategy.animationComplexity,
-      recommendedValue: strategy.animationComplexity === 'full' ? 'reduced' : 'none',
+      recommendedValue:
+        strategy.animationComplexity === 'full' ? 'reduced' : 'none',
       expectedImprovement: 8,
       confidence: 0.65,
-      reasoning: 'Reducing animation complexity can improve battery performance.',
+      reasoning:
+        'Reducing animation complexity can improve battery performance.',
       priority: 'low',
     };
   }
 
-  private async applyParameterChange(recommendation: TuningRecommendation): Promise<any> {
+  private async applyParameterChange(
+    recommendation: TuningRecommendation,
+  ): Promise<any> {
     const currentStrategy = dynamicResourceManager.getCurrentStrategy();
     const oldValue = (currentStrategy as any)[recommendation.parameter];
 
@@ -550,53 +644,82 @@ export class PerformanceTuningService {
     return oldValue;
   }
 
-  private async rollbackChanges(appliedChanges: Array<{ parameter: string; oldValue: any; newValue: any }>): Promise<void> {
+  private async rollbackChanges(
+    appliedChanges: Array<{ parameter: string; oldValue: any; newValue: any }>,
+  ): Promise<void> {
     const currentStrategy = dynamicResourceManager.getCurrentStrategy();
-    
+
     // Restore original values
     const restoredStrategy = { ...currentStrategy };
     for (const change of appliedChanges) {
       (restoredStrategy as any)[change.parameter] = change.oldValue;
     }
 
-    await dynamicResourceManager.applyResourceAllocationStrategy(restoredStrategy);
+    await dynamicResourceManager.applyResourceAllocationStrategy(
+      restoredStrategy,
+    );
   }
 
   // Performance measurement helpers
 
-  private async measureMemoryOptimization(deviceTier: 'low' | 'medium' | 'high'): Promise<number> {
-    // Simulate memory optimization measurement
+  private async measureMemoryOptimization(
+    deviceTier: 'low' | 'medium' | 'high',
+  ): Promise<number> {
     const target = PERFORMANCE_TARGETS[deviceTier].memoryOptimizationTarget;
-    const current = 35 + Math.random() * 20; // 35-55% range
-    return Math.min(1, current / target);
+    const memoryConfig = dynamicResourceManager.getMemoryConfig();
+    // Use real memory config data: ratio of warning threshold to base limit
+    // indicates how aggressively memory is being managed
+    const effectiveness = memoryConfig
+      ? ((memoryConfig.baseMemoryLimit - memoryConfig.warningThreshold) /
+          memoryConfig.baseMemoryLimit) *
+        100
+      : 0;
+    return Math.min(1, effectiveness / target);
   }
 
   private async measureCachePerformance(): Promise<number> {
-    // Simulate cache performance measurement
-    const hitRatio = 65 + Math.random() * 25; // 65-90% range
+    // Use real cache stats from the story cache service
+    const cacheStats = storyCache.getStats();
+    const hitRatio =
+      cacheStats.totalRequests > 0
+        ? (cacheStats.totalHits / cacheStats.totalRequests) * 100
+        : 0;
     return Math.min(1, hitRatio / 80); // Target 80%
   }
 
-  private async measureLatencyPerformance(deviceTier: 'low' | 'medium' | 'high'): Promise<number> {
-    // Simulate latency measurement
+  private async measureLatencyPerformance(
+    deviceTier: 'low' | 'medium' | 'high',
+  ): Promise<number> {
     const target = PERFORMANCE_TARGETS[deviceTier].latency80thPercentileTarget;
-    const current = target * (0.8 + Math.random() * 0.4); // 80-120% of target
-    return Math.min(1, target / current);
+    // Use real API response time from performance optimizer metrics
+    const perfMetrics = performanceOptimizer.getMetrics();
+    const currentLatency =
+      perfMetrics.apiResponseTime > 0 ? perfMetrics.apiResponseTime : target; // No data yet = assume on-target
+    return Math.min(1, target / Math.max(currentLatency, 1));
   }
 
   private async measureBatteryOptimization(): Promise<number> {
-    // Simulate battery optimization measurement
-    const impact = 2 + Math.random() * 6; // 2-8% impact
-    return Math.max(0, 1 - (impact / 5)); // Target <5% impact
+    // Use real battery optimization state from performance optimizer
+    const isBatteryOptimized = performanceOptimizer.isBatteryOptimized();
+    const settings = performanceOptimizer.getOptimizationSettings();
+    // Score based on actual optimization state:
+    // Battery-optimized + background disabled = best score
+    let score = 0.5; // baseline
+    if (isBatteryOptimized) score += 0.3;
+    if (!settings.backgroundProcessing) score += 0.1;
+    if (!settings.prefetchEnabled) score += 0.1;
+    return Math.min(1, score);
   }
 
-  private assessTuningRisk(recommendations: TuningRecommendation[]): 'low' | 'medium' | 'high' {
-    const highRiskChanges = recommendations.filter(r => 
-      r.priority === 'critical' || r.expectedImprovement > 30
+  private assessTuningRisk(
+    recommendations: TuningRecommendation[],
+  ): 'low' | 'medium' | 'high' {
+    const highRiskChanges = recommendations.filter(
+      r => r.priority === 'critical' || r.expectedImprovement > 30,
     ).length;
-    
-    const mediumRiskChanges = recommendations.filter(r => 
-      r.priority === 'high' || r.expectedImprovement > 15
+
+    const mediumRiskChanges = recommendations.filter(
+      r => r.priority === 'high' || r.expectedImprovement > 15,
     ).length;
 
     if (highRiskChanges > 0) return 'high';
@@ -604,17 +727,27 @@ export class PerformanceTuningService {
     return 'low';
   }
 
-  private calculateExpectedImprovement(recommendations: TuningRecommendation[]): number {
-    return recommendations.reduce((total, rec) => total + rec.expectedImprovement * rec.confidence, 0) / recommendations.length;
+  private calculateExpectedImprovement(
+    recommendations: TuningRecommendation[],
+  ): number {
+    return (
+      recommendations.reduce(
+        (total, rec) => total + rec.expectedImprovement * rec.confidence,
+        0,
+      ) / recommendations.length
+    );
   }
 
-  private storeTuningHistory(deviceTier: string, result: PerformanceTuningResult): void {
+  private storeTuningHistory(
+    deviceTier: string,
+    result: PerformanceTuningResult,
+  ): void {
     if (!this.tuningHistory.has(deviceTier)) {
       this.tuningHistory.set(deviceTier, []);
     }
     const history = this.tuningHistory.get(deviceTier)!;
     history.push(result);
-    
+
     // Keep only last 10 entries
     if (history.length > 10) {
       history.splice(0, history.length - 10);
@@ -624,18 +757,22 @@ export class PerformanceTuningService {
   private async validateTuningChanges(
     baseline: PerformanceTuningMetrics,
     current: PerformanceTuningMetrics,
-    deviceTier: 'low' | 'medium' | 'high'
+    deviceTier: 'low' | 'medium' | 'high',
   ): Promise<boolean> {
     const improvementThreshold = 0.05; // 5% minimum improvement
-    
-    const overallImprovement = current.overallPerformanceIndex - baseline.overallPerformanceIndex;
-    
+
+    const overallImprovement =
+      current.overallPerformanceIndex - baseline.overallPerformanceIndex;
+
     if (overallImprovement < improvementThreshold) {
-      structuredLogger.warn('Performance tuning did not meet improvement threshold', {
-        baseline: baseline.overallPerformanceIndex,
-        current: current.overallPerformanceIndex,
-        improvement: overallImprovement,
-      });
+      structuredLogger.warn(
+        'Performance tuning did not meet improvement threshold',
+        {
+          baseline: baseline.overallPerformanceIndex,
+          current: current.overallPerformanceIndex,
+          improvement: overallImprovement,
+        },
+      );
       return false;
     }
 
@@ -644,21 +781,22 @@ export class PerformanceTuningService {
 
   private async shouldRollbackChanges(
     baseline: PerformanceTuningMetrics,
-    current: PerformanceTuningMetrics
+    current: PerformanceTuningMetrics,
   ): Promise<boolean> {
     const regressionThreshold = -0.1; // 10% regression triggers rollback
-    
-    const overallChange = current.overallPerformanceIndex - baseline.overallPerformanceIndex;
-    
+
+    const overallChange =
+      current.overallPerformanceIndex - baseline.overallPerformanceIndex;
+
     return overallChange < regressionThreshold;
   }
 
   private checkTargetsAchieved(
     metrics: PerformanceTuningMetrics,
-    deviceTier: 'low' | 'medium' | 'high'
+    deviceTier: 'low' | 'medium' | 'high',
   ): boolean {
     const targetThreshold = 0.8; // 80% of target performance
-    
+
     return (
       metrics.memoryOptimizationEffectiveness >= targetThreshold &&
       metrics.cacheHitRatioScore >= targetThreshold &&
@@ -669,16 +807,17 @@ export class PerformanceTuningService {
 
   private calculateImprovementPercentage(
     baseline: PerformanceTuningMetrics,
-    current: PerformanceTuningMetrics
+    current: PerformanceTuningMetrics,
   ): number {
-    const improvement = current.overallPerformanceIndex - baseline.overallPerformanceIndex;
+    const improvement =
+      current.overallPerformanceIndex - baseline.overallPerformanceIndex;
     return (improvement / baseline.overallPerformanceIndex) * 100;
   }
 
   private generateTuningSummary(
     deviceTier: string,
     baseline: PerformanceTuningMetrics | undefined,
-    latestResult: PerformanceTuningResult | undefined
+    latestResult: PerformanceTuningResult | undefined,
   ): string {
     if (!baseline || !latestResult) {
       return `Performance tuning for ${deviceTier} devices: No data available`;
@@ -686,8 +825,10 @@ export class PerformanceTuningService {
 
     const recommendationCount = latestResult.tuningRecommendations.length;
     const improvement = latestResult.expectedOverallImprovement;
-    
-    return `Performance tuning for ${deviceTier} devices: ${recommendationCount} recommendations generated with ${improvement.toFixed(1)}% expected improvement. Risk assessment: ${latestResult.riskAssessment}.`;
+
+    return `Performance tuning for ${deviceTier} devices: ${recommendationCount} recommendations generated with ${improvement.toFixed(
+      1,
+    )}% expected improvement. Risk assessment: ${latestResult.riskAssessment}.`;
   }
 }
 

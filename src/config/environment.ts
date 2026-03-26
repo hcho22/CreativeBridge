@@ -4,7 +4,6 @@
 // Import environment variables using react-native-dotenv
 import {
   CLERK_PUBLISHABLE_KEY,
-  CLERK_SECRET_KEY,
   CLERK_JWKS_URL,
   SUPABASE_URL,
   SUPABASE_ANON_KEY,
@@ -29,7 +28,6 @@ export interface EnvironmentConfig {
   };
   clerk?: {
     publishableKey: string;
-    secretKey?: string;
     jwksUrl: string;
   };
   convex?: {
@@ -70,11 +68,7 @@ const getEnvironmentConfig = (): EnvironmentConfig => {
   // React Native doesn't automatically load .env files, so we hardcode for development
   const config: EnvironmentConfig = {
     openai: {
-      apiKey:
-        OPENAI_API_KEY ||
-        (__DEV__
-          ? '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'
-          : ''),
+      apiKey: OPENAI_API_KEY || '',
       orgId: OPENAI_ORG_ID || '',
       baseUrl: 'https://api.openai.com/v1',
       model: OPENAI_MODEL || 'gpt-4o-mini',
@@ -87,7 +81,6 @@ const getEnvironmentConfig = (): EnvironmentConfig => {
     },
     clerk: {
       publishableKey: CLERK_PUBLISHABLE_KEY || '',
-      secretKey: CLERK_SECRET_KEY || '',
       jwksUrl: CLERK_JWKS_URL || '', // Format: https://your-clerk-instance.clerk.accounts.dev/.well-known/jwks.json
     },
     convex: {
@@ -148,7 +141,6 @@ export const getOpenAIHeaders = (): Record<string, string> => {
 
 export interface ClerkConfig {
   publishableKey: string;
-  secretKey?: string;
   jwksUrl: string;
 }
 

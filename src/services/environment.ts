@@ -105,14 +105,8 @@ const loadEnvironmentConfig = (): EnvironmentConfig => {
 
   return {
     // Supabase Configuration
-    SUPABASE_URL: getEnvVar(
-      ENV_SUPABASE_URL,
-      'https://dzwcqfnvcaempqgkzkuz.supabase.co',
-    ),
-    SUPABASE_ANON_KEY: getEnvVar(
-      ENV_SUPABASE_ANON_KEY,
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6d2NxZm52Y2FlbXBxZ2t6a3V6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc3NzAxMzgsImV4cCI6MjA2MzM0NjEzOH0.a4TidZN02D6AAj88W08BdumMQv_LLihRqyYu4b_3TEo',
-    ),
+    SUPABASE_URL: getEnvVar(ENV_SUPABASE_URL),
+    SUPABASE_ANON_KEY: getEnvVar(ENV_SUPABASE_ANON_KEY),
 
     // OpenAI Configuration
     OPENAI_API_KEY: getEnvVar(ENV_OPENAI_API_KEY),
@@ -236,9 +230,8 @@ try {
   console.error('Failed to load environment configuration:', error);
   // Provide fallback configuration to prevent app crash
   env = {
-    SUPABASE_URL: 'https://dzwcqfnvcaempqgkzkuz.supabase.co',
-    SUPABASE_ANON_KEY:
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6d2NxZm52Y2FlbXBxZ2t6a3V6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc3NzAxMzgsImV4cCI6MjA2MzM0NjEzOH0.a4TidZN02D6AAj88W08BdumMQv_LLihRqyYu4b_3TEo',
+    SUPABASE_URL: '',
+    SUPABASE_ANON_KEY: '',
     OPENAI_API_KEY: '',
     REPLICATE_API_TOKEN: '',
     BACKUP_IMAGE_API_TOKEN: '',

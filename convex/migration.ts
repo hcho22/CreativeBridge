@@ -37,7 +37,7 @@ import {
 } from './_generated/server';
 import { v } from 'convex/values';
 import { Id } from './_generated/dataModel';
-import { requireAuth, getCurrentUser } from './auth';
+import { requireAuth, getCurrentUser, getClerkUserId } from './auth';
 import { migrationEventTypeValidator, migrationStepValidator } from './schema';
 
 // ============================================================================
@@ -3558,7 +3558,12 @@ export const migrateUserGameSessions = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    await requireAuth(ctx);
+    const callerClerkUserId = await getClerkUserId(ctx);
+
+    // S-2.9: Verify caller matches the target clerkUserId
+    if (callerClerkUserId !== args.clerkUserId) {
+      throw new Error('Not authorized to migrate sessions for another user.');
+    }
 
     // Look up the user's Convex profile
     const profile = await ctx.db

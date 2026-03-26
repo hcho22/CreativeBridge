@@ -41,6 +41,7 @@ const ParentEmailScreen: React.FC<ParentEmailScreenProps> = ({
   const [confirmEmail, setConfirmEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emailSendError, setEmailSendError] = useState(false);
 
   const submitParentEmail = useMutation(api.consent.submitParentEmail);
   const initiateConsentRenewal = useMutation(
@@ -64,15 +65,20 @@ const ParentEmailScreen: React.FC<ParentEmailScreenProps> = ({
       const submitFn = isRenewal ? initiateConsentRenewal : submitParentEmail;
       const result = await submitFn({ parentEmail: parentEmail.trim() });
 
-      // Send the consent email to the parent
+      // Send the consent email to the parent (token resolved server-side)
       try {
         await sendConsentEmail({
           parentEmail: parentEmail.trim(),
-          consentToken: result.consentToken,
         });
       } catch (emailErr) {
         // Log but don't block — the consent link can still be shared manually
         console.warn('[ParentEmail] Failed to send consent email:', emailErr);
+        setEmailSendError(true);
+        Alert.alert(
+          'Email May Not Have Been Sent',
+          'We had trouble sending the consent email. Your parent can also access the consent page through the app settings. Please try again or ask your parent to check their spam folder.',
+          [{ text: 'OK' }],
+        );
       }
 
       onConsentInitiated();
@@ -89,6 +95,7 @@ const ParentEmailScreen: React.FC<ParentEmailScreenProps> = ({
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      testID="parent-email-screen"
     >
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -113,6 +120,7 @@ const ParentEmailScreen: React.FC<ParentEmailScreenProps> = ({
         <View style={styles.form}>
           <Text style={styles.label}>Parent's Email Address</Text>
           <TextInput
+            testID="parent-email-input"
             style={[
               styles.input,
               error ? styles.inputError : null,
@@ -136,6 +144,7 @@ const ParentEmailScreen: React.FC<ParentEmailScreenProps> = ({
 
           <Text style={styles.label}>Confirm Email Address</Text>
           <TextInput
+            testID="parent-email-confirm-input"
             style={[
               styles.input,
               confirmEmail && !emailsMatch ? styles.inputError : null,
@@ -163,6 +172,7 @@ const ParentEmailScreen: React.FC<ParentEmailScreenProps> = ({
           {error && <Text style={styles.errorText}>{error}</Text>}
 
           <TouchableOpacity
+            testID="parent-email-submit"
             style={[
               styles.submitButton,
               !canSubmit && styles.submitButtonDisabled,

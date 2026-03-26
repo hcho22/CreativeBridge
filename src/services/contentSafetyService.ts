@@ -54,13 +54,20 @@ function checkBlocklist(text: string): {
   return { matchedTerms, matchedCategories: Array.from(matchedCategoriesSet) };
 }
 
+interface ModerationResult {
+  flaggedCategories: string[];
+  /** True when the API returned a successful response (even if nothing flagged). */
+  succeeded: boolean;
+}
+
 /**
  * Run OpenAI Moderation API on text content.
- * Returns flagged category names, or empty array on failure/timeout.
+ * Returns flagged category names and whether the call succeeded.
+ * On failure/timeout, `succeeded` is false so callers can decide policy.
  */
-async function runModerationAPI(text: string): Promise<string[]> {
+async function runModerationAPI(text: string): Promise<ModerationResult> {
   if (!isOpenAIConfigured()) {
-    return [];
+    return { flaggedCategories: [], succeeded: false };
   }
 
   try {
@@ -84,14 +91,14 @@ async function runModerationAPI(text: string): Promise<string[]> {
 
     if (!response.ok) {
       console.warn(`Content moderation API returned ${response.status}`);
-      return [];
+      return { flaggedCategories: [], succeeded: false };
     }
 
     const data = await response.json();
     const result = data.results?.[0];
 
     if (!result || !result.flagged) {
-      return [];
+      return { flaggedCategories: [], succeeded: true };
     }
 
     const flagged: string[] = [];
@@ -102,7 +109,7 @@ async function runModerationAPI(text: string): Promise<string[]> {
         }
       }
     }
-    return flagged;
+    return { flaggedCategories: flagged, succeeded: true };
   } catch (error) {
     const isTimeout =
       error instanceof Error &&
@@ -112,34 +119,53 @@ async function runModerationAPI(text: string): Promise<string[]> {
     } else {
       console.warn('Content moderation API error — skipping:', error);
     }
-    return [];
+    return { flaggedCategories: [], succeeded: false };
   }
+}
+
+export interface CheckInputSafetyOptions {
+  /**
+   * When true, content is blocked if the moderation API fails (COPPA: US-006 U-6.6).
+   * Users 13+ keep the existing fail-open behavior.
+   */
+  isUnder13?: boolean;
 }
 
 /**
  * Check user input for safety BEFORE sending to AI services.
  * Runs blocklist check + OpenAI Moderation API in parallel.
+ *
+ * For under-13 users, the moderation API failing causes content to be blocked
+ * (fail-closed). Users 13+ keep the existing fail-open behavior.
  */
 export async function checkInputSafety(
   text: string,
+  options: CheckInputSafetyOptions = {},
 ): Promise<ContentSafetyResult> {
   const startTime = Date.now();
 
   // Run blocklist and moderation API in parallel
-  const [blocklistResult, moderationCategories] = await Promise.all([
+  const [blocklistResult, moderationResult] = await Promise.all([
     Promise.resolve(checkBlocklist(text)),
     runModerationAPI(text),
   ]);
 
+  // For under-13 users, block content when moderation API fails (US-006: U-6.6)
+  const moderationFailed = !moderationResult.succeeded;
+  const failClosed = options.isUnder13 && moderationFailed;
+
   const safe =
     blocklistResult.matchedTerms.length === 0 &&
-    moderationCategories.length === 0;
+    moderationResult.flaggedCategories.length === 0 &&
+    !failClosed;
 
   return {
     safe,
     matchedTerms: blocklistResult.matchedTerms,
     matchedCategories: blocklistResult.matchedCategories,
-    moderationCategories,
+    moderationCategories: failClosed
+      ? ['moderation_unavailable']
+      : moderationResult.flaggedCategories,
     userMessage: safe ? undefined : CONTENT_BLOCKED_USER_MESSAGE,
     checkTimeMs: Date.now() - startTime,
   };

@@ -492,7 +492,7 @@ class StorySessionManager {
       console.log('📖 Fetching sessions from Convex');
       const result = await convexClient.query(
         api.gameSessions.getUserSessions,
-        { clerkUserId: userId, limit: 100 },
+        { limit: 100 },
       );
 
       if (result && result.sessions) {
@@ -531,14 +531,14 @@ class StorySessionManager {
       console.log('Updating session:', session.id);
 
       // Prepare update data for Convex
+      // Note: xpEarned and finalScore are intentionally omitted here (R-4.4)
+      // — only completeSession may set those fields server-side.
       const convexUpdateData = {
         storyContent: session.story_content,
         wordsWritten: Math.round(session.words_written),
         sentencesCompleted: Math.round(session.sentences_completed),
         challengesCompleted: Math.round(session.challenges_completed || 0),
         currentRound: Math.round(session.current_round),
-        xpEarned: Math.round(session.xp_earned),
-        finalScore: Math.round(session.final_score),
         storyMetadata: session.metadata || {},
       };
 
@@ -605,6 +605,13 @@ class StorySessionManager {
       return updated;
     } catch (error) {
       console.error('Failed to update session:', error);
+      // Persist pending update to AsyncStorage WAL for later retry (R-4.2)
+      try {
+        const walKey = `wal_session_update_${session.id}_${Date.now()}`;
+        await AsyncStorage.setItem(walKey, JSON.stringify(session));
+      } catch (walError) {
+        console.error('Failed to write session update WAL entry:', walError);
+      }
       // Fallback to local cache
       await this.cacheSessionLocally(session);
       return session;
@@ -1098,6 +1105,7 @@ class StorySessionManager {
         api.userProfiles.completeGameSession,
         {
           clerkUserId: session.user_id,
+          sessionId: session.id,
           xpEarned: Math.floor(session.xp_earned || 0),
           wordsWritten: Math.floor(session.words_written || 0),
           finalScore: Math.floor(session.final_score || 0),

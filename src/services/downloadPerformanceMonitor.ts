@@ -1,4 +1,7 @@
 /**
+ * @deprecated Use src/services/performanceMonitor.ts instead.
+ * This service is retained for backward compatibility but should not be used in new code.
+ *
  * Download Performance Monitor Service (Task 2.5)
  * Tracks performance metrics and provides optimization insights
  */
@@ -37,24 +40,30 @@ export class DownloadPerformanceMonitor {
   private static readonly SLOW_OPERATION_THRESHOLD = 3000; // 3 seconds
   private static readonly HIGH_MEMORY_THRESHOLD = 10 * 1024 * 1024; // 10MB
 
-  private activeOperations: Map<string, {
-    startTime: number;
-    memoryUsageStart: number;
-    operation: string;
-    fileSize: number;
-    userId?: string;
-    sessionId?: string;
-  }> = new Map();
+  private activeOperations: Map<
+    string,
+    {
+      startTime: number;
+      memoryUsageStart: number;
+      operation: string;
+      fileSize: number;
+      userId?: string;
+      sessionId?: string;
+    }
+  > = new Map();
 
   /**
    * Start tracking a download operation
    */
-  startTracking(operationId: string, options: {
-    operation: string;
-    fileSize: number;
-    userId?: string;
-    sessionId?: string;
-  }): void {
+  startTracking(
+    operationId: string,
+    options: {
+      operation: string;
+      fileSize: number;
+      userId?: string;
+      sessionId?: string;
+    },
+  ): void {
     const startTime = performance.now();
     const memoryUsageStart = this.getCurrentMemoryUsage();
 
@@ -67,16 +76,21 @@ export class DownloadPerformanceMonitor {
       sessionId: options.sessionId,
     });
 
-    console.log(`📊 Performance tracking started for ${options.operation} (${operationId})`);
+    console.log(
+      `📊 Performance tracking started for ${options.operation} (${operationId})`,
+    );
   }
 
   /**
    * Stop tracking and record metrics
    */
-  async stopTracking(operationId: string, options: {
-    success: boolean;
-    errorType?: string;
-  }): Promise<PerformanceMetrics | null> {
+  async stopTracking(
+    operationId: string,
+    options: {
+      success: boolean;
+      errorType?: string;
+    },
+  ): Promise<PerformanceMetrics | null> {
     const activeOperation = this.activeOperations.get(operationId);
     if (!activeOperation) {
       console.warn(`⚠️ No active operation found for ID: ${operationId}`);
@@ -118,7 +132,10 @@ export class DownloadPerformanceMonitor {
   /**
    * Get performance analytics
    */
-  async getPerformanceAnalytics(timeRange?: { start: Date; end: Date }): Promise<PerformanceAnalytics> {
+  async getPerformanceAnalytics(timeRange?: {
+    start: Date;
+    end: Date;
+  }): Promise<PerformanceAnalytics> {
     try {
       const allMetrics = await this.getStoredMetrics();
       let relevantMetrics = allMetrics;
@@ -135,14 +152,27 @@ export class DownloadPerformanceMonitor {
       }
 
       const successfulOperations = relevantMetrics.filter(m => m.success);
-      const averageDownloadTime = relevantMetrics.reduce((sum, m) => sum + m.duration, 0) / relevantMetrics.length;
-      const averageFileSize = relevantMetrics.reduce((sum, m) => sum + m.fileSize, 0) / relevantMetrics.length;
+      const averageDownloadTime =
+        relevantMetrics.reduce((sum, m) => sum + m.duration, 0) /
+        relevantMetrics.length;
+      const averageFileSize =
+        relevantMetrics.reduce((sum, m) => sum + m.fileSize, 0) /
+        relevantMetrics.length;
       const successRate = successfulOperations.length / relevantMetrics.length;
-      const averageMemoryDelta = relevantMetrics.reduce((sum, m) => sum + Math.abs(m.memoryDelta), 0) / relevantMetrics.length;
-      const memoryEfficiency = Math.max(0, 1 - (averageMemoryDelta / this.HIGH_MEMORY_THRESHOLD));
+      const averageMemoryDelta =
+        relevantMetrics.reduce((sum, m) => sum + Math.abs(m.memoryDelta), 0) /
+        relevantMetrics.length;
+      const memoryEfficiency = Math.max(
+        0,
+        1 - averageMemoryDelta / this.HIGH_MEMORY_THRESHOLD,
+      );
 
-      const slowOperations = relevantMetrics.filter(m => m.duration > this.SLOW_OPERATION_THRESHOLD);
-      const memoryHogOperations = relevantMetrics.filter(m => Math.abs(m.memoryDelta) > this.HIGH_MEMORY_THRESHOLD);
+      const slowOperations = relevantMetrics.filter(
+        m => m.duration > this.SLOW_OPERATION_THRESHOLD,
+      );
+      const memoryHogOperations = relevantMetrics.filter(
+        m => Math.abs(m.memoryDelta) > this.HIGH_MEMORY_THRESHOLD,
+      );
 
       const recommendations = this.generateRecommendations({
         averageDownloadTime,
@@ -178,21 +208,27 @@ export class DownloadPerformanceMonitor {
   /**
    * Estimate operation duration based on historical data
    */
-  async estimateOperationDuration(operation: string, fileSize: number): Promise<number> {
+  async estimateOperationDuration(
+    operation: string,
+    fileSize: number,
+  ): Promise<number> {
     try {
       const metrics = await this.getStoredMetrics();
-      const similarOperations = metrics.filter(m => 
-        m.operation === operation && 
-        m.success &&
-        Math.abs(m.fileSize - fileSize) / fileSize < 0.5 // Within 50% of file size
+      const similarOperations = metrics.filter(
+        m =>
+          m.operation === operation &&
+          m.success &&
+          Math.abs(m.fileSize - fileSize) / fileSize < 0.5, // Within 50% of file size
       );
 
       if (similarOperations.length === 0) {
         // Default estimates based on file size
-        return Math.max(1000, fileSize / 1024 * 100); // ~100ms per KB
+        return Math.max(1000, (fileSize / 1024) * 100); // ~100ms per KB
       }
 
-      const averageDuration = similarOperations.reduce((sum, m) => sum + m.duration, 0) / similarOperations.length;
+      const averageDuration =
+        similarOperations.reduce((sum, m) => sum + m.duration, 0) /
+        similarOperations.length;
       return averageDuration;
     } catch (error) {
       console.error('❌ Failed to estimate operation duration:', error);
@@ -211,9 +247,14 @@ export class DownloadPerformanceMonitor {
         const recentMetrics = metrics
           .sort((a, b) => b.startTime - a.startTime)
           .slice(0, this.MAX_STORED_METRICS);
-        
-        await AsyncStorage.setItem(this.METRICS_STORAGE_KEY, JSON.stringify(recentMetrics));
-        console.log(`🧹 Cleaned up old performance metrics, keeping ${recentMetrics.length} most recent`);
+
+        await AsyncStorage.setItem(
+          this.METRICS_STORAGE_KEY,
+          JSON.stringify(recentMetrics),
+        );
+        console.log(
+          `🧹 Cleaned up old performance metrics, keeping ${recentMetrics.length} most recent`,
+        );
       }
     } catch (error) {
       console.error('❌ Failed to cleanup old metrics:', error);
@@ -232,9 +273,9 @@ export class DownloadPerformanceMonitor {
       if (typeof performance !== 'undefined' && (performance as any).memory) {
         return (performance as any).memory.usedJSHeapSize || 0;
       }
-      
-      // Fallback to a rough estimate based on operation complexity
-      return Date.now() % 100000; // Simple approximation
+
+      // No reliable memory API available — return 0 instead of fake data
+      return 0;
     } catch (error) {
       return 0;
     }
@@ -250,10 +291,16 @@ export class DownloadPerformanceMonitor {
 
       // Limit storage size
       if (existingMetrics.length > this.MAX_STORED_METRICS) {
-        existingMetrics.splice(0, existingMetrics.length - this.MAX_STORED_METRICS);
+        existingMetrics.splice(
+          0,
+          existingMetrics.length - this.MAX_STORED_METRICS,
+        );
       }
 
-      await AsyncStorage.setItem(this.METRICS_STORAGE_KEY, JSON.stringify(existingMetrics));
+      await AsyncStorage.setItem(
+        this.METRICS_STORAGE_KEY,
+        JSON.stringify(existingMetrics),
+      );
     } catch (error) {
       console.error('❌ Failed to store performance metrics:', error);
     }
@@ -287,11 +334,19 @@ export class DownloadPerformanceMonitor {
     console.log(`   Success: ${metrics.success ? '✅' : '❌'}`);
 
     if (metrics.duration > this.SLOW_OPERATION_THRESHOLD) {
-      console.warn(`⚠️ Slow operation detected: ${durationSeconds}s > ${this.SLOW_OPERATION_THRESHOLD / 1000}s threshold`);
+      console.warn(
+        `⚠️ Slow operation detected: ${durationSeconds}s > ${
+          this.SLOW_OPERATION_THRESHOLD / 1000
+        }s threshold`,
+      );
     }
 
     if (Math.abs(metrics.memoryDelta) > this.HIGH_MEMORY_THRESHOLD) {
-      console.warn(`⚠️ High memory usage detected: ${memoryDeltaMB}MB > ${this.HIGH_MEMORY_THRESHOLD / (1024 * 1024)}MB threshold`);
+      console.warn(
+        `⚠️ High memory usage detected: ${memoryDeltaMB}MB > ${
+          this.HIGH_MEMORY_THRESHOLD / (1024 * 1024)
+        }MB threshold`,
+      );
     }
   }
 
@@ -308,23 +363,35 @@ export class DownloadPerformanceMonitor {
     const recommendations: string[] = [];
 
     if (analytics.averageDownloadTime > this.SLOW_OPERATION_THRESHOLD) {
-      recommendations.push('Consider implementing background processing for large files');
+      recommendations.push(
+        'Consider implementing background processing for large files',
+      );
       recommendations.push('Enable file compression to reduce processing time');
     }
 
     if (analytics.successRate < 0.9) {
-      recommendations.push('Investigate common failure causes and improve error handling');
-      recommendations.push('Consider implementing more robust retry mechanisms');
+      recommendations.push(
+        'Investigate common failure causes and improve error handling',
+      );
+      recommendations.push(
+        'Consider implementing more robust retry mechanisms',
+      );
     }
 
     if (analytics.slowOperations / analytics.totalOperations > 0.2) {
-      recommendations.push('Optimize file generation algorithms for better performance');
+      recommendations.push(
+        'Optimize file generation algorithms for better performance',
+      );
       recommendations.push('Consider chunked processing for large files');
     }
 
     if (analytics.memoryHogOperations / analytics.totalOperations > 0.1) {
-      recommendations.push('Implement streaming file processing to reduce memory usage');
-      recommendations.push('Consider garbage collection optimization strategies');
+      recommendations.push(
+        'Implement streaming file processing to reduce memory usage',
+      );
+      recommendations.push(
+        'Consider garbage collection optimization strategies',
+      );
     }
 
     if (recommendations.length === 0) {

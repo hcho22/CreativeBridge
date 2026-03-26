@@ -74,7 +74,7 @@ const MainApp: React.FC = () => {
   // COPPA consent check (US-002) — Convex reactive query
   const consentCheck = useQuery(
     api.consent.isConsentRequired,
-    clerkAuth?.userId ? { clerkUserId: clerkAuth.userId } : 'skip',
+    clerkAuth?.userId ? {} : 'skip',
   );
 
   // ALL useEffect hooks must be called at the top level, before any returns

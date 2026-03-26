@@ -274,9 +274,8 @@ export const updateSession = mutation({
       sentencesCompleted: v.optional(v.number()),
       challengesCompleted: v.optional(v.number()),
       currentRound: v.optional(v.number()),
-      xpEarned: v.optional(v.number()),
-      finalScore: v.optional(v.number()),
       storyMetadata: v.optional(v.any()),
+      // xpEarned and finalScore removed (R-4.4) — only completeSession may set these
     }),
   },
   handler: async (ctx, args) => {
@@ -292,7 +291,15 @@ export const updateSession = mutation({
       throw new Error('Not authorized to update this session.');
     }
 
+    // Guard: reject updates to completed sessions (R-4.4)
+    if (session.completedAt) {
+      throw new Error(
+        'Cannot update a completed session. Use completeSession for completion.',
+      );
+    }
+
     // Round numeric values to integers before storage
+    // Note: xpEarned and finalScore are stripped — only completeSession may set these (R-4.4)
     const updates: Record<string, unknown> = {};
     if (args.updates.storyContent !== undefined) {
       updates.storyContent = args.updates.storyContent;
@@ -310,12 +317,6 @@ export const updateSession = mutation({
     }
     if (args.updates.currentRound !== undefined) {
       updates.currentRound = Math.min(Math.round(args.updates.currentRound), 5);
-    }
-    if (args.updates.xpEarned !== undefined) {
-      updates.xpEarned = Math.round(args.updates.xpEarned);
-    }
-    if (args.updates.finalScore !== undefined) {
-      updates.finalScore = Math.round(args.updates.finalScore);
     }
     if (args.updates.storyMetadata !== undefined) {
       updates.storyMetadata = args.updates.storyMetadata;
@@ -559,14 +560,14 @@ export const validateStoryImport = mutation({
  * @returns The active session or null if none exists
  */
 export const getActiveSession = query({
-  args: {
-    clerkUserId: v.string(),
-  },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async ctx => {
+    const clerkUserId = await getClerkUserId(ctx);
+
     // Find sessions without completedAt, ordered by creation time (most recent first)
     const sessions = await ctx.db
       .query('gameSessions')
-      .withIndex('by_clerk_user', q => q.eq('clerkUserId', args.clerkUserId))
+      .withIndex('by_clerk_user', q => q.eq('clerkUserId', clerkUserId))
       .order('desc')
       .collect();
 
@@ -588,7 +589,15 @@ export const getSession = query({
     sessionId: v.id('gameSessions'),
   },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.sessionId);
+    const clerkUserId = await getClerkUserId(ctx);
+    const session = await ctx.db.get(args.sessionId);
+    if (!session) {
+      return null;
+    }
+    if (session.clerkUserId !== clerkUserId) {
+      throw new Error('Not authorized to access this session.');
+    }
+    return session;
   },
 });
 
@@ -637,17 +646,17 @@ export const deleteSession = mutation({
  */
 export const getUserSessions = query({
   args: {
-    clerkUserId: v.string(),
     limit: v.optional(v.number()),
     cursor: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const clerkUserId = await getClerkUserId(ctx);
     const limit = args.limit ?? 20;
 
     // Query with index for efficiency
     let query = ctx.db
       .query('gameSessions')
-      .withIndex('by_clerk_user', q => q.eq('clerkUserId', args.clerkUserId))
+      .withIndex('by_clerk_user', q => q.eq('clerkUserId', clerkUserId))
       .order('desc');
 
     // Apply cursor-based pagination
@@ -692,11 +701,12 @@ export const getUserSessions = query({
  */
 export const searchUserStories = query({
   args: {
-    clerkUserId: v.string(),
     searchQuery: v.string(),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const clerkUserId = await getClerkUserId(ctx);
+
     if (!args.searchQuery || args.searchQuery.trim().length === 0) {
       return [];
     }
@@ -708,7 +718,7 @@ export const searchUserStories = query({
     // Fetch all user's completed sessions
     const sessions = await ctx.db
       .query('gameSessions')
-      .withIndex('by_clerk_user', q => q.eq('clerkUserId', args.clerkUserId))
+      .withIndex('by_clerk_user', q => q.eq('clerkUserId', clerkUserId))
       .collect();
 
     // Filter and score by search relevance
@@ -790,18 +800,18 @@ export const searchUserStories = query({
  */
 export const getUserStoriesWithImages = query({
   args: {
-    clerkUserId: v.string(),
     limit: v.optional(v.number()),
     offset: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const clerkUserId = await getClerkUserId(ctx);
     const limit = args.limit ?? 20;
     const offset = args.offset ?? 0;
 
     // Fetch user's sessions
     const sessions = await ctx.db
       .query('gameSessions')
-      .withIndex('by_clerk_user', q => q.eq('clerkUserId', args.clerkUserId))
+      .withIndex('by_clerk_user', q => q.eq('clerkUserId', clerkUserId))
       .collect();
 
     // Filter for sessions with images and sort by generation timestamp
@@ -854,18 +864,18 @@ export const getUserStoriesWithImages = query({
  */
 export const getImportableStories = query({
   args: {
-    clerkUserId: v.string(),
     limit: v.optional(v.number()),
     offset: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const clerkUserId = await getClerkUserId(ctx);
     const limit = args.limit ?? 50;
     const offset = args.offset ?? 0;
 
     // Fetch user's sessions
     const sessions = await ctx.db
       .query('gameSessions')
-      .withIndex('by_clerk_user', q => q.eq('clerkUserId', args.clerkUserId))
+      .withIndex('by_clerk_user', q => q.eq('clerkUserId', clerkUserId))
       .order('desc')
       .collect();
 
@@ -928,7 +938,6 @@ export const getImportableStories = query({
  */
 export const getStoryLibrary = query({
   args: {
-    clerkUserId: v.string(),
     filters: v.optional(
       v.object({
         storySource: v.optional(storySourceValidator),
@@ -954,6 +963,7 @@ export const getStoryLibrary = query({
     offset: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const clerkUserId = await getClerkUserId(ctx);
     const limit = args.limit ?? 20;
     const offset = args.offset ?? 0;
     const sortOrder = args.sortOrder ?? 'desc';
@@ -961,7 +971,7 @@ export const getStoryLibrary = query({
     // Fetch all user sessions
     let sessions = await ctx.db
       .query('gameSessions')
-      .withIndex('by_clerk_user', q => q.eq('clerkUserId', args.clerkUserId))
+      .withIndex('by_clerk_user', q => q.eq('clerkUserId', clerkUserId))
       .collect();
 
     // Apply filters

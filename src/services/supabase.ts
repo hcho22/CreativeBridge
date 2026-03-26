@@ -32,17 +32,19 @@ const getAsyncStorage = () => {
       return AsyncStorageModule.default;
     }
   } catch (error) {
-    console.warn('⚠️ AsyncStorage native module not available, using in-memory fallback for Supabase');
+    console.warn(
+      '⚠️ AsyncStorage native module not available, using in-memory fallback for Supabase',
+    );
   }
-  
+
   return fallbackStorage;
 };
 
 // Supabase configuration
 // Use environment service to load configuration (works in both dev and production)
-const supabaseUrl = env.SUPABASE_URL || 'https://dzwcqfnvcaempqgkzkuz.supabase.co';
+const supabaseUrl = env.SUPABASE_URL;
 
-const supabaseAnonKey = env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6d2NxZm52Y2FlbXBxZ2t6a3V6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc3NzAxMzgsImV4cCI6MjA2MzM0NjEzOH0.a4TidZN02D6AAj88W08BdumMQv_LLihRqyYu4b_3TEo';
+const supabaseAnonKey = env.SUPABASE_ANON_KEY;
 
 // Validate that we have proper Supabase configuration
 if (!supabaseUrl || !supabaseUrl.startsWith('http')) {

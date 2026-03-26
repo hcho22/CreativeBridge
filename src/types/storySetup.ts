@@ -84,6 +84,9 @@ export interface ResolvedStorySetup {
   /** Resolved character description, or undefined if AI decides */
   character: string | undefined;
 
+  /** User-chosen character name (e.g. "Eye Shadow"), or undefined if not provided */
+  characterName: string | undefined;
+
   /** Resolved setting description, or undefined if AI decides */
   setting: string | undefined;
 

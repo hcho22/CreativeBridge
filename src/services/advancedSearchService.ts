@@ -645,7 +645,9 @@ class AdvancedSearchService {
     let highlighted = content;
 
     searchTerms.forEach(term => {
-      const regex = new RegExp(`(${term})`, 'gi');
+      // Escape regex special characters to prevent ReDoS (US-006: U-6.5)
+      const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`(${escaped})`, 'gi');
       highlighted = highlighted.replace(regex, '<mark>$1</mark>');
     });
 

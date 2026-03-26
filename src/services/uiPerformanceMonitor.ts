@@ -1,4 +1,7 @@
 /**
+ * @deprecated Use src/services/performanceMonitor.ts instead.
+ * This service is retained for backward compatibility but should not be used in new code.
+ *
  * UI Performance Monitor
  *
  * Real-time interface performance monitoring and optimization service
@@ -818,12 +821,19 @@ class UIPerformanceMonitorService {
    * Cleanup and shutdown
    */
   async shutdown(): Promise<void> {
+    this.destroy();
+  }
+
+  /**
+   * Destroy all timers and cleanup resources. Idempotent — safe to call multiple times.
+   */
+  destroy(): void {
     if (this.monitoringTimer) {
       clearInterval(this.monitoringTimer);
       this.monitoringTimer = null;
     }
 
-    structuredLogger.info('UI Performance Monitor shutdown completed', {
+    structuredLogger.info('UI Performance Monitor destroyed', {
       metricsRecorded: this.metrics.length,
       triggersGenerated: this.triggers.length,
       baselinesEstablished: this.baselines.size,

@@ -142,13 +142,12 @@ export const createOAuthProfile = mutation({
  * @returns User profile or null if not found
  */
 export const getProfileByClerkId = query({
-  args: {
-    clerkUserId: v.string(),
-  },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async ctx => {
+    const clerkUserId = await getClerkUserId(ctx);
     const profile = await ctx.db
       .query('userProfiles')
-      .withIndex('by_clerk_user_id', q => q.eq('clerkUserId', args.clerkUserId))
+      .withIndex('by_clerk_user_id', q => q.eq('clerkUserId', clerkUserId))
       .first();
 
     return profile;
@@ -697,6 +696,7 @@ export const incrementStoriesCompleted = mutation({
 export const completeGameSession = mutation({
   args: {
     clerkUserId: v.string(),
+    sessionId: v.string(),
     xpEarned: v.number(),
     wordsWritten: v.number(),
     finalScore: v.number(),
@@ -711,6 +711,21 @@ export const completeGameSession = mutation({
 
     if (!profile) {
       throw new Error(`Profile not found for Clerk user: ${args.clerkUserId}`);
+    }
+
+    // Idempotency guard (R-4.1): skip XP award if this session was already completed
+    if (profile.lastCompletedSessionId === args.sessionId) {
+      return {
+        success: true,
+        skipped: true,
+        totalXp: profile.totalXp,
+        totalStoriesCompleted: profile.totalStoriesCompleted,
+        currentStreak: profile.currentStreak,
+        longestStreak: profile.longestStreak,
+        bestScore: profile.bestScore,
+        isFirstStory: false,
+        isFirstStreak: false,
+      };
     }
 
     const today = new Date().toISOString().split('T')[0];
@@ -741,6 +756,7 @@ export const completeGameSession = mutation({
       longestStreak: newLongestStreak,
       bestScore: newBestScore,
       lastActivityDate: today,
+      lastCompletedSessionId: args.sessionId,
     };
 
     // First story milestone

@@ -19,6 +19,7 @@ import {
   getConvexClient as getCentralizedConvexClient,
   isConvexReady,
 } from './convex';
+import * as FileSystem from 'expo-file-system';
 
 // Upload result interface
 export interface UploadImageResult {
@@ -50,6 +51,173 @@ const CONFIG = {
   MAX_IMAGE_SIZE_MB: 10,
   ALLOWED_MIME_TYPES: ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'],
 } as const;
+
+// ─── Image Cache (US-006: U-6.2) ───────────────────────────────────────────
+
+const CACHE_DIR = `${FileSystem.cacheDirectory}images/`;
+const DEFAULT_MAX_CACHE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
+
+interface CacheEntry {
+  uri: string;
+  size: number;
+  lastAccessed: number;
+}
+
+/**
+ * LRU file-system image cache.
+ * Stores downloaded images in expo-file-system's cacheDirectory.
+ * Evicts least-recently-used entries when the cache exceeds maxSize.
+ */
+export class ImageCache {
+  private entries = new Map<string, CacheEntry>();
+  private totalSize = 0;
+  private maxSize: number;
+  private initialized = false;
+
+  constructor(maxSize = DEFAULT_MAX_CACHE_SIZE_BYTES) {
+    this.maxSize = maxSize;
+  }
+
+  /** Ensure the cache directory exists. */
+  async init(): Promise<void> {
+    if (this.initialized) return;
+    const info = await FileSystem.getInfoAsync(CACHE_DIR);
+    if (!info.exists) {
+      await FileSystem.makeDirectoryAsync(CACHE_DIR, { intermediates: true });
+    }
+    this.initialized = true;
+  }
+
+  /** Derive a deterministic filename from a URL. */
+  private keyFor(url: string): string {
+    // Simple hash: use btoa-safe base64 of URL to create a filename
+    let hash = 0;
+    for (let i = 0; i < url.length; i++) {
+      hash = ((hash << 5) - hash + url.charCodeAt(i)) | 0;
+    }
+    const ext = url.includes('.png')
+      ? '.png'
+      : url.includes('.webp')
+      ? '.webp'
+      : '.jpg';
+    return `img_${Math.abs(hash).toString(36)}${ext}`;
+  }
+
+  /**
+   * Get a cached image URI, or null if not cached.
+   * Updates last-accessed time for LRU tracking.
+   */
+  async get(url: string): Promise<string | null> {
+    await this.init();
+    const key = this.keyFor(url);
+    const entry = this.entries.get(key);
+    if (!entry) {
+      // Check filesystem in case entries map was lost (e.g., app restart)
+      const filePath = CACHE_DIR + key;
+      const info = await FileSystem.getInfoAsync(filePath);
+      if (info.exists && info.size && info.size > 0) {
+        this.entries.set(key, {
+          uri: filePath,
+          size: info.size,
+          lastAccessed: Date.now(),
+        });
+        this.totalSize += info.size;
+        return filePath;
+      }
+      return null;
+    }
+    entry.lastAccessed = Date.now();
+    return entry.uri;
+  }
+
+  /**
+   * Download and cache an image from a URL.
+   * Returns the local file URI.
+   * Optionally accepts resize params to append to the URL for server-side resize.
+   */
+  async put(
+    url: string,
+    options?: { width?: number; height?: number },
+  ): Promise<string> {
+    await this.init();
+    const key = this.keyFor(url);
+    const filePath = CACHE_DIR + key;
+
+    // Already cached?
+    const existing = await this.get(url);
+    if (existing) return existing;
+
+    // Build download URL with optional resize params
+    let downloadUrl = url;
+    if (options?.width || options?.height) {
+      const sep = url.includes('?') ? '&' : '?';
+      const params: string[] = [];
+      if (options.width) params.push(`w=${options.width}`);
+      if (options.height) params.push(`h=${options.height}`);
+      downloadUrl = `${url}${sep}${params.join('&')}`;
+    }
+
+    const download = await FileSystem.downloadAsync(downloadUrl, filePath);
+
+    if (download.status !== 200) {
+      throw new Error(`Image download failed with status ${download.status}`);
+    }
+
+    const info = await FileSystem.getInfoAsync(filePath);
+    const size = (info as any).size || 0;
+
+    this.entries.set(key, { uri: filePath, size, lastAccessed: Date.now() });
+    this.totalSize += size;
+
+    // Evict if over budget
+    await this.evict();
+
+    return filePath;
+  }
+
+  /** Evict least-recently-used entries until under maxSize. */
+  private async evict(): Promise<void> {
+    if (this.totalSize <= this.maxSize) return;
+
+    // Sort entries by lastAccessed ascending (oldest first)
+    const sorted = [...this.entries.entries()].sort(
+      (a, b) => a[1].lastAccessed - b[1].lastAccessed,
+    );
+
+    for (const [key, entry] of sorted) {
+      if (this.totalSize <= this.maxSize) break;
+      try {
+        await FileSystem.deleteAsync(entry.uri, { idempotent: true });
+      } catch {
+        // Ignore deletion errors
+      }
+      this.totalSize -= entry.size;
+      this.entries.delete(key);
+    }
+  }
+
+  /** Current cache size in bytes. */
+  getCacheSize(): number {
+    return this.totalSize;
+  }
+
+  /** Clear the entire cache. */
+  async clear(): Promise<void> {
+    try {
+      await FileSystem.deleteAsync(CACHE_DIR, { idempotent: true });
+      await FileSystem.makeDirectoryAsync(CACHE_DIR, { intermediates: true });
+    } catch {
+      // Ignore
+    }
+    this.entries.clear();
+    this.totalSize = 0;
+  }
+}
+
+/** Singleton image cache instance. */
+export const imageCache = new ImageCache();
+
+// ─── End Image Cache ────────────────────────────────────────────────────────
 
 /**
  * Detect if an ID is a Supabase UUID or a Convex ID.
@@ -470,13 +638,18 @@ export class ImageStorageService {
   }
 
   /**
-   * Get the image URL for a session
-   * Handles both Convex storage IDs and legacy external URLs
+   * Get the image URL for a session.
+   * Checks the local cache first; falls back to Convex and caches the result.
+   * Handles both Convex storage IDs and legacy external URLs.
    *
    * @param sessionId - The game session ID
-   * @returns The image URL or null
+   * @param options - Optional resize params for thumbnail caching
+   * @returns The image URL (local cache path or remote URL) or null
    */
-  async getSessionImageUrl(sessionId: string): Promise<string | null> {
+  async getSessionImageUrl(
+    sessionId: string,
+    options?: { width?: number; height?: number },
+  ): Promise<string | null> {
     // Supabase UUIDs can't be queried from Convex
     if (isSupabaseUUID(sessionId)) {
       console.log(
@@ -498,7 +671,19 @@ export class ImageStorageService {
       const result = await client.query(api.storage.getSessionImageUrl, {
         sessionId: sessionId as Id<'gameSessions'>,
       });
-      return result.imageUrl ?? null;
+      const remoteUrl = result.imageUrl ?? null;
+      if (!remoteUrl) return null;
+
+      // Try to serve from local cache (US-006: U-6.2)
+      try {
+        const cached = await imageCache.get(remoteUrl);
+        if (cached) return cached;
+        // Download and cache for next time
+        return await imageCache.put(remoteUrl, options);
+      } catch {
+        // Cache miss/failure — fall back to remote URL
+        return remoteUrl;
+      }
     } catch (error: any) {
       console.error('❌ Error getting session image URL:', error);
       return null;
