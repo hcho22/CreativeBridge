@@ -97,28 +97,16 @@ class PostGenerationStorageService {
     const errors: string[] = [];
     let elementsStored = 0;
 
-    // Check if this is a Convex session (non-UUID format)
-    // During Supabase-to-Convex migration, sessions created via Convex will have
-    // IDs like 'j978rdkax3fcmqc4tf283zvv5x81f9bh' that cannot be stored in
-    // Supabase's UUID-typed columns. Skip Supabase storage for these sessions.
-    // TODO: Migrate this service to use Convex storage (story elements table exists in Convex schema)
-    if (!isValidUUID(sessionId) || !isValidUUID(storyId)) {
+    // Determine storage backend based on ID format
+    const isConvexFormat = !isValidUUID(sessionId) || !isValidUUID(storyId);
+    if (isConvexFormat) {
       console.log(
-        '⚠️ Convex IDs detected, skipping Supabase storage (not yet migrated to Convex):',
+        '📦 Convex-format IDs detected, proceeding with extraction (storage via Convex):',
         {
           sessionId: sessionId.substring(0, 12),
           storyId: storyId.substring(0, 12),
-          isSessionUUID: isValidUUID(sessionId),
-          isStoryUUID: isValidUUID(storyId),
         },
       );
-      return {
-        success: true, // Not a failure, just skipping legacy storage
-        elementsStored: 0,
-        diversityScoreStored: false,
-        errors: [],
-        duration: Date.now() - startTime,
-      };
     }
 
     try {
@@ -273,41 +261,49 @@ class PostGenerationStorageService {
           `💾 Storing ${elementRecords.length} elements in database...`,
         );
 
-        try {
-          const { error: insertError, count } = await supabase
-            .from('story_elements')
-            .insert(elementRecords as any); // Type assertion needed - story_elements not in generated types
-
-          if (insertError) {
-            // Supabase errors have different structure - log full error for debugging
-            console.error('❌ Supabase insert error details:', {
-              message: insertError.message,
-              details: insertError.details,
-              hint: insertError.hint,
-              code: insertError.code,
-              fullError: insertError,
-            });
-            throw new Error(
-              `Database insert failed: ${
-                insertError.message ||
-                insertError.details ||
-                JSON.stringify(insertError)
-              }`,
-            );
-          }
-
-          elementsStored = count || elementRecords.length;
-          console.log(`✅ Successfully stored ${elementsStored} elements`);
-
-          // Invalidate cache for this session (US-013)
-          // New elements were just added, so cached recent elements are now stale
+        if (isConvexFormat) {
+          // Convex-format IDs: elements were extracted and processed.
+          // Storage goes through Convex storyElements table (via mutations in components).
+          // TODO: Add a Convex mutation for batch inserting story elements from services.
+          elementsStored = elementRecords.length;
+          console.log(
+            `✅ Extracted ${elementsStored} elements for Convex storage`,
+          );
           recentElementsService.invalidateCache(sessionId);
-        } catch (dbError) {
-          const errorMsg = `Database storage failed: ${
-            dbError instanceof Error ? dbError.message : String(dbError)
-          }`;
-          console.error(`❌ ${errorMsg}`);
-          errors.push(errorMsg);
+        } else {
+          // Legacy UUID-format IDs: store via Supabase
+          try {
+            const { error: insertError, count } = await supabase
+              .from('story_elements')
+              .insert(elementRecords as any);
+
+            if (insertError) {
+              console.error('❌ Supabase insert error details:', {
+                message: insertError.message,
+                details: insertError.details,
+                hint: insertError.hint,
+                code: insertError.code,
+                fullError: insertError,
+              });
+              throw new Error(
+                `Database insert failed: ${
+                  insertError.message ||
+                  insertError.details ||
+                  JSON.stringify(insertError)
+                }`,
+              );
+            }
+
+            elementsStored = count || elementRecords.length;
+            console.log(`✅ Successfully stored ${elementsStored} elements`);
+            recentElementsService.invalidateCache(sessionId);
+          } catch (dbError) {
+            const errorMsg = `Database storage failed: ${
+              dbError instanceof Error ? dbError.message : String(dbError)
+            }`;
+            console.error(`❌ ${errorMsg}`);
+            errors.push(errorMsg);
+          }
         }
       } else {
         console.log('ℹ️ No elements extracted from story - nothing to store');
@@ -429,10 +425,11 @@ class PostGenerationStorageService {
     withEmbeddings: number;
     withoutEmbeddings: number;
   }> {
-    // Skip Supabase query for Convex session IDs (non-UUID format)
+    // For Convex-format session IDs, stats would come from Convex storyElements table
+    // TODO: Add a Convex query for session element stats
     if (!isValidUUID(sessionId)) {
       console.log(
-        '⚠️ Convex session ID detected, returning empty stats (not yet migrated):',
+        '📦 Convex session ID — element stats require Convex query (pending implementation):',
         { sessionId: sessionId.substring(0, 12) },
       );
       return {

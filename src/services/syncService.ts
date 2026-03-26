@@ -1,14 +1,21 @@
 /**
  * Cross-Platform Story Synchronization Service
  *
- * Provides comprehensive synchronization capabilities for story data across
- * multiple devices and platforms, including real-time updates, conflict
- * resolution, offline sync, and data consistency management.
+ * Provides synchronization capabilities for story data across
+ * multiple devices and platforms, including conflict resolution,
+ * offline sync, and data consistency management.
+ *
+ * MIGRATION NOTE: Cross-device sync via Supabase has been disabled.
+ * The service now operates in local-only mode using AsyncStorage.
+ * When cross-device sync is needed, implement using Convex reactive queries
+ * (useQuery for real-time data, mutations for writes).
  */
 
-import { supabase } from './supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
+
+// Feature flag for cross-device sync (requires Convex implementation)
+const CROSS_DEVICE_SYNC_ENABLED = false;
 
 // Types for synchronization
 export interface SyncDevice {
@@ -149,14 +156,16 @@ class SyncService {
       // Set up network listener
       this.setupNetworkListener();
 
+      if (!CROSS_DEVICE_SYNC_ENABLED) {
+        console.log(
+          '🔄 Sync service initialized (local-only mode — cross-device sync requires Convex implementation)',
+        );
+        return;
+      }
+
       // Start auto-sync if enabled
       if (this.config.enableRealTimeSync) {
         this.startAutoSync();
-      }
-
-      // Set up real-time subscriptions
-      if (this.config.enableRealTimeSync) {
-        this.setupRealtimeSubscriptions();
       }
 
       console.log('🔄 Sync service initialized');
@@ -170,9 +179,6 @@ class SyncService {
    */
   setUserId(userId: string): void {
     this.userId = userId;
-    if (this.config.enableRealTimeSync && this.isOnline) {
-      this.setupRealtimeSubscriptions();
-    }
   }
 
   /**
@@ -197,10 +203,10 @@ class SyncService {
         },
         deviceId,
         userId: this.userId || '',
-        syncStatus: 'pending',
+        syncStatus: CROSS_DEVICE_SYNC_ENABLED ? 'pending' : 'synced',
       };
 
-      // Save locally first
+      // Save locally
       await this.saveStoryLocally(story as SyncStory);
 
       // Create sync change
@@ -212,16 +218,11 @@ class SyncService {
         userId: this.userId || '',
         timestamp: new Date().toISOString(),
         changeData: story,
-        isApplied: false,
+        isApplied: !CROSS_DEVICE_SYNC_ENABLED,
       };
 
       this.pendingChanges.push(change);
       await this.savePendingChanges();
-
-      // Attempt immediate sync if online
-      if (this.isOnline && !this.isOfflineMode) {
-        await this.syncPendingChanges();
-      }
 
       console.log(`📝 Story ${storyId} updated on device ${deviceId}`);
     } catch (error) {
@@ -238,6 +239,11 @@ class SyncService {
    * Sync stories across multiple devices
    */
   async syncAcrossDevices(deviceIds: string[]): Promise<void> {
+    if (!CROSS_DEVICE_SYNC_ENABLED) {
+      console.log('🔄 Cross-device sync is disabled. Skipping.');
+      return;
+    }
+
     if (this.syncInProgress) {
       console.log('Sync already in progress, skipping');
       return;
@@ -270,28 +276,13 @@ class SyncService {
   }
 
   /**
-   * Get story from specific device
+   * Get story from local storage
    */
   async getStoryOnDevice(
     deviceId: string,
     storyId: string,
   ): Promise<SyncStory | null> {
     try {
-      // Try to get from remote first if online
-      if (this.isOnline && !this.isOfflineMode) {
-        const { data: remoteStory, error } = await supabase
-          .from('sync_stories')
-          .select('*')
-          .eq('id', storyId)
-          .eq('device_id', deviceId)
-          .single();
-
-        if (!error && remoteStory) {
-          return this.convertToSyncStory(remoteStory);
-        }
-      }
-
-      // Fall back to local storage
       return await this.getStoryLocally(storyId);
     } catch (error) {
       console.error('Get story on device error:', error);
@@ -359,9 +350,8 @@ class SyncService {
         syncStatus: 'synced',
       };
 
-      // Save resolved story
+      // Save resolved story locally
       await this.saveStoryLocally(resolvedStory);
-      await this.uploadStoryToRemote(resolvedStory);
 
       console.log(
         `⚖️ Conflict resolved for story ${storyId} using ${resolutionStrategy}`,
@@ -404,9 +394,13 @@ class SyncService {
   }
 
   /**
-   * Sync pending changes to remote
+   * Sync pending changes (no-op when cross-device sync is disabled)
    */
   async syncPendingChanges(): Promise<void> {
+    if (!CROSS_DEVICE_SYNC_ENABLED) {
+      return;
+    }
+
     if (
       !this.isOnline ||
       this.isOfflineMode ||
@@ -415,33 +409,8 @@ class SyncService {
       return;
     }
 
-    try {
-      for (const change of this.pendingChanges) {
-        if (change.isApplied) continue;
-
-        switch (change.changeType) {
-          case 'create':
-          case 'update':
-            await this.syncStoryChange(change);
-            break;
-          case 'delete':
-            await this.syncStoryDeletion(change);
-            break;
-        }
-
-        change.isApplied = true;
-      }
-
-      // Remove applied changes
-      this.pendingChanges = this.pendingChanges.filter(
-        change => !change.isApplied,
-      );
-      await this.savePendingChanges();
-
-      console.log('✅ Pending changes synced');
-    } catch (error) {
-      console.error('Sync pending changes error:', error);
-    }
+    // TODO: Implement via Convex mutations when cross-device sync is enabled
+    console.log('🔄 Cross-device sync pending Convex implementation');
   }
 
   /**
@@ -458,27 +427,24 @@ class SyncService {
       pendingChanges: this.pendingChanges.length,
       conflictsCount: this.conflictQueue.length,
       syncInProgress: this.syncInProgress,
-      devicesSynced: [], // Would be populated from device registry
+      devicesSynced: [],
       errorMessages: [],
     };
   }
 
   /**
-   * Force sync all data
+   * Force sync all data (local-only when cross-device sync is disabled)
    */
   async forceSyncAll(): Promise<void> {
+    if (!CROSS_DEVICE_SYNC_ENABLED) {
+      console.log('🔄 Cross-device sync disabled, operating locally only');
+      return;
+    }
+
     try {
       this.syncInProgress = true;
-
-      // Sync pending changes
       await this.syncPendingChanges();
-
-      // Pull remote changes
-      await this.pullRemoteChanges();
-
-      // Resolve any conflicts
       await this.resolveAllConflicts();
-
       console.log('🔄 Force sync completed');
     } catch (error) {
       console.error('Force sync error:', error);
@@ -491,128 +457,48 @@ class SyncService {
   // Private helper methods
 
   private async syncWithDevice(deviceId: string): Promise<void> {
-    try {
-      // Get device's last sync timestamp
-      const device = await this.getDeviceInfo(deviceId);
-      if (!device) return;
-
-      // Get changes since last sync
-      const changes = await this.getChangesSince(
-        device.lastSyncTimestamp,
-        deviceId,
-      );
-
-      // Apply changes and detect conflicts
-      for (const change of changes) {
-        await this.applyChange(change);
-      }
-
-      // Update device sync timestamp
-      await this.updateDeviceSyncTime(deviceId);
-    } catch (error) {
-      console.error(`Sync with device ${deviceId} error:`, error);
-    }
-  }
-
-  private async syncStoryChange(change: SyncChange): Promise<void> {
-    try {
-      const story = change.changeData as SyncStory;
-
-      // Check for conflicts
-      const remoteStory = await this.getRemoteStory(story.id);
-      if (remoteStory && this.hasConflict(story, remoteStory)) {
-        await this.handleConflict(story, remoteStory);
-        return;
-      }
-
-      // Upload to remote
-      await this.uploadStoryToRemote(story);
-    } catch (error) {
-      console.error('Sync story change error:', error);
-    }
-  }
-
-  private async syncStoryDeletion(change: SyncChange): Promise<void> {
-    try {
-      const { error } = await supabase
-        .from('sync_stories')
-        .delete()
-        .eq('id', change.storyId)
-        .eq('device_id', change.deviceId);
-
-      if (error) {
-        console.error('Delete story from remote error:', error);
-      }
-    } catch (error) {
-      console.error('Sync story deletion error:', error);
-    }
-  }
-
-  private async uploadStoryToRemote(story: SyncStory): Promise<void> {
-    try {
-      const { error } = await supabase.from('sync_stories').upsert({
-        id: story.id,
-        content: story.content,
-        metadata: story.metadata,
-        source: story.source,
-        user_id: story.userId,
-        device_id: story.deviceId,
-        sync_status: story.syncStatus,
-        updated_at: new Date().toISOString(),
-      });
-
-      if (error) {
-        console.error('Upload story to remote error:', error);
-        throw error;
-      }
-    } catch (error) {
-      console.error('Upload story error:', error);
-      throw error;
-    }
-  }
-
-  private async getRemoteStory(storyId: string): Promise<SyncStory | null> {
-    try {
-      const { data, error } = await supabase
-        .from('sync_stories')
-        .select('*')
-        .eq('id', storyId)
-        .single();
-
-      if (error || !data) return null;
-
-      return this.convertToSyncStory(data);
-    } catch (error) {
-      console.error('Get remote story error:', error);
-      return null;
-    }
-  }
-
-  private hasConflict(localStory: SyncStory, remoteStory: SyncStory): boolean {
-    return (
-      localStory.metadata.checksum !== remoteStory.metadata.checksum &&
-      localStory.metadata.version !== remoteStory.metadata.version
+    // TODO: Implement via Convex when cross-device sync is enabled
+    console.log(
+      `🔄 Sync with device ${deviceId} pending Convex implementation`,
     );
   }
 
-  private async handleConflict(
-    localStory: SyncStory,
-    remoteStory: SyncStory,
-  ): Promise<void> {
-    const conflict: ConflictData = {
-      conflictId: this.generateConflictId(),
-      conflictType: 'content',
-      localVersion: localStory,
-      remoteVersion: remoteStory,
-      conflictTimestamp: new Date().toISOString(),
-      resolutionStrategy: this.config.conflictResolution,
-      isResolved: false,
-    };
+  private async mergeContent(
+    edits: Array<{ content: string; timestamp: number }>,
+  ): Promise<string> {
+    const allContent = edits.map(edit => edit.content);
+    const longestContent = allContent.reduce((longest, current) =>
+      current.length > longest.length ? current : longest,
+    );
+    return longestContent;
+  }
 
-    this.conflictQueue.push(conflict);
+  private async resolveAllConflicts(): Promise<void> {
+    for (const conflict of this.conflictQueue) {
+      if (conflict.isResolved) continue;
+
+      try {
+        if (conflict.resolutionStrategy === 'auto_latest') {
+          const latest =
+            conflict.remoteVersion.metadata?.updatedAt >
+            conflict.localVersion.metadata?.updatedAt
+              ? conflict.remoteVersion
+              : conflict.localVersion;
+
+          if (latest.id) {
+            await this.saveStoryLocally(latest as SyncStory);
+            conflict.isResolved = true;
+          }
+        }
+      } catch (error) {
+        console.error('Resolve conflict error:', error);
+      }
+    }
+
+    this.conflictQueue = this.conflictQueue.filter(
+      conflict => !conflict.isResolved,
+    );
     await this.saveConflicts();
-
-    console.log(`⚠️ Conflict detected for story ${localStory.id}`);
   }
 
   private async createConflict(
@@ -632,90 +518,6 @@ class SyncService {
     await this.saveConflicts();
 
     return conflict;
-  }
-
-  private async mergeContent(
-    edits: Array<{ content: string; timestamp: number }>,
-  ): Promise<string> {
-    // Simple merge strategy - could be enhanced with diff algorithms
-    const allContent = edits.map(edit => edit.content);
-    const longestContent = allContent.reduce((longest, current) =>
-      current.length > longest.length ? current : longest,
-    );
-
-    return longestContent;
-  }
-
-  private async pullRemoteChanges(): Promise<void> {
-    try {
-      const lastSyncTime =
-        (await AsyncStorage.getItem(this.STORAGE_KEYS.LAST_SYNC)) ||
-        '1970-01-01T00:00:00Z';
-
-      const { data: remoteChanges, error } = await supabase
-        .from('sync_stories')
-        .select('*')
-        .eq('user_id', this.userId)
-        .gt('updated_at', lastSyncTime);
-
-      if (error) {
-        console.error('Pull remote changes error:', error);
-        return;
-      }
-
-      for (const remoteStory of remoteChanges || []) {
-        const localStory = await this.getStoryLocally(remoteStory.id);
-
-        if (!localStory) {
-          // New story from remote
-          await this.saveStoryLocally(this.convertToSyncStory(remoteStory));
-        } else if (
-          this.hasConflict(localStory, this.convertToSyncStory(remoteStory))
-        ) {
-          // Conflict detected
-          await this.handleConflict(
-            localStory,
-            this.convertToSyncStory(remoteStory),
-          );
-        } else if (remoteStory.updated_at > localStory.metadata.updatedAt) {
-          // Remote is newer, update local
-          await this.saveStoryLocally(this.convertToSyncStory(remoteStory));
-        }
-      }
-    } catch (error) {
-      console.error('Pull remote changes error:', error);
-    }
-  }
-
-  private async resolveAllConflicts(): Promise<void> {
-    for (const conflict of this.conflictQueue) {
-      if (conflict.isResolved) continue;
-
-      try {
-        if (conflict.resolutionStrategy === 'auto_latest') {
-          // Auto-resolve with latest timestamp
-          const latest =
-            conflict.remoteVersion.metadata?.updatedAt >
-            conflict.localVersion.metadata?.updatedAt
-              ? conflict.remoteVersion
-              : conflict.localVersion;
-
-          if (latest.id) {
-            await this.saveStoryLocally(latest as SyncStory);
-            conflict.isResolved = true;
-          }
-        }
-        // Other resolution strategies would be implemented here
-      } catch (error) {
-        console.error('Resolve conflict error:', error);
-      }
-    }
-
-    // Remove resolved conflicts
-    this.conflictQueue = this.conflictQueue.filter(
-      conflict => !conflict.isResolved,
-    );
-    await this.saveConflicts();
   }
 
   private async saveStoryLocally(story: SyncStory): Promise<void> {
@@ -811,8 +613,7 @@ class SyncService {
       const wasOnline = this.isOnline;
       this.isOnline = state.isConnected || false;
 
-      if (!wasOnline && this.isOnline) {
-        // Back online - sync pending changes
+      if (!wasOnline && this.isOnline && CROSS_DEVICE_SYNC_ENABLED) {
         console.log('📶 Back online, syncing pending changes');
         this.syncPendingChanges();
       }
@@ -820,6 +621,8 @@ class SyncService {
   }
 
   private startAutoSync(): void {
+    if (!CROSS_DEVICE_SYNC_ENABLED) return;
+
     this.autoSyncTimer = setInterval(async () => {
       if (this.isOnline && !this.isOfflineMode && !this.syncInProgress) {
         await this.syncPendingChanges();
@@ -827,65 +630,12 @@ class SyncService {
     }, this.config.autoSyncInterval);
   }
 
-  private setupRealtimeSubscriptions(): void {
-    if (!this.userId) return;
-
-    supabase
-      .channel('story_sync')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'sync_stories',
-          filter: `user_id=eq.${this.userId}`,
-        },
-        async payload => {
-          console.log('📡 Real-time sync change received:', payload);
-          await this.handleRealtimeChange(payload);
-        },
-      )
-      .subscribe();
-  }
-
-  private async handleRealtimeChange(payload: any): Promise<void> {
-    try {
-      if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
-        const remoteStory = this.convertToSyncStory(payload.new);
-        const localStory = await this.getStoryLocally(remoteStory.id);
-
-        if (
-          !localStory ||
-          remoteStory.metadata.version > localStory.metadata.version
-        ) {
-          await this.saveStoryLocally(remoteStory);
-          console.log(`🔄 Story ${remoteStory.id} updated from real-time sync`);
-        }
-      }
-    } catch (error) {
-      console.error('Handle real-time change error:', error);
-    }
-  }
-
-  private convertToSyncStory(data: any): SyncStory {
-    return {
-      id: data.id,
-      content: data.content,
-      metadata: data.metadata || {},
-      source: data.source || 'CreativeBridge',
-      userId: data.user_id,
-      deviceId: data.device_id,
-      syncStatus: data.sync_status || 'synced',
-    };
-  }
-
   private calculateChecksum(content: string): string {
-    // Simple checksum calculation
     let hash = 0;
     for (let i = 0; i < content.length; i++) {
       const char = content.charCodeAt(i);
       hash = (hash << 5) - hash + char;
-      hash = hash & hash; // Convert to 32-bit integer
+      hash = hash & hash;
     }
     return hash.toString(16);
   }
@@ -900,27 +650,6 @@ class SyncService {
 
   private generateConflictId(): string {
     return `conflict_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }
-
-  private async getDeviceInfo(deviceId: string): Promise<SyncDevice | null> {
-    // This would query a device registry
-    return null;
-  }
-
-  private async getChangesSince(
-    timestamp: string,
-    deviceId: string,
-  ): Promise<SyncChange[]> {
-    // This would query changes since timestamp
-    return [];
-  }
-
-  private async applyChange(change: SyncChange): Promise<void> {
-    // Apply change locally
-  }
-
-  private async updateDeviceSyncTime(deviceId: string): Promise<void> {
-    // Update device sync timestamp
   }
 
   /**

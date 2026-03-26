@@ -1,11 +1,13 @@
 /**
  * Monitoring and Alerting Service for Story Image Generation
  * Tracks success rates, performance metrics, and system health
+ *
+ * MIGRATION NOTE: Supabase queries replaced with in-memory metrics tracking.
+ * Feed data via ingestEvents() from Convex query results (useQuery hooks in components).
+ * Convex queries: getImageGenerationAnalytics, getDailyImageGenerationStats
  */
 
-import { supabase } from './supabase';
 import { auditLogger, EventType, EventCategory, Severity } from './auditLogger';
-import { xpEventTracker } from './xpEventTracker';
 
 export interface MetricThreshold {
   metric: string;
@@ -49,6 +51,16 @@ export interface Alert {
   resolved: boolean;
 }
 
+export interface ImageGenerationEvent {
+  id: string;
+  userId: string;
+  generationStatus: 'pending' | 'success' | 'failed';
+  errorType?: string;
+  apiResponseTimeMs?: number;
+  xpCost?: number;
+  createdAt: string;
+}
+
 class MonitoringService {
   private thresholds: MetricThreshold[] = [];
   private activeAlerts: Alert[] = [];
@@ -57,6 +69,7 @@ class MonitoringService {
     { metrics: PerformanceMetrics; timestamp: number }
   > = new Map();
   private readonly cacheTimeout = 5 * 60 * 1000; // 5 minutes
+  private ingestedEvents: ImageGenerationEvent[] = [];
 
   constructor() {
     this.initializeThresholds();
@@ -69,7 +82,7 @@ class MonitoringService {
     this.thresholds = [
       {
         metric: 'success_rate',
-        threshold: 80, // Below 80% success rate
+        threshold: 80,
         operator: 'less_than',
         severity: 'critical',
         description:
@@ -77,49 +90,49 @@ class MonitoringService {
       },
       {
         metric: 'success_rate',
-        threshold: 90, // Below 90% success rate
+        threshold: 90,
         operator: 'less_than',
         severity: 'warning',
         description: 'Image generation success rate is degraded',
       },
       {
         metric: 'average_response_time',
-        threshold: 60000, // Above 60 seconds
+        threshold: 60000,
         operator: 'greater_than',
         severity: 'warning',
         description: 'Image generation response time is too slow',
       },
       {
         metric: 'average_response_time',
-        threshold: 90000, // Above 90 seconds
+        threshold: 90000,
         operator: 'greater_than',
         severity: 'critical',
         description: 'Image generation response time is critically slow',
       },
       {
         metric: 'error_rate',
-        threshold: 15, // Above 15% error rate
+        threshold: 15,
         operator: 'greater_than',
         severity: 'warning',
         description: 'High error rate detected in image generation',
       },
       {
         metric: 'error_rate',
-        threshold: 25, // Above 25% error rate
+        threshold: 25,
         operator: 'greater_than',
         severity: 'critical',
         description: 'Critical error rate detected in image generation',
       },
       {
         metric: 'timeout_rate',
-        threshold: 10, // Above 10% timeout rate
+        threshold: 10,
         operator: 'greater_than',
         severity: 'warning',
         description: 'High timeout rate detected',
       },
       {
         metric: 'average_rating',
-        threshold: 3.0, // Below 3.0 average rating
+        threshold: 3.0,
         operator: 'less_than',
         severity: 'warning',
         description: 'User satisfaction ratings are below acceptable level',
@@ -128,7 +141,16 @@ class MonitoringService {
   }
 
   /**
-   * Get current performance metrics for image generation with real data integration
+   * Ingest events from Convex query results.
+   * Call this from React components that useQuery(api.imageGeneration.getImageGenerationAnalytics).
+   */
+  ingestEvents(events: ImageGenerationEvent[]): void {
+    this.ingestedEvents = events;
+    this.metricsCache.clear();
+  }
+
+  /**
+   * Get current performance metrics for image generation
    */
   async getPerformanceMetrics(hours: number = 24): Promise<PerformanceMetrics> {
     const cacheKey = `metrics_${hours}h`;
@@ -139,28 +161,19 @@ class MonitoringService {
     }
 
     try {
-      // Calculate start time for the period
-      const startTime = new Date(
-        Date.now() - hours * 60 * 60 * 1000,
-      ).toISOString();
-      const endTime = new Date().toISOString();
-
-      // Query image generation events from database
-      const { data: events, error: eventsError } = await supabase
-        .from('image_generation_events')
-        .select('*')
-        .gte('created_at', startTime)
-        .lte('created_at', endTime);
+      const startTime = Date.now() - hours * 60 * 60 * 1000;
+      const events = this.ingestedEvents.filter(
+        e => new Date(e.createdAt).getTime() >= startTime,
+      );
 
       let metrics: PerformanceMetrics;
 
-      if (eventsError || !events || events.length === 0) {
-        // Use fallback metrics if no data available
+      if (events.length === 0) {
         console.log(
           '📊 No image generation events found, using fallback metrics',
         );
         metrics = {
-          successRate: 0, // No data available yet
+          successRate: 0,
           averageResponseTime: 0,
           totalRequests: 0,
           errorRate: 0,
@@ -169,17 +182,16 @@ class MonitoringService {
           averageRating: undefined,
         };
       } else {
-        // Calculate real metrics from database events
         const totalRequests = events.length;
         const successfulEvents = events.filter(
-          e => e.generation_status === 'success',
+          e => e.generationStatus === 'success',
         );
         const failedEvents = events.filter(
-          e => e.generation_status === 'failed',
+          e => e.generationStatus === 'failed',
         );
-        const timeoutEvents = events.filter(e => e.error_type === 'timeout');
+        const timeoutEvents = events.filter(e => e.errorType === 'timeout');
 
-        const uniqueUsers = new Set(events.map(e => e.user_id)).size;
+        const uniqueUsers = new Set(events.map(e => e.userId)).size;
         const successRate =
           totalRequests > 0
             ? (successfulEvents.length / totalRequests) * 100
@@ -189,10 +201,9 @@ class MonitoringService {
         const timeoutRate =
           totalRequests > 0 ? (timeoutEvents.length / totalRequests) * 100 : 0;
 
-        // Calculate average response time from successful events
         const responseTimes = events
-          .filter(e => e.api_response_time_ms && e.api_response_time_ms > 0)
-          .map(e => e.api_response_time_ms);
+          .filter(e => e.apiResponseTimeMs && e.apiResponseTimeMs > 0)
+          .map(e => e.apiResponseTimeMs!);
         const averageResponseTime =
           responseTimes.length > 0
             ? responseTimes.reduce((sum, time) => sum + time, 0) /
@@ -206,7 +217,7 @@ class MonitoringService {
           errorRate,
           timeoutRate,
           uniqueUsers,
-          averageRating: undefined, // Would need user feedback data
+          averageRating: undefined,
         };
 
         console.log('📊 Real-time metrics calculated:', {
@@ -217,14 +228,12 @@ class MonitoringService {
         });
       }
 
-      // Cache the results
       this.metricsCache.set(cacheKey, { metrics, timestamp: Date.now() });
 
       return metrics;
     } catch (error: any) {
       console.error('Error fetching performance metrics:', error);
 
-      // Return safe default metrics on error
       return {
         successRate: 0,
         averageResponseTime: 0,
@@ -244,7 +253,6 @@ class MonitoringService {
       const metrics = await this.getPerformanceMetrics();
       const alerts = await this.evaluateThresholds(metrics);
 
-      // Determine overall system status
       const status = this.determineSystemStatus(alerts);
 
       const health: SystemHealth = {
@@ -254,7 +262,6 @@ class MonitoringService {
         lastChecked: new Date(),
       };
 
-      // Log system health check
       auditLogger.logEvent({
         eventType: EventType.SYSTEM_HEALTH_CHECK,
         eventCategory: EventCategory.SYSTEM,
@@ -320,7 +327,6 @@ class MonitoringService {
     for (const threshold of this.thresholds) {
       let metricValue: number;
 
-      // Get the metric value
       switch (threshold.metric) {
         case 'success_rate':
           metricValue = metrics.successRate;
@@ -335,13 +341,12 @@ class MonitoringService {
           metricValue = metrics.timeoutRate;
           break;
         case 'average_rating':
-          metricValue = metrics.averageRating || 5.0; // Default to good rating if no data
+          metricValue = metrics.averageRating || 5.0;
           break;
         default:
           continue;
       }
 
-      // Check if threshold is breached
       const thresholdBreached = this.evaluateThreshold(metricValue, threshold);
 
       if (thresholdBreached) {
@@ -365,7 +370,6 @@ class MonitoringService {
 
         newAlerts.push(alert);
 
-        // Log the alert
         auditLogger.logEvent({
           eventType: EventType.ALERT_TRIGGERED,
           eventCategory: EventCategory.SYSTEM,
@@ -390,15 +394,11 @@ class MonitoringService {
       }
     }
 
-    // Update active alerts
     this.updateActiveAlerts(newAlerts);
 
     return this.activeAlerts;
   }
 
-  /**
-   * Evaluate a single threshold
-   */
   private evaluateThreshold(
     value: number,
     threshold: MetricThreshold,
@@ -415,9 +415,6 @@ class MonitoringService {
     }
   }
 
-  /**
-   * Get alert type based on metric
-   */
   private getAlertType(metric: string): Alert['type'] {
     if (metric.includes('success_rate')) return 'success_rate';
     if (metric.includes('error_rate')) return 'error_rate';
@@ -427,11 +424,7 @@ class MonitoringService {
     return 'performance';
   }
 
-  /**
-   * Update active alerts list
-   */
   private updateActiveAlerts(newAlerts: Alert[]): void {
-    // Remove resolved alerts (alerts that are no longer triggered)
     const currentAlertKeys = new Set(
       newAlerts.map(a => `${a.metric}_${a.severity}`),
     );
@@ -439,14 +432,12 @@ class MonitoringService {
     this.activeAlerts = this.activeAlerts.filter(alert => {
       const alertKey = `${alert.metric}_${alert.severity}`;
       if (!currentAlertKeys.has(alertKey)) {
-        // Mark as resolved
         alert.resolved = true;
         return false;
       }
       return true;
     });
 
-    // Add new alerts
     for (const newAlert of newAlerts) {
       const exists = this.activeAlerts.some(
         a => a.metric === newAlert.metric && a.severity === newAlert.severity,
@@ -458,9 +449,6 @@ class MonitoringService {
     }
   }
 
-  /**
-   * Determine overall system status based on alerts
-   */
   private determineSystemStatus(alerts: Alert[]): SystemHealth['status'] {
     const criticalAlerts = alerts.filter(
       a => a.severity === 'critical' && !a.resolved,
@@ -479,7 +467,7 @@ class MonitoringService {
   }
 
   /**
-   * Get rollout analytics with real first-week success metrics
+   * Get rollout analytics from ingested events
    */
   async getRolloutAnalytics(days: number = 7): Promise<{
     dailyMetrics: Array<{
@@ -501,7 +489,6 @@ class MonitoringService {
         averageRating?: number;
       }> = [];
 
-      // Get data for each day in the range
       for (let i = days - 1; i >= 0; i--) {
         const date = new Date();
         date.setDate(date.getDate() - i);
@@ -512,31 +499,16 @@ class MonitoringService {
         const endOfDay = new Date(date);
         endOfDay.setHours(23, 59, 59, 999);
 
-        // Query events for this specific day
-        const { data: dayEvents, error } = await supabase
-          .from('image_generation_events')
-          .select('*')
-          .gte('created_at', startOfDay.toISOString())
-          .lte('created_at', endOfDay.toISOString());
+        const dayEvents = this.ingestedEvents.filter(e => {
+          const eventDate = new Date(e.createdAt);
+          return eventDate >= startOfDay && eventDate <= endOfDay;
+        });
 
-        if (error) {
-          console.warn(`Failed to fetch data for ${dateStr}:`, error);
-          dailyMetrics.push({
-            date: dateStr,
-            successRate: 0,
-            totalRequests: 0,
-            uniqueUsers: 0,
-            averageRating: undefined,
-          });
-          continue;
-        }
-
-        const events = dayEvents || [];
-        const totalRequests = events.length;
-        const successfulEvents = events.filter(
-          e => e.generation_status === 'success',
+        const totalRequests = dayEvents.length;
+        const successfulEvents = dayEvents.filter(
+          e => e.generationStatus === 'success',
         );
-        const uniqueUsers = new Set(events.map(e => e.user_id)).size;
+        const uniqueUsers = new Set(dayEvents.map(e => e.userId)).size;
         const successRate =
           totalRequests > 0
             ? (successfulEvents.length / totalRequests) * 100
@@ -547,23 +519,15 @@ class MonitoringService {
           successRate,
           totalRequests,
           uniqueUsers,
-          averageRating: undefined, // Would integrate with user feedback
+          averageRating: undefined,
         });
       }
 
-      // Calculate trend analysis
       const overallTrend = this.calculateTrend(dailyMetrics);
       const recommendation = this.generateRolloutRecommendation(
         dailyMetrics,
         overallTrend,
       );
-
-      console.log('📈 Rollout Analytics:', {
-        period: `${days} days`,
-        totalDays: dailyMetrics.length,
-        trend: overallTrend,
-        latestMetrics: dailyMetrics[dailyMetrics.length - 1],
-      });
 
       return {
         dailyMetrics,
@@ -596,24 +560,22 @@ class MonitoringService {
     const recommendations: string[] = [];
     const actionItems: string[] = [];
 
-    // Generate recommendations based on health status
     if (health.status === 'critical') {
-      recommendations.push('🚨 CRITICAL: Immediate investigation required');
+      recommendations.push('CRITICAL: Immediate investigation required');
       actionItems.push('Investigate and resolve critical alerts');
       actionItems.push('Consider rolling back if issues persist');
     } else if (health.status === 'degraded') {
-      recommendations.push('⚠️ WARNING: System is degraded but operational');
+      recommendations.push('WARNING: System is degraded but operational');
       actionItems.push('Monitor closely and address warning alerts');
       actionItems.push('Delay rollout increases until issues are resolved');
     } else {
-      recommendations.push('✅ HEALTHY: System is operating normally');
+      recommendations.push('HEALTHY: System is operating normally');
       actionItems.push('Continue monitoring');
       if (health.metrics.successRate > 95) {
         actionItems.push('Consider increasing rollout percentage');
       }
     }
 
-    // Add trend-based recommendations
     recommendations.push(analytics.recommendation);
 
     const summary = `
@@ -635,167 +597,6 @@ Trend: ${analytics.overallTrend}
     };
   }
 
-  /**
-   * Get first week success metrics with detailed breakdown
-   */
-  async getFirstWeekSuccessMetrics(): Promise<{
-    weekOverview: {
-      totalGenerations: number;
-      successRate: number;
-      uniqueUsers: number;
-      totalXPSpent: number;
-      averageResponseTime: number;
-    };
-    dailyBreakdown: Array<{
-      day: number;
-      date: string;
-      generations: number;
-      successRate: number;
-      users: number;
-      avgResponseTime: number;
-    }>;
-    keyInsights: string[];
-    actionItems: string[];
-  }> {
-    try {
-      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      const now = new Date();
-
-      // Get all events from the past week
-      const { data: weekEvents, error } = await supabase
-        .from('image_generation_events')
-        .select('*')
-        .gte('created_at', weekAgo.toISOString())
-        .lte('created_at', now.toISOString())
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        throw new Error(`Database query failed: ${error.message}`);
-      }
-
-      const events = weekEvents || [];
-
-      // Calculate week overview
-      const totalGenerations = events.length;
-      const successfulGenerations = events.filter(
-        e => e.generation_status === 'success',
-      ).length;
-      const successRate =
-        totalGenerations > 0
-          ? (successfulGenerations / totalGenerations) * 100
-          : 0;
-      const uniqueUsers = new Set(events.map(e => e.user_id)).size;
-      const totalXPSpent = events.reduce((sum, e) => sum + (e.xp_cost || 0), 0);
-
-      const responseTimes = events
-        .filter(e => e.api_response_time_ms && e.api_response_time_ms > 0)
-        .map(e => e.api_response_time_ms);
-      const averageResponseTime =
-        responseTimes.length > 0
-          ? responseTimes.reduce((sum, time) => sum + time, 0) /
-            responseTimes.length
-          : 0;
-
-      // Calculate daily breakdown
-      const dailyBreakdown = [];
-      for (let i = 6; i >= 0; i--) {
-        const day = new Date(now);
-        day.setDate(now.getDate() - i);
-        const dayStart = new Date(day);
-        dayStart.setHours(0, 0, 0, 0);
-        const dayEnd = new Date(day);
-        dayEnd.setHours(23, 59, 59, 999);
-
-        const dayEvents = events.filter(e => {
-          const eventDate = new Date(e.created_at);
-          return eventDate >= dayStart && eventDate <= dayEnd;
-        });
-
-        const dayGenerations = dayEvents.length;
-        const daySuccessful = dayEvents.filter(
-          e => e.generation_status === 'success',
-        ).length;
-        const daySuccessRate =
-          dayGenerations > 0 ? (daySuccessful / dayGenerations) * 100 : 0;
-        const dayUsers = new Set(dayEvents.map(e => e.user_id)).size;
-
-        const dayResponseTimes = dayEvents
-          .filter(e => e.api_response_time_ms && e.api_response_time_ms > 0)
-          .map(e => e.api_response_time_ms);
-        const avgResponseTime =
-          dayResponseTimes.length > 0
-            ? dayResponseTimes.reduce((sum, time) => sum + time, 0) /
-              dayResponseTimes.length
-            : 0;
-
-        dailyBreakdown.push({
-          day: 7 - i,
-          date: day.toISOString().split('T')[0],
-          generations: dayGenerations,
-          successRate: daySuccessRate,
-          users: dayUsers,
-          avgResponseTime,
-        });
-      }
-
-      // Generate insights and action items
-      const keyInsights = this.generateFirstWeekInsights({
-        totalGenerations,
-        successRate,
-        uniqueUsers,
-        averageResponseTime,
-        dailyBreakdown,
-      });
-
-      const actionItems = this.generateFirstWeekActionItems({
-        totalGenerations,
-        successRate,
-        uniqueUsers,
-        averageResponseTime,
-        events,
-      });
-
-      const metrics = {
-        weekOverview: {
-          totalGenerations,
-          successRate,
-          uniqueUsers,
-          totalXPSpent,
-          averageResponseTime,
-        },
-        dailyBreakdown,
-        keyInsights,
-        actionItems,
-      };
-
-      console.log('📊 First Week Success Metrics:', {
-        totalGenerations,
-        successRate: successRate.toFixed(1) + '%',
-        uniqueUsers,
-        avgResponseTime: (averageResponseTime / 1000).toFixed(1) + 's',
-      });
-
-      return metrics;
-    } catch (error: any) {
-      console.error('Failed to get first week metrics:', error);
-      return {
-        weekOverview: {
-          totalGenerations: 0,
-          successRate: 0,
-          uniqueUsers: 0,
-          totalXPSpent: 0,
-          averageResponseTime: 0,
-        },
-        dailyBreakdown: [],
-        keyInsights: ['Unable to retrieve first week metrics'],
-        actionItems: ['Check database connectivity and retry analytics'],
-      };
-    }
-  }
-
-  /**
-   * Calculate trend from daily metrics
-   */
   private calculateTrend(
     dailyMetrics: Array<{ successRate: number; totalRequests: number }>,
   ): 'improving' | 'stable' | 'degrading' {
@@ -815,9 +616,6 @@ Trend: ${analytics.overallTrend}
     return 'stable';
   }
 
-  /**
-   * Generate rollout recommendation based on metrics
-   */
   private generateRolloutRecommendation(
     dailyMetrics: any[],
     trend: string,
@@ -833,138 +631,26 @@ Trend: ${analytics.overallTrend}
     }
 
     if (latestDay.successRate >= 90 && trend === 'improving') {
-      return '✅ Excellent performance! Consider increasing rollout to next percentage tier.';
+      return 'Excellent performance! Consider increasing rollout to next percentage tier.';
     }
 
     if (latestDay.successRate >= 80 && trend !== 'degrading') {
-      return '📈 Good performance. Continue current rollout and monitor closely.';
+      return 'Good performance. Continue current rollout and monitor closely.';
     }
 
     if (latestDay.successRate < 70 || trend === 'degrading') {
-      return '⚠️ Performance concerns detected. Hold rollout and investigate issues.';
+      return 'Performance concerns detected. Hold rollout and investigate issues.';
     }
 
-    return '📊 Stable performance. Continue monitoring and maintain current rollout level.';
+    return 'Stable performance. Continue monitoring and maintain current rollout level.';
   }
 
-  /**
-   * Generate insights for first week performance
-   */
-  private generateFirstWeekInsights(metrics: any): string[] {
-    const insights = [];
-
-    if (metrics.totalGenerations === 0) {
-      insights.push('No image generation attempts recorded in first week');
-      insights.push(
-        'Consider user education or feature promotion to increase adoption',
-      );
-    } else {
-      if (metrics.successRate >= 95) {
-        insights.push(
-          `Excellent success rate of ${metrics.successRate.toFixed(
-            1,
-          )}% indicates stable service`,
-        );
-      } else if (metrics.successRate >= 85) {
-        insights.push(
-          `Good success rate of ${metrics.successRate.toFixed(
-            1,
-          )}% with room for improvement`,
-        );
-      } else {
-        insights.push(
-          `Success rate of ${metrics.successRate.toFixed(
-            1,
-          )}% requires immediate attention`,
-        );
-      }
-
-      if (metrics.uniqueUsers > 0) {
-        const generationsPerUser =
-          metrics.totalGenerations / metrics.uniqueUsers;
-        insights.push(
-          `${generationsPerUser.toFixed(
-            1,
-          )} average generations per user shows ${
-            generationsPerUser > 2 ? 'high' : 'moderate'
-          } engagement`,
-        );
-      }
-
-      if (metrics.averageResponseTime > 60000) {
-        insights.push(
-          `Response time of ${(metrics.averageResponseTime / 1000).toFixed(
-            1,
-          )}s exceeds target, affecting user experience`,
-        );
-      } else if (metrics.averageResponseTime > 0) {
-        insights.push(
-          `Response time of ${(metrics.averageResponseTime / 1000).toFixed(
-            1,
-          )}s is within acceptable range`,
-        );
-      }
-    }
-
-    return insights;
-  }
-
-  /**
-   * Generate action items for first week performance
-   */
-  private generateFirstWeekActionItems(metrics: any): string[] {
-    const actionItems = [];
-
-    if (metrics.totalGenerations === 0) {
-      actionItems.push(
-        'Verify feature flag is enabled and users can access image generation',
-      );
-      actionItems.push('Check user onboarding flow and XP requirements');
-      actionItems.push('Review feature discoverability in UI');
-    } else {
-      if (metrics.successRate < 90) {
-        actionItems.push('Investigate common failure patterns and error types');
-        actionItems.push('Review API timeout settings and failover mechanisms');
-      }
-
-      if (metrics.averageResponseTime > 45000) {
-        actionItems.push(
-          'Optimize API performance and consider timeout adjustments',
-        );
-      }
-
-      if (metrics.uniqueUsers < 10) {
-        actionItems.push(
-          'Increase user awareness through in-app messaging or tutorials',
-        );
-      }
-
-      const errorEvents =
-        metrics.events?.filter((e: any) => e.generation_status === 'failed') ||
-        [];
-      if (errorEvents.length > 0) {
-        actionItems.push(
-          `Review ${errorEvents.length} failed generation events for improvement opportunities`,
-        );
-      }
-    }
-
-    actionItems.push('Continue daily monitoring and prepare week 2 analysis');
-    return actionItems;
-  }
-
-  /**
-   * Clear resolved alerts
-   */
   clearResolvedAlerts(): number {
     const beforeCount = this.activeAlerts.length;
     this.activeAlerts = this.activeAlerts.filter(alert => !alert.resolved);
     return beforeCount - this.activeAlerts.length;
   }
 
-  /**
-   * Get current active alerts
-   */
   getActiveAlerts(): Alert[] {
     return this.activeAlerts.filter(alert => !alert.resolved);
   }

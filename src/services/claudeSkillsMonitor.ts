@@ -1,14 +1,18 @@
 /**
  * Claude Skills Performance Monitoring Service
- * 
+ *
  * Extends existing analytics system to monitor Claude Skills performance impact.
  * Tracks all skill executions, response times, memory usage, and provides
  * real-time monitoring with alerting for SLA breaches.
  */
 
-import { supabase } from './supabase';
 import { analyticsService } from './analyticsService';
-import { SkillType, SkillResult, SkillError, PerformanceMetrics as SkillPerformanceMetrics } from '../types/claudeSkills';
+import {
+  SkillType,
+  SkillResult,
+  SkillError,
+  PerformanceMetrics as SkillPerformanceMetrics,
+} from '../types/claudeSkills';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Performance metrics for Claude Skills
@@ -57,7 +61,12 @@ export interface SkillExecutionEvent {
 }
 
 export interface AlertThreshold {
-  metric: 'response_time' | 'error_rate' | 'timeout_rate' | 'memory_usage' | 'success_rate';
+  metric:
+    | 'response_time'
+    | 'error_rate'
+    | 'timeout_rate'
+    | 'memory_usage'
+    | 'success_rate';
   threshold: number;
   operator: 'greater_than' | 'less_than' | 'equals';
   severity: 'warning' | 'critical';
@@ -95,9 +104,15 @@ class ClaudeSkillsMonitor {
   private metrics: ClaudeSkillsPerformanceMetrics;
   private executionEvents: SkillExecutionEvent[] = [];
   private activeAlerts: PerformanceAlert[] = [];
-  private metricsCache: Map<string, { metrics: ClaudeSkillsPerformanceMetrics; timestamp: number }> = new Map();
-  private activeExecutions: Map<string, { startTime: number; memoryBefore: number; skillType: SkillType }> = new Map();
-  
+  private metricsCache: Map<
+    string,
+    { metrics: ClaudeSkillsPerformanceMetrics; timestamp: number }
+  > = new Map();
+  private activeExecutions: Map<
+    string,
+    { startTime: number; memoryBefore: number; skillType: SkillType }
+  > = new Map();
+
   // Default alert thresholds
   private alertThresholds: AlertThreshold[] = [
     {
@@ -170,16 +185,16 @@ class ClaudeSkillsMonitor {
     try {
       // Load persisted metrics
       await this.loadPersistedMetrics();
-      
+
       // Load persisted events
       await this.loadPersistedEvents();
-      
+
       // Load persisted alerts
       await this.loadPersistedAlerts();
-      
+
       // Start periodic metrics upload
       this.startPeriodicUpload();
-      
+
       console.log('📊 Claude Skills Monitor initialized');
     } catch (error) {
       console.error('Failed to initialize Claude Skills Monitor:', error);
@@ -194,18 +209,20 @@ class ClaudeSkillsMonitor {
     skillType: SkillType,
     skillId: string,
     userId?: string,
-    sessionId?: string
+    sessionId?: string,
   ): void {
     const memoryBefore = this.getCurrentMemoryUsage();
     const startTime = Date.now();
-    
+
     this.activeExecutions.set(executionId, {
       startTime,
       memoryBefore,
       skillType,
     });
-    
-    console.log(`📊 Tracking skill execution start: ${skillType} (${executionId})`);
+
+    console.log(
+      `📊 Tracking skill execution start: ${skillType} (${executionId})`,
+    );
   }
 
   /**
@@ -216,7 +233,7 @@ class ClaudeSkillsMonitor {
     result: SkillResult<any>,
     skillId: string,
     userId?: string,
-    sessionId?: string
+    sessionId?: string,
   ): Promise<void> {
     const execution = this.activeExecutions.get(executionId);
     if (!execution) {
@@ -269,13 +286,17 @@ class ClaudeSkillsMonitor {
         errorCode: result.error?.code,
         memoryDelta,
         confidence: result.confidence,
-      }
+      },
     );
 
     // Persist event
     await this.persistEvent(event);
 
-    console.log(`📊 Skill execution tracked: ${execution.skillType} - ${executionTime}ms - ${result.success ? 'SUCCESS' : 'FAILED'}`);
+    console.log(
+      `📊 Skill execution tracked: ${
+        execution.skillType
+      } - ${executionTime}ms - ${result.success ? 'SUCCESS' : 'FAILED'}`,
+    );
   }
 
   /**
@@ -293,23 +314,25 @@ class ClaudeSkillsMonitor {
     }
 
     // Update average response time
-    this.metrics.averageResponseTime = 
-      (this.metrics.averageResponseTime * (this.metrics.totalExecutions - 1) + executionTimeMs) / 
+    this.metrics.averageResponseTime =
+      (this.metrics.averageResponseTime * (this.metrics.totalExecutions - 1) +
+        executionTimeMs) /
       this.metrics.totalExecutions;
 
     // Update percentiles (simplified - would use proper percentile calculation in production)
     this.updatePercentiles(executionTimeMs);
 
     // Update error rate
-    this.metrics.errorRate = 
+    this.metrics.errorRate =
       (this.metrics.failedExecutions / this.metrics.totalExecutions) * 100;
 
     // Update memory metrics
     if (memoryDelta) {
-      this.metrics.memoryUsage = 
-        (this.metrics.memoryUsage * (this.metrics.totalExecutions - 1) + Math.abs(memoryDelta)) / 
+      this.metrics.memoryUsage =
+        (this.metrics.memoryUsage * (this.metrics.totalExecutions - 1) +
+          Math.abs(memoryDelta)) /
         this.metrics.totalExecutions;
-      
+
       if (Math.abs(memoryDelta) > this.metrics.peakMemoryUsage) {
         this.metrics.peakMemoryUsage = Math.abs(memoryDelta);
       }
@@ -334,14 +357,15 @@ class ClaudeSkillsMonitor {
     } else {
       skillMetric.failureCount++;
     }
-    
-    skillMetric.averageResponseTime = 
-      (skillMetric.averageResponseTime * (skillMetric.executionCount - 1) + executionTimeMs) / 
+
+    skillMetric.averageResponseTime =
+      (skillMetric.averageResponseTime * (skillMetric.executionCount - 1) +
+        executionTimeMs) /
       skillMetric.executionCount;
-    
-    skillMetric.errorRate = 
+
+    skillMetric.errorRate =
       (skillMetric.failureCount / skillMetric.executionCount) * 100;
-    
+
     skillMetric.lastExecuted = new Date();
 
     this.metrics.lastUpdated = new Date();
@@ -359,9 +383,12 @@ class ClaudeSkillsMonitor {
       .sort((a, b) => a - b);
 
     if (responseTimes.length > 0) {
-      this.metrics.p50ResponseTime = responseTimes[Math.floor(responseTimes.length * 0.5)] || 0;
-      this.metrics.p95ResponseTime = responseTimes[Math.floor(responseTimes.length * 0.95)] || 0;
-      this.metrics.p99ResponseTime = responseTimes[Math.floor(responseTimes.length * 0.99)] || 0;
+      this.metrics.p50ResponseTime =
+        responseTimes[Math.floor(responseTimes.length * 0.5)] || 0;
+      this.metrics.p95ResponseTime =
+        responseTimes[Math.floor(responseTimes.length * 0.95)] || 0;
+      this.metrics.p99ResponseTime =
+        responseTimes[Math.floor(responseTimes.length * 0.99)] || 0;
     }
   }
 
@@ -370,7 +397,7 @@ class ClaudeSkillsMonitor {
    */
   async getPerformanceMetrics(
     hours: number = 24,
-    skillType?: SkillType
+    skillType?: SkillType,
   ): Promise<ClaudeSkillsPerformanceMetrics> {
     const cacheKey = `metrics_${hours}h_${skillType || 'all'}`;
     const cached = this.metricsCache.get(cacheKey);
@@ -380,36 +407,16 @@ class ClaudeSkillsMonitor {
     }
 
     try {
-      // Calculate metrics from database events
-      const startTime = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
-      
-      let query = supabase
-        .from('analytics_events')
-        .select('*')
-        .eq('type', 'performance')
-        .gte('timestamp', startTime);
+      // Use in-memory metrics (Claude Skills infrastructure is mocked)
+      const calculatedMetrics = this.calculateMetricsFromLocalEvents(
+        hours,
+        skillType,
+      );
 
-      // Filter by skill type if specified
-      if (skillType) {
-        query = query.like('subtype', `%claude_skill_${skillType}%`);
-      } else {
-        query = query.like('subtype', '%claude_skill_%');
-      }
-
-      const { data: events, error } = await query;
-
-      if (error || !events || events.length === 0) {
-        // Return current in-memory metrics if no database events
-        return this.metrics;
-      }
-
-      // Calculate metrics from database events
-      const calculatedMetrics = this.calculateMetricsFromEvents(events, skillType);
-      
       // Cache the results
-      this.metricsCache.set(cacheKey, { 
-        metrics: calculatedMetrics, 
-        timestamp: Date.now() 
+      this.metricsCache.set(cacheKey, {
+        metrics: calculatedMetrics,
+        timestamp: Date.now(),
       });
 
       return calculatedMetrics;
@@ -424,32 +431,37 @@ class ClaudeSkillsMonitor {
    */
   private calculateMetricsFromEvents(
     events: any[],
-    skillType?: SkillType
+    skillType?: SkillType,
   ): ClaudeSkillsPerformanceMetrics {
-    const skillEvents = events.filter(e => 
-      e.metadata?.skillType && (!skillType || e.metadata.skillType === skillType)
+    const skillEvents = events.filter(
+      e =>
+        e.metadata?.skillType &&
+        (!skillType || e.metadata.skillType === skillType),
     );
 
     const totalExecutions = skillEvents.length;
-    const successfulExecutions = skillEvents.filter(e => e.metadata?.success).length;
+    const successfulExecutions = skillEvents.filter(
+      e => e.metadata?.success,
+    ).length;
     const failedExecutions = totalExecutions - successfulExecutions;
 
     const responseTimes = skillEvents
       .filter(e => e.metadata?.duration)
       .map(e => e.metadata.duration);
 
-    const averageResponseTime = responseTimes.length > 0
-      ? responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length
-      : 0;
+    const averageResponseTime =
+      responseTimes.length > 0
+        ? responseTimes.reduce((sum, time) => sum + time, 0) /
+          responseTimes.length
+        : 0;
 
     const sortedTimes = [...responseTimes].sort((a, b) => a - b);
     const p50 = sortedTimes[Math.floor(sortedTimes.length * 0.5)] || 0;
     const p95 = sortedTimes[Math.floor(sortedTimes.length * 0.95)] || 0;
     const p99 = sortedTimes[Math.floor(sortedTimes.length * 0.99)] || 0;
 
-    const errorRate = totalExecutions > 0
-      ? (failedExecutions / totalExecutions) * 100
-      : 0;
+    const errorRate =
+      totalExecutions > 0 ? (failedExecutions / totalExecutions) * 100 : 0;
 
     // Calculate skill-specific metrics
     const skillMetrics: Record<SkillType, SkillTypeMetrics> = {} as any;
@@ -472,9 +484,11 @@ class ClaudeSkillsMonitor {
       const groupResponseTimes = groupEvents
         .filter(e => e.metadata?.duration)
         .map(e => e.metadata.duration);
-      const groupAvgTime = groupResponseTimes.length > 0
-        ? groupResponseTimes.reduce((sum, time) => sum + time, 0) / groupResponseTimes.length
-        : 0;
+      const groupAvgTime =
+        groupResponseTimes.length > 0
+          ? groupResponseTimes.reduce((sum, time) => sum + time, 0) /
+            groupResponseTimes.length
+          : 0;
 
       skillMetrics[type] = {
         skillType: type,
@@ -483,9 +497,10 @@ class ClaudeSkillsMonitor {
         failureCount: groupFailures,
         averageResponseTime: groupAvgTime,
         errorRate: groupTotal > 0 ? (groupFailures / groupTotal) * 100 : 0,
-        lastExecuted: groupEvents.length > 0 
-          ? new Date(groupEvents[0].timestamp) 
-          : undefined,
+        lastExecuted:
+          groupEvents.length > 0
+            ? new Date(groupEvents[0].timestamp)
+            : undefined,
       };
     });
 
@@ -514,19 +529,20 @@ class ClaudeSkillsMonitor {
     const recentResponseTimes = recentEvents
       .filter(e => e.success)
       .map(e => e.executionTimeMs);
-    
-    const currentResponseTime = recentResponseTimes.length > 0
-      ? recentResponseTimes.reduce((sum, time) => sum + time, 0) / recentResponseTimes.length
-      : 0;
+
+    const currentResponseTime =
+      recentResponseTimes.length > 0
+        ? recentResponseTimes.reduce((sum, time) => sum + time, 0) /
+          recentResponseTimes.length
+        : 0;
 
     const recentErrors = recentEvents.filter(e => !e.success).length;
-    const currentErrorRate = recentEvents.length > 0
-      ? (recentErrors / recentEvents.length) * 100
-      : 0;
+    const currentErrorRate =
+      recentEvents.length > 0 ? (recentErrors / recentEvents.length) * 100 : 0;
 
     const activeAlerts = this.activeAlerts.filter(a => !a.resolved);
     const criticalAlerts = activeAlerts.filter(a => a.severity === 'critical');
-    
+
     let systemHealth: 'healthy' | 'degraded' | 'critical' = 'healthy';
     if (criticalAlerts.length > 0) {
       systemHealth = 'critical';
@@ -563,9 +579,10 @@ class ClaudeSkillsMonitor {
           metricValue = metrics.errorRate;
           break;
         case 'success_rate':
-          metricValue = metrics.totalExecutions > 0
-            ? (metrics.successfulExecutions / metrics.totalExecutions) * 100
-            : 100;
+          metricValue =
+            metrics.totalExecutions > 0
+              ? (metrics.successfulExecutions / metrics.totalExecutions) * 100
+              : 100;
           break;
         case 'memory_usage':
           metricValue = metrics.memoryUsage;
@@ -580,13 +597,16 @@ class ClaudeSkillsMonitor {
       const thresholdBreached = this.evaluateThreshold(metricValue, threshold);
 
       if (thresholdBreached) {
-        const alertId = `alert_${threshold.metric}_${threshold.severity}_${Date.now()}`;
-        
+        const alertId = `alert_${threshold.metric}_${
+          threshold.severity
+        }_${Date.now()}`;
+
         // Check if alert already exists
         const existingAlert = this.activeAlerts.find(
-          a => a.metric === threshold.metric && 
-               a.severity === threshold.severity && 
-               !a.resolved
+          a =>
+            a.metric === threshold.metric &&
+            a.severity === threshold.severity &&
+            !a.resolved,
         );
 
         if (!existingAlert) {
@@ -594,7 +614,9 @@ class ClaudeSkillsMonitor {
             id: alertId,
             type: this.getAlertType(threshold.metric),
             severity: threshold.severity,
-            message: `${threshold.description} (Current: ${metricValue.toFixed(2)})`,
+            message: `${threshold.description} (Current: ${metricValue.toFixed(
+              2,
+            )})`,
             metric: threshold.metric,
             value: metricValue,
             threshold: threshold.threshold,
@@ -617,7 +639,7 @@ class ClaudeSkillsMonitor {
               value: metricValue,
               threshold: threshold.threshold,
               severity: threshold.severity,
-            }
+            },
           );
 
           console.warn(`⚠️ Performance Alert: ${alert.message}`);
@@ -668,12 +690,12 @@ class ClaudeSkillsMonitor {
       if (typeof performance !== 'undefined' && (performance as any).memory) {
         return (performance as any).memory.usedJSHeapSize || 0;
       }
-      
+
       // Estimate based on active executions and events
       let estimated = 0;
       estimated += this.activeExecutions.size * 5000; // ~5KB per active execution
       estimated += this.executionEvents.length * 2000; // ~2KB per event
-      
+
       return estimated;
     } catch (error) {
       return 0;
@@ -705,11 +727,11 @@ class ClaudeSkillsMonitor {
     const beforeCount = this.activeAlerts.length;
     this.activeAlerts = this.activeAlerts.filter(a => !a.resolved);
     const removed = beforeCount - this.activeAlerts.length;
-    
+
     if (removed > 0) {
       await this.persistAlerts();
     }
-    
+
     return removed;
   }
 
@@ -723,52 +745,73 @@ class ClaudeSkillsMonitor {
   }
 
   /**
-   * Upload metrics to database
+   * Trim and persist metrics locally.
+   * Supabase upload removed — Claude Skills infrastructure is mocked.
+   * TODO: Route to Convex analytics table when Skills are production-ready.
    */
   private async uploadMetricsToDatabase(): Promise<void> {
     if (this.executionEvents.length === 0) return;
 
     try {
-      // Upload events to analytics_events table
-      const eventsToUpload = this.executionEvents.map(event => ({
-        type: 'performance',
-        subtype: `claude_skill_${event.skillType}`,
-        userId: event.userId || 'system',
-        sessionId: event.sessionId,
-        timestamp: event.timestamp,
-        metadata: {
-          skillType: event.skillType,
-          skillId: event.skillId,
-          executionTimeMs: event.executionTimeMs,
-          success: event.success,
-          errorCode: event.errorCode,
-          errorMessage: event.errorMessage,
-          memoryUsageBefore: event.memoryUsageBefore,
-          memoryUsageAfter: event.memoryUsageAfter,
-          memoryDelta: event.memoryDelta,
-          confidence: event.confidence,
-          duration: event.executionTimeMs,
-          ...event.metadata,
-        },
-      }));
-
-      const { error } = await supabase
-        .from('analytics_events')
-        .insert(eventsToUpload);
-
-      if (error) {
-        console.warn('Failed to upload Claude Skills metrics to database:', error.message);
-        return;
-      }
-
-      // Clear uploaded events (keep last 100 for local metrics)
+      // Keep last 100 events for local metrics
       this.executionEvents = this.executionEvents.slice(-100);
       await this.persistEvents();
-
-      console.log(`📤 Uploaded ${eventsToUpload.length} Claude Skills metrics to database`);
     } catch (error) {
-      console.error('Error uploading metrics to database:', error);
+      console.error('Error persisting local metrics:', error);
     }
+  }
+
+  /**
+   * Calculate metrics from local in-memory events
+   */
+  private calculateMetricsFromLocalEvents(
+    hours: number,
+    skillType?: SkillType,
+  ): ClaudeSkillsPerformanceMetrics {
+    const startTime = Date.now() - hours * 60 * 60 * 1000;
+
+    let events = this.executionEvents.filter(
+      e => new Date(e.timestamp).getTime() >= startTime,
+    );
+
+    if (skillType) {
+      events = events.filter(e => e.skillType === skillType);
+    }
+
+    if (events.length === 0) {
+      return this.metrics;
+    }
+
+    const totalExecutions = events.length;
+    const successfulExecutions = events.filter(e => e.success).length;
+    const failedExecutions = totalExecutions - successfulExecutions;
+    const errorRate =
+      totalExecutions > 0 ? (failedExecutions / totalExecutions) * 100 : 0;
+
+    const responseTimes = events
+      .map(e => e.executionTimeMs)
+      .filter(t => t > 0)
+      .sort((a, b) => a - b);
+
+    const averageResponseTime =
+      responseTimes.length > 0
+        ? responseTimes.reduce((sum, t) => sum + t, 0) / responseTimes.length
+        : 0;
+
+    return {
+      ...this.metrics,
+      totalExecutions,
+      successfulExecutions,
+      failedExecutions,
+      errorRate,
+      averageResponseTime,
+      p50ResponseTime:
+        responseTimes[Math.floor(responseTimes.length * 0.5)] || 0,
+      p95ResponseTime:
+        responseTimes[Math.floor(responseTimes.length * 0.95)] || 0,
+      p99ResponseTime:
+        responseTimes[Math.floor(responseTimes.length * 0.99)] || 0,
+    };
   }
 
   /**
@@ -777,12 +820,12 @@ class ClaudeSkillsMonitor {
   private async persistEvent(event: SkillExecutionEvent): Promise<void> {
     try {
       this.executionEvents.push(event);
-      
+
       // Keep only last 1000 events in memory
       if (this.executionEvents.length > 1000) {
         this.executionEvents = this.executionEvents.slice(-1000);
       }
-      
+
       await this.persistEvents();
     } catch (error) {
       console.error('Failed to persist event:', error);
@@ -796,7 +839,7 @@ class ClaudeSkillsMonitor {
     try {
       await AsyncStorage.setItem(
         this.EVENTS_STORAGE_KEY,
-        JSON.stringify(this.executionEvents.slice(-500)) // Keep last 500 in storage
+        JSON.stringify(this.executionEvents.slice(-500)), // Keep last 500 in storage
       );
     } catch (error) {
       console.error('Failed to persist events:', error);
@@ -824,7 +867,7 @@ class ClaudeSkillsMonitor {
     try {
       await AsyncStorage.setItem(
         this.STORAGE_KEY,
-        JSON.stringify(this.metrics)
+        JSON.stringify(this.metrics),
       );
     } catch (error) {
       console.error('Failed to persist metrics:', error);
@@ -853,7 +896,7 @@ class ClaudeSkillsMonitor {
     try {
       await AsyncStorage.setItem(
         this.ALERTS_STORAGE_KEY,
-        JSON.stringify(this.activeAlerts)
+        JSON.stringify(this.activeAlerts),
       );
     } catch (error) {
       console.error('Failed to persist alerts:', error);
@@ -918,7 +961,7 @@ class ClaudeSkillsMonitor {
     this.activeAlerts = [];
     this.activeExecutions.clear();
     this.metricsCache.clear();
-    
+
     await Promise.all([
       AsyncStorage.removeItem(this.STORAGE_KEY),
       AsyncStorage.removeItem(this.EVENTS_STORAGE_KEY),
@@ -930,4 +973,3 @@ class ClaudeSkillsMonitor {
 // Export singleton instance
 export const claudeSkillsMonitor = new ClaudeSkillsMonitor();
 export default claudeSkillsMonitor;
-

@@ -5,8 +5,6 @@
  * capabilities for the image generation system.
  */
 
-import { supabase } from './supabase';
-
 export interface ErrorLogEntry {
   id?: string;
   timestamp: string;

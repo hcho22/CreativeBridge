@@ -18,6 +18,7 @@ class AsyncStorageWrapper implements AsyncStorageInterface {
   private inMemoryStorage: Map<string, string> = new Map();
   private nativeAsyncStorage: AsyncStorageInterface | null = null;
   private initializationAttempted: boolean = false;
+  private degraded: boolean = false;
 
   constructor() {
     // Don't attempt to load AsyncStorage in constructor to avoid import errors
@@ -28,26 +29,39 @@ class AsyncStorageWrapper implements AsyncStorageInterface {
     if (this.initializationAttempted) {
       return;
     }
-    
+
     this.initializationAttempted = true;
-    
+
     try {
       // Dynamically import to catch errors gracefully
-      const AsyncStorageModule = await import('@react-native-async-storage/async-storage');
+      const AsyncStorageModule = await import(
+        '@react-native-async-storage/async-storage'
+      );
       if (AsyncStorageModule && AsyncStorageModule.default) {
         // Verify the native module is actually available
         try {
           await AsyncStorageModule.default.getAllKeys();
           this.nativeAsyncStorage = AsyncStorageModule.default;
+          this.degraded = false;
           console.log('🗄️ [AsyncStorageWrapper] Using native AsyncStorage');
         } catch (testError) {
-          console.log('🗄️ [AsyncStorageWrapper] Native module loaded but not functional, using in-memory storage');
+          this.degraded = true;
+          console.warn(
+            '🗄️ [AsyncStorageWrapper] WARNING: Native module loaded but not functional, using in-memory fallback. Data will not persist across app restarts.',
+          );
         }
       } else {
-        console.log('🗄️ [AsyncStorageWrapper] Native AsyncStorage module not available, using in-memory storage');
+        this.degraded = true;
+        console.warn(
+          '🗄️ [AsyncStorageWrapper] WARNING: Native AsyncStorage module not available, using in-memory fallback. Data will not persist across app restarts.',
+        );
       }
     } catch (error: any) {
-      console.log('🗄️ [AsyncStorageWrapper] Failed to load native AsyncStorage, using in-memory storage:', error?.message || error);
+      this.degraded = true;
+      console.warn(
+        '🗄️ [AsyncStorageWrapper] WARNING: Failed to load native AsyncStorage, using in-memory fallback. Data will not persist across app restarts.',
+        error?.message || error,
+      );
     }
   }
 
@@ -97,7 +111,7 @@ class AsyncStorageWrapper implements AsyncStorageInterface {
       }
       const result: Array<[string, string | null]> = keys.map(key => [
         key,
-        this.inMemoryStorage.get(key) || null
+        this.inMemoryStorage.get(key) || null,
       ]);
       return result;
     } catch (error) {
@@ -158,6 +172,14 @@ class AsyncStorageWrapper implements AsyncStorageInterface {
     } catch (error) {
       console.warn('🗄️ [AsyncStorageWrapper] clear error:', error);
     }
+  }
+
+  /**
+   * Returns true when the in-memory fallback is active instead of native AsyncStorage.
+   * When degraded, data will not persist across app restarts.
+   */
+  isDegraded(): boolean {
+    return this.degraded;
   }
 }
 

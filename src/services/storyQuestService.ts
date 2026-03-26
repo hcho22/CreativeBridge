@@ -8,11 +8,14 @@
 
 import { supabase } from './supabase';
 
-// Story_Quest API Configuration
-const STORY_QUEST_API_BASE = 'http://localhost:5000/api'; // Development URL
+// Story_Quest API Configuration (reads from environment, no hardcoded URLs)
+const STORY_QUEST_API_BASE = process.env.STORY_QUEST_API_BASE || '';
 const STORY_QUEST_SUPABASE_URL = process.env.STORY_QUEST_SUPABASE_URL || '';
 const STORY_QUEST_SUPABASE_KEY =
   process.env.STORY_QUEST_SUPABASE_ANON_KEY || '';
+
+// Feature flag: Story Quest integration is not yet production-ready
+const STORY_QUEST_ENABLED = Boolean(STORY_QUEST_API_BASE);
 
 // Types for Story_Quest integration
 export interface StoryQuestUser {
@@ -103,6 +106,10 @@ class StoryQuestService {
    * Check if Story_Quest API is available
    */
   async checkApiHealth(): Promise<boolean> {
+    if (!STORY_QUEST_ENABLED) {
+      return false;
+    }
+
     try {
       const response = await fetch(`${STORY_QUEST_API_BASE}/health`, {
         method: 'GET',
