@@ -234,6 +234,9 @@ export default defineSchema({
     ageGroup: v.optional(ageGroupValidator),
     consentStatus: v.optional(consentStatusValidator),
 
+    // Role-Based Access Control (US-002 S-2.4)
+    role: v.optional(v.union(v.literal('user'), v.literal('admin'))),
+
     // Optional Profile Data
     avatarUrl: v.optional(v.string()),
     bio: v.optional(v.string()),
@@ -241,6 +244,9 @@ export default defineSchema({
     // Onboarding Progress (US-007 implementation)
     onboardingCompleted: v.boolean(),
     onboardingProgress: onboardingProgressValidator,
+
+    // Idempotency guard for XP transactions (US-004 R-4.1)
+    lastCompletedSessionId: v.optional(v.string()),
 
     // Onboarding Milestone Timestamps (ISO 8601)
     firstStoryCompletedAt: v.optional(v.string()),
@@ -349,6 +355,7 @@ export default defineSchema({
     completedAt: v.optional(v.string()), // ISO 8601, null if still pending
   })
     .index('by_user', ['userId'])
+    .index('by_clerk_user', ['clerkUserId'])
     .index('by_session', ['sessionId']),
 
   /**

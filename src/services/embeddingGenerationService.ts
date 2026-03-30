@@ -39,7 +39,7 @@ class EmbeddingGenerationService {
   private static readonly EMBEDDING_MODEL = 'text-embedding-3-small';
   private static readonly MAX_RETRIES = 3;
   private static readonly RETRY_DELAY_MS = 1000;
-  private static readonly CACHE_SIZE_LIMIT = 1000; // Limit cache to prevent memory issues
+  private static readonly CACHE_SIZE_LIMIT = 200; // Reduced from 1000 to limit ~6MB footprint
 
   /**
    * In-memory cache: text -> embedding vector
@@ -82,10 +82,11 @@ class EmbeddingGenerationService {
     // Check cache first
     const cachedEmbedding = this.embeddingCache.get(normalizedText);
     if (cachedEmbedding) {
-      console.log('✅ Embedding cache hit:', {
-        text: normalizedText.substring(0, 50),
-        cacheSize: this.embeddingCache.size,
-      });
+      if (__DEV__)
+        console.log('Embedding cache hit:', {
+          text: normalizedText.substring(0, 50),
+          cacheSize: this.embeddingCache.size,
+        });
       return cachedEmbedding;
     }
 
@@ -115,22 +116,24 @@ class EmbeddingGenerationService {
       attempt++
     ) {
       try {
-        console.log(
-          `🔢 Generating embedding (attempt ${attempt + 1}/${
-            EmbeddingGenerationService.MAX_RETRIES
-          }):`,
-          {
-            text: text.substring(0, 50),
-            model: EmbeddingGenerationService.EMBEDDING_MODEL,
-          },
-        );
+        if (__DEV__)
+          console.log(
+            `Generating embedding (attempt ${attempt + 1}/${
+              EmbeddingGenerationService.MAX_RETRIES
+            }):`,
+            {
+              text: text.substring(0, 50),
+              model: EmbeddingGenerationService.EMBEDDING_MODEL,
+            },
+          );
 
         const embedding = await this.callEmbeddingAPI(text);
 
-        console.log('✅ Embedding generated successfully:', {
-          dimensions: embedding.length,
-          firstFewValues: embedding.slice(0, 3).map(v => v.toFixed(4)),
-        });
+        if (__DEV__)
+          console.log('Embedding generated successfully:', {
+            dimensions: embedding.length,
+            firstFewValues: embedding.slice(0, 3).map(v => v.toFixed(4)),
+          });
 
         return embedding;
       } catch (error: any) {
@@ -151,17 +154,15 @@ class EmbeddingGenerationService {
           error.message?.includes('timeout') ||
           error.message?.includes('ETIMEDOUT');
 
-        console.error(
-          `❌ Embedding generation attempt ${attempt + 1} failed:`,
-          {
+        if (__DEV__)
+          console.error(`Embedding generation attempt ${attempt + 1} failed:`, {
             error: error.message,
             isAuthError,
             isDataValidationError,
             isRateLimitError,
             isServerError,
             isTimeoutError,
-          },
-        );
+          });
 
         // Don't retry on authentication errors or data validation errors - fail immediately
         if (isAuthError || isDataValidationError) {
@@ -178,7 +179,7 @@ class EmbeddingGenerationService {
         // Exponential backoff: 1s, 2s, 4s
         const delay =
           EmbeddingGenerationService.RETRY_DELAY_MS * Math.pow(2, attempt);
-        console.log(`⏳ Retrying in ${delay}ms...`);
+        if (__DEV__) console.log(`Retrying in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
@@ -216,11 +217,12 @@ class EmbeddingGenerationService {
 
     if (!response.ok) {
       const errorData = await response.text();
-      console.error('❌ OpenAI Embedding API error:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorData,
-      });
+      if (__DEV__)
+        console.error('OpenAI Embedding API error:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+        });
 
       if (response.status === 401) {
         throw new Error(
@@ -269,18 +271,20 @@ class EmbeddingGenerationService {
       const firstKey = this.embeddingCache.keys().next().value;
       if (firstKey) {
         this.embeddingCache.delete(firstKey);
-        console.log('🗑️ Embedding cache eviction (size limit reached):', {
-          evictedKey: firstKey.substring(0, 50),
-          newSize: this.embeddingCache.size,
-        });
+        if (__DEV__)
+          console.log('Embedding cache eviction (size limit reached):', {
+            evictedKey: firstKey.substring(0, 50),
+            newSize: this.embeddingCache.size,
+          });
       }
     }
 
     this.embeddingCache.set(text, embedding);
-    console.log('💾 Embedding cached:', {
-      text: text.substring(0, 50),
-      cacheSize: this.embeddingCache.size,
-    });
+    if (__DEV__)
+      console.log('Embedding cached:', {
+        text: text.substring(0, 50),
+        cacheSize: this.embeddingCache.size,
+      });
   }
 
   /**
@@ -332,18 +336,20 @@ class EmbeddingGenerationService {
 
     // If everything is cached, return immediately
     if (uncachedTexts.length === 0) {
-      console.log('✅ All embeddings found in cache:', {
-        count: texts.length,
-        cacheSize: this.embeddingCache.size,
-      });
+      if (__DEV__)
+        console.log('All embeddings found in cache:', {
+          count: texts.length,
+          cacheSize: this.embeddingCache.size,
+        });
       return results;
     }
 
-    console.log('🔢 Batch embedding generation:', {
-      totalTexts: texts.length,
-      cachedCount: texts.length - uncachedTexts.length,
-      uncachedCount: uncachedTexts.length,
-    });
+    if (__DEV__)
+      console.log('Batch embedding generation:', {
+        totalTexts: texts.length,
+        cachedCount: texts.length - uncachedTexts.length,
+        uncachedCount: uncachedTexts.length,
+      });
 
     // Generate embeddings for uncached texts with retry
     const newEmbeddings = await this.generateEmbeddingsBatchWithRetry(
@@ -405,10 +411,11 @@ class EmbeddingGenerationService {
           .sort((a, b) => a.index - b.index)
           .map(item => item.embedding);
 
-        console.log('✅ Batch embeddings generated:', {
-          count: embeddings.length,
-          tokensUsed: data.usage.total_tokens,
-        });
+        if (__DEV__)
+          console.log('Batch embeddings generated:', {
+            count: embeddings.length,
+            tokensUsed: data.usage.total_tokens,
+          });
 
         return embeddings;
       } catch (error: any) {
@@ -430,7 +437,7 @@ class EmbeddingGenerationService {
 
         const delay =
           EmbeddingGenerationService.RETRY_DELAY_MS * Math.pow(2, attempt);
-        console.log(`⏳ Retrying batch in ${delay}ms...`);
+        if (__DEV__) console.log(`Retrying batch in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
@@ -447,10 +454,11 @@ class EmbeddingGenerationService {
   public clearCache(): void {
     const previousSize = this.embeddingCache.size;
     this.embeddingCache.clear();
-    console.log('🗑️ Embedding cache cleared:', {
-      previousSize,
-      newSize: 0,
-    });
+    if (__DEV__)
+      console.log('Embedding cache cleared:', {
+        previousSize,
+        newSize: 0,
+      });
   }
 
   /**

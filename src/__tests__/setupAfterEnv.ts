@@ -62,6 +62,40 @@ expect.extend({
     };
   },
 
+  // COPPA audit matchers
+  toContainPlaceholder(received: string) {
+    const placeholderPattern = /\[(INSERT|TODO|TBD)[^\]]*\]/i;
+    const pass = placeholderPattern.test(received);
+
+    return {
+      message: () =>
+        pass
+          ? `Expected string not to contain placeholder tokens like [INSERT...], [TODO...], [TBD...]`
+          : `Expected string to contain placeholder tokens like [INSERT...], [TODO...], [TBD...]`,
+      pass,
+    };
+  },
+
+  toUseCryptoRandom(received: string) {
+    const cryptoPatterns = [
+      /crypto\.randomBytes/,
+      /crypto\.getRandomValues/,
+      /randomUUID/,
+      /crypto\.subtle/,
+      /expo-crypto/,
+      /Crypto\.getRandomBytesAsync/,
+    ];
+    const pass = cryptoPatterns.some(p => p.test(received));
+
+    return {
+      message: () =>
+        pass
+          ? `Expected source not to use cryptographic random functions`
+          : `Expected source to use cryptographic random (crypto.randomBytes, crypto.getRandomValues, or randomUUID) but none found`,
+      pass,
+    };
+  },
+
   toBeValidDeviceFingerprint(received) {
     const requiredFields = [
       'deviceId',

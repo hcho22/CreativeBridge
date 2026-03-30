@@ -1,3 +1,7 @@
+/**
+ * @deprecated Use src/services/performanceMonitor.ts instead.
+ * This service is retained for backward compatibility but should not be used in new code.
+ */
 // Performance Optimizer Service
 // Mobile performance and battery usage optimization
 
@@ -31,6 +35,8 @@ class PerformanceOptimizerService {
   private backgroundTasks = new Set<string>();
   private memoryWarningListeners: Array<() => void> = [];
   private resourceManagerIntegrated = false;
+  private memoryCheckTimer: NodeJS.Timeout | null = null;
+  private destroyed = false;
 
   constructor() {
     this.metrics = {
@@ -173,7 +179,7 @@ class PerformanceOptimizerService {
     }
 
     // Set up periodic memory checks
-    setInterval(() => {
+    this.memoryCheckTimer = setInterval(() => {
       this.checkMemoryUsage();
     }, 30000); // Every 30 seconds
   }
@@ -209,7 +215,7 @@ class PerformanceOptimizerService {
 
   // Perform memory cleanup
   private performMemoryCleanup(): void {
-    console.log('Performing memory cleanup');
+    if (__DEV__) console.log('Performing memory cleanup');
 
     // Clear render queue if too large
     if (this.renderQueue.length > 10) {
@@ -230,63 +236,32 @@ class PerformanceOptimizerService {
 
   // Start performance tracking
   private startPerformanceTracking(): void {
-    // Track render performance
-    this.trackRenderPerformance();
-
-    // Monitor network performance
-    this.monitorNetworkPerformance();
-
     // Battery optimization
     this.optimizeForBattery();
   }
 
-  // Track render performance
-  private trackRenderPerformance(): void {
-    const originalRequestAnimationFrame = global.requestAnimationFrame;
+  /**
+   * Measure render time for a specific operation.
+   * Call this explicitly at instrumentation points instead of monkey-patching globals.
+   */
+  public measureRenderTime(renderTime: number): void {
+    this.metrics.renderTime = renderTime;
 
-    global.requestAnimationFrame = callback => {
-      const start = Date.now();
-
-      return originalRequestAnimationFrame(() => {
-        const renderTime = Date.now() - start;
-        this.metrics.renderTime = renderTime;
-
-        // Adjust animation settings based on performance
-        if (renderTime > 16) {
-          // >16ms indicates dropped frames
-          this.reduceAnimationComplexity();
-        }
-
-        callback();
-      });
-    };
+    if (renderTime > 16) {
+      this.reduceAnimationComplexity();
+    }
   }
 
-  // Monitor network performance
-  private monitorNetworkPerformance(): void {
-    // Track API response times
-    const originalFetch = global.fetch;
+  /**
+   * Record an API response time for a specific request.
+   * Call this explicitly after fetch calls instead of monkey-patching globals.
+   */
+  public recordApiResponseTime(responseTime: number): void {
+    this.metrics.apiResponseTime = responseTime;
 
-    global.fetch = async (input, init) => {
-      const start = Date.now();
-
-      try {
-        const response = await originalFetch(input, init);
-        const responseTime = Date.now() - start;
-        this.metrics.apiResponseTime = responseTime;
-
-        // Adjust request batching based on response time
-        if (responseTime > 3000) {
-          // >3s response time
-          this.enableAggressiveBatching();
-        }
-
-        return response;
-      } catch (error) {
-        this.metrics.apiResponseTime = Date.now() - start;
-        throw error;
-      }
-    };
+    if (responseTime > 3000) {
+      this.enableAggressiveBatching();
+    }
   }
 
   // Optimize for battery usage
@@ -325,7 +300,7 @@ class PerformanceOptimizerService {
       animationsEnabled: false,
     };
 
-    console.log('Battery optimization enabled');
+    if (__DEV__) console.log('Battery optimization enabled');
   }
 
   // Reduce animation complexity
@@ -486,16 +461,23 @@ class PerformanceOptimizerService {
   // Enable resource manager integration
   public enableResourceManagerIntegration(): void {
     this.resourceManagerIntegrated = true;
-    console.log('Performance optimizer integrated with Dynamic Resource Manager');
+    if (__DEV__)
+      console.log(
+        'Performance optimizer integrated with Dynamic Resource Manager',
+      );
   }
 
   // Update settings from resource manager
   public updateSettings(newSettings: Partial<OptimizationSettings>): void {
     this.settings = { ...this.settings, ...newSettings };
-    
+
     // Log the changes if resource manager is integrated
     if (this.resourceManagerIntegrated) {
-      console.log('Performance settings updated by Resource Manager:', newSettings);
+      if (__DEV__)
+        console.log(
+          'Performance settings updated by Resource Manager:',
+          newSettings,
+        );
     }
   }
 
@@ -520,6 +502,21 @@ class PerformanceOptimizerService {
     this.adjustSettingsForDevice();
     this.renderQueue = [];
     this.backgroundTasks.clear();
+  }
+
+  // Cleanup all timers and resources. Idempotent — safe to call multiple times.
+  public destroy(): void {
+    if (this.destroyed) return;
+    this.destroyed = true;
+
+    if (this.memoryCheckTimer) {
+      clearInterval(this.memoryCheckTimer);
+      this.memoryCheckTimer = null;
+    }
+
+    this.renderQueue = [];
+    this.backgroundTasks.clear();
+    this.memoryWarningListeners = [];
   }
 }
 

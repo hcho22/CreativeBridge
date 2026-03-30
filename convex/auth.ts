@@ -294,6 +294,9 @@ export const createSignInToken = action({
         body: JSON.stringify({
           user_id: userId,
           expires_in_seconds: 60,
+          ...(args.signInAttemptId
+            ? { sign_in_attempt_id: args.signInAttemptId }
+            : {}),
         }),
       },
     );

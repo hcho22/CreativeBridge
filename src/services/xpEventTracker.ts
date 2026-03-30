@@ -391,7 +391,6 @@ class XPEventTracker {
       const events = await convexClient.query(
         api.imageGeneration.getUserImageGenerationEvents,
         {
-          clerkUserId: userId,
           limit: limit,
           offset: offset,
         },

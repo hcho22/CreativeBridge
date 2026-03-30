@@ -29,6 +29,7 @@ import {
   internalMutation,
   internalQuery,
 } from './_generated/server';
+import { internal } from './_generated/api';
 import { v } from 'convex/values';
 import { requireAuth, getClerkUserId } from './auth';
 
@@ -56,13 +57,12 @@ const RENEWAL_ENFORCE_MS = 12 * 30 * 24 * 60 * 60 * 1000; // ~12 months
  * @returns Consent record or null if none exists
  */
 export const getConsentStatus = query({
-  args: {
-    clerkUserId: v.string(),
-  },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async ctx => {
+    const clerkUserId = await getClerkUserId(ctx);
     const record = await ctx.db
       .query('consentRecords')
-      .withIndex('by_child', q => q.eq('childUserId', args.clerkUserId))
+      .withIndex('by_child', q => q.eq('childUserId', clerkUserId))
       .order('desc')
       .first();
 
@@ -70,13 +70,12 @@ export const getConsentStatus = query({
       return null;
     }
 
+    // S-2.8: Do not expose consentToken or parentEmail to the client
     return {
       status: record.status,
-      parentEmail: record.parentEmail,
       consentTimestamp: record.consentTimestamp,
       consentVersion: record.consentVersion,
       tokenExpiresAt: record.consentTokenExpiresAt,
-      consentToken: record.consentToken,
     };
   },
 });
@@ -89,13 +88,12 @@ export const getConsentStatus = query({
  * @returns Whether the user is blocked pending consent
  */
 export const isConsentRequired = query({
-  args: {
-    clerkUserId: v.string(),
-  },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async ctx => {
+    const clerkUserId = await getClerkUserId(ctx);
     const profile = await ctx.db
       .query('userProfiles')
-      .withIndex('by_clerk_user_id', q => q.eq('clerkUserId', args.clerkUserId))
+      .withIndex('by_clerk_user_id', q => q.eq('clerkUserId', clerkUserId))
       .first();
 
     if (!profile) {
@@ -144,6 +142,23 @@ export const getConsentRecordByToken = internalQuery({
     return await ctx.db
       .query('consentRecords')
       .withIndex('by_token', q => q.eq('consentToken', args.consentToken))
+      .first();
+  },
+});
+
+/**
+ * Internal query: Get the latest pending consent record for a child user.
+ * Used by getConsentUrl action to look up token server-side.
+ */
+export const getLatestPendingConsent = internalQuery({
+  args: {
+    childUserId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query('consentRecords')
+      .withIndex('by_child', q => q.eq('childUserId', args.childUserId))
+      .order('desc')
       .first();
   },
 });
@@ -281,10 +296,10 @@ export const submitParentEmail = mutation({
       consentStatus: 'pending',
     });
 
+    // S-2.7: Do not return consentToken to client — token only sent via email
     return {
       recordId,
       tokenExpiresAt: expiresAt,
-      consentToken: token,
     };
   },
 });
@@ -299,6 +314,7 @@ export const submitParentEmail = mutation({
 export const verifyAndGrantConsent = mutation({
   args: {
     consentToken: v.string(),
+    parentEmail: v.string(),
   },
   handler: async (ctx, args) => {
     // Look up the consent record by token
@@ -320,6 +336,11 @@ export const verifyAndGrantConsent = mutation({
         success: false,
         error: 'This consent request is no longer active.',
       };
+    }
+
+    // S-2.6: Verify parent email matches the consent record
+    if (record.parentEmail.toLowerCase() !== args.parentEmail.toLowerCase()) {
+      return { success: false, error: 'Email verification failed.' };
     }
 
     // Check token expiration
@@ -691,10 +712,10 @@ export const initiateConsentRenewal = mutation({
       consentStatus: 'pending',
     });
 
+    // S-2.7: Do not return consentToken to client — token only sent via email
     return {
       recordId,
       tokenExpiresAt: expiresAt,
-      consentToken: token,
     };
   },
 });
@@ -712,10 +733,24 @@ export const initiateConsentRenewal = mutation({
  * @param childDisplayName - The child's display name (for email personalization)
  */
 export const getConsentUrl = action({
-  args: {
-    consentToken: v.string(),
-  },
-  handler: async (_ctx, args) => {
+  args: {},
+  handler: async ctx => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error('Not authenticated');
+    }
+    const clerkUserId = identity.subject;
+
+    // Look up the user's latest pending consent record server-side
+    const record: any = await ctx.runQuery(
+      internal.consent.getLatestPendingConsent,
+      { childUserId: clerkUserId },
+    );
+
+    if (!record || !record.consentToken) {
+      throw new Error('No pending consent record found.');
+    }
+
     const siteUrl = process.env.CONVEX_SITE_URL;
     if (!siteUrl) {
       throw new Error(
@@ -723,7 +758,10 @@ export const getConsentUrl = action({
       );
     }
     return {
-      consentUrl: `${siteUrl}/consent/verify?token=${args.consentToken}`,
+      consentUrl: `${siteUrl}/consent/verify?token=${record.consentToken}`,
+      maskedEmail: record.parentEmail
+        ? record.parentEmail.replace(/^(.{2}).*(@.*)$/, '$1***$2')
+        : null,
     };
   },
 });
@@ -731,12 +769,26 @@ export const getConsentUrl = action({
 export const sendConsentEmail = action({
   args: {
     parentEmail: v.string(),
-    consentToken: v.string(),
     childDisplayName: v.optional(v.string()),
   },
-  handler: async (_ctx, args) => {
+  handler: async (ctx, args) => {
+    // S-2.7: Look up consent token server-side from authenticated user
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error('Not authenticated');
+    }
+    const clerkUserId = identity.subject;
+
+    const record: any = await ctx.runQuery(
+      internal.consent.getLatestPendingConsent,
+      { childUserId: clerkUserId },
+    );
+
+    if (!record || !record.consentToken) {
+      throw new Error('No pending consent record found.');
+    }
+
     // Build consent verification URL
-    // In production, CONVEX_SITE_URL should point to your Convex HTTP endpoint
     const siteUrl = process.env.CONVEX_SITE_URL;
     if (!siteUrl) {
       throw new Error(
@@ -745,7 +797,7 @@ export const sendConsentEmail = action({
       );
     }
 
-    const consentUrl = `${siteUrl}/consent/verify?token=${args.consentToken}`;
+    const consentUrl = `${siteUrl}/consent/verify?token=${record.consentToken}`;
     const childName = args.childDisplayName || 'your child';
 
     // Build email HTML
@@ -872,21 +924,18 @@ export const sendRenewalReminderEmail = action({
 // ============================================================================
 
 /**
- * Generate a cryptographically random consent token.
- * Uses a combination of random values to create a URL-safe token.
+ * Generate a cryptographically secure consent token.
+ * Uses Web Crypto API for 256 bits of entropy, base64url-encoded.
+ *
+ * @implements C-06 remediation: Replace Math.random() with CSPRNG
  */
 function generateConsentToken(): string {
-  const chars =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  const segments: string[] = [];
-  for (let s = 0; s < 4; s++) {
-    let segment = '';
-    for (let i = 0; i < 8; i++) {
-      segment += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    segments.push(segment);
-  }
-  return segments.join('-');
+  // 32 random bytes = 256 bits of entropy, base64url-encoded (URL-safe, no padding)
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  // Convert to base64url: standard base64 then replace +/ with -_ and strip padding
+  const base64 = btoa(String.fromCharCode(...bytes));
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/[=]+$/, '');
 }
 
 /**

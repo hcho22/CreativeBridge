@@ -22,6 +22,12 @@ export const mockDeviceInfo = {
   getIpAddress: jest.fn().mockResolvedValue('127.0.0.1'),
   isCameraPresent: jest.fn().mockResolvedValue(true),
   getBatteryLevel: jest.fn().mockResolvedValue(0.85),
+  getBatteryState: jest.fn().mockResolvedValue('unplugged'),
+  getPowerState: jest.fn().mockResolvedValue({
+    batteryLevel: 0.85,
+    batteryState: 'unplugged',
+    lowPowerMode: false,
+  }),
   isLocationEnabled: jest.fn().mockResolvedValue(true),
   isHeadphonesConnected: jest.fn().mockResolvedValue(false),
   getAvailableLocationProviders: jest.fn().mockResolvedValue({
@@ -30,7 +36,9 @@ export const mockDeviceInfo = {
     passive: true,
   }),
   getTotalMemory: jest.fn().mockResolvedValue(4000000000), // 4GB
+  getAvailableMemory: jest.fn().mockResolvedValue(2000000000), // 2GB
   getUsedMemory: jest.fn().mockResolvedValue(2000000000), // 2GB
+  getFreeDiskStorage: jest.fn().mockResolvedValue(16000000000), // 16GB
   getUserAgent: jest.fn().mockResolvedValue('CreativeBridge/1.0.0 (iOS 15.0)'),
 
   // Mock methods for different test scenarios

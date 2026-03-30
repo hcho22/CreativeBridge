@@ -20,6 +20,7 @@ export interface StoryRequest {
   userId?: string; // Optional user ID for diversity tracking (fallback when no sessionId)
   storyId?: string; // Optional story ID for post-generation element storage
   genre?: string; // Optional genre preference for genre-aware story generation (US-006)
+  characterName?: string; // User-chosen character name — exempt from PII scrubbing (fictional, not real PII)
 }
 
 export interface AgentConfig {

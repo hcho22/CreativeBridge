@@ -1,21 +1,28 @@
 /**
+ * @deprecated Use src/services/performanceMonitor.ts instead.
+ * This service is retained for backward compatibility but should not be used in new code.
+ *
  * Dynamic Resource Management Service
- * 
+ *
  * Enhanced performance optimizer with Claude-powered resource allocation decisions
  * Task 4.1: Dynamic Resource Management
  */
 
 import { Platform, AppState } from 'react-native';
 import DeviceInfo from 'react-native-device-info';
-import { 
-  SkillManager, 
-  ResourceOptimizationInput, 
+import {
+  SkillManager,
+  ResourceOptimizationInput,
   ResourceOptimizationResult,
   ResourceRecommendation,
   ResourceOptimization,
-  SkillResult
+  SkillResult,
 } from '../types/claudeSkills';
-import { performanceOptimizer, PerformanceMetrics, OptimizationSettings } from './performanceOptimizer';
+import {
+  performanceOptimizer,
+  PerformanceMetrics,
+  OptimizationSettings,
+} from './performanceOptimizer';
 import { structuredLogger } from '../utils/logger';
 
 export interface DeviceConditions {
@@ -104,7 +111,7 @@ class DynamicResourceManager {
   private conditionCheckInterval: NodeJS.Timer | null = null;
   private lastClaudeOptimization = 0;
   private optimizationCooldown = 30000; // 30 seconds
-  
+
   private memoryUsageHistory: number[] = [];
   private batteryLevelHistory: number[] = [];
   private performanceScoreHistory: number[] = [];
@@ -112,7 +119,7 @@ class DynamicResourceManager {
   constructor() {
     const deviceTier = performanceOptimizer.getPerformanceLevel();
     this.currentStrategy = DEVICE_TIER_STRATEGIES[deviceTier];
-    
+
     this.memoryConfig = {
       baseMemoryLimit: this.currentStrategy.memoryLimitMB * 1024 * 1024,
       warningThreshold: 0.8,
@@ -141,28 +148,32 @@ class DynamicResourceManager {
     }
 
     this.skillManager = skillManager;
-    
+
     try {
       // Get initial device conditions
       this.currentConditions = await this.assessDeviceConditions();
-      
+
       // Start continuous monitoring
       this.startConditionMonitoring();
-      
+
       // Initial Claude-powered optimization
       await this.requestClaudeOptimization();
-      
+
       // Set up app state change handlers
       this.setupAppStateHandlers();
-      
+
       this.isInitialized = true;
-      
+
       structuredLogger.info('Dynamic Resource Manager initialized', {
         initialStrategy: this.currentStrategy.name,
         deviceConditions: this.currentConditions,
       });
     } catch (error) {
-      structuredLogger.error('Failed to initialize Dynamic Resource Manager', {}, error as Error);
+      structuredLogger.error(
+        'Failed to initialize Dynamic Resource Manager',
+        {},
+        error as Error,
+      );
       throw error;
     }
   }
@@ -194,12 +205,12 @@ class DynamicResourceManager {
 
       const memoryPressure = this.calculateMemoryPressure(
         this.extractValue(totalMemory, 4 * 1024 * 1024 * 1024),
-        this.extractValue(usedMemory, 2 * 1024 * 1024 * 1024)
+        this.extractValue(usedMemory, 2 * 1024 * 1024 * 1024),
       );
 
       const batteryInfo = this.calculateBatteryState(
         this.extractValue(batteryLevel, 1.0),
-        this.extractValue(batteryState, 'unplugged')
+        this.extractValue(batteryState, 'unplugged'),
       );
 
       const thermalState = await this.assessThermalState();
@@ -213,7 +224,10 @@ class DynamicResourceManager {
         thermalState,
         networkCondition,
         backgroundAppCount,
-        availableStorage: this.extractValue(freeDiskStorage, 1024 * 1024 * 1024),
+        availableStorage: this.extractValue(
+          freeDiskStorage,
+          1024 * 1024 * 1024,
+        ),
         cpuUsage,
       };
 
@@ -222,8 +236,12 @@ class DynamicResourceManager {
 
       return conditions;
     } catch (error) {
-      structuredLogger.error('Failed to assess device conditions', {}, error as Error);
-      
+      structuredLogger.error(
+        'Failed to assess device conditions',
+        {},
+        error as Error,
+      );
+
       // Return safe defaults
       return {
         memoryPressure: 'medium',
@@ -259,15 +277,16 @@ class DynamicResourceManager {
         currentUsage,
       };
 
-      const result: SkillResult<ResourceOptimizationResult> = await this.skillManager.executeSkill(
-        'ResourceOptimizationSkill',
-        input
-      );
+      const result: SkillResult<ResourceOptimizationResult> =
+        await this.skillManager.executeSkill(
+          'ResourceOptimizationSkill',
+          input,
+        );
 
       if (result.success && result.data) {
         await this.applyClaudeOptimizations(result.data);
         this.lastClaudeOptimization = now;
-        
+
         structuredLogger.info('Claude optimization applied', {
           recommendations: result.data.recommendations.length,
           optimizations: result.data.optimizations.length,
@@ -278,7 +297,11 @@ class DynamicResourceManager {
         return result.data;
       }
     } catch (error) {
-      structuredLogger.error('Claude optimization request failed', {}, error as Error);
+      structuredLogger.error(
+        'Claude optimization request failed',
+        {},
+        error as Error,
+      );
     }
 
     return null;
@@ -287,7 +310,9 @@ class DynamicResourceManager {
   /**
    * Apply Claude-recommended optimizations
    */
-  private async applyClaudeOptimizations(optimization: ResourceOptimizationResult): Promise<void> {
+  private async applyClaudeOptimizations(
+    optimization: ResourceOptimizationResult,
+  ): Promise<void> {
     try {
       const newStrategy = { ...this.currentStrategy };
       let hasChanges = false;
@@ -307,10 +332,16 @@ class DynamicResourceManager {
 
           case 'cpu':
             if (recommendation.action.includes('reduce_concurrent')) {
-              newStrategy.maxConcurrentOperations = Math.max(1, newStrategy.maxConcurrentOperations - 1);
+              newStrategy.maxConcurrentOperations = Math.max(
+                1,
+                newStrategy.maxConcurrentOperations - 1,
+              );
               hasChanges = true;
             } else if (recommendation.action.includes('increase_concurrent')) {
-              newStrategy.maxConcurrentOperations = Math.min(4, newStrategy.maxConcurrentOperations + 1);
+              newStrategy.maxConcurrentOperations = Math.min(
+                4,
+                newStrategy.maxConcurrentOperations + 1,
+              );
               hasChanges = true;
             }
             break;
@@ -355,22 +386,31 @@ class DynamicResourceManager {
 
       if (hasChanges) {
         await this.applyResourceAllocationStrategy(newStrategy);
-        
-        structuredLogger.info('Resource allocation strategy updated by Claude', {
-          previousStrategy: this.currentStrategy.name,
-          newStrategy: newStrategy.name,
-          changes: optimization.optimizations.length,
-        });
+
+        structuredLogger.info(
+          'Resource allocation strategy updated by Claude',
+          {
+            previousStrategy: this.currentStrategy.name,
+            newStrategy: newStrategy.name,
+            changes: optimization.optimizations.length,
+          },
+        );
       }
     } catch (error) {
-      structuredLogger.error('Failed to apply Claude optimizations', {}, error as Error);
+      structuredLogger.error(
+        'Failed to apply Claude optimizations',
+        {},
+        error as Error,
+      );
     }
   }
 
   /**
    * Apply resource allocation strategy
    */
-  async applyResourceAllocationStrategy(strategy: ResourceAllocationStrategy): Promise<void> {
+  async applyResourceAllocationStrategy(
+    strategy: ResourceAllocationStrategy,
+  ): Promise<void> {
     try {
       this.currentStrategy = strategy;
 
@@ -384,18 +424,24 @@ class DynamicResourceManager {
       };
 
       // Apply the settings through the performance optimizer
-      Object.assign(performanceOptimizer.getOptimizationSettings(), newSettings);
+      Object.assign(
+        performanceOptimizer.getOptimizationSettings(),
+        newSettings,
+      );
 
       // Update memory configuration
       this.memoryConfig.baseMemoryLimit = strategy.memoryLimitMB * 1024 * 1024;
-      
+
       // Trigger immediate memory management if needed
       if (this.currentConditions?.memoryPressure === 'high') {
         await this.performAdaptiveMemoryManagement();
       }
 
       // Apply battery optimizations if needed
-      if (this.currentConditions?.batteryState === 'low' || this.currentConditions?.batteryState === 'critical') {
+      if (
+        this.currentConditions?.batteryState === 'low' ||
+        this.currentConditions?.batteryState === 'critical'
+      ) {
         await this.applyBatteryOptimizations();
       }
 
@@ -406,7 +452,11 @@ class DynamicResourceManager {
         backgroundTasks: strategy.enableBackgroundTasks,
       });
     } catch (error) {
-      structuredLogger.error('Failed to apply resource allocation strategy', {}, error as Error);
+      structuredLogger.error(
+        'Failed to apply resource allocation strategy',
+        {},
+        error as Error,
+      );
       throw error;
     }
   }
@@ -417,12 +467,13 @@ class DynamicResourceManager {
   async performAdaptiveMemoryManagement(): Promise<void> {
     try {
       const memoryUsage = await this.getCurrentMemoryUsage();
-      const memoryPressureRatio = memoryUsage / this.memoryConfig.baseMemoryLimit;
+      const memoryPressureRatio =
+        memoryUsage / this.memoryConfig.baseMemoryLimit;
 
       if (memoryPressureRatio > this.memoryConfig.criticalThreshold) {
         // Critical memory situation - aggressive cleanup
         await this.performAggressiveMemoryCleanup();
-        
+
         structuredLogger.warn('Aggressive memory cleanup performed', {
           memoryUsage,
           memoryLimit: this.memoryConfig.baseMemoryLimit,
@@ -431,17 +482,24 @@ class DynamicResourceManager {
       } else if (memoryPressureRatio > this.memoryConfig.warningThreshold) {
         // Warning level - moderate cleanup
         await this.performModerateMemoryCleanup();
-        
+
         structuredLogger.info('Moderate memory cleanup performed', {
           memoryUsage,
           pressureRatio: memoryPressureRatio,
         });
-      } else if (this.memoryConfig.preemptiveCleanup && memoryPressureRatio > 0.7) {
+      } else if (
+        this.memoryConfig.preemptiveCleanup &&
+        memoryPressureRatio > 0.7
+      ) {
         // Preemptive cleanup to prevent memory pressure
         await this.performPreemptiveMemoryCleanup();
       }
     } catch (error) {
-      structuredLogger.error('Adaptive memory management failed', {}, error as Error);
+      structuredLogger.error(
+        'Adaptive memory management failed',
+        {},
+        error as Error,
+      );
     }
   }
 
@@ -451,7 +509,7 @@ class DynamicResourceManager {
   async applyBatteryOptimizations(): Promise<void> {
     try {
       const batteryLevel = await DeviceInfo.getBatteryLevel();
-      
+
       if (batteryLevel < this.batteryConfig.criticalBatteryThreshold) {
         // Critical battery - maximum power saving
         const emergencyStrategy: ResourceAllocationStrategy = {
@@ -465,9 +523,9 @@ class DynamicResourceManager {
           cacheStrategy: 'minimal',
           networkRequestPriority: 'low',
         };
-        
+
         await this.applyResourceAllocationStrategy(emergencyStrategy);
-        
+
         structuredLogger.warn('Emergency battery mode activated', {
           batteryLevel,
           strategy: emergencyStrategy.name,
@@ -476,11 +534,17 @@ class DynamicResourceManager {
         // Low battery - moderate power saving
         const currentStrategy = { ...this.currentStrategy };
         currentStrategy.enableBackgroundTasks = false;
-        currentStrategy.animationComplexity = this.batteryConfig.reducedAnimations ? 'reduced' : currentStrategy.animationComplexity;
-        currentStrategy.maxConcurrentOperations = Math.max(1, Math.floor(currentStrategy.maxConcurrentOperations * 0.7));
-        
+        currentStrategy.animationComplexity = this.batteryConfig
+          .reducedAnimations
+          ? 'reduced'
+          : currentStrategy.animationComplexity;
+        currentStrategy.maxConcurrentOperations = Math.max(
+          1,
+          Math.floor(currentStrategy.maxConcurrentOperations * 0.7),
+        );
+
         await this.applyResourceAllocationStrategy(currentStrategy);
-        
+
         structuredLogger.info('Low battery optimizations applied', {
           batteryLevel,
           reducedOperations: currentStrategy.maxConcurrentOperations,
@@ -499,8 +563,11 @@ class DynamicResourceManager {
     this.conditionCheckInterval = setInterval(async () => {
       try {
         const newConditions = await this.assessDeviceConditions();
-        const conditionsChanged = this.hasSignificantConditionChange(this.currentConditions, newConditions);
-        
+        const conditionsChanged = this.hasSignificantConditionChange(
+          this.currentConditions,
+          newConditions,
+        );
+
         this.currentConditions = newConditions;
 
         if (conditionsChanged) {
@@ -510,9 +577,12 @@ class DynamicResourceManager {
 
         // Always perform adaptive memory management
         await this.performAdaptiveMemoryManagement();
-
       } catch (error) {
-        structuredLogger.error('Condition monitoring cycle failed', {}, error as Error);
+        structuredLogger.error(
+          'Condition monitoring cycle failed',
+          {},
+          error as Error,
+        );
       }
     }, 10000);
   }
@@ -520,25 +590,38 @@ class DynamicResourceManager {
   /**
    * Helper methods
    */
-  private extractValue<T>(settledResult: PromiseSettledResult<T>, defaultValue: T): T {
-    return settledResult.status === 'fulfilled' ? settledResult.value : defaultValue;
+  private extractValue<T>(
+    settledResult: PromiseSettledResult<T>,
+    defaultValue: T,
+  ): T {
+    return settledResult.status === 'fulfilled'
+      ? settledResult.value
+      : defaultValue;
   }
 
-  private calculateMemoryPressure(totalMemory: number, usedMemory: number): 'low' | 'medium' | 'high' {
+  private calculateMemoryPressure(
+    totalMemory: number,
+    usedMemory: number,
+  ): 'low' | 'medium' | 'high' {
     const ratio = usedMemory / totalMemory;
     if (ratio > 0.85) return 'high';
     if (ratio > 0.65) return 'medium';
     return 'low';
   }
 
-  private calculateBatteryState(level: number, state: string): 'charging' | 'unplugged' | 'low' | 'critical' {
+  private calculateBatteryState(
+    level: number,
+    state: string,
+  ): 'charging' | 'unplugged' | 'low' | 'critical' {
     if (state === 'charging') return 'charging';
     if (level < 0.1) return 'critical';
     if (level < 0.2) return 'low';
     return 'unplugged';
   }
 
-  private async assessThermalState(): Promise<'nominal' | 'fair' | 'serious' | 'critical'> {
+  private async assessThermalState(): Promise<
+    'nominal' | 'fair' | 'serious' | 'critical'
+  > {
     // Estimate thermal state based on CPU usage and device performance
     try {
       const cpuUsage = await this.estimateCpuUsage();
@@ -551,16 +634,22 @@ class DynamicResourceManager {
     }
   }
 
-  private async assessNetworkCondition(): Promise<'excellent' | 'good' | 'poor' | 'offline'> {
+  private async assessNetworkCondition(): Promise<
+    'excellent' | 'good' | 'poor' | 'offline'
+  > {
     try {
       const NetInfo = await import('@react-native-community/netinfo');
       const netInfo = await NetInfo.default.fetch();
-      
+
       if (!netInfo.isConnected) return 'offline';
-      
+
       // Estimate based on connection type
       if (netInfo.type === 'wifi') return 'excellent';
-      if (netInfo.type === 'cellular' && netInfo.details?.cellularGeneration === '4g') return 'good';
+      if (
+        netInfo.type === 'cellular' &&
+        netInfo.details?.cellularGeneration === '4g'
+      )
+        return 'good';
       return 'poor';
     } catch {
       return 'good';
@@ -573,7 +662,7 @@ class DynamicResourceManager {
       const totalMemory = await DeviceInfo.getTotalMemory();
       const usedMemory = await DeviceInfo.getUsedMemory();
       const ratio = usedMemory / totalMemory;
-      
+
       // Rough estimation based on memory usage
       if (ratio > 0.8) return 8;
       if (ratio > 0.6) return 5;
@@ -595,16 +684,20 @@ class DynamicResourceManager {
 
   private getCompressionLevel(quality: 'low' | 'medium' | 'high'): number {
     switch (quality) {
-      case 'low': return 0.5;
-      case 'medium': return 0.7;
-      case 'high': return 0.9;
-      default: return 0.7;
+      case 'low':
+        return 0.5;
+      case 'medium':
+        return 0.7;
+      case 'high':
+        return 0.9;
+      default:
+        return 0.7;
     }
   }
 
   private hasSignificantConditionChange(
-    oldConditions: DeviceConditions | null, 
-    newConditions: DeviceConditions
+    oldConditions: DeviceConditions | null,
+    newConditions: DeviceConditions,
   ): boolean {
     if (!oldConditions) return true;
 
@@ -618,10 +711,15 @@ class DynamicResourceManager {
 
   private updatePerformanceHistory(conditions: DeviceConditions): void {
     const maxHistorySize = 100;
-    
+
     // Memory usage history
-    this.memoryUsageHistory.push(conditions.memoryPressure === 'low' ? 0.3 : 
-                                 conditions.memoryPressure === 'medium' ? 0.6 : 0.9);
+    this.memoryUsageHistory.push(
+      conditions.memoryPressure === 'low'
+        ? 0.3
+        : conditions.memoryPressure === 'medium'
+        ? 0.6
+        : 0.9,
+    );
     if (this.memoryUsageHistory.length > maxHistorySize) {
       this.memoryUsageHistory.shift();
     }
@@ -635,8 +733,12 @@ class DynamicResourceManager {
 
   // Device info for Claude Skills
   private async getDeviceInfoForSkill() {
-    const totalMemory = await DeviceInfo.getTotalMemory().catch(() => 4 * 1024 * 1024 * 1024);
-    const availableMemory = await DeviceInfo.getAvailableMemory().catch(() => 2 * 1024 * 1024 * 1024);
+    const totalMemory = await DeviceInfo.getTotalMemory().catch(
+      () => 4 * 1024 * 1024 * 1024,
+    );
+    const availableMemory = await DeviceInfo.getAvailableMemory().catch(
+      () => 2 * 1024 * 1024 * 1024,
+    );
     const batteryLevel = await DeviceInfo.getBatteryLevel().catch(() => 1.0);
 
     return {
@@ -696,7 +798,7 @@ class DynamicResourceManager {
   }
 
   private setupAppStateHandlers(): void {
-    AppState.addEventListener('change', (nextAppState) => {
+    AppState.addEventListener('change', nextAppState => {
       if (nextAppState === 'background') {
         // App went to background - reduce resource usage
         this.applyBackgroundOptimizations();
@@ -715,7 +817,7 @@ class DynamicResourceManager {
       maxConcurrentOperations: 1,
       cacheStrategy: 'minimal',
     };
-    
+
     await this.applyResourceAllocationStrategy(backgroundStrategy);
   }
 
@@ -765,9 +867,9 @@ class DynamicResourceManager {
       clearInterval(this.conditionCheckInterval);
       this.conditionCheckInterval = null;
     }
-    
+
     this.isInitialized = false;
-    
+
     structuredLogger.info('Dynamic Resource Manager destroyed');
   }
 }

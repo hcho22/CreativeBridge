@@ -21,7 +21,7 @@
 
 import { query, mutation } from './_generated/server';
 import { v } from 'convex/values';
-import { requireAuth, getClerkUserId } from './auth';
+import { requireAuth, getClerkUserId, requireAdmin } from './auth';
 import {
   generationStatusValidator,
   errorTypeValidator,
@@ -348,24 +348,19 @@ export const refundImageGenerationEvent = mutation({
  */
 export const getUserImageGenerationEvents = query({
   args: {
-    clerkUserId: v.string(),
     limit: v.optional(v.number()),
     offset: v.optional(v.number()),
     statusFilter: v.optional(generationStatusValidator),
   },
   handler: async (ctx, args) => {
+    const clerkUserId = await getClerkUserId(ctx);
     const limit = Math.min(args.limit ?? 50, 100);
     const offset = args.offset ?? 0;
 
-    // Get all events for user
+    // Get events for user using correct index (R-4.5)
     let events = await ctx.db
       .query('imageGenerationEvents')
-      .withIndex('by_user')
-      .filter(q => {
-        // We need to filter by clerkUserId since index is on userId
-        // This is a workaround - ideally we'd have a by_clerk_user index
-        return q.eq(q.field('clerkUserId'), args.clerkUserId);
-      })
+      .withIndex('by_clerk_user', q => q.eq('clerkUserId', clerkUserId))
       .order('desc')
       .collect();
 
@@ -407,17 +402,19 @@ export const getImageGenerationEvent = query({
     eventId: v.id('imageGenerationEvents'),
   },
   handler: async (ctx, args) => {
+    const clerkUserId = await getClerkUserId(ctx);
     const event = await ctx.db.get(args.eventId);
     if (!event) {
       return null;
+    }
+    if (event.clerkUserId !== clerkUserId) {
+      throw new Error('Not authorized to access this event.');
     }
 
     return {
       id: event._id,
       createdAt: new Date(event._creationTime).toISOString(),
       completedAt: event.completedAt,
-      userId: event.userId,
-      clerkUserId: event.clerkUserId,
       sessionId: event.sessionId,
       xpCost: event.xpCost,
       generationStatus: event.generationStatus,
@@ -483,12 +480,21 @@ export const getImageGenerationAnalytics = query({
     endDate: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Build query based on filters
-    let events = await ctx.db.query('imageGenerationEvents').collect();
+    await requireAdmin(ctx);
 
-    // Filter by user if specified
+    // Use indexed query when filtering by user; fall back to date-range filter (R-4.6)
+    let events;
     if (args.clerkUserId) {
-      events = events.filter(e => e.clerkUserId === args.clerkUserId);
+      events = await ctx.db
+        .query('imageGenerationEvents')
+        .withIndex('by_clerk_user', q => q.eq('clerkUserId', args.clerkUserId!))
+        .collect();
+    } else {
+      // No user filter — use _creationTime ordering to bound the scan
+      events = await ctx.db
+        .query('imageGenerationEvents')
+        .order('desc')
+        .take(10000); // Safety cap to prevent unbounded full-table scan
     }
 
     // Filter by date range
@@ -636,18 +642,27 @@ export const getDailyImageGenerationStats = query({
     days: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
     const days = Math.min(args.days ?? 14, 90); // Max 90 days
     const startTime = Date.now() - days * 24 * 60 * 60 * 1000;
 
-    // Get events in date range
-    let events = await ctx.db
-      .query('imageGenerationEvents')
-      .filter(q => q.gte(q.field('_creationTime'), startTime))
-      .collect();
-
-    // Filter by user if specified
+    // Get events using indexed query where possible (R-4.6)
+    let events;
     if (args.clerkUserId) {
-      events = events.filter(e => e.clerkUserId === args.clerkUserId);
+      // Use by_clerk_user index, then filter by date client-side
+      events = (
+        await ctx.db
+          .query('imageGenerationEvents')
+          .withIndex('by_clerk_user', q =>
+            q.eq('clerkUserId', args.clerkUserId!),
+          )
+          .collect()
+      ).filter(e => e._creationTime >= startTime);
+    } else {
+      events = await ctx.db
+        .query('imageGenerationEvents')
+        .filter(q => q.gte(q.field('_creationTime'), startTime))
+        .collect();
     }
 
     // Group by date
@@ -753,6 +768,7 @@ export const getRecentImageGenerationEvents = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
     const limit = Math.min(args.limit ?? 100, 500);
 
     const events = await ctx.db

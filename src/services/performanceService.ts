@@ -1,4 +1,7 @@
 /**
+ * @deprecated Use src/services/performanceMonitor.ts instead.
+ * This service is retained for backward compatibility but should not be used in new code.
+ *
  * Performance Optimization Service
  *
  * Provides comprehensive performance improvements for the story continuation feature,

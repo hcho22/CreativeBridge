@@ -13,9 +13,14 @@ import type {
   ImageUploadStatus,
 } from '../types/database';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 // Convex imports
 import { getConvexClient, api, isConvexReady } from './convex';
 import type { Doc, Id } from '../../convex/_generated/dataModel';
+
+/** Prefix for write-ahead log entries in AsyncStorage */
+const WAL_PREFIX = 'wal_save_';
 
 /**
  * Convert Convex game session to legacy GameSession format.
@@ -174,13 +179,26 @@ export class StoryManagementService {
         };
       }
 
+      // Write-ahead log: persist to AsyncStorage before Convex mutation (R-4.3)
+      const walKey = `${WAL_PREFIX}${request.userId}_${Date.now()}`;
+      await AsyncStorage.setItem(walKey, JSON.stringify(request));
+
       if (!isConvexReady()) {
-        return { success: false, error: 'Database not available' };
+        // WAL entry preserved for later replay
+        return {
+          success: false,
+          error: 'Database not available',
+          savedLocally: true,
+        } as SaveStoryResult & { savedLocally: boolean };
       }
 
       const convexClient = getConvexClient();
       if (!convexClient) {
-        return { success: false, error: 'Database client unavailable' };
+        return {
+          success: false,
+          error: 'Database client unavailable',
+          savedLocally: true,
+        } as SaveStoryResult & { savedLocally: boolean };
       }
 
       // Calculate word count for the story content
@@ -189,66 +207,80 @@ export class StoryManagementService {
       let sessionId: string;
       let createdStory: GameSession | undefined;
 
-      // Use the database function for creating story continuation sessions if it's an imported story
-      if (request.source !== 'New' && request.importedContent) {
-        const convexSessionId = await convexClient.mutation(
-          api.gameSessions.createStoryContinuationSession,
-          {
-            clerkUserId: request.userId,
-            gradeLevel: request.gradeLevel,
-            storySource: request.source,
-            importedContent: request.importedContent,
-            originalCreationDate: request.originalDate,
-            storyMetadata: request.metadata || {},
-          },
-        );
-
-        sessionId = convexSessionId as unknown as string;
-
-        // Fetch the created session
-        const convexSession = await convexClient.query(
-          api.gameSessions.getSession,
-          { sessionId: convexSessionId },
-        );
-
-        if (convexSession) {
-          createdStory = convertConvexSessionToLegacy(convexSession);
-        }
-      } else {
-        // For regular new stories, use createSession
-        const convexSessionId = await convexClient.mutation(
-          api.gameSessions.createSession,
-          {
-            clerkUserId: request.userId,
-            gradeLevel: request.gradeLevel,
-            storyMetadata: request.metadata || {},
-          },
-        );
-
-        sessionId = convexSessionId as unknown as string;
-
-        // Update with story content
-        const updatedSession = await convexClient.mutation(
-          api.gameSessions.updateSession,
-          {
-            sessionId: convexSessionId,
-            updates: {
-              storyContent: request.content,
-              wordsWritten: wordCount,
+      try {
+        // Use the database function for creating story continuation sessions if it's an imported story
+        if (request.source !== 'New' && request.importedContent) {
+          const convexSessionId = await convexClient.mutation(
+            api.gameSessions.createStoryContinuationSession,
+            {
+              clerkUserId: request.userId,
+              gradeLevel: request.gradeLevel,
+              storySource: request.source,
+              importedContent: request.importedContent,
+              originalCreationDate: request.originalDate,
+              storyMetadata: request.metadata || {},
             },
-          },
-        );
+          );
 
-        if (updatedSession) {
-          createdStory = convertConvexSessionToLegacy(updatedSession);
+          sessionId = convexSessionId as unknown as string;
+
+          // Fetch the created session
+          const convexSession = await convexClient.query(
+            api.gameSessions.getSession,
+            { sessionId: convexSessionId },
+          );
+
+          if (convexSession) {
+            createdStory = convertConvexSessionToLegacy(convexSession);
+          }
+        } else {
+          // For regular new stories, use createSession
+          const convexSessionId = await convexClient.mutation(
+            api.gameSessions.createSession,
+            {
+              clerkUserId: request.userId,
+              gradeLevel: request.gradeLevel,
+              storyMetadata: request.metadata || {},
+            },
+          );
+
+          sessionId = convexSessionId as unknown as string;
+
+          // Update with story content
+          const updatedSession = await convexClient.mutation(
+            api.gameSessions.updateSession,
+            {
+              sessionId: convexSessionId,
+              updates: {
+                storyContent: request.content,
+                wordsWritten: wordCount,
+              },
+            },
+          );
+
+          if (updatedSession) {
+            createdStory = convertConvexSessionToLegacy(updatedSession);
+          }
         }
-      }
 
-      return {
-        success: true,
-        story: createdStory,
-        sessionId: sessionId,
-      };
+        // Convex mutation succeeded — remove WAL entry
+        await AsyncStorage.removeItem(walKey);
+
+        return {
+          success: true,
+          story: createdStory,
+          sessionId: sessionId,
+        };
+      } catch (convexError) {
+        // Convex mutation failed — WAL entry preserved for replay
+        console.error('Convex save failed, WAL entry preserved:', convexError);
+        return {
+          success: false,
+          error:
+            convexError instanceof Error ? convexError.message : 'Save failed',
+          savedLocally: true,
+        } as SaveStoryResult & { savedLocally: boolean };
+      }
     } catch (error) {
       console.error('Error in saveStory:', error);
       return {
@@ -406,7 +438,6 @@ export class StoryManagementService {
       const result = await convexClient.query(
         api.gameSessions.getStoryLibrary,
         {
-          clerkUserId: options.userId,
           filters: {
             storySource: options.source,
             dateFrom: options.dateFrom,
@@ -519,7 +550,6 @@ export class StoryManagementService {
       const results = await convexClient.query(
         api.gameSessions.searchUserStories,
         {
-          clerkUserId: options.userId,
           searchQuery: options.searchTerm.trim(),
           limit: options.limit || 20,
         },
@@ -589,7 +619,6 @@ export class StoryManagementService {
       const result = await convexClient.query(
         api.gameSessions.getStoryLibrary,
         {
-          clerkUserId: options.userId,
           filters: {
             storySource: options.source,
             gradeLevel: options.gradeLevel,
@@ -811,7 +840,6 @@ export class StoryManagementService {
       const result = await convexClient.query(
         api.gameSessions.getStoryLibrary,
         {
-          clerkUserId: userId,
           limit: 1000, // Get all sessions for stats
           offset: 0,
         },
@@ -904,6 +932,56 @@ export class StoryManagementService {
   static clearSearchTimers(): void {
     this.searchDebounceTimers.forEach(timer => clearTimeout(timer));
     this.searchDebounceTimers.clear();
+  }
+
+  /**
+   * Replay pending writes from the write-ahead log (R-4.3).
+   * Call on app foreground or network connectivity change.
+   * Retries each WAL entry once; entries that fail again are kept for the next replay.
+   */
+  static async replayPendingWrites(): Promise<{
+    replayed: number;
+    failed: number;
+  }> {
+    let replayed = 0;
+    let failed = 0;
+
+    try {
+      const allKeys = await AsyncStorage.getAllKeys();
+      const walKeys = allKeys.filter(k => k.startsWith(WAL_PREFIX));
+
+      if (walKeys.length === 0) return { replayed, failed };
+
+      if (!isConvexReady()) return { replayed, failed: walKeys.length };
+
+      for (const key of walKeys) {
+        try {
+          const raw = await AsyncStorage.getItem(key);
+          if (!raw) {
+            await AsyncStorage.removeItem(key);
+            continue;
+          }
+
+          const request: SaveStoryRequest = JSON.parse(raw);
+          const result = await this.saveStory(request);
+
+          if (result.success) {
+            // saveStory already removes the WAL entry it creates,
+            // but the original WAL key may differ — remove it too
+            await AsyncStorage.removeItem(key);
+            replayed++;
+          } else {
+            failed++;
+          }
+        } catch {
+          failed++;
+        }
+      }
+    } catch (error) {
+      console.error('Error replaying WAL entries:', error);
+    }
+
+    return { replayed, failed };
   }
 }
 

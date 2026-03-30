@@ -339,6 +339,11 @@ class PostGenerationStorageService {
               avoidedElementsCount: 0, // Will be calculated from guidance in future
               timestamp: new Date(),
             });
+          } else if (scoreResult.success) {
+            // Skipped (e.g. Convex IDs with no Supabase backend) — not a failure
+            console.log(
+              'ℹ️ Diversity score storage skipped (no legacy backend)',
+            );
           } else {
             const errorMsg = `Diversity score storage failed: ${scoreResult.errors.join(
               ', ',

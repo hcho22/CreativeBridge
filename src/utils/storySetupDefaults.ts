@@ -42,6 +42,7 @@ export function resolveStorySetup(
     return {
       genre: randomGenre(),
       character: undefined,
+      characterName: undefined,
       setting: undefined,
       whoStarts: 'ai',
     };
@@ -50,6 +51,7 @@ export function resolveStorySetup(
   return {
     genre: resolveGenre(answers.genre),
     character: resolveCharacter(answers),
+    characterName: answers.characterName?.trim() || undefined,
     setting: resolveSetting(answers.setting, answers.customSetting),
     whoStarts: answers.whoStarts ?? 'ai',
   };

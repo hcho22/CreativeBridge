@@ -196,6 +196,21 @@ jest.mock('react-native', () => ({
       NEVER_ASK_AGAIN: 'never_ask_again',
     },
   },
+  AppState: {
+    addEventListener: jest.fn(() => ({ remove: jest.fn() })),
+    removeEventListener: jest.fn(),
+    currentState: 'active',
+  },
+  Keyboard: {
+    addListener: jest.fn(() => ({ remove: jest.fn() })),
+    removeListener: jest.fn(),
+    dismiss: jest.fn(),
+  },
+  AccessibilityInfo: {
+    isScreenReaderEnabled: jest.fn(() => Promise.resolve(false)),
+    addEventListener: jest.fn(() => ({ remove: jest.fn() })),
+    removeEventListener: jest.fn(),
+  },
   View: 'View',
   Text: 'Text',
   TextInput: 'TextInput',
@@ -206,6 +221,15 @@ jest.mock('react-native', () => ({
   ActivityIndicator: 'ActivityIndicator',
   Button: 'Button',
   SafeAreaView: 'SafeAreaView',
+  Image: 'Image',
+  Modal: 'Modal',
+  FlatList: 'FlatList',
+  Linking: {
+    openURL: jest.fn(() => Promise.resolve(true)),
+    canOpenURL: jest.fn(() => Promise.resolve(true)),
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+  },
   Animated: {
     Value: jest.fn().mockImplementation(() => ({
       setValue: jest.fn(),

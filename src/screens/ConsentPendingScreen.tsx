@@ -39,11 +39,14 @@ const ConsentPendingScreen: React.FC<ConsentPendingScreenProps> = ({
 
   const [loading, setLoading] = useState(false);
   const [consentUrl, setConsentUrl] = useState<string | null>(null);
+  const [maskedEmailFromServer, setMaskedEmailFromServer] = useState<
+    string | null
+  >(null);
 
   // Real-time consent status query — Convex will reactively update
   const consentStatus = useQuery(
     api.consent.getConsentStatus,
-    clerkUserId ? { clerkUserId } : 'skip',
+    clerkUserId ? {} : 'skip',
   );
 
   const getConsentUrl = useAction(api.consent.getConsentUrl);
@@ -55,17 +58,19 @@ const ConsentPendingScreen: React.FC<ConsentPendingScreenProps> = ({
     }
   }, [consentStatus?.status, onConsentGranted]);
 
-  // Build consent URL from the existing token (no need to create a new record)
+  // Build consent URL server-side (token never exposed to client)
   React.useEffect(() => {
-    if (!consentStatus?.consentToken || consentUrl) return;
+    if (!consentStatus || consentUrl) return;
+    if (consentStatus.status !== 'pending') return;
 
     const generateUrl = async () => {
       setLoading(true);
       try {
-        const { consentUrl: url } = await getConsentUrl({
-          consentToken: consentStatus.consentToken,
-        });
-        setConsentUrl(url);
+        const result = await getConsentUrl({});
+        setConsentUrl(result.consentUrl);
+        if (result.maskedEmail) {
+          setMaskedEmailFromServer(result.maskedEmail);
+        }
       } catch (err) {
         console.error('[ConsentPending] Failed to generate consent URL:', err);
       } finally {
@@ -74,7 +79,7 @@ const ConsentPendingScreen: React.FC<ConsentPendingScreenProps> = ({
     };
 
     generateUrl();
-  }, [consentStatus?.consentToken, consentUrl, getConsentUrl]);
+  }, [consentStatus, consentUrl, getConsentUrl]);
 
   const handleShare = useCallback(async () => {
     if (!consentUrl) return;
@@ -104,12 +109,10 @@ const ConsentPendingScreen: React.FC<ConsentPendingScreenProps> = ({
     Linking.openURL(consentUrl);
   }, [consentUrl]);
 
-  const maskedEmail = consentStatus?.parentEmail
-    ? maskEmail(consentStatus.parentEmail)
-    : '...';
+  const maskedEmail = maskedEmailFromServer ?? '...';
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="consent-pending-screen">
       <View style={styles.content}>
         <Text style={styles.emoji}>&#9993;&#65039;</Text>
         <Text style={styles.title}>Waiting for Your Parent</Text>
@@ -140,7 +143,11 @@ const ConsentPendingScreen: React.FC<ConsentPendingScreenProps> = ({
           />
         ) : consentUrl ? (
           <>
-            <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
+            <TouchableOpacity
+              testID="consent-share-button"
+              style={styles.shareButton}
+              onPress={handleShare}
+            >
               <Text style={styles.shareButtonText}>Share with Parent</Text>
             </TouchableOpacity>
 
@@ -162,7 +169,11 @@ const ConsentPendingScreen: React.FC<ConsentPendingScreenProps> = ({
           </>
         ) : null}
 
-        <TouchableOpacity style={styles.signOutButton} onPress={onSignOut}>
+        <TouchableOpacity
+          testID="consent-sign-out"
+          style={styles.signOutButton}
+          onPress={onSignOut}
+        >
           <Text style={styles.signOutButtonText}>Sign Out</Text>
         </TouchableOpacity>
       </View>

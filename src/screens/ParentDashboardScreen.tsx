@@ -64,6 +64,7 @@ const ParentalGateScreen: React.FC<ParentalGateScreenProps> = ({
 
   return (
     <View
+      testID="parental-gate-screen"
       style={[
         styles.gateContainer,
         { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 20 },
@@ -79,6 +80,7 @@ const ParentalGateScreen: React.FC<ParentalGateScreenProps> = ({
           What is {problem.a} + {problem.b}?
         </Text>
         <TextInput
+          testID="parental-gate-input"
           style={styles.gateInput}
           keyboardType="number-pad"
           placeholder="Your answer"
@@ -91,10 +93,15 @@ const ParentalGateScreen: React.FC<ParentalGateScreenProps> = ({
           accessibilityLabel={`What is ${problem.a} plus ${problem.b}`}
         />
         <View style={styles.gateButtonRow}>
-          <TouchableOpacity style={styles.gateCancelButton} onPress={onCancel}>
+          <TouchableOpacity
+            testID="parental-gate-cancel"
+            style={styles.gateCancelButton}
+            onPress={onCancel}
+          >
             <Text style={styles.gateCancelText}>Cancel</Text>
           </TouchableOpacity>
           <TouchableOpacity
+            testID="parental-gate-submit"
             style={[
               styles.gateSubmitButton,
               !answer && styles.gateSubmitDisabled,
@@ -291,7 +298,7 @@ const ParentDashboardScreen: React.FC<{ navigation: any }> = ({
     : 'N/A';
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="parent-dashboard-screen">
       <ScrollView
         style={styles.container}
         contentContainerStyle={{
@@ -391,6 +398,7 @@ const ParentDashboardScreen: React.FC<{ navigation: any }> = ({
 
             {/* Data Export */}
             <TouchableOpacity
+              testID="export-data-button"
               style={styles.actionButton}
               onPress={handleExportData}
               disabled={isExporting}
@@ -407,6 +415,7 @@ const ParentDashboardScreen: React.FC<{ navigation: any }> = ({
             {/* Withdraw Consent */}
             {consent?.status === 'granted' && (
               <TouchableOpacity
+                testID="withdraw-consent-button"
                 style={styles.warningButton}
                 onPress={handleWithdrawConsent}
               >
@@ -416,6 +425,7 @@ const ParentDashboardScreen: React.FC<{ navigation: any }> = ({
 
             {/* Delete Account */}
             <TouchableOpacity
+              testID="delete-account-button"
               style={styles.dangerButton}
               onPress={handleDeleteAccount}
               disabled={isDeletingAccount}

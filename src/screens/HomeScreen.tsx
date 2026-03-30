@@ -1400,6 +1400,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         gradeLevel,
         theme: setup ? resolvedSetup.genre : preferredGenre ?? 'adventure',
         character: resolvedSetup.character,
+        characterName: resolvedSetup.characterName,
         setting: resolvedSetup.setting,
         sessionId: newSession.id,
         userId: userIdToUse,

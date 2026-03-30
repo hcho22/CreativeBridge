@@ -64,10 +64,13 @@ export const cleanupExpiredStorySessions = internalMutation({
     );
     const cutoff = Date.now() - retentionDays * MS_PER_DAY;
 
-    // Collect all sessions and filter for expired ones
-    const allSessions = await ctx.db.query('gameSessions').collect();
-    const expired = allSessions.filter(s => {
-      // Use completedAt timestamp if available, otherwise _creationTime
+    // Paginated query: fetch oldest sessions first and stop early (R-4.6)
+    // Sessions ordered by _creationTime ascending — oldest first
+    const candidates = await ctx.db
+      .query('gameSessions')
+      .order('asc')
+      .take(BATCH_SIZE * 10); // Fetch a bounded set, not the full table
+    const expired = candidates.filter(s => {
       const lastAccess = s.completedAt
         ? new Date(s.completedAt).getTime()
         : s._creationTime;
@@ -148,8 +151,12 @@ export const cleanupExpiredImageGenerationEvents = internalMutation({
     );
     const cutoff = Date.now() - retentionDays * MS_PER_DAY;
 
-    const allEvents = await ctx.db.query('imageGenerationEvents').collect();
-    const expired = allEvents.filter(e => e._creationTime < cutoff);
+    // Paginated query: oldest first, bounded fetch (R-4.6)
+    const candidates = await ctx.db
+      .query('imageGenerationEvents')
+      .order('asc')
+      .take(BATCH_SIZE * 10);
+    const expired = candidates.filter(e => e._creationTime < cutoff);
 
     const batch = expired.slice(0, BATCH_SIZE);
     for (const event of batch) {
@@ -182,10 +189,14 @@ export const cleanupExpiredMigrationEvents = internalMutation({
     );
     const deletionCutoff = Date.now() - retentionDays * MS_PER_DAY;
 
-    const allEvents = await ctx.db.query('migrationEvents').collect();
+    // Paginated query: oldest first, bounded fetch (R-4.6)
+    const candidates = await ctx.db
+      .query('migrationEvents')
+      .order('asc')
+      .take(BATCH_SIZE * 10);
 
     // Delete events past retention period
-    const expiredForDeletion = allEvents.filter(
+    const expiredForDeletion = candidates.filter(
       e => e._creationTime < deletionCutoff,
     );
     const deleteBatch = expiredForDeletion.slice(0, BATCH_SIZE);
@@ -194,8 +205,7 @@ export const cleanupExpiredMigrationEvents = internalMutation({
     }
 
     // Scrub emails from remaining events that still have them
-    // (events that haven't been deleted yet but have email data)
-    const remainingWithEmail = allEvents.filter(
+    const remainingWithEmail = candidates.filter(
       e => e._creationTime >= deletionCutoff && e.email,
     );
     let scrubbed = 0;
@@ -238,8 +248,11 @@ export const runDailyRetentionCleanup = internalMutation({
     );
     const storyCutoff = now - storyRetentionDays * MS_PER_DAY;
 
-    const allSessions = await ctx.db.query('gameSessions').collect();
-    const expiredSessions = allSessions.filter(s => {
+    const sessionCandidates = await ctx.db
+      .query('gameSessions')
+      .order('asc')
+      .take(BATCH_SIZE * 10);
+    const expiredSessions = sessionCandidates.filter(s => {
       const lastAccess = s.completedAt
         ? new Date(s.completedAt).getTime()
         : s._creationTime;
@@ -297,7 +310,8 @@ export const runDailyRetentionCleanup = internalMutation({
 
     const allImageEvents = await ctx.db
       .query('imageGenerationEvents')
-      .collect();
+      .order('asc')
+      .take(BATCH_SIZE * 10);
     const expiredImageEvents = allImageEvents.filter(
       e => e._creationTime < analyticsCutoff,
     );
@@ -315,7 +329,10 @@ export const runDailyRetentionCleanup = internalMutation({
     );
     const migrationCutoff = now - migrationRetentionDays * MS_PER_DAY;
 
-    const allMigrationEvents = await ctx.db.query('migrationEvents').collect();
+    const allMigrationEvents = await ctx.db
+      .query('migrationEvents')
+      .order('asc')
+      .take(BATCH_SIZE * 10);
 
     // Delete expired
     const expiredMigration = allMigrationEvents.filter(

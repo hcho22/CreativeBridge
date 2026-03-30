@@ -20,6 +20,7 @@ interface StoryStarterRequest {
   gradeLevel: GradeLevel;
   theme?: string;
   character?: string;
+  characterName?: string; // Raw user-chosen name, exempt from PII scrubbing
   setting?: string;
   sessionId?: string; // Optional session ID for diversity tracking
   userId?: string; // Optional user ID for diversity tracking
@@ -51,6 +52,87 @@ interface ConsistencyCheck {
   issues: string[];
   suggestions: string[];
 }
+
+// ─── Token-Aware Truncation (US-006: U-6.4) ────────────────────────────────
+
+/** Rough token estimate: ~4 chars per token for English text. */
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+/** Maximum tokens to allocate for story context within the model's window. */
+const MAX_STORY_TOKENS = 6000;
+
+/** Number of recent story rounds to always preserve. */
+const PRESERVE_RECENT_ROUNDS = 3;
+
+/** Round separator pattern — stories use double newlines between rounds. */
+const ROUND_SEPARATOR = /\n\n+/;
+
+/**
+ * Truncate a long story to fit within the token budget.
+ * Preserves the most recent rounds and summarizes earlier content.
+ * Short stories pass through verbatim.
+ */
+function truncateStoryForContext(storySoFar: string): string {
+  if (!storySoFar) return storySoFar;
+
+  const tokens = estimateTokens(storySoFar);
+  if (tokens <= MAX_STORY_TOKENS) return storySoFar;
+
+  const rounds = storySoFar.split(ROUND_SEPARATOR).filter(r => r.trim());
+  if (rounds.length <= PRESERVE_RECENT_ROUNDS) {
+    // Can't split further — just hard-truncate from the front
+    const maxChars = MAX_STORY_TOKENS * 4;
+    return storySoFar.slice(-maxChars);
+  }
+
+  // Always keep the last N rounds
+  const recentRounds = rounds.slice(-PRESERVE_RECENT_ROUNDS);
+  const earlierRounds = rounds.slice(0, -PRESERVE_RECENT_ROUNDS);
+
+  // Extract key narrative elements from earlier rounds
+  const firstRound = earlierRounds[0] || '';
+  // Grab character names (capitalized words that appear more than once)
+  const namePattern = /\b([A-Z][a-z]{2,})\b/g;
+  const nameCounts = new Map<string, number>();
+  for (const round of earlierRounds) {
+    for (const match of round.matchAll(namePattern)) {
+      nameCounts.set(match[1], (nameCounts.get(match[1]) || 0) + 1);
+    }
+  }
+  const characterNames = [...nameCounts.entries()]
+    .filter(([, count]) => count >= 2)
+    .map(([name]) => name)
+    .slice(0, 5);
+
+  // Build a condensed summary of earlier content
+  const settingSnippet = firstRound.substring(0, 200);
+  const characters =
+    characterNames.length > 0
+      ? `Characters: ${characterNames.join(', ')}.`
+      : '';
+
+  const summary = [
+    '[Story so far summarized]',
+    settingSnippet.trim() + (settingSnippet.length >= 200 ? '...' : ''),
+    characters,
+    `(${earlierRounds.length} earlier rounds condensed)`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const truncated = summary + '\n\n' + recentRounds.join('\n\n');
+
+  // Final safety check — if still too long, hard-truncate
+  if (estimateTokens(truncated) > MAX_STORY_TOKENS) {
+    return truncated.slice(-(MAX_STORY_TOKENS * 4));
+  }
+
+  return truncated;
+}
+
+// ─── End Token-Aware Truncation ─────────────────────────────────────────────
 
 class StoryAgentService {
   private personalities: Record<string, AgentPersonality>;
@@ -272,6 +354,22 @@ class StoryAgentService {
       // Skip strict consistency checks for better user experience
       // Users should be able to add creative elements without constraint
       // Consistency checks are disabled to prevent blocking story generation
+
+      // Truncate long stories to fit AI context window (US-006: U-6.4)
+      if (request.storySoFar) {
+        const originalLength = request.storySoFar.length;
+        request = {
+          ...request,
+          storySoFar: truncateStoryForContext(request.storySoFar),
+        };
+        if (request.storySoFar.length < originalLength) {
+          console.log(
+            `📏 Story truncated: ${originalLength} → ${
+              request.storySoFar.length
+            } chars (~${estimateTokens(request.storySoFar)} tokens)`,
+          );
+        }
+      }
 
       const response = await storyGenerationService.generateStory(request);
       console.log('📝 storyGenerationService response:', {
@@ -566,6 +664,7 @@ class StoryAgentService {
       gradeLevel: request.gradeLevel,
       userInput: prompt,
       challenge: this.getGradeLevelChallenge(request.gradeLevel, request.theme),
+      characterName: request.characterName,
       // Pass through diversity tracking IDs for element extraction and guidance
       sessionId: request.sessionId,
       userId: request.userId,

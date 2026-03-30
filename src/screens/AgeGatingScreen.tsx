@@ -58,7 +58,7 @@ const AgeGatingScreen: React.FC<AgeGatingScreenProps> = ({ onComplete }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} testID="age-gating-screen">
       <View style={styles.content}>
         <View style={styles.headerSection}>
           <Text style={styles.title}>How old are you?</Text>
@@ -71,6 +71,7 @@ const AgeGatingScreen: React.FC<AgeGatingScreenProps> = ({ onComplete }) => {
           {AGE_OPTIONS.map(option => (
             <TouchableOpacity
               key={option.value}
+              testID={`age-option-${option.value}`}
               style={[
                 styles.ageOption,
                 selectedAge === option.value && styles.ageOptionSelected,
@@ -103,6 +104,7 @@ const AgeGatingScreen: React.FC<AgeGatingScreenProps> = ({ onComplete }) => {
         {error && <Text style={styles.errorText}>{error}</Text>}
 
         <TouchableOpacity
+          testID="age-gating-continue"
           style={[
             styles.continueButton,
             (!selectedAge || saving) && styles.continueButtonDisabled,

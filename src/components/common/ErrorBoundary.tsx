@@ -124,11 +124,11 @@ ${errorInfo || 'No component stack available'}
       return (
         <View style={styles.errorContainer}>
           <ScrollView contentContainerStyle={styles.errorContent}>
-            <Text style={styles.errorEmoji}>💥</Text>
+            <Text style={styles.errorEmoji}>🌈</Text>
             <Text style={styles.errorTitle}>Oops! Something went wrong</Text>
             <Text style={styles.errorMessage}>
-              We're sorry, but something unexpected happened. The app
-              encountered an error and couldn't continue.
+              Don't worry! Sometimes things get a little mixed up. Let's try
+              again and see if it works!
             </Text>
 
             {__DEV__ && error && (
@@ -159,8 +159,8 @@ ${errorInfo || 'No component stack available'}
             </View>
 
             <Text style={styles.helpText}>
-              If this problem persists, please restart the app or contact
-              support.
+              If this keeps happening, try closing and reopening the app. You
+              can also ask a grown-up for help!
             </Text>
           </ScrollView>
         </View>
