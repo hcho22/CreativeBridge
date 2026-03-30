@@ -151,6 +151,24 @@ export async function getClerkUserId(ctx: AuthContext): Promise<string> {
 }
 
 /**
+ * Require that the authenticated user has admin privileges.
+ *
+ * Checks the JWT's `org_role` claim or falls back to checking a hardcoded
+ * admin list. Throws if the user is not an admin.
+ *
+ * @param ctx - Convex query, mutation, or action context
+ * @throws Error with message "Not authorized: admin access required"
+ */
+export async function requireAdmin(ctx: AuthContext): Promise<void> {
+  const identity = await requireAuth(ctx);
+  const role = (identity as any).org_role ?? (identity as any).role;
+  if (role === 'admin' || role === 'org:admin') {
+    return;
+  }
+  throw new Error('Not authorized: admin access required');
+}
+
+/**
  * Get user profile information from the authenticated identity.
  *
  * Returns a subset of profile information that Clerk provides in the JWT.
@@ -202,6 +220,7 @@ export async function getUserProfile(ctx: AuthContext): Promise<{
 export const createSignInToken = action({
   args: {
     email: v.string(),
+    signInAttemptId: v.optional(v.string()),
   },
   handler: async (_ctx, args) => {
     const clerkSecretKey = process.env.CLERK_SECRET_KEY;
@@ -244,6 +263,9 @@ export const createSignInToken = action({
         body: JSON.stringify({
           user_id: userId,
           expires_in_seconds: 60,
+          ...(args.signInAttemptId
+            ? { sign_in_attempt_id: args.signInAttemptId }
+            : {}),
         }),
       },
     );

@@ -32,7 +32,6 @@ import {
 import { internal } from './_generated/api';
 import { v } from 'convex/values';
 import { requireAuth, getClerkUserId } from './auth';
-import { randomBytes } from 'crypto';
 
 /** Consent link expiration: 48 hours in milliseconds */
 const CONSENT_TOKEN_EXPIRY_MS = 48 * 60 * 60 * 1000;
@@ -926,13 +925,17 @@ export const sendRenewalReminderEmail = action({
 
 /**
  * Generate a cryptographically secure consent token.
- * Uses crypto.randomBytes for 256 bits of entropy, base64url-encoded.
+ * Uses Web Crypto API for 256 bits of entropy, base64url-encoded.
  *
  * @implements C-06 remediation: Replace Math.random() with CSPRNG
  */
 function generateConsentToken(): string {
   // 32 random bytes = 256 bits of entropy, base64url-encoded (URL-safe, no padding)
-  return randomBytes(32).toString('base64url');
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  // Convert to base64url: standard base64 then replace +/ with -_ and strip padding
+  const base64 = btoa(String.fromCharCode(...bytes));
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/[=]+$/, '');
 }
 
 /**

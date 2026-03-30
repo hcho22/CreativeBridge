@@ -539,4 +539,7 @@ export const storyCacheService = new StoryCacheService({
   persistentStorage: true,
 });
 
+// Alias used by performanceTuner and other services
+export const storyCache = storyCacheService;
+
 export default StoryCacheService;

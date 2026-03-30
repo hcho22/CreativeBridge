@@ -19,6 +19,16 @@ jest.mock('react-native', () => {
     Alert: {
       alert: jest.fn(),
     },
+    AppState: {
+      addEventListener: jest.fn(() => ({ remove: jest.fn() })),
+      removeEventListener: jest.fn(),
+      currentState: 'active',
+    },
+    Keyboard: {
+      addListener: jest.fn(() => ({ remove: jest.fn() })),
+      removeListener: jest.fn(),
+      dismiss: jest.fn(),
+    },
     NativeModules: {
       ...RN.NativeModules,
       DevSettings: {

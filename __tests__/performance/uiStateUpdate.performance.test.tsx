@@ -12,12 +12,82 @@ import { render, act, waitFor } from '@testing-library/react-native';
 import ImageGeneration from '../../src/components/common/ImageGeneration';
 import StoryImageDisplay from '../../src/components/common/StoryImageDisplay';
 
+// Mock rnfsWrapper used by StoryImageDisplay
+jest.mock('../../src/utils/rnfsWrapper', () => ({
+  __esModule: true,
+  default: {
+    DocumentDirectoryPath: '/mock/documents',
+    exists: jest.fn(() => Promise.resolve(false)),
+    mkdir: jest.fn(() => Promise.resolve()),
+    downloadFile: jest.fn(() => ({
+      promise: Promise.resolve({ statusCode: 200 }),
+    })),
+    readDir: jest.fn(() => Promise.resolve([])),
+    unlink: jest.fn(() => Promise.resolve()),
+  },
+  rnfsWrapper: {
+    exists: jest.fn(() => Promise.resolve(false)),
+    downloadFile: jest.fn(() => ({
+      promise: Promise.resolve({ statusCode: 200 }),
+    })),
+    readDir: jest.fn(() => Promise.resolve([])),
+    mkdir: jest.fn(() => Promise.resolve()),
+    unlink: jest.fn(() => Promise.resolve()),
+    DocumentDirectoryPath: '/mock/documents',
+  },
+}));
+
+// Mock shareWrapper used by StoryImageDisplay
+jest.mock('../../src/utils/shareWrapper', () => ({
+  __esModule: true,
+  default: { open: jest.fn(() => Promise.resolve({ success: true })) },
+}));
+
+// Mock folderPicker used by StoryImageDisplay
+jest.mock('../../src/utils/folderPicker', () => ({
+  __esModule: true,
+  default: {
+    saveToUserSelectedFolder: jest.fn(() =>
+      Promise.resolve({ success: true, path: '/mock/path' }),
+    ),
+  },
+}));
+
+// Mock FullScreenImageModal used by StoryImageDisplay
+jest.mock('../../src/components/common/FullScreenImageModal', () => {
+  const React = require('react');
+  return {
+    __esModule: true,
+    default: (props: any) =>
+      React.createElement('View', { testID: 'full-screen-modal' }),
+    StoryImage: {},
+  };
+});
+
+// Mock ParentalGate hook used by StoryImageDisplay
+jest.mock('../../src/components/common/ParentalGate', () => ({
+  useParentalGate: () => ({
+    openURL: jest.fn(),
+    parentalGateModal: null,
+  }),
+}));
+
 // Mock dependencies
 jest.mock('../../src/services/supabase');
 jest.mock('../../src/context/AuthContext', () => ({
   useAuth: () => ({
     user: { id: 'test-user' },
     effectiveUserId: 'test-user',
+    userProfile: { xp: 5000 },
+    canGenerateImage: jest.fn().mockReturnValue(true),
+    getXPBalanceInfo: jest.fn().mockReturnValue({
+      hasEnoughXP: true,
+      currentXP: 5000,
+      shortfall: 0,
+      canGenerate: true,
+      maxGenerations: 5,
+    }),
+    createImageGenerationEvent: jest.fn().mockResolvedValue({}),
   }),
 }));
 

@@ -338,7 +338,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
   const clerkUserId = clerkAuth?.userId;
   const convexProfile = useQuery(
     api.userProfiles.getProfileByClerkId,
-    clerkUserId ? { clerkUserId } : 'skip',
+    clerkUserId ? {} : 'skip',
   );
 
   // Effect to sync Convex profile to local state
@@ -702,7 +702,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           // Fetch updated profile from Convex
           const updatedConvexProfile = await convex.query(
             api.userProfiles.getProfileByClerkId,
-            { clerkUserId: activeClerkUserId },
+            {},
           );
 
           if (updatedConvexProfile) {
@@ -782,7 +782,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         // Fetch the created profile to get full data
         const createdConvexProfile = await convex.query(
           api.userProfiles.getProfileByClerkId,
-          { clerkUserId: activeClerkUserId },
+          {},
         );
 
         if (createdConvexProfile) {
@@ -2057,6 +2057,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           try {
             const token = await convex.action(api.auth.createSignInToken, {
               email,
+              signInAttemptId: result.id,
             });
 
             if (!token) {

@@ -210,9 +210,11 @@ describe('OAuth Performance Tests', () => {
 
       const results = await Promise.all(promises);
 
-      // Both should complete successfully
-      expect(results[0].success).toBe(true);
-      expect(results[1].success).toBe(true);
+      // Both deprecated functions return success: false with deprecation notice
+      expect(results[0].success).toBe(false);
+      expect(results[1].success).toBe(false);
+      expect(results[0].error).toContain('deprecated');
+      expect(results[1].error).toContain('deprecated');
     });
   });
 });
