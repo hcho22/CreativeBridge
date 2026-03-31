@@ -190,10 +190,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const previousStreakRef = useRef<number | null>(null);
 
   // First story guidance modal state (US-012)
+  // Shown once after signup; subsequent access via Settings tab
   const [showFirstStoryGuidance, setShowFirstStoryGuidance] = useState(false);
-  const [dontShowGuidanceAgain, setDontShowGuidanceAgain] = useState(false);
-  // Store the pending action to execute after guidance is dismissed
-  const pendingStoryActionRef = useRef<(() => void) | null>(null);
 
   // Ref to track if TTS has been initialized to prevent re-initialization loops
   const ttsInitializedRef = useRef(false);
@@ -348,6 +346,25 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     userProfile?.total_stories_completed,
     userProfile?.id,
   ]);
+
+  // Auto-show onboarding progress modal once for brand-new users
+  useEffect(() => {
+    if (!isNewUser) return;
+    const autoShowOnboarding = async () => {
+      try {
+        const shouldShow =
+          await onboardingMilestoneTracker.shouldShowFirstStoryGuidance();
+        if (shouldShow) {
+          setShowFirstStoryGuidance(true);
+          // Mark as shown immediately so it never auto-triggers again
+          await onboardingMilestoneTracker.markFirstStoryGuidanceShown();
+        }
+      } catch (error) {
+        console.error('❌ Error auto-showing onboarding:', error);
+      }
+    };
+    autoShowOnboarding();
+  }, [isNewUser]);
 
   // US-017: Update new user status when first story celebration shows
   useEffect(() => {
@@ -1588,25 +1605,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       userIdForSession,
     );
 
-    // Check if first story guidance should be shown (US-012)
-    try {
-      const shouldShowGuidance =
-        await onboardingMilestoneTracker.shouldShowFirstStoryGuidance();
-
-      if (shouldShowGuidance) {
-        // Store the action to execute after guidance is dismissed
-        // Capture the user ID in a closure (works for both OAuth and email/password users)
-        pendingStoryActionRef.current = () =>
-          navigation.navigate('StorySetup' as never);
-        setShowFirstStoryGuidance(true);
-        return;
-      }
-    } catch (error) {
-      console.error('❌ Error checking first story guidance:', error);
-      // Continue with story creation on error
-    }
-
-    // No guidance needed, proceed directly to setup wizard
+    // Proceed directly to story setup — onboarding progress is shown once
+    // after account creation and is accessible from Settings thereafter
     navigation.navigate('StorySetup' as never);
   };
 
@@ -2048,33 +2048,16 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     setShowFirstStreakCelebration(false);
   }, []);
 
-  // Handler for first story guidance modal close (US-012)
+  // Handler for first story guidance modal close/proceed (US-012)
+  // Modal is only shown once after signup; subsequent access is via Settings
   const handleFirstStoryGuidanceClose = useCallback(async () => {
-    // If "don't show again" was checked, mark as permanently shown
-    if (dontShowGuidanceAgain) {
-      await onboardingMilestoneTracker.markFirstStoryGuidanceShown();
-    }
-    setShowFirstStoryGuidance(false);
-    pendingStoryActionRef.current = null;
-  }, [dontShowGuidanceAgain]);
-
-  // Handler for "Let's Go!" button in first story guidance modal (US-012)
-  const handleFirstStoryGuidanceProceed = useCallback(async () => {
-    // Always mark guidance as shown when user proceeds
     await onboardingMilestoneTracker.markFirstStoryGuidanceShown();
     setShowFirstStoryGuidance(false);
-
-    // Execute the pending story creation action
-    if (pendingStoryActionRef.current) {
-      const action = pendingStoryActionRef.current;
-      pendingStoryActionRef.current = null;
-      action();
-    }
   }, []);
 
-  // Handler for "Don't show again" toggle change (US-012)
-  const handleDontShowGuidanceAgainChange = useCallback((value: boolean) => {
-    setDontShowGuidanceAgain(value);
+  const handleFirstStoryGuidanceProceed = useCallback(async () => {
+    await onboardingMilestoneTracker.markFirstStoryGuidanceShown();
+    setShowFirstStoryGuidance(false);
   }, []);
 
   const handleImageGenerated = useCallback(
@@ -3236,8 +3219,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           visible={showFirstStoryGuidance}
           onClose={handleFirstStoryGuidanceClose}
           onProceed={handleFirstStoryGuidanceProceed}
-          showDontShowAgain={true}
-          onDontShowAgainChange={handleDontShowGuidanceAgainChange}
+          showDontShowAgain={false}
         />
 
         {/* Story Completion Options Screen - Full Screen Overlay */}
@@ -3591,8 +3573,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           visible={showFirstStoryGuidance}
           onClose={handleFirstStoryGuidanceClose}
           onProceed={handleFirstStoryGuidanceProceed}
-          showDontShowAgain={true}
-          onDontShowAgainChange={handleDontShowGuidanceAgainChange}
+          showDontShowAgain={false}
         />
       </ScrollView>
     </View>
