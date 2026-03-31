@@ -20,6 +20,7 @@ import {
   BackHandler,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import LinearGradient from 'react-native-linear-gradient';
 import { useAuth } from '../context/AuthContext';
 import { theme } from '../constants/theme';
 import { HomeStackParamList } from '../navigation/AppNavigator';
@@ -193,6 +194,7 @@ const StorySetupScreen: React.FC<StorySetupScreenProps> = ({ navigation }) => {
     () => Array.from({ length: TOTAL_STEPS }, () => new Animated.Value(1)),
     [],
   );
+  const progressAnim = useRef(new Animated.Value(1 / TOTAL_STEPS)).current;
 
   /** Slide current step out, update content, slide new step in. */
   const animateStepTransition = useCallback(
@@ -357,8 +359,9 @@ const StorySetupScreen: React.FC<StorySetupScreenProps> = ({ navigation }) => {
 
   // ── Effects ───────────────────────────────────────────────────
 
-  // Animate progress dot with spring "pop" when step changes
+  // Animate progress badge with spring "pop" and progress bar fill when step changes
   useEffect(() => {
+    // Badge spring pop (reuse dotAnims for badge scale)
     dotAnims.forEach((anim, index) => {
       if (index === currentStep) {
         Animated.spring(anim, {
@@ -375,7 +378,13 @@ const StorySetupScreen: React.FC<StorySetupScreenProps> = ({ navigation }) => {
         });
       }
     });
-  }, [currentStep, dotAnims]);
+    // Progress bar fill animation (JS-driven since width is a layout prop)
+    Animated.timing(progressAnim, {
+      toValue: (currentStep + 1) / TOTAL_STEPS,
+      duration: theme.animation.normal,
+      useNativeDriver: false,
+    }).start();
+  }, [currentStep, dotAnims, progressAnim]);
 
   // Android hardware back button: go to previous step on steps 1-3
   useEffect(() => {
@@ -401,27 +410,45 @@ const StorySetupScreen: React.FC<StorySetupScreenProps> = ({ navigation }) => {
     return unsubscribe;
   }, [currentStep, handleBack, navigation]);
 
-  // ── Progress Dots ───────────────────────────────────────────────
+  // ── Progress Bar ────────────────────────────────────────────────
 
-  const renderProgressDots = () => (
-    <View style={styles.progressContainer}>
-      {Array.from({ length: TOTAL_STEPS }).map((_, index) => (
+  const stepLabels = ['Genre', 'Character', 'Setting', 'Start'];
+
+  const renderProgressBar = () => {
+    const fillWidth = progressAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: ['0%', '100%'],
+    });
+
+    return (
+      <View style={styles.progressBarContainer}>
+        {/* Numbered badge with spring pop */}
         <Animated.View
-          key={index}
           style={[
-            styles.progressDot,
-            index <= currentStep && styles.progressDotActive,
-            { transform: [{ scale: dotAnims[index] }] },
+            styles.progressBadge,
+            { transform: [{ scale: dotAnims[currentStep] }] },
           ]}
-        />
-      ))}
-    </View>
-  );
+        >
+          <Text style={styles.progressBadgeText}>{currentStep + 1}</Text>
+        </Animated.View>
 
-  // ── Genre Grid ──────────────────────────────────────────────────
+        {/* Step label */}
+        <Text style={styles.progressStepLabel}>{stepLabels[currentStep]}</Text>
 
-  const renderGenreGrid = () => (
-    <View style={styles.gridContainer}>
+        {/* Track + animated fill */}
+        <View style={styles.progressBarTrack}>
+          <Animated.View
+            style={[styles.progressBarFill, { width: fillWidth }]}
+          />
+        </View>
+      </View>
+    );
+  };
+
+  // ── Genre List (full-width cards) ───────────────────────────────
+
+  const renderGenreList = () => (
+    <View style={styles.optionCardList}>
       {GENRE_OPTIONS.map(option => {
         const isSelected = selectedGenre === option.value;
         const label = getGenreLabel(option.value, gradeLevel);
@@ -429,22 +456,39 @@ const StorySetupScreen: React.FC<StorySetupScreenProps> = ({ navigation }) => {
         return (
           <TouchableOpacity
             key={option.value}
-            style={[
-              styles.genreButton,
-              isSelected && styles.genreButtonSelected,
-            ]}
+            style={[styles.optionCard, isSelected && styles.optionCardSelected]}
             onPress={() => handleGenrePress(option.value)}
             activeOpacity={0.7}
           >
-            <Text style={styles.genreEmoji}>{option.emoji}</Text>
+            {/* Left — Emoji circle */}
+            <View
+              style={[
+                styles.optionCardEmojiCircle,
+                isSelected && styles.optionCardEmojiCircleSelected,
+              ]}
+            >
+              <Text style={styles.optionCardEmoji}>{option.emoji}</Text>
+            </View>
+
+            {/* Center — Label */}
             <Text
               style={[
-                styles.genreLabel,
-                isSelected && styles.genreLabelSelected,
+                styles.optionCardLabel,
+                isSelected && styles.optionCardLabelSelected,
               ]}
             >
               {label}
             </Text>
+
+            {/* Right — Checkbox */}
+            <View
+              style={[
+                styles.optionCardCheckbox,
+                isSelected && styles.optionCardCheckboxSelected,
+              ]}
+            >
+              {isSelected && <Text style={styles.optionCardCheckmark}>✓</Text>}
+            </View>
           </TouchableOpacity>
         );
       })}
@@ -465,29 +509,51 @@ const StorySetupScreen: React.FC<StorySetupScreenProps> = ({ navigation }) => {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Character type grid */}
-        <View style={styles.gridContainer}>
+        {/* Character type cards */}
+        <View style={styles.optionCardList}>
           {CHARACTER_OPTIONS.map(option => {
             const isSelected = selectedCharacterType === option.value;
             return (
               <TouchableOpacity
                 key={option.value}
                 style={[
-                  styles.genreButton,
-                  isSelected && styles.genreButtonSelected,
+                  styles.optionCard,
+                  isSelected && styles.optionCardSelected,
                 ]}
                 onPress={() => handleCharacterTypePress(option.value)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.genreEmoji}>{option.emoji}</Text>
+                {/* Left — Emoji circle */}
+                <View
+                  style={[
+                    styles.optionCardEmojiCircle,
+                    isSelected && styles.optionCardEmojiCircleSelected,
+                  ]}
+                >
+                  <Text style={styles.optionCardEmoji}>{option.emoji}</Text>
+                </View>
+
+                {/* Center — Label */}
                 <Text
                   style={[
-                    styles.genreLabel,
-                    isSelected && styles.genreLabelSelected,
+                    styles.optionCardLabel,
+                    isSelected && styles.optionCardLabelSelected,
                   ]}
                 >
                   {option.value}
                 </Text>
+
+                {/* Right — Checkbox */}
+                <View
+                  style={[
+                    styles.optionCardCheckbox,
+                    isSelected && styles.optionCardCheckboxSelected,
+                  ]}
+                >
+                  {isSelected && (
+                    <Text style={styles.optionCardCheckmark}>✓</Text>
+                  )}
+                </View>
               </TouchableOpacity>
             );
           })}
@@ -497,28 +563,50 @@ const StorySetupScreen: React.FC<StorySetupScreenProps> = ({ navigation }) => {
         {selectedCharacterType === 'Animal' && (
           <View style={styles.expansionContainer}>
             <Text style={styles.expansionLabel}>Pick an animal:</Text>
-            <View style={styles.gridContainer}>
+            <View style={styles.optionCardList}>
               {ANIMAL_OPTIONS.map(option => {
                 const isSelected = selectedAnimalType === option.value;
                 return (
                   <TouchableOpacity
                     key={option.value}
                     style={[
-                      styles.genreButton,
-                      isSelected && styles.genreButtonSelected,
+                      styles.optionCard,
+                      isSelected && styles.optionCardSelected,
                     ]}
                     onPress={() => handleAnimalTypePress(option.value)}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.genreEmoji}>{option.emoji}</Text>
+                    {/* Left — Emoji circle */}
+                    <View
+                      style={[
+                        styles.optionCardEmojiCircle,
+                        isSelected && styles.optionCardEmojiCircleSelected,
+                      ]}
+                    >
+                      <Text style={styles.optionCardEmoji}>{option.emoji}</Text>
+                    </View>
+
+                    {/* Center — Label */}
                     <Text
                       style={[
-                        styles.genreLabel,
-                        isSelected && styles.genreLabelSelected,
+                        styles.optionCardLabel,
+                        isSelected && styles.optionCardLabelSelected,
                       ]}
                     >
                       {option.value}
                     </Text>
+
+                    {/* Right — Checkbox */}
+                    <View
+                      style={[
+                        styles.optionCardCheckbox,
+                        isSelected && styles.optionCardCheckboxSelected,
+                      ]}
+                    >
+                      {isSelected && (
+                        <Text style={styles.optionCardCheckmark}>✓</Text>
+                      )}
+                    </View>
                   </TouchableOpacity>
                 );
               })}
@@ -590,29 +678,51 @@ const StorySetupScreen: React.FC<StorySetupScreenProps> = ({ navigation }) => {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Setting grid */}
-        <View style={styles.gridContainer}>
+        {/* Setting cards (full-width) */}
+        <View style={styles.optionCardList}>
           {SETTING_OPTIONS.map(option => {
             const isSelected = selectedSetting === option.value;
             return (
               <TouchableOpacity
                 key={option.value}
                 style={[
-                  styles.genreButton,
-                  isSelected && styles.genreButtonSelected,
+                  styles.optionCard,
+                  isSelected && styles.optionCardSelected,
                 ]}
                 onPress={() => handleSettingPress(option.value)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.genreEmoji}>{option.emoji}</Text>
+                {/* Left — Emoji circle */}
+                <View
+                  style={[
+                    styles.optionCardEmojiCircle,
+                    isSelected && styles.optionCardEmojiCircleSelected,
+                  ]}
+                >
+                  <Text style={styles.optionCardEmoji}>{option.emoji}</Text>
+                </View>
+
+                {/* Center — Label */}
                 <Text
                   style={[
-                    styles.genreLabel,
-                    isSelected && styles.genreLabelSelected,
+                    styles.optionCardLabel,
+                    isSelected && styles.optionCardLabelSelected,
                   ]}
                 >
                   {option.value}
                 </Text>
+
+                {/* Right — Checkbox */}
+                <View
+                  style={[
+                    styles.optionCardCheckbox,
+                    isSelected && styles.optionCardCheckboxSelected,
+                  ]}
+                >
+                  {isSelected && (
+                    <Text style={styles.optionCardCheckmark}>✓</Text>
+                  )}
+                </View>
               </TouchableOpacity>
             );
           })}
@@ -638,31 +748,48 @@ const StorySetupScreen: React.FC<StorySetupScreenProps> = ({ navigation }) => {
     </KeyboardAvoidingView>
   );
 
-  // ── Starter Options (Step 3) ──────────────────────────────────
+  // ── Starter Options (Step 3) — full-width option cards ─────────
 
   const renderStarterOptions = () => (
-    <View style={styles.starterContainer}>
+    <View style={styles.optionCardList}>
       {STARTER_OPTIONS.map(option => {
         const isSelected = selectedStarter === option.value;
         return (
           <TouchableOpacity
             key={option.value}
-            style={[
-              styles.starterButton,
-              isSelected && styles.starterButtonSelected,
-            ]}
+            style={[styles.optionCard, isSelected && styles.optionCardSelected]}
             onPress={() => handleStarterPress(option.value)}
             activeOpacity={0.7}
           >
-            <Text style={styles.starterEmoji}>{option.emoji}</Text>
+            {/* Left — Emoji circle */}
+            <View
+              style={[
+                styles.optionCardEmojiCircle,
+                isSelected && styles.optionCardEmojiCircleSelected,
+              ]}
+            >
+              <Text style={styles.optionCardEmoji}>{option.emoji}</Text>
+            </View>
+
+            {/* Center — Label */}
             <Text
               style={[
-                styles.starterLabel,
-                isSelected && styles.starterLabelSelected,
+                styles.optionCardLabel,
+                isSelected && styles.optionCardLabelSelected,
               ]}
             >
               {option.label}
             </Text>
+
+            {/* Right — Checkbox */}
+            <View
+              style={[
+                styles.optionCardCheckbox,
+                isSelected && styles.optionCardCheckboxSelected,
+              ]}
+            >
+              {isSelected && <Text style={styles.optionCardCheckmark}>✓</Text>}
+            </View>
           </TouchableOpacity>
         );
       })}
@@ -673,63 +800,61 @@ const StorySetupScreen: React.FC<StorySetupScreenProps> = ({ navigation }) => {
 
   const renderBottomBar = () => {
     const isLastStep = currentStep === 3;
+    const ctaLabel = isStarting
+      ? 'Starting…'
+      : isLastStep
+      ? 'Start Story'
+      : 'Next';
+    const ctaOnPress = isLastStep ? handleStartStory : handleNext;
 
     return (
       <View style={styles.bottomBar}>
-        {/* Left: Close (X) on step 0, Back on steps 1+ */}
-        {currentStep === 0 ? (
-          <TouchableOpacity
-            style={styles.bottomBarButton}
-            onPress={handleClose}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.closeButtonText}>✕</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            style={styles.bottomBarButton}
-            onPress={handleBack}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.backButtonText}>Back</Text>
-          </TouchableOpacity>
-        )}
+        {/* Top row: Back/Close (left) + Skip (right) */}
+        <View style={styles.bottomBarTopRow}>
+          {currentStep === 0 ? (
+            <TouchableOpacity
+              style={styles.bottomBarTextButton}
+              onPress={handleClose}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.closeButtonText}>✕</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.bottomBarTextButton}
+              onPress={handleBack}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.backButtonText}>Back</Text>
+            </TouchableOpacity>
+          )}
 
-        {/* Skip — center */}
-        <TouchableOpacity
-          style={styles.bottomBarButton}
-          onPress={handleSkip}
-          activeOpacity={0.7}
-          disabled={isStarting}
-        >
-          <Text style={styles.skipButtonText}>Skip</Text>
-        </TouchableOpacity>
-
-        {/* Right: "Start Story" on step 3, "Next" otherwise */}
-        {isLastStep ? (
           <TouchableOpacity
-            style={[
-              styles.bottomBarButton,
-              styles.startStoryButton,
-              isStarting && styles.startStoryButtonDisabled,
-            ]}
-            onPress={handleStartStory}
+            style={styles.bottomBarTextButton}
+            onPress={handleSkip}
             activeOpacity={0.7}
             disabled={isStarting}
           >
-            <Text style={styles.nextButtonText}>
-              {isStarting ? 'Starting…' : 'Start Story'}
-            </Text>
+            <Text style={styles.skipButtonText}>Skip</Text>
           </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            style={[styles.bottomBarButton, styles.nextButton]}
-            onPress={handleNext}
-            activeOpacity={0.7}
+        </View>
+
+        {/* Gradient CTA button */}
+        <TouchableOpacity
+          onPress={ctaOnPress}
+          activeOpacity={0.7}
+          disabled={isStarting}
+          style={isStarting ? styles.ctaDisabled : undefined}
+        >
+          <LinearGradient
+            colors={['#4CAF50', '#2196F3']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.ctaButton}
           >
-            <Text style={styles.nextButtonText}>Next</Text>
-          </TouchableOpacity>
-        )}
+            <Text style={styles.ctaButtonText}>{ctaLabel}</Text>
+          </LinearGradient>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -743,12 +868,19 @@ const StorySetupScreen: React.FC<StorySetupScreenProps> = ({ navigation }) => {
     'Who writes first?',
   ];
 
+  const stepSubtitles = [
+    'Choose a genre for your adventure',
+    'Pick who will star in your story',
+    'Select where the magic happens',
+    'Decide how your story begins',
+  ];
+
   // ── Render step content ───────────────────────────────────────
 
   const renderStepContent = () => {
     switch (currentStep) {
       case 0:
-        return renderGenreGrid();
+        return renderGenreList();
       case 1:
         return renderCharacterStep();
       case 2:
@@ -765,7 +897,7 @@ const StorySetupScreen: React.FC<StorySetupScreenProps> = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        {renderProgressDots()}
+        {renderProgressBar()}
 
         <View style={styles.stepContentWrapper}>
           <Animated.View
@@ -775,6 +907,9 @@ const StorySetupScreen: React.FC<StorySetupScreenProps> = ({ navigation }) => {
             ]}
           >
             <Text style={styles.stepTitle}>{stepTitles[currentStep]}</Text>
+            <Text style={styles.stepSubtitle}>
+              {stepSubtitles[currentStep]}
+            </Text>
             {renderStepContent()}
           </Animated.View>
         </View>
@@ -805,22 +940,42 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // Progress dots
-  progressContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+  // Progress bar
+  progressBarContainer: {
     alignItems: 'center',
-    gap: theme.spacing.sm,
     marginBottom: theme.spacing.section,
   },
-  progressDot: {
-    width: 10,
-    height: 10,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.border,
-  },
-  progressDotActive: {
+  progressBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  progressBadgeText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700' as const,
+  },
+  progressStepLabel: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: theme.colors.textSecondary,
+    marginBottom: 10,
+  },
+  progressBarTrack: {
+    width: '100%' as const,
+    height: 4,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 2,
+    overflow: 'hidden' as const,
+  },
+  progressBarFill: {
+    height: '100%' as const,
+    backgroundColor: theme.colors.primary,
+    borderRadius: 2,
   },
 
   // Step title
@@ -832,45 +987,79 @@ const styles = StyleSheet.create({
       theme.typography.textStyles.h2.lineHeight,
     color: theme.colors.text,
     textAlign: 'center',
-    marginBottom: theme.spacing.xl,
+    marginBottom: 0,
+  },
+  stepSubtitle: {
+    fontSize: 15,
+    color: '#666666',
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 24,
   },
 
-  // Genre grid
-  gridContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: theme.spacing.md,
+  // Full-width option card pattern (shared by Genre, Character, Setting, and Starter steps)
+  optionCardList: {
+    gap: 0, // marginBottom on each card handles spacing
   },
-  genreButton: {
-    width: '47%',
-    paddingVertical: theme.spacing.base,
-    paddingHorizontal: theme.spacing.md,
-    borderWidth: theme.layout.borderWidthThick,
-    borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.button,
-    backgroundColor: theme.colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
+  optionCard: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#e0e0e0',
+    backgroundColor: '#ffffff',
+    marginBottom: 12,
     ...theme.shadows.sm,
   },
-  genreButtonSelected: {
+  optionCardSelected: {
     borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.inputBackgroundValid, // #f0fff0 — light green
+    backgroundColor: '#f0fff0',
   },
-  genreEmoji: {
-    fontSize: 28,
-    marginBottom: theme.spacing.xs,
+  optionCardEmojiCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#f5f5f5',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
-  genreLabel: {
-    fontSize: theme.typography.textStyles.button.fontSize,
-    fontWeight: theme.typography.fontWeight.medium,
-    color: theme.colors.text,
-    textAlign: 'center',
+  optionCardEmojiCircleSelected: {
+    backgroundColor: '#e8f5e9',
   },
-  genreLabelSelected: {
+  optionCardEmoji: {
+    fontSize: 24,
+  },
+  optionCardLabel: {
+    flex: 1,
+    marginLeft: 14,
+    fontSize: 17,
+    fontWeight: '500' as const,
+    color: '#333333',
+  },
+  optionCardLabelSelected: {
+    fontWeight: '600' as const,
     color: theme.colors.primary,
-    fontWeight: theme.typography.fontWeight.semibold,
+  },
+  optionCardCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: '#d0d0d0',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  optionCardCheckboxSelected: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  optionCardCheckmark: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700' as const,
+    lineHeight: 16,
   },
 
   // Character step
@@ -887,19 +1076,20 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.base,
   },
   expansionLabel: {
-    fontSize: theme.typography.textStyles.bodySmall.fontSize,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.textSecondary,
-    marginBottom: theme.spacing.md,
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#666666',
+    marginBottom: 10,
+    marginTop: 20,
   },
   textInput: {
-    borderWidth: theme.layout.borderWidth,
-    borderColor: theme.colors.inputBorder,
-    borderRadius: theme.borderRadius.input,
-    backgroundColor: theme.colors.inputBackground,
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.base,
-    fontSize: theme.typography.textStyles.body.fontSize,
+    borderWidth: 1.5,
+    borderColor: '#e0e0e0',
+    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    fontSize: 16,
     color: theme.colors.text,
     marginTop: theme.spacing.md,
   },
@@ -907,61 +1097,28 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.xl,
   },
   nameInputLabel: {
-    fontSize: theme.typography.textStyles.bodySmall.fontSize,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.textSecondary,
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#666666',
     marginBottom: theme.spacing.sm,
-  },
-
-  // Starter options (Step 3) — full-width stacked buttons
-  starterContainer: {
-    gap: theme.spacing.base,
-  },
-  starterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: theme.spacing.lg,
-    paddingHorizontal: theme.spacing.xl,
-    borderWidth: theme.layout.borderWidthThick,
-    borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.button,
-    backgroundColor: theme.colors.surface,
-    ...theme.shadows.sm,
-  },
-  starterButtonSelected: {
-    borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.inputBackgroundValid,
-  },
-  starterEmoji: {
-    fontSize: 28,
-    marginRight: theme.spacing.base,
-  },
-  starterLabel: {
-    fontSize: theme.typography.textStyles.body.fontSize,
-    fontWeight: theme.typography.fontWeight.medium,
-    color: theme.colors.text,
-  },
-  starterLabelSelected: {
-    color: theme.colors.primary,
-    fontWeight: theme.typography.fontWeight.semibold,
   },
 
   // Bottom bar
   bottomBar: {
+    paddingTop: 12,
+    paddingBottom: 8,
+    backgroundColor: theme.colors.surface,
+  },
+  bottomBarTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: theme.spacing.screen,
-    paddingVertical: theme.spacing.base,
-    borderTopWidth: theme.layout.borderWidth,
-    borderTopColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
+    marginBottom: 8,
   },
-  bottomBarButton: {
-    paddingVertical: theme.spacing.md,
+  bottomBarTextButton: {
+    paddingVertical: theme.spacing.sm,
     paddingHorizontal: theme.spacing.base,
-    minWidth: 60,
-    alignItems: 'center',
   },
   closeButtonText: {
     fontSize: theme.typography.fontSize.lg,
@@ -978,23 +1135,21 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.textStyles.button.fontWeight,
     color: theme.colors.textSecondary,
   },
-  nextButton: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.borderRadius.button,
-    paddingHorizontal: theme.spacing.xl,
+  ctaButton: {
+    height: 52,
+    borderRadius: 12,
+    marginHorizontal: 20,
+    marginBottom: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  startStoryButton: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.borderRadius.button,
-    paddingHorizontal: theme.spacing.xl,
-  },
-  startStoryButtonDisabled: {
-    backgroundColor: theme.colors.disabled,
-  },
-  nextButtonText: {
-    fontSize: theme.typography.textStyles.button.fontSize,
-    fontWeight: theme.typography.textStyles.button.fontWeight,
+  ctaButtonText: {
     color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '600' as const,
+  },
+  ctaDisabled: {
+    opacity: 0.5,
   },
 });
 
