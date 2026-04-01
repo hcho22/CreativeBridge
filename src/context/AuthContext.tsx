@@ -26,6 +26,7 @@ import type {
 } from '../types/database';
 import { RememberMeStorage } from '../utils/rememberMeStorage';
 import { xpEventTracker } from '../services/xpEventTracker';
+import { onboardingService } from '../services/onboardingService';
 import {
   clearAllClerkTokens,
   clearAndVerifyTokens,
@@ -499,6 +500,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Clear all app-related AsyncStorage data
       await clearAllAppData(rememberMeData?.isEnabled);
+
+      // Clear in-memory singleton caches (AsyncStorage wipe alone doesn't reset these)
+      onboardingService.clearAllCaches();
 
       // Sign out from Clerk (for OAuth users)
       if (clerkAuth?.isSignedIn) {

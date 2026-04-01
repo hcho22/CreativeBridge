@@ -61,9 +61,9 @@ import {
   EnhancedEmptyState,
 } from '../components/onboarding';
 import { onboardingMilestoneTracker } from '../services/onboardingMilestoneTracker';
-import { onboardingService } from '../services/onboardingService';
 import { AdaptiveGlassBackground } from '../components/common/AdaptiveGlassBackground';
 import { ImageDisplayModal } from '../components/common/ImageDisplayModal';
+import { useMutation } from 'convex/react';
 import { getConvexClient, api, isConvexReady } from '../services/convex';
 import type { Id } from '../../convex/_generated/dataModel';
 
@@ -98,6 +98,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   // All users authenticate via Clerk — use Clerk user ID for all operations
   const effectiveUserId = clerkAuth?.userId || userProfile?.clerk_user_id;
   const isAuthenticated = !!clerkAuth?.isSignedIn;
+
+  // useMutation for recording milestones — uses React auth context (reliable),
+  // unlike convexClient.mutation() which can silently fail auth.
+  const recordOnboardingMilestone = useMutation(
+    api.onboarding.recordOnboardingMilestone,
+  );
 
   const [isGameActive, setIsGameActive] = useState(false);
   const [currentSession, setCurrentSession] = useState<StorySession | null>(
@@ -254,20 +260,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         const { shouldShowCelebration, isFirstStreak } =
           await onboardingMilestoneTracker.markFirstStreakAchieved();
 
-        // Sync milestone to Convex for cross-session persistence
+        // Sync milestone to Convex via useMutation hook (React auth context)
         if (isFirstStreak && effectiveUserId) {
           try {
-            const syncResult = await onboardingService.recordMilestone(
-              effectiveUserId,
-              'first_streak',
-              false,
-            );
-            if (!syncResult.success) {
-              console.error(
-                '⚠️ Failed to sync streak milestone to Convex:',
-                syncResult.error,
-              );
-            }
+            await recordOnboardingMilestone({
+              clerkUserId: effectiveUserId,
+              milestoneType: 'first_streak',
+              awardXp: false,
+            });
           } catch (err) {
             console.error('⚠️ Failed to sync streak milestone to Convex:', err);
           }
@@ -815,20 +815,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           await onboardingMilestoneTracker.markFirstVoiceInputUsed();
         if (isFirst) {
           console.log('🎤 First voice input used! Awarding XP.');
-          // Sync milestone to Convex for cross-session persistence
+          // Sync milestone to Convex via useMutation hook (React auth context)
           if (effectiveUserId) {
             try {
-              const syncResult = await onboardingService.recordMilestone(
-                effectiveUserId,
-                'first_voice',
-                false,
-              );
-              if (!syncResult.success) {
-                console.error(
-                  '⚠️ Failed to sync voice milestone to Convex:',
-                  syncResult.error,
-                );
-              }
+              await recordOnboardingMilestone({
+                clerkUserId: effectiveUserId,
+                milestoneType: 'first_voice',
+                awardXp: false,
+              });
             } catch (err) {
               console.error(
                 '⚠️ Failed to sync voice milestone to Convex:',
@@ -1792,25 +1786,34 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               await onboardingMilestoneTracker.markFirstStoryCompleted();
 
             // Sync milestone to Convex for cross-session persistence
+            // Uses useMutation hook (React auth context) instead of
+            // convexClient.mutation() which can silently fail auth.
             if (isFirstStory && effectiveUserId) {
               try {
-                const syncResult = await onboardingService.recordMilestone(
-                  effectiveUserId,
-                  'first_story',
-                  false,
+                console.log(
+                  '🔍 [DEBUG-ONBOARDING] Recording first_story via useMutation hook...',
+                  { effectiveUserId },
                 );
-                if (!syncResult.success) {
-                  console.error(
-                    '⚠️ Failed to sync story milestone to Convex:',
-                    syncResult.error,
-                  );
-                }
+                const result = await recordOnboardingMilestone({
+                  clerkUserId: effectiveUserId,
+                  milestoneType: 'first_story',
+                  awardXp: false,
+                });
+                console.log(
+                  '🔍 [DEBUG-ONBOARDING] useMutation result:',
+                  JSON.stringify(result),
+                );
               } catch (err) {
                 console.error(
-                  '⚠️ Failed to sync story milestone to Convex:',
+                  '⚠️ [DEBUG-ONBOARDING] useMutation FAILED for first_story:',
                   err,
                 );
               }
+            } else {
+              console.log('🔍 [DEBUG-ONBOARDING] Skipped Convex sync:', {
+                isFirstStory,
+                effectiveUserId,
+              });
             }
 
             if (shouldShowCelebration) {
@@ -2129,20 +2132,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         const { shouldShowCelebration, isFirstImage } =
           await onboardingMilestoneTracker.markFirstImageGenerated();
 
-        // Sync milestone to Convex for cross-session persistence
+        // Sync milestone to Convex via useMutation hook (React auth context)
         if (isFirstImage && effectiveUserId) {
           try {
-            const syncResult = await onboardingService.recordMilestone(
-              effectiveUserId,
-              'first_image',
-              false,
-            );
-            if (!syncResult.success) {
-              console.error(
-                '⚠️ Failed to sync image milestone to Convex:',
-                syncResult.error,
-              );
-            }
+            await recordOnboardingMilestone({
+              clerkUserId: effectiveUserId,
+              milestoneType: 'first_image',
+              awardXp: false,
+            });
           } catch (err) {
             console.error('⚠️ Failed to sync image milestone to Convex:', err);
           }

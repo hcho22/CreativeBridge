@@ -21,9 +21,10 @@ import {
   Platform,
   UIManager,
 } from 'react-native';
+import { useQuery, useMutation } from 'convex/react';
 import { theme } from '../../constants/theme';
+import { api } from '../../services/convex';
 import { onboardingMilestoneTracker } from '../../services/onboardingMilestoneTracker';
-import { onboardingService } from '../../services/onboardingService';
 
 // Enable LayoutAnimation on Android
 if (
@@ -84,36 +85,148 @@ export const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({
   const completionPercentage =
     totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
 
+  // Fetch server onboarding progress via Convex React hook.
+  // Unlike convexClient.query() (undocumented on ConvexReactClient),
+  // useQuery uses the official reactive subscription API and reliably
+  // returns server data after logout/re-login.
+  const serverOnboarding = useQuery(
+    api.onboarding.getOnboardingStatus,
+    userId ? { clerkUserId: userId } : 'skip',
+  );
+
+  // useMutation hook for self-healing sync: push local milestones to server
+  // when discrepancies are detected (e.g., initial write via convexClient.mutation() failed)
+  const recordMilestone = useMutation(api.onboarding.recordOnboardingMilestone);
+
   /**
-   * Load milestone progress and build checklist items
+   * Load milestone progress and build checklist items.
+   * Merges Convex server data (from useQuery) with local AsyncStorage data
+   * using OR logic: a milestone is complete if EITHER source says so.
    */
   useEffect(() => {
+    // If userId is provided, wait for the Convex query to finish loading.
+    // serverOnboarding === undefined means still loading (or skipped).
+    if (userId && serverOnboarding === undefined) {
+      console.log(
+        '🔍 [DEBUG-CHECKLIST] Waiting for serverOnboarding to load...',
+        { userId, serverOnboarding },
+      );
+      return;
+    }
+
+    console.log('🔍 [DEBUG-CHECKLIST] Loading progress with:', {
+      userId,
+      serverOnboarding: serverOnboarding
+        ? JSON.stringify(serverOnboarding.onboardingProgress)
+        : 'null/skipped',
+      serverOnboardingRaw: serverOnboarding,
+    });
+
     const loadProgress = async () => {
       try {
-        // Hydrate from Convex first to restore any progress lost from AsyncStorage
-        if (userId) {
-          try {
-            const serverResult = await onboardingService.getOnboardingProgress(
-              userId,
-            );
-            if (serverResult.success && serverResult.progress) {
-              await onboardingMilestoneTracker.hydrateFromServerProgress({
-                storiesCompleted: serverResult.progress.storiesCompleted,
-                imagesGenerated: serverResult.progress.imagesGenerated,
-                voiceInputUsed: serverResult.progress.voiceInputUsed,
-                streakAchieved: serverResult.progress.streakAchieved,
-              });
-            }
-          } catch (serverError) {
-            console.warn(
-              '⚠️ Could not hydrate from server, using local data:',
-              serverError,
-            );
-          }
+        // Build server progress from Convex React query result
+        let serverProgress: {
+          storiesCompleted: boolean;
+          imagesGenerated: boolean;
+          voiceInputUsed: boolean;
+          streakAchieved: boolean;
+        } | null = null;
+
+        if (serverOnboarding) {
+          serverProgress = {
+            storiesCompleted: serverOnboarding.onboardingProgress.first_story,
+            imagesGenerated: serverOnboarding.onboardingProgress.first_image,
+            voiceInputUsed: serverOnboarding.onboardingProgress.first_voice,
+            streakAchieved: serverOnboarding.onboardingProgress.first_streak,
+          };
+          console.log(
+            '🔍 [DEBUG-CHECKLIST] Server progress (from useQuery):',
+            JSON.stringify(serverProgress),
+          );
+          // Hydrate local storage so future reads are consistent
+          await onboardingMilestoneTracker.hydrateFromServerProgress(
+            serverProgress,
+          );
+        } else {
+          console.log(
+            '🔍 [DEBUG-CHECKLIST] No server data — serverOnboarding is null/undefined',
+          );
         }
 
-        const progress =
+        const localProgress =
           await onboardingMilestoneTracker.getMilestoneProgress();
+        console.log(
+          '🔍 [DEBUG-CHECKLIST] Local progress (from AsyncStorage):',
+          JSON.stringify(localProgress),
+        );
+
+        // Merge: milestone is complete if EITHER server OR local says so
+        const storiesCompleted =
+          localProgress.storiesCompleted ||
+          (serverProgress?.storiesCompleted ?? false);
+        const imagesGenerated =
+          localProgress.imagesGenerated ||
+          (serverProgress?.imagesGenerated ?? false);
+        const voiceInputUsed =
+          localProgress.voiceInputUsed ||
+          (serverProgress?.voiceInputUsed ?? false);
+        const streakAchieved =
+          localProgress.streakAchieved ||
+          (serverProgress?.streakAchieved ?? false);
+
+        console.log(
+          '🔍 [DEBUG-CHECKLIST] MERGED result:',
+          JSON.stringify({
+            storiesCompleted,
+            imagesGenerated,
+            voiceInputUsed,
+            streakAchieved,
+          }),
+        );
+
+        // Self-healing sync: if local has milestones the server doesn't,
+        // push them to the server via useMutation (uses React auth context,
+        // unlike convexClient.mutation() which can fail silently).
+        if (userId && serverOnboarding) {
+          const missingOnServer: string[] = [];
+          if (storiesCompleted && !serverProgress?.storiesCompleted) {
+            missingOnServer.push('first_story');
+          }
+          if (imagesGenerated && !serverProgress?.imagesGenerated) {
+            missingOnServer.push('first_image');
+          }
+          if (voiceInputUsed && !serverProgress?.voiceInputUsed) {
+            missingOnServer.push('first_voice');
+          }
+          if (streakAchieved && !serverProgress?.streakAchieved) {
+            missingOnServer.push('first_streak');
+          }
+
+          if (missingOnServer.length > 0) {
+            console.log(
+              '🔄 [DEBUG-CHECKLIST] Self-healing: syncing local milestones to server:',
+              missingOnServer,
+            );
+            for (const milestone of missingOnServer) {
+              try {
+                const syncResult = await recordMilestone({
+                  clerkUserId: userId,
+                  milestoneType: milestone,
+                  awardXp: false, // Don't double-award XP
+                });
+                console.log(
+                  `✅ [DEBUG-CHECKLIST] Synced '${milestone}' to server, result:`,
+                  JSON.stringify(syncResult),
+                );
+              } catch (syncErr) {
+                console.error(
+                  `❌ [DEBUG-CHECKLIST] Failed to sync '${milestone}' to server:`,
+                  syncErr,
+                );
+              }
+            }
+          }
+        }
 
         const items: ChecklistItem[] = [
           {
@@ -128,40 +241,33 @@ export const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({
             emoji: '📝',
             title: 'Write your first story',
             xpReward: 50,
-            isCompleted: progress.storiesCompleted,
+            isCompleted: storiesCompleted,
           },
           {
             id: 'first_image',
             emoji: '🎨',
             title: 'See your first illustration',
             xpReward: 25,
-            isCompleted: progress.imagesGenerated,
+            isCompleted: imagesGenerated,
           },
           {
             id: 'first_voice',
             emoji: '🎤',
             title: 'Try voice input',
             xpReward: 25,
-            isCompleted: progress.voiceInputUsed,
+            isCompleted: voiceInputUsed,
           },
           {
             id: 'first_streak',
             emoji: '🔥',
             title: 'Start a streak',
             xpReward: 50,
-            isCompleted: progress.streakAchieved,
+            isCompleted: streakAchieved,
           },
         ];
 
         setChecklistItems(items);
         setIsLoading(false);
-
-        // Animate progress bar to current value
-        Animated.timing(progressAnim, {
-          toValue: completionPercentage,
-          duration: theme.animation.slow,
-          useNativeDriver: false, // width animation can't use native driver
-        }).start();
       } catch (error) {
         console.error('❌ Error loading onboarding progress:', error);
         setIsLoading(false);
@@ -169,7 +275,7 @@ export const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({
     };
 
     loadProgress();
-  }, [progressAnim, completionPercentage]);
+  }, [serverOnboarding]);
 
   // Update progress bar animation when completion changes
   useEffect(() => {

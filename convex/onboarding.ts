@@ -308,8 +308,14 @@ export const recordOnboardingMilestone = mutation({
     const existingTimestamp =
       userProfile[timestampField as keyof typeof userProfile];
 
-    if (existingTimestamp) {
-      // Milestone already achieved - return early (idempotent)
+    // Check if the progress flag is consistent with the timestamp
+    const progressFlagSet =
+      userProfile.onboardingProgress[
+        milestoneType as keyof typeof userProfile.onboardingProgress
+      ];
+
+    if (existingTimestamp && progressFlagSet) {
+      // Milestone fully achieved - return early (idempotent)
       return {
         success: true,
         alreadyAchieved: true,
@@ -317,6 +323,34 @@ export const recordOnboardingMilestone = mutation({
         xpAwarded: 0,
         timestamp: existingTimestamp,
         message: `Milestone '${milestoneType}' was already achieved`,
+      };
+    }
+
+    if (existingTimestamp && !progressFlagSet) {
+      // Data inconsistency: timestamp set but progress flag missing.
+      // Repair the progress flag without re-awarding XP or changing timestamp.
+      const repairedProgress = {
+        ...userProfile.onboardingProgress,
+        [milestoneType]: true,
+      };
+      const allComplete = isOnboardingComplete(repairedProgress);
+      await ctx.db.patch(userProfile._id, {
+        onboardingProgress: repairedProgress,
+        onboardingCompleted: allComplete,
+      });
+      console.log(
+        `[recordOnboardingMilestone] Repaired inconsistent progress flag for '${milestoneType}' (user: ${args.clerkUserId})`,
+      );
+      return {
+        success: true,
+        alreadyAchieved: false,
+        milestoneType,
+        xpAwarded: 0,
+        timestamp: existingTimestamp,
+        onboardingProgress: repairedProgress,
+        onboardingCompleted: allComplete,
+        completionPercentage: calculateCompletionPercentage(repairedProgress),
+        message: `Repaired inconsistent progress flag for '${milestoneType}'`,
       };
     }
 
@@ -676,14 +710,22 @@ export const getOnboardingStatus = query({
       return null;
     }
 
-    const progress = userProfile.onboardingProgress;
+    const rawProgress = userProfile.onboardingProgress;
 
-    // Return the stored onboarding progress as-is.
-    // Reconciliation (cross-referencing activity data) is available as an
-    // explicit admin action via reconcileOnboardingProgress mutation, but is
-    // NOT run automatically here — doing so would override intentional resets
-    // and incorrectly mark new-user onboarding as complete for accounts that
-    // have pre-existing activity data.
+    // Reconcile progress flags with timestamp fields.
+    // If a timestamp exists but the progress flag is false, the flag was lost
+    // (data inconsistency). Use timestamps as source of truth for the read view.
+    // The actual data repair happens in recordOnboardingMilestone when called.
+    const progress = {
+      ...rawProgress,
+      first_story:
+        rawProgress.first_story || !!userProfile.firstStoryCompletedAt,
+      first_image:
+        rawProgress.first_image || !!userProfile.firstImageGeneratedAt,
+      first_voice: rawProgress.first_voice || !!userProfile.firstVoiceInputAt,
+      first_streak:
+        rawProgress.first_streak || !!userProfile.firstStreakAchievedAt,
+    };
 
     const completionPercentage = calculateCompletionPercentage(progress);
     const allComplete = isOnboardingComplete(progress);

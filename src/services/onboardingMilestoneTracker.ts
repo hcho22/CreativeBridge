@@ -378,9 +378,11 @@ class OnboardingMilestoneTracker {
 
   /**
    * Hydrate local milestones from server data.
-   * Called on checklist mount to restore progress that may have been lost
-   * from AsyncStorage (e.g., after simulator reload or app reinstall).
-   * Only updates local state if server has MORE completions than local.
+   * Called on checklist mount to sync local state with the Convex source of truth.
+   * ADDITIVE ONLY: adds milestones the server has that local storage is missing.
+   * Never removes local milestones — the server may lag behind local state
+   * (e.g., Convex mutation not yet propagated). Cross-user data leakage is
+   * prevented by clearing singleton caches on logout (AuthContext).
    */
   async hydrateFromServerProgress(serverProgress: {
     storiesCompleted: boolean;
@@ -392,6 +394,7 @@ class OnboardingMilestoneTracker {
       const milestones = await this.getMilestones();
       let updated = false;
 
+      // Sync first_story: only add from server, never remove local
       if (
         serverProgress.storiesCompleted &&
         !milestones.firstStoryCompletedAt
@@ -400,15 +403,21 @@ class OnboardingMilestoneTracker {
         milestones.celebrationsShown.firstStory = true; // Don't re-show celebration
         updated = true;
       }
+
+      // Sync first_image
       if (serverProgress.imagesGenerated && !milestones.firstImageGeneratedAt) {
         milestones.firstImageGeneratedAt = new Date().toISOString();
         milestones.celebrationsShown.firstImage = true;
         updated = true;
       }
+
+      // Sync first_voice
       if (serverProgress.voiceInputUsed && !milestones.firstVoiceInputAt) {
         milestones.firstVoiceInputAt = new Date().toISOString();
         updated = true;
       }
+
+      // Sync first_streak
       if (serverProgress.streakAchieved && !milestones.firstStreakAchievedAt) {
         milestones.firstStreakAchievedAt = new Date().toISOString();
         milestones.celebrationsShown.firstStreak = true;
@@ -417,7 +426,7 @@ class OnboardingMilestoneTracker {
 
       if (updated) {
         await this.saveMilestones(milestones);
-        console.log('🔄 Hydrated local milestones from server data');
+        console.log('🔄 Synced local milestones with server data');
       }
 
       return updated;

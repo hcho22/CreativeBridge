@@ -15,7 +15,9 @@ import {
   Animated,
   Pressable,
 } from 'react-native';
+import { useQuery } from 'convex/react';
 import { theme } from '../../constants/theme';
+import { api } from '../../services/convex';
 import { OnboardingChecklist } from './OnboardingChecklist';
 import { onboardingMilestoneTracker } from '../../services/onboardingMilestoneTracker';
 
@@ -42,16 +44,24 @@ export const OnboardingChecklistModal: React.FC<
   const [opacityAnim] = useState(() => new Animated.Value(0));
   const [isComplete, setIsComplete] = useState(false);
 
-  // Check if onboarding is complete
+  // Fetch server onboarding status via Convex React hook
+  const serverOnboarding = useQuery(
+    api.onboarding.getOnboardingStatus,
+    userId ? { clerkUserId: userId } : 'skip',
+  );
+
+  // Check if onboarding is complete, merging server + local data
   useEffect(() => {
     const checkCompletion = async () => {
-      const complete = await onboardingMilestoneTracker.isOnboardingComplete();
-      setIsComplete(complete);
+      const serverComplete = serverOnboarding?.onboardingCompleted ?? false;
+      const localComplete =
+        await onboardingMilestoneTracker.isOnboardingComplete();
+      setIsComplete(serverComplete || localComplete);
     };
     if (visible) {
       checkCompletion();
     }
-  }, [visible]);
+  }, [visible, serverOnboarding]);
 
   // Animate modal on open/close
   useEffect(() => {
