@@ -23,6 +23,7 @@ import {
 } from 'react-native';
 import { theme } from '../../constants/theme';
 import { onboardingMilestoneTracker } from '../../services/onboardingMilestoneTracker';
+import { onboardingService } from '../../services/onboardingService';
 
 // Enable LayoutAnimation on Android
 if (
@@ -53,6 +54,8 @@ export interface OnboardingChecklistProps {
   initiallyCollapsed?: boolean;
   /** Callback when a checklist item is tapped (for navigation hints) */
   onItemPress?: (itemId: string) => void;
+  /** User ID for server-side hydration (restores progress lost from local storage) */
+  userId?: string;
 }
 
 /**
@@ -63,6 +66,7 @@ export const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({
   onDismiss,
   initiallyCollapsed = false,
   onItemPress,
+  userId,
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(initiallyCollapsed);
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
@@ -86,6 +90,28 @@ export const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({
   useEffect(() => {
     const loadProgress = async () => {
       try {
+        // Hydrate from Convex first to restore any progress lost from AsyncStorage
+        if (userId) {
+          try {
+            const serverResult = await onboardingService.getOnboardingProgress(
+              userId,
+            );
+            if (serverResult.success && serverResult.progress) {
+              await onboardingMilestoneTracker.hydrateFromServerProgress({
+                storiesCompleted: serverResult.progress.storiesCompleted,
+                imagesGenerated: serverResult.progress.imagesGenerated,
+                voiceInputUsed: serverResult.progress.voiceInputUsed,
+                streakAchieved: serverResult.progress.streakAchieved,
+              });
+            }
+          } catch (serverError) {
+            console.warn(
+              '⚠️ Could not hydrate from server, using local data:',
+              serverError,
+            );
+          }
+        }
+
         const progress =
           await onboardingMilestoneTracker.getMilestoneProgress();
 

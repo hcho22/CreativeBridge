@@ -140,16 +140,16 @@ class OnboardingService {
       }
 
       if (!isConvexReady()) {
-        console.warn('⚠️ Convex not ready, falling back to AsyncStorage');
-        return this.buildStatusFromAsyncStorage();
+        console.warn('⚠️ Convex not ready for onboarding status query');
+        return null;
       }
 
       const convexClient = getConvexClient();
       if (!convexClient) {
         console.warn(
-          '⚠️ Convex client unavailable, falling back to AsyncStorage',
+          '⚠️ Convex client unavailable for onboarding status query',
         );
-        return this.buildStatusFromAsyncStorage();
+        return null;
       }
 
       try {
@@ -179,15 +179,12 @@ class OnboardingService {
 
         return null;
       } catch (convexError) {
-        console.error(
-          '⚠️ Convex onboarding status fetch failed, falling back to AsyncStorage:',
-          convexError,
-        );
-        return this.buildStatusFromAsyncStorage();
+        console.error('⚠️ Convex onboarding status fetch failed:', convexError);
+        return null;
       }
     } catch (error) {
       console.error('❌ Error in getOnboardingStatus:', error);
-      return this.buildStatusFromAsyncStorage();
+      return null;
     }
   }
 

@@ -251,8 +251,27 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         );
 
         // Check if this is truly the first streak and celebration should show
-        const { shouldShowCelebration } =
+        const { shouldShowCelebration, isFirstStreak } =
           await onboardingMilestoneTracker.markFirstStreakAchieved();
+
+        // Sync milestone to Convex for cross-session persistence
+        if (isFirstStreak && effectiveUserId) {
+          try {
+            const syncResult = await onboardingService.recordMilestone(
+              effectiveUserId,
+              'first_streak',
+              false,
+            );
+            if (!syncResult.success) {
+              console.error(
+                '⚠️ Failed to sync streak milestone to Convex:',
+                syncResult.error,
+              );
+            }
+          } catch (err) {
+            console.error('⚠️ Failed to sync streak milestone to Convex:', err);
+          }
+        }
 
         if (shouldShowCelebration) {
           console.log('🔥 [US-006] Showing first streak celebration!');
@@ -290,40 +309,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         }
 
         // Use database as source of truth for existing users
-        // total_stories_completed > 0 means user has completed stories (not new)
+        // total_stories_completed > 0 means user has used the app before (not new)
         if (
           userProfile?.total_stories_completed &&
           userProfile.total_stories_completed > 0
         ) {
           setIsNewUser(false);
-          console.log(
-            '📋 [BugFix] Existing user detected via total_stories_completed:',
-            userProfile.total_stories_completed,
-          );
-
-          // Auto-fix database: set onboarding_completed = true for existing users
-          // All users use Clerk user ID for Convex operations
-          const autoFixUserId = clerkAuth?.userId || userProfile.clerk_user_id;
-          if (!onboardingCompleted && autoFixUserId) {
-            console.log(
-              '🔧 [BugFix] Auto-fixing onboarding status with userId:',
-              autoFixUserId.substring(0, 20) + '...',
-            );
-            onboardingService
-              .markOnboardingComplete(autoFixUserId)
-              .then(result => {
-                if (result.error) {
-                  console.error(
-                    '❌ Failed to auto-fix onboarding status:',
-                    result.error,
-                  );
-                } else {
-                  console.log(
-                    '✅ Auto-fixed onboarding_completed for existing user',
-                  );
-                }
-              });
-          }
           return;
         }
 
@@ -824,6 +815,27 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           await onboardingMilestoneTracker.markFirstVoiceInputUsed();
         if (isFirst) {
           console.log('🎤 First voice input used! Awarding XP.');
+          // Sync milestone to Convex for cross-session persistence
+          if (effectiveUserId) {
+            try {
+              const syncResult = await onboardingService.recordMilestone(
+                effectiveUserId,
+                'first_voice',
+                false,
+              );
+              if (!syncResult.success) {
+                console.error(
+                  '⚠️ Failed to sync voice milestone to Convex:',
+                  syncResult.error,
+                );
+              }
+            } catch (err) {
+              console.error(
+                '⚠️ Failed to sync voice milestone to Convex:',
+                err,
+              );
+            }
+          }
           // Award XP for first voice input (US-010)
           const xpResult = await awardOnboardingXP('first_voice');
           if (xpResult.success) {
@@ -1776,8 +1788,30 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             setIsGameCompleted(true);
 
             // Check if this is the user's first story completion (US-004)
-            const { shouldShowCelebration } =
+            const { shouldShowCelebration, isFirstStory } =
               await onboardingMilestoneTracker.markFirstStoryCompleted();
+
+            // Sync milestone to Convex for cross-session persistence
+            if (isFirstStory && effectiveUserId) {
+              try {
+                const syncResult = await onboardingService.recordMilestone(
+                  effectiveUserId,
+                  'first_story',
+                  false,
+                );
+                if (!syncResult.success) {
+                  console.error(
+                    '⚠️ Failed to sync story milestone to Convex:',
+                    syncResult.error,
+                  );
+                }
+              } catch (err) {
+                console.error(
+                  '⚠️ Failed to sync story milestone to Convex:',
+                  err,
+                );
+              }
+            }
 
             if (shouldShowCelebration) {
               // Award XP for first story completion (US-010)
@@ -2092,8 +2126,28 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       // Check if this is the user's first image generation (US-005)
       let celebrationShown = false;
       try {
-        const { shouldShowCelebration } =
+        const { shouldShowCelebration, isFirstImage } =
           await onboardingMilestoneTracker.markFirstImageGenerated();
+
+        // Sync milestone to Convex for cross-session persistence
+        if (isFirstImage && effectiveUserId) {
+          try {
+            const syncResult = await onboardingService.recordMilestone(
+              effectiveUserId,
+              'first_image',
+              false,
+            );
+            if (!syncResult.success) {
+              console.error(
+                '⚠️ Failed to sync image milestone to Convex:',
+                syncResult.error,
+              );
+            }
+          } catch (err) {
+            console.error('⚠️ Failed to sync image milestone to Convex:', err);
+          }
+        }
+
         if (shouldShowCelebration) {
           console.log('🎨 First image generated! Showing celebration modal.');
           // Award XP for first image generation (US-010)

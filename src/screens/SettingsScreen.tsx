@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,6 @@ import type { GradeLevel } from '../types/database';
 import type { SettingsStackParamList } from '../navigation/AppNavigator';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { OnboardingChecklistModal } from '../components/onboarding/OnboardingChecklistModal';
-import { onboardingMilestoneTracker } from '../services/onboardingMilestoneTracker';
 import { LEGAL_URLS } from '../config/legalUrls';
 import { useParentalGate } from '../components/common/ParentalGate';
 
@@ -40,16 +39,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
   );
   // Onboarding progress modal state (US-018)
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
-  const [isOnboardingComplete, setIsOnboardingComplete] = useState(true);
-
-  // Check if onboarding is complete on mount
-  useEffect(() => {
-    const checkOnboardingStatus = async () => {
-      const complete = await onboardingMilestoneTracker.isOnboardingComplete();
-      setIsOnboardingComplete(complete);
-    };
-    checkOnboardingStatus();
-  }, []);
 
   const handleSpeechToggle = async (value: boolean) => {
     setSpeechEnabled(value);
@@ -210,33 +199,31 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
             </View>
           </View>
 
-          {/* Onboarding Progress Section (US-018) - Only show if not complete */}
-          {!isOnboardingComplete && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>🚀 Getting Started</Text>
+          {/* Onboarding Progress Section (US-018) - Always visible so users can review progress */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🚀 Getting Started</Text>
 
-              <TouchableOpacity
-                style={styles.onboardingButton}
-                onPress={() => setShowOnboardingModal(true)}
-                accessibilityRole="button"
-                accessibilityLabel="View onboarding progress"
-                accessibilityHint="Opens a modal showing your onboarding checklist progress"
-              >
-                <View style={styles.onboardingButtonContent}>
-                  <Text style={styles.onboardingButtonIcon}>📋</Text>
-                  <View style={styles.onboardingButtonText}>
-                    <Text style={styles.onboardingButtonTitle}>
-                      Onboarding Progress
-                    </Text>
-                    <Text style={styles.onboardingButtonDescription}>
-                      View your getting started checklist and earn XP
-                    </Text>
-                  </View>
-                  <Text style={styles.onboardingButtonArrow}>›</Text>
+            <TouchableOpacity
+              style={styles.onboardingButton}
+              onPress={() => setShowOnboardingModal(true)}
+              accessibilityRole="button"
+              accessibilityLabel="View onboarding progress"
+              accessibilityHint="Opens a modal showing your onboarding checklist progress"
+            >
+              <View style={styles.onboardingButtonContent}>
+                <Text style={styles.onboardingButtonIcon}>📋</Text>
+                <View style={styles.onboardingButtonText}>
+                  <Text style={styles.onboardingButtonTitle}>
+                    Onboarding Progress
+                  </Text>
+                  <Text style={styles.onboardingButtonDescription}>
+                    View your getting started checklist and earn XP
+                  </Text>
                 </View>
-              </TouchableOpacity>
-            </View>
-          )}
+                <Text style={styles.onboardingButtonArrow}>›</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
 
           {/* Parent Dashboard Section (US-021) — only for under-13 users */}
           {userProfile?.age_group === 'under_13' && (
@@ -333,13 +320,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
         {/* Onboarding Checklist Modal (US-018) */}
         <OnboardingChecklistModal
           visible={showOnboardingModal}
-          onClose={() => {
-            setShowOnboardingModal(false);
-            // Recheck completion status after closing modal
-            onboardingMilestoneTracker
-              .isOnboardingComplete()
-              .then(setIsOnboardingComplete);
-          }}
+          userId={userProfile?.clerk_user_id}
+          onClose={() => setShowOnboardingModal(false)}
         />
       </ScrollView>
 

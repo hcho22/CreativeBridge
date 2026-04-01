@@ -27,6 +27,8 @@ export interface OnboardingChecklistModalProps {
   visible: boolean;
   /** Callback when the modal is closed */
   onClose: () => void;
+  /** User ID for server-side hydration of progress */
+  userId?: string;
 }
 
 /**
@@ -35,7 +37,7 @@ export interface OnboardingChecklistModalProps {
  */
 export const OnboardingChecklistModal: React.FC<
   OnboardingChecklistModalProps
-> = ({ visible, onClose }) => {
+> = ({ visible, onClose, userId }) => {
   const [scaleAnim] = useState(() => new Animated.Value(0));
   const [opacityAnim] = useState(() => new Animated.Value(0));
   const [isComplete, setIsComplete] = useState(false);
@@ -136,7 +138,7 @@ export const OnboardingChecklistModal: React.FC<
 
             {/* Checklist */}
             <View style={styles.checklistWrapper}>
-              <OnboardingChecklist initiallyCollapsed={false} />
+              <OnboardingChecklist initiallyCollapsed={false} userId={userId} />
             </View>
 
             {/* Footer */}

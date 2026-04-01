@@ -486,6 +486,102 @@ export const recordMultipleMilestones = mutation({
 });
 
 /**
+ * Reconcile onboarding progress with actual activity data.
+ * Fixes milestones that were completed before Convex sync existed
+ * by checking totalStoriesCompleted, imageGenerationEvents, longestStreak, etc.
+ * Called by the client when getOnboardingStatus indicates needsReconciliation.
+ *
+ * @param clerkUserId - Clerk user ID
+ * @returns Reconciliation results
+ */
+export const reconcileOnboardingProgress = mutation({
+  args: {
+    clerkUserId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx);
+
+    const userProfile = await ctx.db
+      .query('userProfiles')
+      .withIndex('by_clerk_user_id', q => q.eq('clerkUserId', args.clerkUserId))
+      .first();
+
+    if (!userProfile) {
+      throw new Error(
+        `User profile not found for Clerk ID: ${args.clerkUserId}`,
+      );
+    }
+
+    const progress = userProfile.onboardingProgress;
+    const updateFields: Record<string, unknown> = {};
+    const reconciledMilestones: string[] = [];
+    const timestamp = new Date().toISOString();
+
+    // first_story: check totalStoriesCompleted
+    if (!progress.first_story && userProfile.totalStoriesCompleted > 0) {
+      reconciledMilestones.push('first_story');
+      if (!userProfile.firstStoryCompletedAt) {
+        updateFields.firstStoryCompletedAt = timestamp;
+      }
+    }
+
+    // first_image: check imageGenerationEvents table
+    if (!progress.first_image) {
+      if (userProfile.firstImageGeneratedAt) {
+        reconciledMilestones.push('first_image');
+      } else {
+        const imageEvent = await ctx.db
+          .query('imageGenerationEvents')
+          .withIndex('by_clerk_user', q =>
+            q.eq('clerkUserId', args.clerkUserId),
+          )
+          .first();
+        if (imageEvent) {
+          reconciledMilestones.push('first_image');
+          updateFields.firstImageGeneratedAt = timestamp;
+        }
+      }
+    }
+
+    // first_streak: check longestStreak
+    if (!progress.first_streak && userProfile.longestStreak >= 2) {
+      reconciledMilestones.push('first_streak');
+      if (!userProfile.firstStreakAchievedAt) {
+        updateFields.firstStreakAchievedAt = timestamp;
+      }
+    }
+
+    // first_voice: check timestamp field only (no activity counter)
+    if (!progress.first_voice && userProfile.firstVoiceInputAt) {
+      reconciledMilestones.push('first_voice');
+    }
+
+    if (reconciledMilestones.length > 0) {
+      const updatedProgress = { ...progress };
+      for (const milestone of reconciledMilestones) {
+        updatedProgress[milestone as keyof typeof updatedProgress] = true;
+      }
+      updateFields.onboardingProgress = updatedProgress;
+      updateFields.onboardingCompleted = isOnboardingComplete(updatedProgress);
+
+      await ctx.db.patch(userProfile._id, updateFields);
+
+      return {
+        success: true,
+        reconciled: reconciledMilestones,
+        completionPercentage: calculateCompletionPercentage(updatedProgress),
+      };
+    }
+
+    return {
+      success: true,
+      reconciled: [],
+      completionPercentage: calculateCompletionPercentage(progress),
+    };
+  },
+});
+
+/**
  * Reset onboarding progress for a user.
  * Useful for testing or if a user wants to restart onboarding.
  *
@@ -581,7 +677,16 @@ export const getOnboardingStatus = query({
     }
 
     const progress = userProfile.onboardingProgress;
+
+    // Return the stored onboarding progress as-is.
+    // Reconciliation (cross-referencing activity data) is available as an
+    // explicit admin action via reconcileOnboardingProgress mutation, but is
+    // NOT run automatically here — doing so would override intentional resets
+    // and incorrectly mark new-user onboarding as complete for accounts that
+    // have pre-existing activity data.
+
     const completionPercentage = calculateCompletionPercentage(progress);
+    const allComplete = isOnboardingComplete(progress);
 
     // Determine next milestone to suggest
     let nextMilestone: MilestoneType | null = null;
@@ -596,7 +701,7 @@ export const getOnboardingStatus = query({
     }
 
     return {
-      onboardingCompleted: userProfile.onboardingCompleted,
+      onboardingCompleted: allComplete,
       onboardingProgress: progress,
       completionPercentage,
       milestones: {
@@ -638,7 +743,10 @@ export const getMyOnboardingStatus = query({
     }
 
     const progress = userProfile.onboardingProgress;
+
+    // Return stored progress as-is (no auto-reconciliation — see getOnboardingStatus)
     const completionPercentage = calculateCompletionPercentage(progress);
+    const allComplete = isOnboardingComplete(progress);
 
     // Determine next milestone to suggest
     let nextMilestone: MilestoneType | null = null;
@@ -653,7 +761,7 @@ export const getMyOnboardingStatus = query({
     }
 
     return {
-      onboardingCompleted: userProfile.onboardingCompleted,
+      onboardingCompleted: allComplete,
       onboardingProgress: progress,
       completionPercentage,
       milestones: {

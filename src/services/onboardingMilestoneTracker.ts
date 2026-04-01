@@ -377,6 +377,57 @@ class OnboardingMilestoneTracker {
   }
 
   /**
+   * Hydrate local milestones from server data.
+   * Called on checklist mount to restore progress that may have been lost
+   * from AsyncStorage (e.g., after simulator reload or app reinstall).
+   * Only updates local state if server has MORE completions than local.
+   */
+  async hydrateFromServerProgress(serverProgress: {
+    storiesCompleted: boolean;
+    imagesGenerated: boolean;
+    voiceInputUsed: boolean;
+    streakAchieved: boolean;
+  }): Promise<boolean> {
+    try {
+      const milestones = await this.getMilestones();
+      let updated = false;
+
+      if (
+        serverProgress.storiesCompleted &&
+        !milestones.firstStoryCompletedAt
+      ) {
+        milestones.firstStoryCompletedAt = new Date().toISOString();
+        milestones.celebrationsShown.firstStory = true; // Don't re-show celebration
+        updated = true;
+      }
+      if (serverProgress.imagesGenerated && !milestones.firstImageGeneratedAt) {
+        milestones.firstImageGeneratedAt = new Date().toISOString();
+        milestones.celebrationsShown.firstImage = true;
+        updated = true;
+      }
+      if (serverProgress.voiceInputUsed && !milestones.firstVoiceInputAt) {
+        milestones.firstVoiceInputAt = new Date().toISOString();
+        updated = true;
+      }
+      if (serverProgress.streakAchieved && !milestones.firstStreakAchievedAt) {
+        milestones.firstStreakAchievedAt = new Date().toISOString();
+        milestones.celebrationsShown.firstStreak = true;
+        updated = true;
+      }
+
+      if (updated) {
+        await this.saveMilestones(milestones);
+        console.log('🔄 Hydrated local milestones from server data');
+      }
+
+      return updated;
+    } catch (error) {
+      console.error('❌ Error hydrating milestones from server:', error);
+      return false;
+    }
+  }
+
+  /**
    * Clear all milestones (for testing or account reset)
    */
   async clearMilestones(): Promise<void> {
