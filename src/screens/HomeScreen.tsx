@@ -4056,9 +4056,9 @@ const styles = StyleSheet.create({
   },
   completionScrollContent: {
     flexGrow: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 80,
-    paddingBottom: 40,
+    paddingVertical: 40,
     paddingHorizontal: 20,
   },
   completionOptionsContainer: {
