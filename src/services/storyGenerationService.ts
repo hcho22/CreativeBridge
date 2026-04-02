@@ -1150,8 +1150,14 @@ ${vocabularyGuidance[gradeLevel]}`;
   private buildUserPrompt(request: StoryRequest): string {
     // US-011: Sanitize user input to neutralize prompt injection attempts
     // US-008: Then scrub PII from user-provided content before sending to OpenAI
+    // Note: storySoFar is NOT passed through sanitizePromptInput because that
+    // function truncates at 2000 chars (designed for short user input). The story
+    // history grows each round and is already composed of previously-sanitized
+    // content. PII scrubbing still applies; the server-side scrub in convex/ai.ts
+    // provides a second pass. Long-context truncation is handled separately at
+    // MAX_CONTEXT_CHARS (8000) below which correctly keeps the tail, not the head.
     const scrubbedStorySoFar = request.storySoFar
-      ? piiScrubber.scrubText(sanitizePromptInput(request.storySoFar))
+      ? piiScrubber.scrubText(request.storySoFar)
       : undefined;
     let scrubbedUserInput = request.userInput
       ? piiScrubber.scrubText(sanitizePromptInput(request.userInput))
