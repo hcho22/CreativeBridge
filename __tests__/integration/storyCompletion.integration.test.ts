@@ -9,7 +9,10 @@
  * - Database persistence
  */
 
-import { storySessionManager, StorySession } from '../../src/services/storySessionManager';
+import {
+  storySessionManager,
+  StorySession,
+} from '../../src/services/storySessionManager';
 import { supabase } from '../../src/services/supabase';
 import { GradeLevel } from '../../src/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -70,7 +73,10 @@ describe('Integration Test: Story Completion Flow', () => {
     setupSessionCreationMock();
 
     // Step 1: Create new session
-    const session = await storySessionManager.createSession(TEST_USER_ID, TEST_GRADE_LEVEL);
+    const session = await storySessionManager.createSession(
+      TEST_USER_ID,
+      TEST_GRADE_LEVEL,
+    );
 
     expect(session).toBeTruthy();
     expect(session.id).toBe(mockSessionData.id);
@@ -92,7 +98,7 @@ describe('Integration Test: Story Completion Flow', () => {
         currentSession.id,
         'user',
         userContent,
-        currentSession
+        currentSession,
       ))!;
 
       expect(currentSession).toBeTruthy();
@@ -104,13 +110,19 @@ describe('Integration Test: Story Completion Flow', () => {
       const nextRound = Math.min(round + 1, MAX_ROUNDS);
       const shouldComplete = round === MAX_ROUNDS;
 
-      setupContributionMock(currentSession, 'ai', aiContent, nextRound, shouldComplete);
+      setupContributionMock(
+        currentSession,
+        'ai',
+        aiContent,
+        nextRound,
+        shouldComplete,
+      );
 
       currentSession = (await storySessionManager.addContribution(
         currentSession.id,
         'ai',
         aiContent,
-        currentSession
+        currentSession,
       ))!;
 
       expect(currentSession).toBeTruthy();
@@ -119,11 +131,15 @@ describe('Integration Test: Story Completion Flow', () => {
         expect(currentSession.current_round).toBe(MAX_ROUNDS);
         expect(currentSession.isCompleted).toBe(true);
         expect(currentSession.completed_at).toBeTruthy();
-        console.log(`    ✅ AI contribution added - STORY COMPLETE! (round ${MAX_ROUNDS})`);
+        console.log(
+          `    ✅ AI contribution added - STORY COMPLETE! (round ${MAX_ROUNDS})`,
+        );
       } else {
         expect(currentSession.current_round).toBe(nextRound);
         expect(currentSession.isCompleted).toBe(false);
-        console.log(`    ✓ AI contribution added (round advanced to ${nextRound})`);
+        console.log(
+          `    ✓ AI contribution added (round advanced to ${nextRound})`,
+        );
       }
     }
 
@@ -148,7 +164,10 @@ describe('Integration Test: Story Completion Flow', () => {
     console.log('🧪 Test 2: Database persistence verification');
 
     setupSessionCreationMock();
-    const session = await storySessionManager.createSession(TEST_USER_ID, TEST_GRADE_LEVEL);
+    const session = await storySessionManager.createSession(
+      TEST_USER_ID,
+      TEST_GRADE_LEVEL,
+    );
 
     const updateCalls: any[] = [];
 
@@ -175,17 +194,31 @@ describe('Integration Test: Story Completion Flow', () => {
     });
 
     // Add one user and one AI contribution
-    await storySessionManager.addContribution(session.id, 'user', 'Test user input', session);
-    await storySessionManager.addContribution(session.id, 'ai', 'Test AI response', session);
+    await storySessionManager.addContribution(
+      session.id,
+      'user',
+      'Test user input',
+      session,
+    );
+    await storySessionManager.addContribution(
+      session.id,
+      'ai',
+      'Test AI response',
+      session,
+    );
 
     // Verify database updates were called
     expect(updateCalls.length).toBeGreaterThanOrEqual(2);
 
     // Verify current_round was persisted in at least one call
-    const roundUpdates = updateCalls.filter(call => call.current_round !== undefined);
+    const roundUpdates = updateCalls.filter(
+      call => call.current_round !== undefined,
+    );
     expect(roundUpdates.length).toBeGreaterThan(0);
 
-    console.log(`  ✅ Database updates verified: ${updateCalls.length} total calls`);
+    console.log(
+      `  ✅ Database updates verified: ${updateCalls.length} total calls`,
+    );
     console.log(`     - Round updates: ${roundUpdates.length}`);
   });
 
@@ -203,7 +236,10 @@ describe('Integration Test: Story Completion Flow', () => {
     mockSessionData.story_content = 'Complete story...';
 
     setupSessionCreationMock();
-    const session = await storySessionManager.createSession(TEST_USER_ID, TEST_GRADE_LEVEL);
+    const session = await storySessionManager.createSession(
+      TEST_USER_ID,
+      TEST_GRADE_LEVEL,
+    );
     session.current_round = MAX_ROUNDS;
     session.isCompleted = true;
 
@@ -214,7 +250,7 @@ describe('Integration Test: Story Completion Flow', () => {
       session.id,
       'ai',
       'Extra content after completion',
-      session
+      session,
     );
 
     expect(result?.current_round).toBe(MAX_ROUNDS);
@@ -231,7 +267,10 @@ describe('Integration Test: Story Completion Flow', () => {
     console.log('🧪 Test 4: Partial story progress persistence');
 
     setupSessionCreationMock();
-    let session = await storySessionManager.createSession(TEST_USER_ID, TEST_GRADE_LEVEL);
+    let session = await storySessionManager.createSession(
+      TEST_USER_ID,
+      TEST_GRADE_LEVEL,
+    );
 
     // Complete 3 rounds
     for (let round = 1; round <= 3; round++) {
@@ -240,7 +279,7 @@ describe('Integration Test: Story Completion Flow', () => {
         session.id,
         'user',
         `User ${round}`,
-        session
+        session,
       ))!;
 
       setupContributionMock(session, 'ai', `AI ${round}`, round + 1, false);
@@ -248,7 +287,7 @@ describe('Integration Test: Story Completion Flow', () => {
         session.id,
         'ai',
         `AI ${round}`,
-        session
+        session,
       ))!;
     }
 
@@ -297,18 +336,21 @@ describe('Integration Test: Story Completion Flow', () => {
     const beforeTest = Date.now();
 
     setupSessionCreationMock();
-    let session = await storySessionManager.createSession(TEST_USER_ID, TEST_GRADE_LEVEL);
+    let session = await storySessionManager.createSession(
+      TEST_USER_ID,
+      TEST_GRADE_LEVEL,
+    );
 
-    // Fast-forward to round 4
-    session.current_round = 4;
+    // Fast-forward to round 5 (4 complete rounds, final round in progress)
+    session.current_round = 5;
 
     // Complete the final round
-    setupContributionMock(session, 'user', 'Final user input', 4);
+    setupContributionMock(session, 'user', 'Final user input', 5);
     session = (await storySessionManager.addContribution(
       session.id,
       'user',
       'Final user input',
-      session
+      session,
     ))!;
 
     const completionAt = new Date().toISOString();
@@ -317,7 +359,7 @@ describe('Integration Test: Story Completion Flow', () => {
       session.id,
       'ai',
       'The end.',
-      session
+      session,
     ))!;
 
     const afterTest = Date.now();
@@ -362,10 +404,12 @@ describe('Integration Test: Story Completion Flow', () => {
     content: string,
     newRound: number,
     shouldComplete: boolean = false,
-    completedAt?: string
+    completedAt?: string,
   ) {
     const updatedContent = session.story_content
-      ? `${session.story_content}\n${type === 'user' ? 'User' : 'AI'}: ${content}`
+      ? `${session.story_content}\n${
+          type === 'user' ? 'User' : 'AI'
+        }: ${content}`
       : `${type === 'user' ? 'User' : 'AI'}: ${content}`;
 
     const wordCount = content.split(' ').length;
@@ -378,7 +422,9 @@ describe('Integration Test: Story Completion Flow', () => {
       story_content: updatedContent,
       words_written: session.words_written + wordCount,
       sentences_completed: session.sentences_completed + sentenceCount,
-      completed_at: shouldComplete ? (completedAt || new Date().toISOString()) : null,
+      completed_at: shouldComplete
+        ? completedAt || new Date().toISOString()
+        : null,
     };
 
     mockSessionData = updatedData;

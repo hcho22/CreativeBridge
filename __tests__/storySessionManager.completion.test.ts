@@ -154,33 +154,40 @@ describe('Story Completion Tracking - Task 3.1', () => {
         metadata: {},
       };
 
-      // Simulate 3 full rounds of AI contributions
+      // Simulate 3 full rounds of user+AI pairs
       let currentSession = mockSession;
       for (let round = 1; round <= 3; round++) {
-        const updated = await storySessionManager.addContribution(
+        // User opens the round
+        currentSession = (await storySessionManager.addContribution(
+          currentSession.id,
+          'user',
+          `User input ${round}`,
+          currentSession,
+        ))!;
+        // AI closes the round (pair complete → round advances)
+        currentSession = (await storySessionManager.addContribution(
           currentSession.id,
           'ai',
           `AI response ${round}`,
           currentSession,
-        );
+        ))!;
 
-        expect(updated?.current_round).toBe(round + 1);
-        currentSession = updated!;
+        expect(currentSession.current_round).toBe(round + 1);
       }
 
-      // After 3 AI contributions, should be at round 4
+      // After 3 complete pairs, should be at round 4
       expect(currentSession.current_round).toBe(4);
     });
   });
 
   describe('Auto-Completion at MAX_ROUNDS', () => {
-    it('should mark story as complete when reaching MAX_ROUNDS (5)', async () => {
+    it('should mark story as complete when a pair exceeds MAX_ROUNDS (5)', async () => {
       const mockSession: StorySession = {
         id: 'test-session-complete',
         user_id: mockUserId,
         grade_level: mockGradeLevel,
         created_at: new Date().toISOString(),
-        current_round: 4,
+        current_round: 5,
         final_score: 0,
         words_written: 50,
         sentences_completed: 8,
@@ -200,11 +207,18 @@ describe('Story Completion Tracking - Task 3.1', () => {
         metadata: {},
       };
 
-      const completed = await storySessionManager.addContribution(
+      // Add a complete pair to trigger completion
+      const afterUser = await storySessionManager.addContribution(
         mockSession.id,
+        'user',
+        'The hero won.',
+        mockSession,
+      );
+      const completed = await storySessionManager.addContribution(
+        afterUser!.id,
         'ai',
         'And they lived happily ever after.',
-        mockSession,
+        afterUser!,
       );
 
       expect(completed?.current_round).toBe(5);
@@ -220,7 +234,7 @@ describe('Story Completion Tracking - Task 3.1', () => {
         user_id: mockUserId,
         grade_level: mockGradeLevel,
         created_at: new Date(beforeCompletion - 300000).toISOString(),
-        current_round: 4,
+        current_round: 5,
         final_score: 0,
         words_written: 40,
         sentences_completed: 8,
@@ -240,11 +254,17 @@ describe('Story Completion Tracking - Task 3.1', () => {
         metadata: {},
       };
 
-      const completed = await storySessionManager.addContribution(
+      const afterUser = await storySessionManager.addContribution(
         mockSession.id,
+        'user',
+        'Final input.',
+        mockSession,
+      );
+      const completed = await storySessionManager.addContribution(
+        afterUser!.id,
         'ai',
         'The end.',
-        mockSession,
+        afterUser!,
       );
 
       const afterCompletion = Date.now();

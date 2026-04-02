@@ -267,25 +267,44 @@ class StorySessionManager {
     );
     session.sentences_completed = activeContributions.length;
 
-    // NEW: Story completion tracking - increment round after AI response
-    if (type === 'ai') {
-      session.current_round = Math.min(
-        session.current_round + 1,
-        this.MAX_ROUNDS,
+    // Story completion tracking — increment round when a PAIR completes.
+    // A "round" = one pair of contributions (2 active entries), regardless of who goes first.
+    // When AI starts: AI opens, User closes → round advances after User contributes.
+    // When user starts: User opens, AI closes → round advances after AI contributes.
+    // Round advances on every even-numbered active contribution (2nd, 4th, 6th, ...).
+    const isPairComplete =
+      activeContributions.length > 0 && activeContributions.length % 2 === 0;
+
+    if (isPairComplete) {
+      session.current_round = session.current_round + 1;
+      console.log(
+        `📊 [ROUND] Pair complete: ${activeContributions.length} active, round=${session.current_round}/${this.MAX_ROUNDS}`,
       );
 
-      // Check if story should be completed (reached MAX_ROUNDS)
-      if (session.current_round >= this.MAX_ROUNDS && !session.isCompleted) {
-        console.log('🎉 Story reached MAX_ROUNDS - marking as complete');
-        session.isCompleted = true;
-        session.completed_at = new Date().toISOString();
+      // Completion: game ends when round exceeds MAX_ROUNDS
+      if (session.current_round > this.MAX_ROUNDS) {
+        if (!session.isCompleted) {
+          console.log(
+            `🎉 Story completed after ${Math.floor(
+              activeContributions.length / 2,
+            )} rounds`,
+          );
+          session.isCompleted = true;
+          session.completed_at = new Date().toISOString();
 
-        // Calculate XP and score before updating statistics
-        await this.calculateAndSetRewards(session);
+          // Calculate XP and score before updating statistics
+          await this.calculateAndSetRewards(session);
 
-        // Update user statistics in database
-        await this.updateUserStatisticsOnCompletion(session);
+          // Update user statistics in database
+          await this.updateUserStatisticsOnCompletion(session);
+        }
+        // Cap at MAX_ROUNDS for display
+        session.current_round = this.MAX_ROUNDS;
       }
+    } else {
+      console.log(
+        `📊 [ROUND] ${type} contribution: ${activeContributions.length} active, round=${session.current_round}/${this.MAX_ROUNDS} (waiting for pair)`,
+      );
     }
 
     // Update local stats (US-005: exclude loaded contributions from count)

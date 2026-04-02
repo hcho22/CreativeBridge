@@ -134,14 +134,22 @@ describe('StorySessionManager - Completion Tracking', () => {
       const session = await storySessionManager.getSession('session-123');
       expect(session?.current_round).toBe(1);
 
+      // Add a complete pair (user + AI) to advance the round
+      const afterUser = await storySessionManager.addContribution(
+        'session-123',
+        'user',
+        'User input',
+        session!,
+      );
+      expect(afterUser?.current_round).toBe(1); // Pair not yet complete
+
       const updated = await storySessionManager.addContribution(
         'session-123',
         'ai',
         'AI response',
-        session!,
+        afterUser!,
       );
-
-      expect(updated?.current_round).toBe(2);
+      expect(updated?.current_round).toBe(2); // Pair complete, round advances
     });
 
     it('should not increment round after user contribution', async () => {
@@ -192,12 +200,12 @@ describe('StorySessionManager - Completion Tracking', () => {
   });
 
   describe('Auto-Completion', () => {
-    it('should mark story as complete when reaching round 5', async () => {
+    it('should mark story as complete when a pair exceeds round 5', async () => {
       const convexSession = mockConvexSession({
         storyContent: 'Story in progress...',
         wordsWritten: 80,
         sentencesCompleted: 8,
-        currentRound: 4,
+        currentRound: 5,
         finalScore: 400,
         xpEarned: 200,
       });
@@ -206,11 +214,17 @@ describe('StorySessionManager - Completion Tracking', () => {
       mockConvexClient.mutation.mockResolvedValue(undefined);
 
       const session = await storySessionManager.getSession('session-123');
+      const afterUser = await storySessionManager.addContribution(
+        'session-123',
+        'user',
+        'Final user input',
+        session!,
+      );
       const updated = await storySessionManager.addContribution(
         'session-123',
         'ai',
         'Final AI response',
-        session!,
+        afterUser!,
       );
 
       expect(updated?.current_round).toBe(5);
@@ -232,11 +246,17 @@ describe('StorySessionManager - Completion Tracking', () => {
       mockConvexClient.mutation.mockResolvedValue(undefined);
 
       const session = await storySessionManager.getSession('session-123');
+      const afterUser = await storySessionManager.addContribution(
+        'session-123',
+        'user',
+        'User input',
+        session!,
+      );
       const updated = await storySessionManager.addContribution(
         'session-123',
         'ai',
         'AI response',
-        session!,
+        afterUser!,
       );
 
       expect(updated?.current_round).toBe(4);
@@ -381,7 +401,7 @@ describe('StorySessionManager - Completion Tracking', () => {
       expect(session).toBeNull();
     });
 
-    it('should handle multiple AI contributions in same round', async () => {
+    it('should handle multiple complete pairs advancing rounds', async () => {
       const convexSession = mockConvexSession({
         storyContent: 'Story...',
         wordsWritten: 40,
@@ -396,25 +416,35 @@ describe('StorySessionManager - Completion Tracking', () => {
 
       const session = await storySessionManager.getSession('session-123');
 
-      // First AI contribution
-      const updated1 = await storySessionManager.addContribution(
+      // First pair → round 2→3
+      let updated = await storySessionManager.addContribution(
+        'session-123',
+        'user',
+        'User input 1',
+        session!,
+      );
+      updated = await storySessionManager.addContribution(
         'session-123',
         'ai',
         'AI response 1',
-        session!,
+        updated!,
       );
+      expect(updated?.current_round).toBe(3);
 
-      expect(updated1?.current_round).toBe(3);
-
-      // Second AI contribution (should still increment)
-      const updated2 = await storySessionManager.addContribution(
+      // Second pair → round 3→4
+      updated = await storySessionManager.addContribution(
+        'session-123',
+        'user',
+        'User input 2',
+        updated!,
+      );
+      updated = await storySessionManager.addContribution(
         'session-123',
         'ai',
         'AI response 2',
-        updated1!,
+        updated!,
       );
-
-      expect(updated2?.current_round).toBe(4);
+      expect(updated?.current_round).toBe(4);
     });
   });
 });

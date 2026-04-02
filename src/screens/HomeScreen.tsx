@@ -1449,6 +1449,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         if (updatedSession) {
           console.log('📖 executeStartNewGame: Setting game active state');
           setCurrentSession({ ...updatedSession });
+          setCurrentRound(updatedSession.current_round);
           setIsGameActive(true);
           startFadeAnimation();
 
@@ -1503,14 +1504,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             '📖 executeStartNewGame: Setting game active state (fallback path)',
           );
           setCurrentSession({ ...updatedSession });
+          setCurrentRound(updatedSession.current_round);
           setIsGameActive(true);
           startFadeAnimation();
 
           // Initialize challenge system
           initializeChallengeSystem();
 
-          // Reset round counter for new game
-          setCurrentRound(1);
           setIsGameCompleted(false);
         } else {
           console.error(
@@ -1653,6 +1653,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   };
 
   const handleContinueStory = async () => {
+    // US-004: Prevent submissions after game completion (defense-in-depth)
+    if (isGameCompleted) return;
     if (!userInput.trim() || !currentSession) return;
 
     try {
@@ -1713,8 +1715,56 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         '✍️ User contribution added. Story length:',
         updatedSession.story_content?.length || 0,
       );
+      const _dbg = updatedSession;
+      console.log(
+        `📊 [ROUND-DEBUG] After user contribution: round=${_dbg.current_round}, completed=${_dbg.isCompleted}, contribs=${_dbg.contributions?.length}`,
+      );
       // Force re-render by creating new object reference
       setCurrentSession({ ...updatedSession });
+      setCurrentRound(updatedSession.current_round);
+
+      // Check if game should end after user's contribution
+      // (happens when user is the "closer" — e.g., AI started the game)
+      if (updatedSession.isCompleted) {
+        console.log(
+          '🎉 [ROUND-DEBUG] Game completed after user contribution (user closed final round)',
+        );
+        setIsGameCompleted(true);
+        setUserInput('');
+
+        // Handle completion milestones and UI (same as AI completion path)
+        const { shouldShowCelebration, isFirstStory } =
+          await onboardingMilestoneTracker.markFirstStoryCompleted();
+
+        if (isFirstStory && effectiveUserId) {
+          try {
+            await recordOnboardingMilestone({
+              clerkUserId: effectiveUserId,
+              milestoneType: 'first_story',
+              awardXp: false,
+            });
+          } catch (err) {
+            console.error('⚠️ useMutation FAILED for first_story:', err);
+          }
+        }
+
+        if (shouldShowCelebration) {
+          const xpResult = await awardOnboardingXP('first_story');
+          const totalXpEarned =
+            (updatedSession.xp_earned || 0) + (xpResult.xpAwarded || 0);
+          setFirstStoryXpEarned(totalXpEarned);
+          setTimeout(() => {
+            storyScrollViewRef.current?.scrollTo({ y: 0, animated: false });
+            setShowFirstStoryCelebration(true);
+          }, 1500);
+        } else {
+          setTimeout(() => {
+            storyScrollViewRef.current?.scrollTo({ y: 0, animated: false });
+            setShowCompletionOptions(true);
+          }, 2000);
+        }
+        return; // Skip AI response — game is complete
+      }
 
       // US-011: After user's first contribution in "user starts first" mode,
       // switch to normal turn-taking — AI will continue using session metadata
@@ -1777,8 +1827,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           setCurrentSession({ ...updatedSession });
           startFadeAnimation();
 
-          // Check if game should end after this round
-          if (currentRound >= MAX_ROUNDS) {
+          // Check if game should end after this round (US-002: use session state, not React state)
+          if (updatedSession.isCompleted) {
             setIsGameCompleted(true);
 
             // Check if this is the user's first story completion (US-004)
@@ -1849,9 +1899,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               }, 2000);
             }
           } else {
-            // Only increment round counter if game is continuing
-            const nextRound = currentRound + 1;
-            setCurrentRound(nextRound);
+            // US-001: Sync round counter from session manager (source of truth)
+            console.log(
+              `📊 [ROUND-DEBUG] After AI response: session.current_round=${updatedSession.current_round}, isCompleted=${updatedSession.isCompleted}, contributions=${updatedSession.contributions?.length}`,
+            );
+            setCurrentRound(updatedSession.current_round);
           }
 
           // Provide audio feedback and optionally read the AI response
@@ -3150,7 +3202,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                     setUserInput(text);
                     inputDebouncer?.handleInput(text);
                   }}
-                  editable={!loadingState.isGenerating}
+                  editable={!loadingState.isGenerating && !isGameCompleted}
                 />
 
                 {/* Button Row: Mic → Speaker → spacer → Submit */}
