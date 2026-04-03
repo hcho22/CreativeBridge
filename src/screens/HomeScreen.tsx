@@ -1747,29 +1747,47 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         setUserInput('');
 
         // Handle completion milestones and UI (same as AI completion path)
-        // Use server's isFirstStory flag (authoritative) over local AsyncStorage
-        const serverSaysFirstStory = updatedSession.serverIsFirstStory;
-        const { shouldShowCelebration, isFirstStory } =
-          await onboardingMilestoneTracker.markFirstStoryCompleted(
-            serverSaysFirstStory,
-          );
+        // Use Convex recordOnboardingMilestone as single source of truth —
+        // it has built-in idempotency (checks timestamp + progress flag)
+        // and prevents duplicate XP awards even if local state is stale.
+        let shouldShowCelebration = false;
+        let milestoneXpAwarded = 0;
 
-        if (isFirstStory && effectiveUserId) {
+        if (effectiveUserId) {
           try {
-            await recordOnboardingMilestone({
+            const milestoneResult = await recordOnboardingMilestone({
               clerkUserId: effectiveUserId,
               milestoneType: 'first_story',
-              awardXp: false,
+              awardXp: true,
             });
+            shouldShowCelebration = !milestoneResult.alreadyAchieved;
+            milestoneXpAwarded = milestoneResult.xpAwarded ?? 0;
+            // Sync local tracker to match server state
+            await onboardingMilestoneTracker.markFirstStoryCompleted(
+              !milestoneResult.alreadyAchieved,
+            );
           } catch (err) {
-            console.error('⚠️ useMutation FAILED for first_story:', err);
+            console.error(
+              '⚠️ recordOnboardingMilestone failed for first_story:',
+              err,
+            );
+            // Fallback: use server flag from completeGameSession if available
+            const serverSaysFirstStory = updatedSession.serverIsFirstStory;
+            if (serverSaysFirstStory === true) {
+              shouldShowCelebration = true;
+              const xpResult = await awardOnboardingXP('first_story');
+              milestoneXpAwarded = xpResult.xpAwarded || 0;
+              await onboardingMilestoneTracker.markFirstStoryCompleted(true);
+            } else {
+              // Server says not first story OR server unavailable — don't celebrate
+              await onboardingMilestoneTracker.markFirstStoryCompleted(false);
+            }
           }
         }
 
         if (shouldShowCelebration) {
-          const xpResult = await awardOnboardingXP('first_story');
           const totalXpEarned =
-            (updatedSession.xp_earned || 0) + (xpResult.xpAwarded || 0);
+            (updatedSession.xp_earned || 0) + milestoneXpAwarded;
           setFirstStoryXpEarned(totalXpEarned);
           setTimeout(() => {
             storyScrollViewRef.current?.scrollTo({ y: 0, animated: false });
@@ -1850,55 +1868,52 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             setIsGameCompleted(true);
 
             // Check if this is the user's first story completion (US-004)
-            // Use server's isFirstStory flag (authoritative) over local AsyncStorage
-            const serverSaysFirstStory = updatedSession.serverIsFirstStory;
-            const { shouldShowCelebration, isFirstStory } =
-              await onboardingMilestoneTracker.markFirstStoryCompleted(
-                serverSaysFirstStory,
-              );
+            // Use Convex recordOnboardingMilestone as single source of truth —
+            // it has built-in idempotency (checks timestamp + progress flag)
+            // and prevents duplicate XP awards even if local state is stale.
+            let shouldShowCelebration = false;
+            let milestoneXpAwarded = 0;
 
-            // Sync milestone to Convex for cross-session persistence
-            // Uses useMutation hook (React auth context) instead of
-            // convexClient.mutation() which can silently fail auth.
-            if (isFirstStory && effectiveUserId) {
+            if (effectiveUserId) {
               try {
-                console.log(
-                  '🔍 [DEBUG-ONBOARDING] Recording first_story via useMutation hook...',
-                  { effectiveUserId },
-                );
-                const result = await recordOnboardingMilestone({
+                const milestoneResult = await recordOnboardingMilestone({
                   clerkUserId: effectiveUserId,
                   milestoneType: 'first_story',
-                  awardXp: false,
+                  awardXp: true,
                 });
-                console.log(
-                  '🔍 [DEBUG-ONBOARDING] useMutation result:',
-                  JSON.stringify(result),
+                shouldShowCelebration = !milestoneResult.alreadyAchieved;
+                milestoneXpAwarded = milestoneResult.xpAwarded ?? 0;
+                // Sync local tracker to match server state
+                await onboardingMilestoneTracker.markFirstStoryCompleted(
+                  !milestoneResult.alreadyAchieved,
                 );
               } catch (err) {
                 console.error(
-                  '⚠️ [DEBUG-ONBOARDING] useMutation FAILED for first_story:',
+                  '⚠️ recordOnboardingMilestone failed for first_story:',
                   err,
                 );
+                // Fallback: use server flag from completeGameSession if available
+                const serverSaysFirstStory = updatedSession.serverIsFirstStory;
+                if (serverSaysFirstStory === true) {
+                  shouldShowCelebration = true;
+                  const xpResult = await awardOnboardingXP('first_story');
+                  milestoneXpAwarded = xpResult.xpAwarded || 0;
+                  await onboardingMilestoneTracker.markFirstStoryCompleted(
+                    true,
+                  );
+                } else {
+                  // Server says not first story OR server unavailable — don't celebrate
+                  await onboardingMilestoneTracker.markFirstStoryCompleted(
+                    false,
+                  );
+                }
               }
-            } else {
-              console.log('🔍 [DEBUG-ONBOARDING] Skipped Convex sync:', {
-                isFirstStory,
-                effectiveUserId,
-              });
             }
 
             if (shouldShowCelebration) {
-              // Award XP for first story completion (US-010)
-              const xpResult = await awardOnboardingXP('first_story');
-              if (xpResult.success) {
-                console.log(
-                  `🎁 [US-010] Awarded ${xpResult.xpAwarded} XP for first story!`,
-                );
-              }
               // Store XP earned for celebration modal (story XP + onboarding bonus)
               const totalXpEarned =
-                (updatedSession.xp_earned || 0) + (xpResult.xpAwarded || 0);
+                (updatedSession.xp_earned || 0) + milestoneXpAwarded;
               setFirstStoryXpEarned(totalXpEarned);
 
               // Show first story celebration before completion options
