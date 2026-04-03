@@ -1326,8 +1326,8 @@ Continue the story with 1-3 sentences. Keep your response under 200 words.`;
       violations.push('Grade level is required');
     }
 
-    if (request.userInput && request.userInput.length > 1000) {
-      violations.push('User input too long (max 1000 characters)');
+    if (request.userInput && request.userInput.length > 2000) {
+      violations.push('User input too long (max 2000 characters)');
     }
 
     // No hard limit on storySoFar length — loaded/continued stories can

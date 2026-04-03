@@ -13,7 +13,7 @@ describe('API Client - Story Content Validation', () => {
       jest.restoreAllMocks();
     });
 
-    it('should allow content under 1000 characters with 3 sentences', async () => {
+    it('should allow content under 2000 characters with 8 sentences', async () => {
       const validContent =
         'This is the first sentence. This is the second sentence. This is the third sentence.';
 
@@ -26,12 +26,12 @@ describe('API Client - Story Content Validation', () => {
       expect(result.suggestions).toHaveLength(0);
     });
 
-    it('should reject content over 1000 characters', async () => {
-      // Create content over 1000 characters
+    it('should reject content over 2000 characters', async () => {
+      // Create content over 2000 characters
       const longContent =
         'This is a very long sentence that will be repeated many times to exceed the character limit. '.repeat(
-          15,
-        ); // Should be over 1000 chars
+          25,
+        ); // Should be over 2000 chars
 
       const result = await apiClient.validateStoryContent(longContent, 'K-2', {
         fallback: true,
@@ -40,13 +40,13 @@ describe('API Client - Story Content Validation', () => {
       expect(result.isValid).toBe(false);
       expect(result.issues).toContain('Content too long');
       expect(result.suggestions).toContain(
-        'Try to keep it under 1000 characters',
+        'Try to keep it under 2000 characters',
       );
     });
 
-    it('should reject content with more than 3 sentences', async () => {
+    it('should reject content with more than 8 sentences', async () => {
       const tooManySentences =
-        'First sentence. Second sentence. Third sentence. Fourth sentence.';
+        'First sentence. Second sentence. Third sentence. Fourth sentence. Fifth sentence. Sixth sentence. Seventh sentence. Eighth sentence. Ninth sentence.';
 
       const result = await apiClient.validateStoryContent(
         tooManySentences,
@@ -56,10 +56,10 @@ describe('API Client - Story Content Validation', () => {
 
       expect(result.isValid).toBe(false);
       expect(result.issues).toContain('Too many sentences');
-      expect(result.suggestions).toContain('Limit to 3 sentences');
+      expect(result.suggestions).toContain('Limit to 8 sentences');
     });
 
-    it('should allow exactly 3 sentences under 1000 characters', async () => {
+    it('should allow exactly 8 sentences under 2000 characters', async () => {
       const perfectContent = `
         The brave little owl heard a gentle voice calling from the enchanted forest, and she knew that this was the beginning of an amazing adventure that would change her life forever.
         Following the mysterious sound through the moonlit trees, she discovered a beautiful star nestled among the wildflowers, glowing with magical light.
@@ -98,7 +98,7 @@ describe('API Client - Story Content Validation', () => {
     it('should handle multiple validation issues', async () => {
       // Content that's too long AND has too many sentences AND is inappropriate
       const badContent =
-        'Violence. Death. Weapon. Scary. ' + 'Bad sentence. '.repeat(100); // Over 1000 chars + 4+ sentences
+        'Violence. Death. Weapon. Scary. ' + 'Bad sentence. '.repeat(150); // Over 2000 chars + 9+ sentences
 
       const result = await apiClient.validateStoryContent(badContent, 'K-2', {
         fallback: true,
@@ -129,11 +129,11 @@ describe('API Client - Story Content Validation', () => {
       }
     });
 
-    it('should handle edge case of exactly 1000 characters', async () => {
-      // Create content that's exactly 1000 characters
-      const exactContent = 'a'.repeat(993) + '. b. c.'; // 993 + 7 = 1000 chars, 3 sentences
+    it('should handle edge case of exactly 2000 characters', async () => {
+      // Create content that's exactly 2000 characters
+      const exactContent = 'a'.repeat(1993) + '. b. c.'; // 1993 + 7 = 2000 chars, 3 sentences
 
-      expect(exactContent.length).toBe(1000);
+      expect(exactContent.length).toBe(2000);
 
       const result = await apiClient.validateStoryContent(exactContent, 'K-2', {
         fallback: true,
@@ -143,11 +143,11 @@ describe('API Client - Story Content Validation', () => {
       expect(result.issues).not.toContain('Content too long');
     });
 
-    it('should handle edge case of exactly 1001 characters', async () => {
-      // Create content that's exactly 1001 characters
-      const overContent = 'a'.repeat(994) + '. b. c.'; // 994 + 7 = 1001 chars, 3 sentences
+    it('should handle edge case of exactly 2001 characters', async () => {
+      // Create content that's exactly 2001 characters
+      const overContent = 'a'.repeat(1994) + '. b. c.'; // 1994 + 7 = 2001 chars, 3 sentences
 
-      expect(overContent.length).toBe(1001);
+      expect(overContent.length).toBe(2001);
 
       const result = await apiClient.validateStoryContent(overContent, 'K-2', {
         fallback: true,

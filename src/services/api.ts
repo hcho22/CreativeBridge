@@ -468,17 +468,17 @@ class ApiClient {
       .filter(s => s.trim().length > 0);
     const characterCount = content.length;
 
-    // Updated validation: 1000 characters max instead of word limits
-    const maxCharacters = 1000;
+    // Updated validation: 2000 characters max instead of word limits
+    const maxCharacters = 2000;
 
     if (characterCount > maxCharacters) {
       issues.push('Content too long');
       suggestions.push(`Try to keep it under ${maxCharacters} characters`);
     }
 
-    if (sentences.length > 3) {
+    if (sentences.length > 8) {
       issues.push('Too many sentences');
-      suggestions.push('Limit to 3 sentences');
+      suggestions.push('Limit to 8 sentences');
     }
 
     const inappropriateWords = ['violence', 'weapon', 'death', 'scary'];

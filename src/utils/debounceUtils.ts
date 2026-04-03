@@ -190,7 +190,7 @@ export class StoryInputDebouncer {
       validationDelay = 300,
       generationDelay = 1000,
       minInputLength = 3,
-      maxInputLength = 1000,
+      maxInputLength = 2000,
     } = options;
 
     // Debounced validation for real-time feedback
