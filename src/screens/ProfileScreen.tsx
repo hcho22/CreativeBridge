@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
+  Image,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
@@ -10,11 +11,16 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { TabParamList } from '../navigation/AppNavigator';
+import {
+  pickAvatarImage,
+  uploadAvatarToConvex,
+} from '../services/avatarUploadService';
 
 type ProfileScreenNavigationProp = BottomTabNavigationProp<
   TabParamList,
@@ -31,9 +37,12 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const { userProfile, updateProfile, refreshProfile } = useAuth();
   const insets = useSafeAreaInsets();
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [avatarPreviewModalVisible, setAvatarPreviewModalVisible] =
+    useState(false);
   const [editedDisplayName, setEditedDisplayName] = useState(
     userProfile?.display_name || '',
   );
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   React.useEffect(() => {
     // Refresh profile data when screen loads (only once on mount)
@@ -69,9 +78,56 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
     }
   };
 
+  const handleRemoveAvatar = () => {
+    Alert.alert(
+      'Remove Photo',
+      "Remove your profile photo? You'll go back to the default avatar.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const result = await updateProfile({ avatar_url: '' });
+              if (result.error) {
+                Alert.alert('Error', 'Failed to remove profile photo');
+              } else {
+                await refreshProfile();
+              }
+            } catch (error) {
+              console.error('Avatar removal error:', error);
+              Alert.alert('Error', 'Failed to remove profile photo');
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const handleCancelEdit = () => {
     setEditedDisplayName(userProfile?.display_name || '');
     setEditModalVisible(false);
+  };
+
+  const handlePickAvatar = async () => {
+    const image = await pickAvatarImage();
+    if (!image) return;
+
+    setAvatarUploading(true);
+    try {
+      const result = await uploadAvatarToConvex(image.uri, image.type);
+      if (!result.success) {
+        Alert.alert('Upload Failed', result.error);
+        return;
+      }
+      await updateProfile({ avatar_url: result.avatarUrl });
+      await refreshProfile();
+    } catch (error: any) {
+      Alert.alert('Upload Failed', error.message || 'Something went wrong');
+    } finally {
+      setAvatarUploading(false);
+    }
   };
 
   const gradeDescriptions = useMemo(
@@ -113,13 +169,25 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
         <View style={styles.content}>
           {/* Profile Header */}
           <View style={styles.profileHeader}>
-            <View style={styles.avatarContainer}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
-                  {userProfile?.display_name?.charAt(0)?.toUpperCase() || '?'}
-                </Text>
-              </View>
-            </View>
+            <TouchableOpacity
+              style={styles.avatarContainer}
+              activeOpacity={userProfile?.avatar_url ? 0.7 : 1}
+              disabled={!userProfile?.avatar_url}
+              onPress={() => setAvatarPreviewModalVisible(true)}
+            >
+              {userProfile?.avatar_url ? (
+                <Image
+                  source={{ uri: userProfile.avatar_url }}
+                  style={styles.avatarImage}
+                />
+              ) : (
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>
+                    {userProfile?.display_name?.charAt(0)?.toUpperCase() || '?'}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
 
             <Text style={styles.displayName}>
               {userProfile?.display_name || 'Writer'}
@@ -249,6 +317,46 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
               <View style={styles.modalContent}>
                 <Text style={styles.modalTitle}>Edit Profile</Text>
 
+                {/* Avatar Picker */}
+                <TouchableOpacity
+                  style={styles.modalAvatarContainer}
+                  onPress={handlePickAvatar}
+                  disabled={avatarUploading}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.modalAvatarWrapper}>
+                    {userProfile?.avatar_url ? (
+                      <Image
+                        source={{ uri: userProfile.avatar_url }}
+                        style={styles.modalAvatarImage}
+                      />
+                    ) : (
+                      <View style={styles.modalAvatar}>
+                        <Text style={styles.modalAvatarText}>
+                          {userProfile?.display_name
+                            ?.charAt(0)
+                            ?.toUpperCase() || '?'}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={styles.cameraOverlay}>
+                      <Text style={styles.cameraOverlayText}>📷</Text>
+                    </View>
+                    {avatarUploading && (
+                      <View style={styles.avatarLoadingOverlay}>
+                        <ActivityIndicator size="large" color="#ffffff" />
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.changePhotoText}>Change Photo</Text>
+                </TouchableOpacity>
+
+                {userProfile?.avatar_url ? (
+                  <TouchableOpacity onPress={handleRemoveAvatar}>
+                    <Text style={styles.removePhotoText}>Remove Photo</Text>
+                  </TouchableOpacity>
+                ) : null}
+
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Display Name</Text>
                   <TextInput
@@ -278,6 +386,27 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
               </View>
             </KeyboardAvoidingView>
           </View>
+        </Modal>
+
+        {/* Avatar Preview Modal */}
+        <Modal
+          visible={avatarPreviewModalVisible}
+          animationType="fade"
+          transparent={true}
+          onRequestClose={() => setAvatarPreviewModalVisible(false)}
+        >
+          <TouchableOpacity
+            style={styles.avatarPreviewOverlay}
+            activeOpacity={1}
+            onPress={() => setAvatarPreviewModalVisible(false)}
+          >
+            {userProfile?.avatar_url && (
+              <Image
+                source={{ uri: userProfile.avatar_url }}
+                style={styles.avatarPreviewImage}
+              />
+            )}
+          </TouchableOpacity>
         </Modal>
       </ScrollView>
     </View>
@@ -314,6 +443,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#4CAF50',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  avatarImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
   },
   avatarText: {
     fontSize: 38,
@@ -509,6 +643,84 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 18,
     fontWeight: '600',
+  },
+  // Modal avatar styles (Edit Profile modal)
+  modalAvatarContainer: {
+    alignSelf: 'center' as const,
+    marginBottom: 20,
+    position: 'relative' as const,
+    alignItems: 'center' as const,
+  },
+  modalAvatarWrapper: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    overflow: 'hidden' as const,
+    position: 'relative' as const,
+  },
+  modalAvatarImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
+  modalAvatar: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#4CAF50',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+  },
+  modalAvatarText: {
+    fontSize: 46,
+    fontWeight: 'bold' as const,
+    color: '#ffffff',
+  },
+  cameraOverlay: {
+    position: 'absolute' as const,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 30,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    borderBottomLeftRadius: 50,
+    borderBottomRightRadius: 50,
+  },
+  cameraOverlayText: {
+    fontSize: 16,
+  },
+  changePhotoText: {
+    fontSize: 14,
+    color: '#4CAF50',
+    textAlign: 'center' as const,
+    marginTop: 5,
+  },
+  removePhotoText: {
+    fontSize: 14,
+    color: '#ff4444',
+    textAlign: 'center' as const,
+    marginTop: 5,
+  },
+  avatarLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 50,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+  },
+  // Avatar Preview styles
+  avatarPreviewOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarPreviewImage: {
+    width: 250,
+    height: 250,
+    borderRadius: 125,
   },
 });
 
