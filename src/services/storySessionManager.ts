@@ -91,6 +91,10 @@ export interface StorySession {
   image_upload_attempts?: number;
   image_upload_error?: string;
 
+  // Server-reported milestone flags (from Convex completeGameSession)
+  serverIsFirstStory?: boolean;
+  serverIsFirstStreak?: boolean;
+
   // Enhanced local fields for better UX
   contributions: StoryContribution[];
   isCompleted: boolean;
@@ -295,8 +299,14 @@ class StorySessionManager {
           // Calculate XP and score before updating statistics
           await this.calculateAndSetRewards(session);
 
-          // Update user statistics in database
-          await this.updateUserStatisticsOnCompletion(session);
+          // Update user statistics in database and capture server's isFirstStory flag
+          const statsResult = await this.updateUserStatisticsOnCompletion(
+            session,
+          );
+          if (statsResult) {
+            session.serverIsFirstStory = statsResult.isFirstStory;
+            session.serverIsFirstStreak = statsResult.isFirstStreak;
+          }
         }
         // Cap at MAX_ROUNDS for display
         session.current_round = this.MAX_ROUNDS;
@@ -1096,7 +1106,7 @@ class StorySessionManager {
    */
   private async updateUserStatisticsOnCompletion(
     session: StorySession,
-  ): Promise<void> {
+  ): Promise<{ isFirstStory: boolean; isFirstStreak: boolean } | null> {
     try {
       console.log('📊 Updating user statistics for completed story:', {
         sessionId: session.id,
@@ -1108,7 +1118,7 @@ class StorySessionManager {
 
       if (!isConvexReady()) {
         console.warn('⚠️ Convex not ready, cannot update user statistics');
-        return;
+        return null;
       }
 
       const convexClient = getConvexClient();
@@ -1116,7 +1126,7 @@ class StorySessionManager {
         console.warn(
           '⚠️ Convex client not available, cannot update user statistics',
         );
-        return;
+        return null;
       }
 
       console.log('📊 Updating user statistics via Convex');
@@ -1131,9 +1141,14 @@ class StorySessionManager {
         },
       );
       console.log('✅ Convex user statistics updated:', result);
+      return {
+        isFirstStory: !!result?.isFirstStory,
+        isFirstStreak: !!result?.isFirstStreak,
+      };
     } catch (error) {
       console.error('💥 Exception updating user statistics:', error);
       // Non-blocking error - stats update failure shouldn't prevent story completion
+      return null;
     }
   }
 

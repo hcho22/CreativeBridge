@@ -261,22 +261,29 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           `🔥 [US-006] Streak changed from ${previousStreak} to ${currentStreak}`,
         );
 
-        // Check if this is truly the first streak and celebration should show
-        const { shouldShowCelebration, isFirstStreak } =
-          await onboardingMilestoneTracker.markFirstStreakAchieved();
-
-        // Sync milestone to Convex via useMutation hook (React auth context)
-        if (isFirstStreak && effectiveUserId) {
+        // Check server first for authoritative isFirstStreak (prevents false celebrations
+        // when AsyncStorage was cleared but user already achieved streak before)
+        let serverIsFirstStreak: boolean | undefined;
+        if (effectiveUserId) {
           try {
-            await recordOnboardingMilestone({
+            const result = await recordOnboardingMilestone({
               clerkUserId: effectiveUserId,
               milestoneType: 'first_streak',
               awardXp: false,
             });
+            serverIsFirstStreak = !result.alreadyAchieved;
           } catch (err) {
-            console.error('⚠️ Failed to sync streak milestone to Convex:', err);
+            console.error(
+              '⚠️ Failed to check streak milestone on server:',
+              err,
+            );
           }
         }
+
+        const { shouldShowCelebration } =
+          await onboardingMilestoneTracker.markFirstStreakAchieved(
+            serverIsFirstStreak,
+          );
 
         if (shouldShowCelebration) {
           console.log('🔥 [US-006] Showing first streak celebration!');
@@ -815,26 +822,28 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       setUserInput(cleanedText);
 
       // Track first voice input for onboarding milestone (US-010, US-011)
+      // Check server first to prevent false celebrations when AsyncStorage was cleared
       try {
+        let serverIsFirstVoice: boolean | undefined;
+        if (effectiveUserId) {
+          try {
+            const result = await recordOnboardingMilestone({
+              clerkUserId: effectiveUserId,
+              milestoneType: 'first_voice',
+              awardXp: false,
+            });
+            serverIsFirstVoice = !result.alreadyAchieved;
+          } catch (err) {
+            console.error('⚠️ Failed to check voice milestone on server:', err);
+          }
+        }
+
         const isFirst =
-          await onboardingMilestoneTracker.markFirstVoiceInputUsed();
+          await onboardingMilestoneTracker.markFirstVoiceInputUsed(
+            serverIsFirstVoice,
+          );
         if (isFirst) {
           console.log('🎤 First voice input used! Awarding XP.');
-          // Sync milestone to Convex via useMutation hook (React auth context)
-          if (effectiveUserId) {
-            try {
-              await recordOnboardingMilestone({
-                clerkUserId: effectiveUserId,
-                milestoneType: 'first_voice',
-                awardXp: false,
-              });
-            } catch (err) {
-              console.error(
-                '⚠️ Failed to sync voice milestone to Convex:',
-                err,
-              );
-            }
-          }
           // Award XP for first voice input (US-010)
           const xpResult = await awardOnboardingXP('first_voice');
           if (xpResult.success) {
@@ -1738,8 +1747,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         setUserInput('');
 
         // Handle completion milestones and UI (same as AI completion path)
+        // Use server's isFirstStory flag (authoritative) over local AsyncStorage
+        const serverSaysFirstStory = updatedSession.serverIsFirstStory;
         const { shouldShowCelebration, isFirstStory } =
-          await onboardingMilestoneTracker.markFirstStoryCompleted();
+          await onboardingMilestoneTracker.markFirstStoryCompleted(
+            serverSaysFirstStory,
+          );
 
         if (isFirstStory && effectiveUserId) {
           try {
@@ -1837,8 +1850,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             setIsGameCompleted(true);
 
             // Check if this is the user's first story completion (US-004)
+            // Use server's isFirstStory flag (authoritative) over local AsyncStorage
+            const serverSaysFirstStory = updatedSession.serverIsFirstStory;
             const { shouldShowCelebration, isFirstStory } =
-              await onboardingMilestoneTracker.markFirstStoryCompleted();
+              await onboardingMilestoneTracker.markFirstStoryCompleted(
+                serverSaysFirstStory,
+              );
 
             // Sync milestone to Convex for cross-session persistence
             // Uses useMutation hook (React auth context) instead of
@@ -2277,23 +2294,27 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       }
 
       // Check if this is the user's first image generation (US-005)
+      // Check server first to prevent false celebrations when AsyncStorage was cleared
       let celebrationShown = false;
       try {
-        const { shouldShowCelebration, isFirstImage } =
-          await onboardingMilestoneTracker.markFirstImageGenerated();
-
-        // Sync milestone to Convex via useMutation hook (React auth context)
-        if (isFirstImage && effectiveUserId) {
+        let serverIsFirstImage: boolean | undefined;
+        if (effectiveUserId) {
           try {
-            await recordOnboardingMilestone({
+            const result = await recordOnboardingMilestone({
               clerkUserId: effectiveUserId,
               milestoneType: 'first_image',
               awardXp: false,
             });
+            serverIsFirstImage = !result.alreadyAchieved;
           } catch (err) {
-            console.error('⚠️ Failed to sync image milestone to Convex:', err);
+            console.error('⚠️ Failed to check image milestone on server:', err);
           }
         }
+
+        const { shouldShowCelebration } =
+          await onboardingMilestoneTracker.markFirstImageGenerated(
+            serverIsFirstImage,
+          );
 
         if (shouldShowCelebration) {
           console.log('🎨 First image generated! Showing celebration modal.');

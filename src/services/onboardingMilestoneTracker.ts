@@ -124,17 +124,22 @@ class OnboardingMilestoneTracker {
   }
 
   /**
-   * Mark first story as completed and check if celebration should show
-   * Returns true if this is the first story and celebration should display
+   * Mark first story as completed and check if celebration should show.
+   * @param serverIsFirstStory - If provided, uses the server's authoritative flag
+   *   instead of local AsyncStorage. This prevents false celebrations when
+   *   AsyncStorage was cleared but the user has completed stories before.
    */
-  async markFirstStoryCompleted(): Promise<{
+  async markFirstStoryCompleted(serverIsFirstStory?: boolean): Promise<{
     isFirstStory: boolean;
     shouldShowCelebration: boolean;
   }> {
     const milestones = await this.getMilestones();
 
-    // Check if this is actually the first story
-    const isFirstStory = !milestones.firstStoryCompletedAt;
+    // Use server truth when available; fall back to local check
+    const isFirstStory =
+      serverIsFirstStory !== undefined
+        ? serverIsFirstStory
+        : !milestones.firstStoryCompletedAt;
 
     if (isFirstStory) {
       // Mark as completed with timestamp
@@ -142,6 +147,14 @@ class OnboardingMilestoneTracker {
       await this.saveMilestones(milestones);
 
       console.log('🎉 First story completed! Milestone tracked.');
+    } else if (!milestones.firstStoryCompletedAt) {
+      // Server says not first story, but local is missing the timestamp — fix it
+      milestones.firstStoryCompletedAt = new Date().toISOString();
+      milestones.celebrationsShown.firstStory = true;
+      await this.saveMilestones(milestones);
+      console.log(
+        '🔄 Synced first story milestone from server (not first story)',
+      );
     }
 
     // Check if celebration should be shown
@@ -172,19 +185,31 @@ class OnboardingMilestoneTracker {
   }
 
   /**
-   * Mark first image as generated
+   * Mark first image as generated.
+   * @param serverIsFirstImage - If provided, uses the server's authoritative flag
+   *   instead of local AsyncStorage.
    */
-  async markFirstImageGenerated(): Promise<{
+  async markFirstImageGenerated(serverIsFirstImage?: boolean): Promise<{
     isFirstImage: boolean;
     shouldShowCelebration: boolean;
   }> {
     const milestones = await this.getMilestones();
-    const isFirstImage = !milestones.firstImageGeneratedAt;
+    const isFirstImage =
+      serverIsFirstImage !== undefined
+        ? serverIsFirstImage
+        : !milestones.firstImageGeneratedAt;
 
     if (isFirstImage) {
       milestones.firstImageGeneratedAt = new Date().toISOString();
       await this.saveMilestones(milestones);
       console.log('🎨 First image generated! Milestone tracked.');
+    } else if (!milestones.firstImageGeneratedAt) {
+      milestones.firstImageGeneratedAt = new Date().toISOString();
+      milestones.celebrationsShown.firstImage = true;
+      await this.saveMilestones(milestones);
+      console.log(
+        '🔄 Synced first image milestone from server (not first image)',
+      );
     }
 
     const shouldShowCelebration =
@@ -211,19 +236,31 @@ class OnboardingMilestoneTracker {
   }
 
   /**
-   * Mark first streak as achieved
+   * Mark first streak as achieved.
+   * @param serverIsFirstStreak - If provided, uses the server's authoritative flag
+   *   instead of local AsyncStorage.
    */
-  async markFirstStreakAchieved(): Promise<{
+  async markFirstStreakAchieved(serverIsFirstStreak?: boolean): Promise<{
     isFirstStreak: boolean;
     shouldShowCelebration: boolean;
   }> {
     const milestones = await this.getMilestones();
-    const isFirstStreak = !milestones.firstStreakAchievedAt;
+    const isFirstStreak =
+      serverIsFirstStreak !== undefined
+        ? serverIsFirstStreak
+        : !milestones.firstStreakAchievedAt;
 
     if (isFirstStreak) {
       milestones.firstStreakAchievedAt = new Date().toISOString();
       await this.saveMilestones(milestones);
       console.log('🔥 First streak achieved! Milestone tracked.');
+    } else if (!milestones.firstStreakAchievedAt) {
+      milestones.firstStreakAchievedAt = new Date().toISOString();
+      milestones.celebrationsShown.firstStreak = true;
+      await this.saveMilestones(milestones);
+      console.log(
+        '🔄 Synced first streak milestone from server (not first streak)',
+      );
     }
 
     const shouldShowCelebration =
@@ -242,16 +279,29 @@ class OnboardingMilestoneTracker {
   }
 
   /**
-   * Mark first voice input as used
+   * Mark first voice input as used.
+   * @param serverIsFirstVoice - If provided, uses the server's authoritative flag
+   *   instead of local AsyncStorage.
    */
-  async markFirstVoiceInputUsed(): Promise<boolean> {
+  async markFirstVoiceInputUsed(
+    serverIsFirstVoice?: boolean,
+  ): Promise<boolean> {
     const milestones = await this.getMilestones();
-    const isFirst = !milestones.firstVoiceInputAt;
+    const isFirst =
+      serverIsFirstVoice !== undefined
+        ? serverIsFirstVoice
+        : !milestones.firstVoiceInputAt;
 
     if (isFirst) {
       milestones.firstVoiceInputAt = new Date().toISOString();
       await this.saveMilestones(milestones);
       console.log('🎤 First voice input used! Milestone tracked.');
+    } else if (!milestones.firstVoiceInputAt) {
+      milestones.firstVoiceInputAt = new Date().toISOString();
+      await this.saveMilestones(milestones);
+      console.log(
+        '🔄 Synced first voice milestone from server (not first voice)',
+      );
     }
 
     return isFirst;
