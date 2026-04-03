@@ -254,3 +254,17 @@ export const XP_BONUSES = {
   SPEED_BONUS: 30, // XP for quick completion
   CREATIVITY_BONUS: 25, // XP for creative writing
 };
+
+export const QUALITY_THRESHOLDS = {
+  COMPLETION_FULL_XP: 0.6, // Quality score needed for full completion bonus
+  COMPLETION_MINIMUM: 0.3, // Below this, only minimum XP awarded
+  SPEED_BONUS_GATE: 0.5, // Minimum quality score to earn speed bonus
+  COMPLETION_FLOOR_MULTIPLIER: 0.1, // Multiplier for very low quality (floor)
+  MIN_TOTAL_WORDS: 15, // Absolute minimum total user words for quality scoring
+  MIN_WORDS_PER_TURN: {
+    'K-2': 3,
+    '3-5': 5,
+    '6-8': 8,
+    '9-12': 10,
+  } as Record<string, number>,
+};

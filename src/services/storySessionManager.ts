@@ -11,6 +11,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GradeLevel, StorySource } from '../types';
 import { ChallengeService } from './challengeService';
+import { scoreInputQuality } from './inputQualityScorer';
 import { piiScrubber } from './piiScrubber';
 
 // Convex imports - primary database
@@ -1053,6 +1054,15 @@ class StorySessionManager {
       const endTime = new Date(session.completed_at || Date.now()).getTime();
       const durationMinutes = (endTime - startTime) / (1000 * 60);
 
+      // Compute input quality score from user contributions
+      const userContributions = session.contributions
+        .filter(c => c.type === 'user')
+        .map(c => c.content);
+      const qualityScore = scoreInputQuality(
+        userContributions,
+        session.grade_level,
+      );
+
       // Calculate XP rewards based on session data
       // Note: We don't have detailed challenge progress, so we estimate based on challenges_completed count
       const estimatedChallengeProgress = Array(
@@ -1068,6 +1078,7 @@ class StorySessionManager {
         estimatedChallengeProgress as any,
         durationMinutes,
         true, // story is completed
+        qualityScore,
       );
 
       // Sum up total XP
@@ -1091,6 +1102,7 @@ class StorySessionManager {
         wordsWritten: session.words_written,
         challengesCompleted: session.challenges_completed,
         duration: `${durationMinutes.toFixed(1)} minutes`,
+        qualityScore,
       });
     } catch (error) {
       console.error('Failed to calculate rewards:', error);

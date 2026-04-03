@@ -1,5 +1,9 @@
 import { challengeService } from '../../services/challengeService';
-import { CHALLENGE_DEFINITIONS } from '../../types/challenges';
+import {
+  CHALLENGE_DEFINITIONS,
+  XP_BONUSES,
+  QUALITY_THRESHOLDS,
+} from '../../types/challenges';
 
 describe('ChallengeService', () => {
   describe('getChallengesForGrade', () => {
@@ -170,6 +174,116 @@ describe('ChallengeService', () => {
 
       expect(perfectBonus).toBeTruthy();
       expect(perfectBonus?.amount).toBe(50);
+    });
+  });
+
+  describe('calculateXPRewards with quality scoring', () => {
+    it('should award minimum completion XP for very low quality (score 0.0)', () => {
+      const rewards = challengeService.calculateXPRewards(50, [], 5, true, 0.0);
+      const completion = rewards.find(r => r.type === 'completion');
+      expect(completion).toBeTruthy();
+      expect(completion!.amount).toBe(
+        Math.floor(
+          XP_BONUSES.STORY_COMPLETION *
+            QUALITY_THRESHOLDS.COMPLETION_FLOOR_MULTIPLIER,
+        ),
+      );
+    });
+
+    it('should not award speed bonus for low quality (score 0.3)', () => {
+      const rewards = challengeService.calculateXPRewards(50, [], 3, true, 0.3);
+      const speedBonus = rewards.find(r =>
+        r.description.includes('Speed bonus'),
+      );
+      expect(speedBonus).toBeUndefined();
+    });
+
+    it('should scale completion XP linearly for mid-range quality (score 0.5)', () => {
+      const rewards = challengeService.calculateXPRewards(
+        50,
+        [],
+        15,
+        true,
+        0.5,
+      );
+      const completion = rewards.find(r => r.type === 'completion');
+      expect(completion).toBeTruthy();
+      const expectedMultiplier = 0.5 / QUALITY_THRESHOLDS.COMPLETION_FULL_XP;
+      expect(completion!.amount).toBe(
+        Math.floor(XP_BONUSES.STORY_COMPLETION * expectedMultiplier),
+      );
+    });
+
+    it('should award full completion XP for high quality (score 0.8)', () => {
+      const rewards = challengeService.calculateXPRewards(50, [], 5, true, 0.8);
+      const completion = rewards.find(r => r.type === 'completion');
+      expect(completion).toBeTruthy();
+      expect(completion!.amount).toBe(XP_BONUSES.STORY_COMPLETION);
+    });
+
+    it('should award speed bonus when quality meets gate (score 0.8)', () => {
+      const rewards = challengeService.calculateXPRewards(50, [], 5, true, 0.8);
+      const speedBonus = rewards.find(r =>
+        r.description.includes('Speed bonus'),
+      );
+      expect(speedBonus).toBeTruthy();
+      expect(speedBonus!.amount).toBeGreaterThan(0);
+    });
+
+    it('should default to full quality when qualityScore is omitted', () => {
+      const rewards = challengeService.calculateXPRewards(50, [], 5, true);
+      const completion = rewards.find(r => r.type === 'completion');
+      expect(completion!.amount).toBe(XP_BONUSES.STORY_COMPLETION);
+
+      const speedBonus = rewards.find(r =>
+        r.description.includes('Speed bonus'),
+      );
+      expect(speedBonus).toBeTruthy();
+    });
+
+    it('should not affect word count bonus regardless of quality', () => {
+      const lowQuality = challengeService.calculateXPRewards(
+        50,
+        [],
+        15,
+        true,
+        0.1,
+      );
+      const highQuality = challengeService.calculateXPRewards(
+        50,
+        [],
+        15,
+        true,
+        1.0,
+      );
+
+      const lowWordBonus = lowQuality.find(r => r.type === 'word_count');
+      const highWordBonus = highQuality.find(r => r.type === 'word_count');
+      expect(lowWordBonus?.amount).toBe(highWordBonus?.amount);
+    });
+
+    it('should not affect challenge XP regardless of quality', () => {
+      const challenges = [
+        { challengeId: 'dialogue', isCompleted: true, xpEarned: 25 },
+      ];
+      const lowQuality = challengeService.calculateXPRewards(
+        50,
+        challenges,
+        15,
+        true,
+        0.1,
+      );
+      const highQuality = challengeService.calculateXPRewards(
+        50,
+        challenges,
+        15,
+        true,
+        1.0,
+      );
+
+      const lowChallenge = lowQuality.find(r => r.type === 'challenge');
+      const highChallenge = highQuality.find(r => r.type === 'challenge');
+      expect(lowChallenge?.amount).toBe(highChallenge?.amount);
     });
   });
 

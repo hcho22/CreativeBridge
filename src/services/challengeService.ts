@@ -4,6 +4,7 @@ import {
   XPReward,
   CHALLENGE_DEFINITIONS,
   XP_BONUSES,
+  QUALITY_THRESHOLDS,
 } from '../types/challenges';
 import { GradeLevel } from '../types/database';
 
@@ -71,10 +72,11 @@ export class ChallengeService {
     completedChallenges: ChallengeProgress[],
     sessionDurationMinutes: number,
     isStoryCompleted: boolean = true,
+    qualityScore: number = 1.0,
   ): XPReward[] {
     const rewards: XPReward[] = [];
 
-    // Challenge completion XP
+    // Challenge completion XP (not quality-gated — already effort-based)
     completedChallenges.forEach(challenge => {
       rewards.push({
         type: 'challenge',
@@ -83,7 +85,7 @@ export class ChallengeService {
       });
     });
 
-    // Word count bonus (2 XP per 5 words)
+    // Word count bonus (2 XP per 5 words) — not quality-gated, already proportional
     const wordBonus = Math.floor(totalWords / 5) * XP_BONUSES.WORD_COUNT_BONUS;
     if (wordBonus > 0) {
       rewards.push({
@@ -93,12 +95,30 @@ export class ChallengeService {
       });
     }
 
-    // Story completion bonus
+    // Story completion bonus — scaled by input quality
     if (isStoryCompleted) {
+      let qualityMultiplier: number;
+      if (qualityScore >= QUALITY_THRESHOLDS.COMPLETION_FULL_XP) {
+        qualityMultiplier = 1.0;
+      } else if (qualityScore >= QUALITY_THRESHOLDS.COMPLETION_MINIMUM) {
+        qualityMultiplier =
+          qualityScore / QUALITY_THRESHOLDS.COMPLETION_FULL_XP;
+      } else {
+        qualityMultiplier = QUALITY_THRESHOLDS.COMPLETION_FLOOR_MULTIPLIER;
+      }
+
+      const scaledCompletion = Math.floor(
+        XP_BONUSES.STORY_COMPLETION * qualityMultiplier,
+      );
       rewards.push({
         type: 'completion',
-        amount: XP_BONUSES.STORY_COMPLETION,
-        description: 'Story completion bonus',
+        amount: scaledCompletion,
+        description:
+          qualityMultiplier < 1.0
+            ? `Story completion bonus (${Math.round(
+                qualityMultiplier * 100,
+              )}% quality)`
+            : 'Story completion bonus',
       });
     }
 
@@ -112,8 +132,12 @@ export class ChallengeService {
       });
     }
 
-    // Speed bonus (completing in under 10 minutes)
-    if (sessionDurationMinutes < 10 && isStoryCompleted) {
+    // Speed bonus — only awarded if quality meets minimum gate
+    if (
+      sessionDurationMinutes < 10 &&
+      isStoryCompleted &&
+      qualityScore >= QUALITY_THRESHOLDS.SPEED_BONUS_GATE
+    ) {
       const speedBonus = Math.floor(
         Math.max(10, XP_BONUSES.SPEED_BONUS - sessionDurationMinutes),
       );
