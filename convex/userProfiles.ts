@@ -752,6 +752,7 @@ export const completeGameSession = mutation({
       totalXp: profile.totalXp + args.xpEarned,
       totalWordsWritten: profile.totalWordsWritten + args.wordsWritten,
       totalStoriesCompleted: profile.totalStoriesCompleted + 1,
+      totalGamesPlayed: profile.totalGamesPlayed + 1,
       currentStreak: newStreak,
       longestStreak: newLongestStreak,
       bestScore: newBestScore,

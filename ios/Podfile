@@ -25,6 +25,7 @@ prepare_react_native_project!
 # @generated begin setup - expo prebuild (DO NOT MODIFY) sync-af3d00bf7bfbad6f34048e04fc55d5096bd9bbe8
 setup_permissions([
   'Microphone',
+  'PhotoLibraryAddOnly',
   'SpeechRecognition',
 ])
 # @generated end setup

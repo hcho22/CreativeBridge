@@ -53,6 +53,10 @@ import ImageGeneration from '../components/common/ImageGeneration';
 import { storyDownloadService } from '../services/storyDownloadService';
 import { imageStorageService } from '../services/imageStorageService';
 import RNFS, { rnfsWrapper } from '../utils/rnfsWrapper';
+import {
+  requestPhotoLibraryPermission,
+  saveImageToPhotos,
+} from '../utils/saveToPhotos';
 import { VoiceInput } from '../components/common/VoiceInput';
 import Share from '../utils/shareWrapper';
 import { CelebrationModal } from '../components/common/CelebrationModal';
@@ -169,6 +173,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(
     null,
   );
+  const [isSavingToPhotos, setIsSavingToPhotos] = useState(false);
   const MAX_ROUNDS = 5;
 
   // "User starts first" mode (US-011): user writes the opening line instead of AI
@@ -2079,6 +2084,99 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     setShowCompletionOptions(false); // Hide completion options while generating
   }, []);
 
+  // US-005: Save generated image directly to device Photos from completion overlay
+  const handleSaveImageToPhotos = useCallback(async () => {
+    if (isSavingToPhotos) return;
+
+    try {
+      setIsSavingToPhotos(true);
+
+      // Step 1: Request permission
+      const hasPermission = await requestPhotoLibraryPermission();
+      if (!hasPermission) {
+        setIsSavingToPhotos(false);
+        return;
+      }
+
+      // Step 2: Determine best available image URL (supabase > replicate > legacy)
+      const imageUrl =
+        currentSession?.supabase_image_url ||
+        currentSession?.generated_image_url ||
+        generatedImageUrl;
+
+      if (!imageUrl) {
+        Alert.alert('No Image', 'No generated image is available to save.');
+        setIsSavingToPhotos(false);
+        return;
+      }
+
+      // Step 3: Resolve local file path (reuse cache or download)
+      let localPath: string | null = null;
+
+      // Check if it's already a local file
+      if (imageUrl.startsWith('file://')) {
+        localPath = imageUrl.replace('file://', '');
+      }
+
+      // Download to cache if needed
+      if (!localPath && !rnfsWrapper.isSimulationMode) {
+        const cacheDir = `${RNFS.DocumentDirectoryPath}/ImageCache`;
+        const dirExists = await RNFS.exists(cacheDir);
+        if (!dirExists) {
+          await RNFS.mkdir(cacheDir);
+        }
+
+        const urlHash = imageUrl.split('/').pop()?.split('.')[0] || 'image';
+        const filename = `cached_${urlHash}.jpg`;
+        localPath = `${cacheDir}/${filename}`;
+
+        const fileExists = await RNFS.exists(localPath);
+        if (!fileExists) {
+          console.log('📸 [HomeScreen] Downloading image for Photos save...');
+          const downloadResult = await RNFS.downloadFile({
+            fromUrl: imageUrl,
+            toFile: localPath,
+          }).promise;
+
+          if (downloadResult.statusCode !== 200) {
+            throw new Error(
+              `Download failed with status: ${downloadResult.statusCode}`,
+            );
+          }
+        }
+      }
+
+      if (!localPath) {
+        throw new Error('Could not resolve local file path for image');
+      }
+
+      // Step 4: Save to Camera Roll
+      const result = await saveImageToPhotos(localPath);
+
+      if (result.success) {
+        Alert.alert(
+          'Saved to Photos!',
+          'Your story illustration has been saved to your Photo Library.',
+          [{ text: 'Great!', style: 'default' }],
+        );
+      } else {
+        throw new Error(result.error || 'Unknown error saving to Photos');
+      }
+    } catch (error: any) {
+      console.error('📸 [HomeScreen] Save to Photos error:', error);
+      Alert.alert(
+        'Save Failed',
+        error.message || 'Could not save image to Photos. Please try again.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Try Again', onPress: handleSaveImageToPhotos },
+        ],
+      );
+    } finally {
+      setIsSavingToPhotos(false);
+    }
+  }, [isSavingToPhotos, currentSession, generatedImageUrl]);
+
   const handleViewStory = useCallback(() => {
     // Simply show the story (already visible) and hide completion options
     setShowCompletionOptions(false);
@@ -3428,6 +3526,37 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                       <Text style={styles.completionOptionText}>
                         🎨 Generate Image
                       </Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {(generatedImageUrl ||
+                    currentSession?.generated_image_url ||
+                    currentSession?.supabase_image_url) && (
+                    <TouchableOpacity
+                      style={styles.completionOptionButton}
+                      onPress={handleSaveImageToPhotos}
+                      disabled={isSavingToPhotos}
+                      testID="save-image-to-photos-button"
+                    >
+                      {isSavingToPhotos ? (
+                        <View
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 8,
+                          }}
+                        >
+                          <ActivityIndicator size="small" color="#ffffff" />
+                          <Text style={styles.completionOptionText}>
+                            Saving to Photos...
+                          </Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.completionOptionText}>
+                          📸 Save Image to Photos
+                        </Text>
+                      )}
                     </TouchableOpacity>
                   )}
 

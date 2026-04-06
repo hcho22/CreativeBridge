@@ -22,6 +22,10 @@ import {
 // } from 'react-native-reanimated';
 import Share from '../../utils/shareWrapper';
 import RNFS, { rnfsWrapper } from '../../utils/rnfsWrapper';
+import {
+  requestPhotoLibraryPermission,
+  saveImageToPhotos,
+} from '../../utils/saveToPhotos';
 import FullScreenImageModal, { StoryImage } from './FullScreenImageModal';
 import FolderPickerUtil from '../../utils/folderPicker';
 import { useParentalGate } from './ParentalGate';
@@ -92,6 +96,7 @@ interface ImageState {
   // NEW: Fallback tracking for URL priority system (Task 4.2)
   attemptedSupabaseUrl: boolean; // Track if we tried Supabase URL and it failed
   currentUrlSource: 'supabase' | 'replicate' | 'legacy' | null; // Track which URL we're using
+  isSavingToPhotos: boolean; // Decoupled from isDownloading (US-003)
 }
 
 const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
@@ -160,6 +165,7 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
     errorType: undefined,
     isConnected: true,
     isDownloadingForDisplay: false,
+    isSavingToPhotos: false,
     // NEW: Initialize fallback tracking
     attemptedSupabaseUrl: false,
     currentUrlSource: supabaseUrl
@@ -883,6 +889,90 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
     }
   }, [effectiveImageUrl, storyTitle, sessionId, state.localPath]);
 
+  // Save image to Photos (Camera Roll) — US-003
+  const handleSaveToPhotos = useCallback(async () => {
+    if (!effectiveImageUrl || state.isSavingToPhotos) return;
+
+    // Step 1: Request permission
+    const hasPermission = await requestPhotoLibraryPermission();
+    if (!hasPermission) return;
+
+    setState(prev => ({ ...prev, isSavingToPhotos: true }));
+
+    try {
+      // Step 2: Resolve local file path (reuse cache or download)
+      let localPath = state.localPath;
+
+      // Handle file:// URLs — already local, just strip the protocol
+      if (!localPath && effectiveImageUrl?.startsWith('file://')) {
+        localPath = effectiveImageUrl.replace('file://', '');
+      }
+
+      if (!localPath && !rnfsWrapper.isSimulationMode) {
+        const cacheDir = `${RNFS.DocumentDirectoryPath}/ImageCache`;
+        const dirExists = await RNFS.exists(cacheDir);
+        if (!dirExists) {
+          await RNFS.mkdir(cacheDir);
+        }
+
+        const urlHash =
+          effectiveImageUrl.split('/').pop()?.split('.')[0] || 'image';
+        const filename = `cached_${urlHash}.jpg`;
+        localPath = `${cacheDir}/${filename}`;
+
+        const fileExists = await RNFS.exists(localPath);
+        if (!fileExists) {
+          console.log('📸 [SaveToPhotos] Downloading image for save...');
+          const downloadResult = await RNFS.downloadFile({
+            fromUrl: effectiveImageUrl,
+            toFile: localPath,
+          }).promise;
+
+          if (downloadResult.statusCode !== 200) {
+            throw new Error(
+              `Download failed with status: ${downloadResult.statusCode}`,
+            );
+          }
+        }
+      }
+
+      if (!localPath) {
+        throw new Error('Could not resolve local file path for image');
+      }
+
+      // Step 3: Save to Camera Roll
+      const result = await saveImageToPhotos(localPath);
+
+      if (result.success) {
+        Alert.alert(
+          'Saved to Photos!',
+          'Your story illustration has been saved to your Photo Library.',
+          [{ text: 'Great!', style: 'default' }],
+        );
+        onImageSaved?.(localPath);
+      } else {
+        throw new Error(result.error || 'Unknown error saving to Photos');
+      }
+    } catch (error: any) {
+      console.error('📸 [SaveToPhotos] Error:', error);
+      Alert.alert(
+        'Save Failed',
+        error.message || 'Could not save image to Photos. Please try again.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Try Again', onPress: () => handleSaveToPhotos() },
+        ],
+      );
+    } finally {
+      setState(prev => ({ ...prev, isSavingToPhotos: false }));
+    }
+  }, [
+    effectiveImageUrl,
+    state.localPath,
+    state.isSavingToPhotos,
+    onImageSaved,
+  ]);
+
   // Enhanced full-screen functionality
   const createStoryImageForModal = useCallback((): StoryImage => {
     return {
@@ -1315,6 +1405,40 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
           </TouchableOpacity>
         )}
 
+        <TouchableOpacity
+          style={[
+            styles.actionButton,
+            styles.photosButton,
+            state.isSavingToPhotos && styles.actionButtonDisabled,
+          ]}
+          onPress={handleSaveToPhotos}
+          disabled={state.isSavingToPhotos}
+        >
+          {state.isSavingToPhotos ? (
+            <View style={styles.downloadingContent}>
+              <ActivityIndicator size="small" color="#ffffff" />
+              <Text
+                style={styles.actionButtonText}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                Saving...
+              </Text>
+            </View>
+          ) : (
+            <>
+              <Text style={styles.actionButtonIcon}>🖼️</Text>
+              <Text
+                style={styles.actionButtonText}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                Photos
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
+
         {showShareButton && (
           <TouchableOpacity
             style={[styles.actionButton, styles.shareButton]}
@@ -1619,6 +1743,7 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
           onImageChange={onImageChange}
           onShare={shareImage}
           onDownload={() => downloadImage()}
+          onSaveToPhotos={() => handleSaveToPhotos()}
           darkMode={true}
         />
       )}
@@ -1840,6 +1965,9 @@ const styles = StyleSheet.create({
   },
   downloadButton: {
     backgroundColor: '#28a745',
+  },
+  photosButton: {
+    backgroundColor: '#17a2b8',
   },
   shareButton: {
     backgroundColor: '#007bff',

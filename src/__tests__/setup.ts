@@ -92,6 +92,37 @@ jest.mock('@react-native-voice/voice', () => ({
   },
 }));
 
+// Mock react-native-permissions (used by saveToPhotos utility)
+jest.mock('react-native-permissions', () => ({
+  check: jest.fn().mockResolvedValue('granted'),
+  request: jest.fn().mockResolvedValue('granted'),
+  PERMISSIONS: {
+    IOS: {
+      PHOTO_LIBRARY_ADD_ONLY: 'ios.permission.PHOTO_LIBRARY_ADD_ONLY',
+      MICROPHONE: 'ios.permission.MICROPHONE',
+      SPEECH_RECOGNITION: 'ios.permission.SPEECH_RECOGNITION',
+    },
+    ANDROID: {
+      RECORD_AUDIO: 'android.permission.RECORD_AUDIO',
+      WRITE_EXTERNAL_STORAGE: 'android.permission.WRITE_EXTERNAL_STORAGE',
+    },
+  },
+  RESULTS: {
+    UNAVAILABLE: 'unavailable',
+    DENIED: 'denied',
+    GRANTED: 'granted',
+    BLOCKED: 'blocked',
+    LIMITED: 'limited',
+  },
+}));
+
+// Mock @react-native-camera-roll/camera-roll (used by saveToPhotos utility)
+jest.mock('@react-native-camera-roll/camera-roll', () => ({
+  CameraRoll: {
+    saveAsset: jest.fn().mockResolvedValue({ uri: 'ph://mock-asset' }),
+  },
+}));
+
 // Mock console methods for cleaner test output
 global.console = {
   ...console,

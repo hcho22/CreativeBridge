@@ -59,6 +59,7 @@ export interface FullScreenImageModalProps {
   onImageChange?: (index: number, image: StoryImage) => void;
   onShare?: (image: StoryImage) => void;
   onDownload?: (image: StoryImage) => void;
+  onSaveToPhotos?: (image: StoryImage) => void;
   darkMode?: boolean;
 }
 
@@ -283,6 +284,7 @@ const FullScreenImageModal: React.FC<FullScreenImageModalProps> = ({
   onImageChange: _onImageChange,
   onShare,
   onDownload,
+  onSaveToPhotos,
   darkMode = true,
 }) => {
   // State management
@@ -396,6 +398,15 @@ const FullScreenImageModal: React.FC<FullScreenImageModalProps> = ({
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <Text style={styles.headerButtonText}>💾</Text>
+                </TouchableOpacity>
+              )}
+              {onSaveToPhotos && (
+                <TouchableOpacity
+                  onPress={() => onSaveToPhotos(currentImage)}
+                  style={styles.headerButton}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Text style={styles.headerButtonText}>📸</Text>
                 </TouchableOpacity>
               )}
             </View>
