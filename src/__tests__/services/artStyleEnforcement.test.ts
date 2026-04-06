@@ -143,10 +143,10 @@ describe('Art Style Enforcement - Comprehensive Test Suite', () => {
     });
   });
 
-  describe("Grade Level 3-5: Detailed Children's Book Illustration", () => {
+  describe("Grade Level 3-5: Watercolor Children's Book Illustration", () => {
     const gradeLevel: GradeLevel = '3-5';
 
-    test('should contain detailed illustration base style keywords', () => {
+    test('should contain watercolor illustration base style keywords', () => {
       const storyContent =
         'Alex the brave explorer climbed the tall mountain to discover ancient golden treasures.';
       const artStyle =
@@ -160,9 +160,9 @@ describe('Art Style Enforcement - Comprehensive Test Suite', () => {
         artStyle,
       );
 
-      expect(prompt).toMatch(/illustration/i);
+      expect(prompt).toMatch(/watercolor/i);
       expect(prompt).toMatch(/children's book/i);
-      expect(prompt).toMatch(/detailed/i);
+      expect(prompt).toMatch(/illustration/i);
     });
 
     test('should contain vibrant colors keywords', () => {
@@ -183,7 +183,7 @@ describe('Art Style Enforcement - Comprehensive Test Suite', () => {
       expect(prompt).toMatch(/color/i);
     });
 
-    test('should contain digital painting technique keywords', () => {
+    test('should contain watercolor painting technique keywords', () => {
       const storyContent =
         'Sarah the curious artist painted a beautiful picture of the blue ocean with playful dolphins.';
       const artStyle =
@@ -197,7 +197,7 @@ describe('Art Style Enforcement - Comprehensive Test Suite', () => {
         artStyle,
       );
 
-      expect(prompt).toMatch(/digital|painting/i);
+      expect(prompt).toMatch(/watercolor|painting/i);
     });
 
     test('should contain adventurous and exciting tone keywords', () => {
@@ -217,7 +217,7 @@ describe('Art Style Enforcement - Comprehensive Test Suite', () => {
       expect(prompt).toMatch(/adventurous|exciting/i);
     });
 
-    test('should use semi-realistic character style', () => {
+    test('should use expressive watercolor character style', () => {
       const storyContent =
         'Emma the young scientist examined the colorful specimens carefully in her bright laboratory.';
       const artStyle =
@@ -231,22 +231,22 @@ describe('Art Style Enforcement - Comprehensive Test Suite', () => {
         artStyle,
       );
 
-      expect(prompt).toMatch(/semi-realistic|realistic/i);
+      expect(prompt).toMatch(/watercolor|expressive/i);
     });
 
     test('fallback: getArtStyleForGrade returns correct 3-5 style', () => {
       const style = imageGenerationService.getArtStyleForGrade(gradeLevel);
 
-      expect(style).toContain("detailed children's book");
+      expect(style).toContain("watercolor children's book");
       expect(style).toContain('vibrant colors');
-      expect(style).toContain('semi-realistic');
+      expect(style).toContain('watercolor style');
     });
   });
 
-  describe('Grade Level 6-8: Realistic Digital Illustration', () => {
+  describe('Grade Level 6-8: Watercolor Illustration', () => {
     const gradeLevel: GradeLevel = '6-8';
 
-    test('should contain realistic digital illustration base style keywords', () => {
+    test('should contain watercolor illustration base style keywords', () => {
       const storyContent =
         'Detective Morgan the clever investigator carefully analyzed the mysterious clues in the dimly lit room to solve the complex case.';
       const artStyle =
@@ -260,8 +260,7 @@ describe('Art Style Enforcement - Comprehensive Test Suite', () => {
         artStyle,
       );
 
-      expect(prompt).toMatch(/realistic/i);
-      expect(prompt).toMatch(/digital/i);
+      expect(prompt).toMatch(/watercolor/i);
       expect(prompt).toMatch(/illustration/i);
     });
 
@@ -316,7 +315,7 @@ describe('Art Style Enforcement - Comprehensive Test Suite', () => {
       expect(prompt).toMatch(/adventurous|heroic/i);
     });
 
-    test('should use realistic character style', () => {
+    test('should use watercolor character style', () => {
       const storyContent =
         'Dr. Sarah the dedicated researcher worked together with her team in the modern laboratory to make an important scientific discovery.';
       const artStyle =
@@ -330,22 +329,22 @@ describe('Art Style Enforcement - Comprehensive Test Suite', () => {
         artStyle,
       );
 
-      expect(prompt).toMatch(/realistic/i);
+      expect(prompt).toMatch(/watercolor/i);
     });
 
     test('fallback: getArtStyleForGrade returns correct 6-8 style', () => {
       const style = imageGenerationService.getArtStyleForGrade(gradeLevel);
 
-      expect(style).toContain('realistic digital illustration');
+      expect(style).toContain('watercolor illustration');
       expect(style).toContain('detailed artwork');
       expect(style).toContain('adventure book style');
     });
   });
 
-  describe('Grade Level 9-12: Sophisticated Digital Art', () => {
+  describe('Grade Level 9-12: Sophisticated Watercolor Art', () => {
     const gradeLevel: GradeLevel = '9-12';
 
-    test('should contain sophisticated digital art base style keywords', () => {
+    test('should contain sophisticated watercolor art base style keywords', () => {
       const storyContent =
         'Dr. Nathaniel the wise philosopher contemplated the deep meaning of existence in the modern urban world.';
       const artStyle =
@@ -360,7 +359,7 @@ describe('Art Style Enforcement - Comprehensive Test Suite', () => {
       );
 
       expect(prompt).toMatch(/sophisticated/i);
-      expect(prompt).toMatch(/digital/i);
+      expect(prompt).toMatch(/watercolor/i);
       expect(prompt).toMatch(/art/i);
     });
 
@@ -415,7 +414,7 @@ describe('Art Style Enforcement - Comprehensive Test Suite', () => {
       expect(prompt).toMatch(/thoughtful|inspiring/i);
     });
 
-    test('should use professional digital art technique', () => {
+    test('should use professional watercolor technique', () => {
       const storyContent =
         'Master Lee the professional artist demonstrated advanced lighting techniques in the contemporary art studio.';
       const artStyle =
@@ -430,14 +429,14 @@ describe('Art Style Enforcement - Comprehensive Test Suite', () => {
       );
 
       expect(prompt).toMatch(/professional/i);
-      expect(prompt).toMatch(/digital/i);
+      expect(prompt).toMatch(/watercolor/i);
     });
 
     test('fallback: getArtStyleForGrade returns correct 9-12 style', () => {
       const style = imageGenerationService.getArtStyleForGrade(gradeLevel);
 
-      expect(style).toContain('sophisticated digital art');
-      expect(style).toContain('realistic style');
+      expect(style).toContain('sophisticated watercolor art');
+      expect(style).toContain('expressive style');
       expect(style).toContain('mature artistic composition');
     });
   });
@@ -464,7 +463,7 @@ describe('Art Style Enforcement - Comprehensive Test Suite', () => {
       expect(prompt).toMatch(/simple/i);
     });
 
-    test('3-5: Adventure story maintains detailed illustration style', () => {
+    test('3-5: Adventure story maintains watercolor illustration style', () => {
       const storyContent =
         'Maya the curious explorer discovered an ancient temple hidden deep in the green jungle, filled with mysterious golden artifacts and colorful tropical plants.';
       const gradeLevel: GradeLevel = '3-5';
@@ -479,13 +478,13 @@ describe('Art Style Enforcement - Comprehensive Test Suite', () => {
         artStyle,
       );
 
+      expect(prompt).toMatch(/watercolor/i);
       expect(prompt).toMatch(/illustration/i);
-      expect(prompt).toMatch(/detailed/i);
       expect(prompt).toMatch(/vibrant/i);
       expect(prompt).toMatch(/adventurous/i);
     });
 
-    test('6-8: Adventure story maintains realistic digital style', () => {
+    test('6-8: Adventure story maintains watercolor illustration style', () => {
       const storyContent =
         'Captain Torres the determined mountaineer navigated through treacherous snowy mountain passes, using advanced equipment and teamwork to overcome every obstacle.';
       const gradeLevel: GradeLevel = '6-8';
@@ -500,8 +499,8 @@ describe('Art Style Enforcement - Comprehensive Test Suite', () => {
         artStyle,
       );
 
-      expect(prompt).toMatch(/realistic/i);
-      expect(prompt).toMatch(/digital/i);
+      expect(prompt).toMatch(/watercolor/i);
+      expect(prompt).toMatch(/illustration/i);
       expect(prompt).toMatch(/detail/i);
     });
 
@@ -548,7 +547,7 @@ describe('Art Style Enforcement - Comprehensive Test Suite', () => {
       expect(prompt).toMatch(/friendly/i);
     });
 
-    test('3-5: Friendship story maintains detailed illustration style', () => {
+    test('3-5: Friendship story maintains watercolor illustration style', () => {
       const storyContent =
         'Tommy the creative builder and his friends worked together to build a wooden treehouse with colorful flags, learning about cooperation and supporting each other through challenges.';
       const gradeLevel: GradeLevel = '3-5';
@@ -563,12 +562,12 @@ describe('Art Style Enforcement - Comprehensive Test Suite', () => {
         artStyle,
       );
 
+      expect(prompt).toMatch(/watercolor/i);
       expect(prompt).toMatch(/illustration/i);
-      expect(prompt).toMatch(/detailed/i);
       expect(prompt).toMatch(/vibrant/i);
     });
 
-    test('6-8: Friendship story maintains realistic digital style', () => {
+    test('6-8: Friendship story maintains watercolor illustration style', () => {
       const storyContent =
         'Aisha the passionate scientist and her diverse group of classmates formed a strong bond through their shared experiments with colorful chemical reactions in the modern laboratory.';
       const gradeLevel: GradeLevel = '6-8';
@@ -583,8 +582,8 @@ describe('Art Style Enforcement - Comprehensive Test Suite', () => {
         artStyle,
       );
 
-      expect(prompt).toMatch(/realistic/i);
-      expect(prompt).toMatch(/digital/i);
+      expect(prompt).toMatch(/watercolor/i);
+      expect(prompt).toMatch(/illustration/i);
       expect(prompt).toMatch(/sophisticated/i);
     });
 
@@ -631,7 +630,7 @@ describe('Art Style Enforcement - Comprehensive Test Suite', () => {
       expect(prompt).toMatch(/simple/i);
     });
 
-    test('3-5: Mystery story maintains detailed illustration style', () => {
+    test('3-5: Mystery story maintains watercolor illustration style', () => {
       const storyContent =
         'Sophie the clever detective and her Mystery Club friends investigated the strange noises in the old library with dusty brown shelves, carefully examining colorful clues to solve the puzzle.';
       const gradeLevel: GradeLevel = '3-5';
@@ -646,12 +645,12 @@ describe('Art Style Enforcement - Comprehensive Test Suite', () => {
         artStyle,
       );
 
+      expect(prompt).toMatch(/watercolor/i);
       expect(prompt).toMatch(/illustration/i);
-      expect(prompt).toMatch(/detailed/i);
       expect(prompt).toMatch(/vibrant|rich/i);
     });
 
-    test('6-8: Mystery story maintains realistic digital style', () => {
+    test('6-8: Mystery story maintains watercolor illustration style', () => {
       const storyContent =
         'Detective Rivera the methodical investigator analyzed the evidence meticulously in the modern crime lab, piecing together the complex web of clues to uncover the truth.';
       const gradeLevel: GradeLevel = '6-8';
@@ -666,8 +665,8 @@ describe('Art Style Enforcement - Comprehensive Test Suite', () => {
         artStyle,
       );
 
-      expect(prompt).toMatch(/realistic/i);
-      expect(prompt).toMatch(/digital/i);
+      expect(prompt).toMatch(/watercolor/i);
+      expect(prompt).toMatch(/illustration/i);
       expect(prompt).toMatch(/detail|complex/i);
     });
 
@@ -707,7 +706,7 @@ describe('Art Style Enforcement - Comprehensive Test Suite', () => {
       expect(prompt).toMatch(/children's book/i);
     });
 
-    test('generatePrompt fallback maintains 3-5 illustration style', () => {
+    test('generatePrompt fallback maintains 3-5 watercolor illustration style', () => {
       const storyContent =
         'The students built a robot for the science fair competition.';
       const gradeLevel: GradeLevel = '3-5';
@@ -718,11 +717,11 @@ describe('Art Style Enforcement - Comprehensive Test Suite', () => {
         gradeLevel,
       );
 
+      expect(prompt).toMatch(/watercolor/i);
       expect(prompt).toMatch(/illustration/i);
-      expect(prompt).toMatch(/detailed/i);
     });
 
-    test('generatePrompt fallback maintains 6-8 realistic style', () => {
+    test('generatePrompt fallback generates 6-8 watercolor style', () => {
       const storyContent =
         'The team developed an innovative solution to the environmental challenge.';
       const gradeLevel: GradeLevel = '6-8';
@@ -733,8 +732,8 @@ describe('Art Style Enforcement - Comprehensive Test Suite', () => {
         gradeLevel,
       );
 
-      expect(prompt).toMatch(/realistic/i);
-      expect(prompt).toMatch(/digital/i);
+      expect(prompt).toMatch(/watercolor/i);
+      expect(prompt).toMatch(/illustration/i);
     });
 
     test('generatePrompt fallback maintains 9-12 sophisticated style', () => {

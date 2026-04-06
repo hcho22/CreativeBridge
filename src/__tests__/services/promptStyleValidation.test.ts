@@ -102,7 +102,7 @@ describe('Prompt Style Validation - Unit Tests', () => {
     const gradeLevel: GradeLevel = '3-5';
 
     test('should pass validation with all required art style keywords', () => {
-      const validPrompt = `Create a detailed children's book illustration showing characters on an adventure, vibrant colors, rich earth tones, digital painting, clean line art, adventurous and exciting, dynamic composition, semi-realistic characters, detailed environments`;
+      const validPrompt = `Create a watercolor children's book illustration showing characters on an adventure, vibrant colors, rich earth tones, watercolor painting style, textured brushstrokes, adventurous and exciting, dynamic composition, expressive watercolor characters, detailed environments`;
 
       const result = validatePrompt(validPrompt, gradeLevel);
 
@@ -110,8 +110,8 @@ describe('Prompt Style Validation - Unit Tests', () => {
       expect(result.validationErrors).toHaveLength(0);
     });
 
-    test('should fail validation with K-2 style instead of 3-5 style', () => {
-      const wrongStylePrompt = `Create a watercolor children's book illustration with simple shapes and soft pastels`;
+    test('should fail validation with wrong base style for 3-5', () => {
+      const wrongStylePrompt = `Create a realistic digital illustration with bright colors and detailed shading`;
 
       const result = validatePrompt(wrongStylePrompt, gradeLevel);
 
@@ -122,7 +122,7 @@ describe('Prompt Style Validation - Unit Tests', () => {
     });
 
     test('should validate coverage percentage calculation', () => {
-      const partialPrompt = `Create a detailed children's book illustration showing an adventure with vibrant colors`;
+      const partialPrompt = `Create a watercolor children's book illustration showing an adventure with vibrant colors`;
 
       const result = validatePrompt(partialPrompt, gradeLevel);
 
@@ -134,8 +134,8 @@ describe('Prompt Style Validation - Unit Tests', () => {
   describe('6-8 Grade Level Validation', () => {
     const gradeLevel: GradeLevel = '6-8';
 
-    test('should pass validation with realistic digital illustration style', () => {
-      const validPrompt = `Create a realistic digital illustration with sophisticated color schemes, dramatic lighting, high detail, complex compositions, digital art, realistic shading, adventurous and heroic, dynamic action compositions, realistic human figures, detailed realistic environments`;
+    test('should pass validation with watercolor illustration style', () => {
+      const validPrompt = `Create a watercolor illustration with sophisticated color schemes, dramatic lighting, high detail, complex compositions, watercolor painting style, rich wet-on-wet techniques, adventurous and heroic, dynamic action compositions, detailed watercolor characters, detailed watercolor environments`;
 
       const result = validatePrompt(validPrompt, gradeLevel);
 
@@ -143,8 +143,8 @@ describe('Prompt Style Validation - Unit Tests', () => {
       expect(result.validationErrors).toHaveLength(0);
     });
 
-    test('should fail validation with childish watercolor style', () => {
-      const wrongStylePrompt = `Create a watercolor children's book illustration with friendly cartoon animals and simple shapes`;
+    test('should fail validation with wrong base style for 6-8', () => {
+      const wrongStylePrompt = `Create a sophisticated digital art with advanced lighting and professional rendering`;
 
       const result = validatePrompt(wrongStylePrompt, gradeLevel);
 
@@ -155,8 +155,8 @@ describe('Prompt Style Validation - Unit Tests', () => {
   describe('9-12 Grade Level Validation', () => {
     const gradeLevel: GradeLevel = '9-12';
 
-    test('should pass validation with sophisticated digital art style', () => {
-      const validPrompt = `Create a sophisticated digital art with mature color palettes, subtle gradients, professional digital art, advanced lighting, thoughtful and inspiring, artistic composition, realistic human anatomy, photorealistic environments`;
+    test('should pass validation with sophisticated watercolor art style', () => {
+      const validPrompt = `Create a sophisticated watercolor art with mature color palettes, subtle gradients, professional watercolor technique, advanced color layering, thoughtful and inspiring, artistic composition, detailed watercolor figures, richly detailed watercolor environments`;
 
       const result = validatePrompt(validPrompt, gradeLevel);
 
@@ -165,7 +165,7 @@ describe('Prompt Style Validation - Unit Tests', () => {
     });
 
     test('should fail validation with lower grade level styles', () => {
-      const wrongStylePrompt = `Create a watercolor children's book illustration with bright colors and friendly cartoon style`;
+      const wrongStylePrompt = `Create a realistic digital illustration with bright colors and friendly cartoon style`;
 
       const result = validatePrompt(wrongStylePrompt, gradeLevel);
 
@@ -282,21 +282,21 @@ describe('Prompt Style Validation - Unit Tests', () => {
         },
         {
           gradeLevel: '3-5',
-          baseStyle: "detailed children's book illustration",
+          baseStyle: "watercolor children's book illustration",
           prop1: 'vibrant colors',
-          prop2: 'digital painting',
+          prop2: 'watercolor painting style',
         },
         {
           gradeLevel: '6-8',
-          baseStyle: 'realistic digital illustration',
+          baseStyle: 'watercolor illustration',
           prop1: 'sophisticated color schemes',
-          prop2: 'digital art',
+          prop2: 'watercolor painting style',
         },
         {
           gradeLevel: '9-12',
-          baseStyle: 'sophisticated digital art',
+          baseStyle: 'sophisticated watercolor art',
           prop1: 'mature color palettes',
-          prop2: 'professional digital art',
+          prop2: 'professional watercolor technique',
         },
       ];
 

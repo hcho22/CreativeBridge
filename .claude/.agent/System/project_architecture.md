@@ -148,7 +148,7 @@ src/
 1. **baseStyle**: Foundation style (e.g., "watercolor children's book illustration" for K-2)
 2. **colorPalette**: Age-appropriate color schemes (bright colors for K-2, sophisticated palettes for 9-12)
 3. **visualComplexity**: Detail level matching cognitive development stage
-4. **artisticTechnique**: Rendering style (watercolor, digital painting, realistic art)
+4. **artisticTechnique**: Rendering style (watercolor painting with age-appropriate techniques)
 5. **emotionalTone**: Mood appropriate for age group (whimsical for K-2, thoughtful for 9-12)
 6. **layoutStyle**: Composition guidance (child-friendly framing vs. dynamic composition)
 7. **characterStyle**: Character rendering approach (simple shapes vs. detailed features)
@@ -189,9 +189,9 @@ src/
 **Grade-Level Art Styles:**
 
 - **K-2**: Watercolor children's book illustration with bright colors, simple shapes, whimsical tone
-- **3-5**: Detailed digital illustration with vibrant colors, moderate detail, adventurous tone
-- **6-8**: Realistic digital art with sophisticated colors, high detail, heroic tone
-- **9-12**: Sophisticated digital painting with mature palette, complex composition, thoughtful tone
+- **3-5**: Watercolor children's book illustration with vibrant colors, moderate detail, adventurous tone
+- **6-8**: Watercolor illustration with sophisticated colors, high detail, heroic tone
+- **9-12**: Sophisticated watercolor art with mature palette, complex composition, thoughtful tone
 
 **Quality Assurance:**
 

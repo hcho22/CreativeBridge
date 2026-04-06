@@ -202,52 +202,52 @@ Tier 3: generateEnhancedGradeAppropriatePrompt()
 
 ```typescript
 '3-5': {
-  baseStyle: 'detailed digital illustration',
-  colorPalette: 'vibrant colors with warm tones',
-  visualComplexity: 'moderate detail with clear storytelling',
-  artisticTechnique: 'digital painting, textured brushstrokes',
-  emotionalTone: 'adventurous and engaging',
-  layoutStyle: 'balanced composition with dynamic elements',
-  characterStyle: 'expressive characters with personality',
-  backgroundStyle: 'detailed environments with story context'
+  baseStyle: 'watercolor children\'s book illustration',
+  colorPalette: 'vibrant colors, rich earth tones, balanced warm and cool colors',
+  visualComplexity: 'moderate detail, clear focal points, engaging visual elements',
+  artisticTechnique: 'watercolor painting style, textured brushstrokes, layered color washes',
+  emotionalTone: 'adventurous and exciting, encouraging exploration, positive energy',
+  layoutStyle: 'dynamic composition, balanced elements, visual storytelling flow',
+  characterStyle: 'expressive watercolor characters, lively poses, diverse representation',
+  backgroundStyle: 'detailed environments, recognizable settings, immersive worlds'
 }
 ```
 
-**Purpose**: More sophisticated visuals matching developing reading comprehension and visual processing abilities.
+**Purpose**: More sophisticated watercolor visuals matching developing reading comprehension and visual processing abilities.
 
 #### 6-8: Middle School
 
 ```typescript
 '6-8': {
-  baseStyle: 'realistic digital art',
-  colorPalette: 'sophisticated colors with rich tones',
-  visualComplexity: 'high detail with nuanced elements',
-  artisticTechnique: 'realistic rendering, dramatic lighting',
-  emotionalTone: 'heroic and inspiring',
-  layoutStyle: 'dynamic composition with depth',
-  characterStyle: 'realistic proportions with detailed features',
-  backgroundStyle: 'complex environments with atmospheric depth'
+  baseStyle: 'watercolor illustration',
+  colorPalette: 'sophisticated color schemes, dramatic lighting, atmospheric effects',
+  visualComplexity: 'high detail, complex compositions, well-proportioned figures',
+  artisticTechnique: 'watercolor painting style, rich wet-on-wet techniques, expressive brush work, detailed washes',
+  emotionalTone: 'adventurous and heroic, inspiring confidence, age-appropriate excitement',
+  layoutStyle: 'dynamic action compositions, cinematic angles, visual depth',
+  characterStyle: 'detailed watercolor characters, expressive facial features, action poses',
+  backgroundStyle: 'detailed watercolor environments, atmospheric washes, layered depth'
 }
 ```
 
-**Purpose**: Semi-realistic art matching maturity level and interest in more complex narratives.
+**Purpose**: Detailed watercolor art matching maturity level and interest in more complex narratives.
 
 #### 9-12: High School
 
 ```typescript
 '9-12': {
-  baseStyle: 'sophisticated digital painting',
-  colorPalette: 'mature palette with nuanced colors',
-  visualComplexity: 'complex composition with subtle details',
-  artisticTechnique: 'advanced rendering, cinematic lighting',
-  emotionalTone: 'thoughtful and inspiring',
-  layoutStyle: 'artistic composition with visual symbolism',
-  characterStyle: 'mature character design with psychological depth',
-  backgroundStyle: 'richly detailed settings with narrative significance'
+  baseStyle: 'sophisticated watercolor art',
+  colorPalette: 'mature color palettes, subtle gradients, professional color theory',
+  visualComplexity: 'complex artistic composition, intricate details, advanced visual concepts',
+  artisticTechnique: 'professional watercolor technique, advanced color layering, expressive washes and textures',
+  emotionalTone: 'thoughtful and inspiring, intellectually engaging, emotionally resonant',
+  layoutStyle: 'artistic composition, sophisticated visual hierarchy, professional design',
+  characterStyle: 'detailed watercolor figures, nuanced expressions, diverse and inclusive',
+  backgroundStyle: 'richly detailed watercolor environments, architectural detail, atmospheric depth'
 }
 ```
 
-**Purpose**: Mature, sophisticated visuals appropriate for young adult content and complex themes.
+**Purpose**: Mature, sophisticated watercolor visuals appropriate for young adult content and complex themes.
 
 ### Modifying ART_STYLE_MAPPING
 
@@ -644,7 +644,7 @@ node --require ts-node/register src/__tests__/manual/artStyleValidation.manual.t
    - [ ] Characters rendered in appropriate style
    - [ ] Background detail level is correct
    - [ ] Overall emotional tone is appropriate
-   - [ ] No photorealistic elements for K-2 or 3-5
+   - [ ] Watercolor style consistent across all grade levels
 
 3. **Document Findings**:
 
@@ -1028,7 +1028,7 @@ prompt += `, using ${artStyleDefinition.artisticTechnique}`;
 if (gradeLevel === 'K-2') {
   prompt += ', watercolor style, bright colors';
 } else if (gradeLevel === '3-5') {
-  prompt += ', digital illustration, vibrant colors';
+  prompt += ', watercolor illustration, vibrant colors';
 }
 ```
 
@@ -1151,6 +1151,12 @@ prompt += `, ${artStyleDefinition.backgroundStyle}`;
 ---
 
 ## Version History
+
+**Version 1.1** (2026-04-06)
+
+- Unified all grade levels to watercolor painting style
+- Updated 3-5, 6-8, 9-12 code snippets and descriptions to reflect watercolor-only art medium
+- Removed references to "digital illustration", "realistic digital art", and "sophisticated digital painting"
 
 **Version 1.0** (2026-01-26)
 

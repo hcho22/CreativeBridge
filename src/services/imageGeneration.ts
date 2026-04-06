@@ -355,54 +355,54 @@ const ART_STYLE_MAPPING: Record<GradeLevel, ArtStyleDefinition> = {
       'soft dreamy backgrounds, simple landscapes, fairy-tale settings',
   },
   '3-5': {
-    baseStyle: "detailed children's book illustration",
+    baseStyle: "watercolor children's book illustration",
     colorPalette:
       'vibrant colors, rich earth tones, balanced warm and cool colors',
     visualComplexity:
       'moderate detail, clear focal points, engaging visual elements',
     artisticTechnique:
-      'digital painting, clean line art, smooth color gradients',
+      'watercolor painting style, textured brushstrokes, layered color washes',
     emotionalTone:
       'adventurous and exciting, encouraging exploration, positive energy',
     layoutStyle:
       'dynamic composition, balanced elements, visual storytelling flow',
     characterStyle:
-      'semi-realistic characters, expressive poses, diverse representation',
+      'expressive watercolor characters, lively poses, diverse representation',
     backgroundStyle:
       'detailed environments, recognizable settings, immersive worlds',
   },
   '6-8': {
-    baseStyle: 'realistic digital illustration',
+    baseStyle: 'watercolor illustration',
     colorPalette:
       'sophisticated color schemes, dramatic lighting, atmospheric effects',
     visualComplexity:
-      'high detail, complex compositions, realistic proportions',
+      'high detail, complex compositions, well-proportioned figures',
     artisticTechnique:
-      'digital art, realistic shading, texture work, professional illustration',
+      'watercolor painting style, rich wet-on-wet techniques, expressive brush work, detailed washes',
     emotionalTone:
       'adventurous and heroic, inspiring confidence, age-appropriate excitement',
     layoutStyle: 'dynamic action compositions, cinematic angles, visual depth',
     characterStyle:
-      'realistic human figures, detailed facial expressions, action poses',
+      'detailed watercolor characters, expressive facial features, action poses',
     backgroundStyle:
-      'detailed realistic environments, atmospheric perspective, world-building',
+      'detailed watercolor environments, atmospheric washes, layered depth',
   },
   '9-12': {
-    baseStyle: 'sophisticated digital art',
+    baseStyle: 'sophisticated watercolor art',
     colorPalette:
       'mature color palettes, subtle gradients, professional color theory',
     visualComplexity:
       'complex artistic composition, intricate details, advanced visual concepts',
     artisticTechnique:
-      'professional digital art, advanced lighting, realistic materials and textures',
+      'professional watercolor technique, advanced color layering, expressive washes and textures',
     emotionalTone:
       'thoughtful and inspiring, intellectually engaging, emotionally resonant',
     layoutStyle:
       'artistic composition, sophisticated visual hierarchy, professional design',
     characterStyle:
-      'realistic human anatomy, nuanced expressions, diverse and inclusive',
+      'detailed watercolor figures, nuanced expressions, diverse and inclusive',
     backgroundStyle:
-      'photorealistic environments, architectural accuracy, atmospheric realism',
+      'richly detailed watercolor environments, architectural detail, atmospheric depth',
   },
 };
 
@@ -411,11 +411,11 @@ const SIMPLE_ART_STYLE_MAPPING: Record<GradeLevel, string> = {
   'K-2':
     "watercolor children's book illustration, bright colors, friendly cartoon style, simple shapes, magical and whimsical",
   '3-5':
-    "detailed children's book illustration, vibrant colors, semi-realistic style with cartoon elements",
+    "watercolor children's book illustration, vibrant colors, expressive watercolor style with engaging details",
   '6-8':
-    'realistic digital illustration, detailed artwork, adventure book style, dynamic composition',
+    'watercolor illustration, detailed artwork, adventure book style, dynamic composition',
   '9-12':
-    'sophisticated digital art, realistic style, detailed environments, mature artistic composition',
+    'sophisticated watercolor art, expressive style, detailed environments, mature artistic composition',
 };
 
 // Enhanced content extraction patterns
@@ -8207,9 +8207,9 @@ class ImageGenerationService {
       case '3-5':
         return 'colorful and engaging, slightly more detailed, maintaining child-friendly appeal';
       case '6-8':
-        return 'more realistic details, dynamic composition, appealing to pre-teens';
+        return 'more watercolor detail, dynamic composition, appealing to pre-teens';
       case '9-12':
-        return 'sophisticated artistry, realistic proportions, mature but appropriate content';
+        return 'sophisticated watercolor artistry, well-proportioned figures, mature but appropriate content';
       default:
         return 'child-appropriate and engaging';
     }
