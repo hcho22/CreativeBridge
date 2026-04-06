@@ -257,6 +257,8 @@ export const analyzeStoryForImageGeneration = action({
   args: {
     storyText: v.string(),
     model: v.optional(v.string()),
+    gradeLevel: v.optional(v.string()),
+    artStyleGuidance: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx);
@@ -264,16 +266,26 @@ export const analyzeStoryForImageGeneration = action({
     const model = args.model || 'gpt-4o-mini';
     const scrubbedStory = scrubPII(args.storyText);
 
-    const systemPrompt = `You are an expert at analyzing children's stories and creating detailed image generation prompts.
+    const artStyleInstruction = args.artStyleGuidance
+      ? `5. Use this EXACT ARTISTIC STYLE: ${args.artStyleGuidance}. Do NOT invent a different style. The image MUST look like a watercolor painting on textured paper with visible brushstrokes and paint edges. NEVER use terms like "digital", "3d", "cartoon", "photorealistic", "CGI", or "render".`
+      : '5. Suggest ARTISTIC STYLE (illustration style appropriate for children)';
 
-Your task is to read a story excerpt and create an optimized prompt for Stable Diffusion that will generate a single, cohesive image that captures the story's essence.
+    const gradeLevelNote = args.gradeLevel
+      ? `\nGRADE LEVEL: ${args.gradeLevel} — ensure content complexity and visual style are age-appropriate for this grade range.`
+      : '';
 
+    const systemPrompt = `You are an expert at analyzing children's stories and creating detailed image generation prompts for Stable Diffusion.
+
+CRITICAL: Stable Diffusion weights early tokens MUCH more heavily than later tokens. The artistic style and medium MUST appear at the VERY BEGINNING of every prompt. This is non-negotiable.
+
+Your task is to read a story excerpt and create an optimized prompt that will generate a single, cohesive watercolor-style image.
+${gradeLevelNote}
 REQUIREMENTS:
 1. Extract the MAIN SUBJECT (who/what is the focus?)
 2. Identify the SETTING (where does this take place?)
 3. Capture the MOOD (what emotion or atmosphere?)
 4. Note KEY VISUAL ELEMENTS (important objects, colors, actions)
-5. Suggest ARTISTIC STYLE (illustration style appropriate for children)
+${artStyleInstruction}
 
 COMPOSITION RULES:
 - Create ONE cohesive scene with a CLEAR FOCAL POINT
@@ -281,11 +293,15 @@ COMPOSITION RULES:
 - Ensure the main subject is prominent and well-framed
 - Keep the composition simple and child-friendly
 
-OUTPUT FORMAT:
-Provide a concise image generation prompt in this format:
-"[Main subject and action], [setting details], [mood/lighting], [artistic style], [additional visual elements]"
+OUTPUT FORMAT — STYLE MUST COME FIRST:
+Provide a concise image generation prompt in this EXACT format:
+"watercolor painting on textured paper, [artistic technique and style], [main subject and action], [setting details], [mood/lighting], painted with visible brushstrokes"
 
-Keep the entire prompt under 200 tokens and avoid redundancy.`;
+The prompt MUST:
+- START with "watercolor painting on textured paper"
+- END with a watercolor reinforcement phrase like "painted with visible brushstrokes"
+- NEVER mention digital, 3d, photorealistic, or CGI
+- Keep the entire prompt under 200 tokens`;
 
     const userPrompt = `Analyze this story excerpt and create an optimized Stable Diffusion prompt:
 

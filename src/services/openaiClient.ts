@@ -88,6 +88,8 @@ export class OpenAIClient {
    */
   public async analyzeStoryForImageGeneration(
     storyText: string,
+    gradeLevel?: string,
+    artStyleGuidance?: string,
   ): Promise<string> {
     const client = getConvexClient();
     if (!client) {
@@ -98,7 +100,7 @@ export class OpenAIClient {
 
     const imagePrompt = await client.action(
       api.ai.analyzeStoryForImageGeneration,
-      { storyText },
+      { storyText, gradeLevel, artStyleGuidance },
     );
 
     return imagePrompt;

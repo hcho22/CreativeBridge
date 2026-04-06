@@ -339,29 +339,31 @@ export interface EnhancedStyleOptions {
 // Enhanced grade-level art style mappings based on educational psychology and visual development
 const ART_STYLE_MAPPING: Record<GradeLevel, ArtStyleDefinition> = {
   'K-2': {
-    baseStyle: "watercolor children's book illustration",
+    baseStyle:
+      "watercolor children's book illustration, watercolor painting on textured paper",
     colorPalette:
       'bright primary colors, soft pastels, warm and inviting tones',
     visualComplexity:
       'simple shapes, clear outlines, minimal detail, large friendly elements',
     artisticTechnique:
-      'watercolor painting style, soft brush strokes, gentle textures',
+      'visible watercolor brushstrokes, soft wet paint edges, gentle color bleeding on paper, hand-painted watercolor texture',
     emotionalTone:
       'magical and whimsical, innocent and joyful, safe and comforting',
     layoutStyle: 'centered composition, spacious layout, uncluttered design',
     characterStyle:
       'friendly cartoon animals, simple human figures, expressive big eyes',
     backgroundStyle:
-      'soft dreamy backgrounds, simple landscapes, fairy-tale settings',
+      'soft dreamy watercolor wash backgrounds, simple landscapes, fairy-tale settings',
   },
   '3-5': {
-    baseStyle: "watercolor children's book illustration",
+    baseStyle:
+      "watercolor children's book illustration, watercolor painting on textured paper",
     colorPalette:
       'vibrant colors, rich earth tones, balanced warm and cool colors',
     visualComplexity:
       'moderate detail, clear focal points, engaging visual elements',
     artisticTechnique:
-      'watercolor painting style, textured brushstrokes, layered color washes',
+      'watercolor painting on paper, textured brushstrokes, layered color washes, visible paint texture, wet-on-dry watercolor technique',
     emotionalTone:
       'adventurous and exciting, encouraging exploration, positive energy',
     layoutStyle:
@@ -369,32 +371,33 @@ const ART_STYLE_MAPPING: Record<GradeLevel, ArtStyleDefinition> = {
     characterStyle:
       'expressive watercolor characters, lively poses, diverse representation',
     backgroundStyle:
-      'detailed environments, recognizable settings, immersive worlds',
+      'detailed watercolor environments, recognizable settings, immersive worlds',
   },
   '6-8': {
-    baseStyle: 'watercolor illustration',
+    baseStyle: 'watercolor illustration, watercolor painting on textured paper',
     colorPalette:
       'sophisticated color schemes, dramatic lighting, atmospheric effects',
     visualComplexity:
       'high detail, complex compositions, well-proportioned figures',
     artisticTechnique:
-      'watercolor painting style, rich wet-on-wet techniques, expressive brush work, detailed washes',
+      'rich wet-on-wet watercolor techniques, expressive brush work, detailed watercolor washes, paint bleeding on paper, visible paper grain',
     emotionalTone:
       'adventurous and heroic, inspiring confidence, age-appropriate excitement',
     layoutStyle: 'dynamic action compositions, cinematic angles, visual depth',
     characterStyle:
       'detailed watercolor characters, expressive facial features, action poses',
     backgroundStyle:
-      'detailed watercolor environments, atmospheric washes, layered depth',
+      'detailed watercolor environments, atmospheric watercolor washes, layered depth',
   },
   '9-12': {
-    baseStyle: 'sophisticated watercolor art',
+    baseStyle:
+      'sophisticated watercolor art, professional watercolor painting on textured paper',
     colorPalette:
       'mature color palettes, subtle gradients, professional color theory',
     visualComplexity:
       'complex artistic composition, intricate details, advanced visual concepts',
     artisticTechnique:
-      'professional watercolor technique, advanced color layering, expressive washes and textures',
+      'professional watercolor technique, advanced color layering, expressive washes and textures, visible brushstrokes on paper, wet paint edges',
     emotionalTone:
       'thoughtful and inspiring, intellectually engaging, emotionally resonant',
     layoutStyle:
@@ -402,7 +405,7 @@ const ART_STYLE_MAPPING: Record<GradeLevel, ArtStyleDefinition> = {
     characterStyle:
       'detailed watercolor figures, nuanced expressions, diverse and inclusive',
     backgroundStyle:
-      'richly detailed watercolor environments, architectural detail, atmospheric depth',
+      'richly detailed watercolor environments, architectural detail, atmospheric watercolor depth',
   },
 };
 
@@ -1115,15 +1118,16 @@ class BackupServiceClient {
       sanitized = `A safe, family-friendly illustration: ${sanitized}`;
     }
 
-    // Add grade-appropriate safety suffixes
+    // Add grade-appropriate safety suffixes with watercolor reinforcement
     const safetySuffixes = {
       'K-2':
-        ', safe for toddlers and young children, G-rated, colorful and friendly',
+        ', safe for toddlers and young children, G-rated, colorful and friendly, watercolor painting on paper',
       '3-5':
-        ', safe for elementary school children, appropriate content, educational',
-      '6-8': ', appropriate for middle school students, educational content',
+        ', safe for elementary school children, appropriate content, educational, watercolor painting on paper',
+      '6-8':
+        ', appropriate for middle school students, educational content, watercolor painting on paper',
       '9-12':
-        ', appropriate for high school students, educational and age-appropriate',
+        ', appropriate for high school students, educational and age-appropriate, watercolor painting on paper',
     };
 
     sanitized += safetySuffixes[gradeLevel] || safetySuffixes['K-2'];
@@ -1345,14 +1349,14 @@ class ReplicateClient {
         prompt,
         width: 512,
         height: 512,
-        // US-007: Optimized parameters for better quality and prompt adherence
+        // US-007: Optimized parameters for watercolor style adherence
         num_inference_steps: 50, // Increased from 20 for better quality
-        guidance_scale: 7.5, // Optimal for prompt adherence
+        guidance_scale: 12, // Increased from 7.5 to strongly enforce watercolor style prompt
         scheduler: 'DPMSolverMultistep', // Better quality than K_EULER
         num_outputs: 1,
-        // US-007: Comprehensive negative prompt to avoid common quality issues
+        // US-007: Aggressive negative prompt to force watercolor and prevent 3D/digital rendering
         negative_prompt:
-          'blurry, out of focus, distorted, deformed, multiple scenes, split image, collage, low quality, pixelated, grainy, watermark, text, letters, numbers, cropped, cut off',
+          '3d render, 3d art, 3d model, CGI, unreal engine, unity, octane render, ray tracing, digital art, digital painting, digital illustration, photorealistic, hyperrealistic, photograph, photo, camera, lens flare, bokeh, depth of field, anime, manga, cartoon, cel shading, flat shading, vector art, clip art, SVG, graphic design, logo, icon, plastic, glossy, metallic, chrome, glass, reflective, smooth shading, gradient mesh, neon, glowing, luminescent, blurry, out of focus, distorted, deformed, multiple scenes, split image, collage, low quality, pixelated, grainy, watermark, text, letters, numbers, cropped, cut off, oil painting, acrylic painting, pencil drawing, charcoal, pastel, crayon',
         ...options,
       },
     };
@@ -7694,7 +7698,9 @@ class ImageGenerationService {
     }
 
     // Safety guidelines
-    promptParts.push('Safe for children, appropriate content');
+    promptParts.push(
+      'Safe for children, appropriate content, watercolor painting style, painted with watercolors on paper',
+    );
 
     // Validate and clean final prompt
     const finalPrompt = promptParts.join(', ');
@@ -8612,6 +8618,11 @@ class ImageGenerationService {
           eventId,
         };
       }
+
+      // US-007: Enforce watercolor style as final prompt guardrail before API call
+      // This ensures watercolor medium descriptors are the FIRST tokens in the prompt,
+      // which is critical because Stable Diffusion weights early tokens 3-5x more heavily.
+      prompt = this.enforceWatercolorStyle(prompt, request.gradeLevel);
 
       // Try primary service (Replicate) with enhanced timeout handling
       let imageUrl: string;
@@ -10757,8 +10768,9 @@ class ImageGenerationService {
           );
         }
 
-        // Always add safety constraint
-        prompt += ', safe for children, G-rated content';
+        // Always add safety constraint and watercolor style reinforcement
+        prompt +=
+          ', safe for children, G-rated content, watercolor painting style, painted with watercolors on paper';
 
         console.log('📝 Story-specific elements extracted:', {
           character: visualElements.character,
@@ -12174,7 +12186,8 @@ class ImageGenerationService {
         );
 
         // Always add safety constraints
-        prompt += ', safe for children, G-rated content';
+        prompt +=
+          ', safe for children, G-rated content, watercolor painting style, painted with watercolors on paper';
 
         return prompt;
       }
@@ -12245,7 +12258,8 @@ class ImageGenerationService {
       `✅ generateFallbackAdvancedPrompt: Added full art style enforcement for ${gradeLevel}`,
     );
 
-    prompt += ', safe for children, G-rated content';
+    prompt +=
+      ', safe for children, G-rated content, watercolor painting style, painted with watercolors on paper';
 
     return prompt;
   }
@@ -12359,7 +12373,8 @@ class ImageGenerationService {
       );
 
       // Always add safety constraints
-      prompt += ', safe for children, G-rated content';
+      prompt +=
+        ', safe for children, G-rated content, watercolor painting style, painted with watercolors on paper';
 
       return prompt;
     } else {
@@ -12370,7 +12385,8 @@ class ImageGenerationService {
       fallbackPrompt += `, rendered in ${artStyleDefinition.artisticTechnique}`;
       fallbackPrompt += `, ${artStyleDefinition.emotionalTone}`;
       fallbackPrompt += `, ${artStyleDefinition.characterStyle}`;
-      fallbackPrompt += ', safe for children, G-rated content';
+      fallbackPrompt +=
+        ', safe for children, G-rated content, watercolor painting style, painted with watercolors on paper';
 
       console.log(
         `✅ generateAdvancedPromptLegacy (fallback): Added full art style enforcement for ${gradeLevel}`,
@@ -12408,6 +12424,59 @@ class ImageGenerationService {
   }
 
   /**
+   * US-007: Final guardrail that restructures any prompt to enforce watercolor style.
+   *
+   * Stable Diffusion weights tokens by position — early tokens get 3-5x more attention.
+   * This method prepends watercolor medium descriptors so they are always the FIRST tokens,
+   * and appends a style reinforcement suffix ("style sandwich" technique).
+   *
+   * Applied as the LAST transformation before the prompt is sent to the Replicate API,
+   * regardless of which path generated the prompt (LLM, Tier 1, Tier 2, or Tier 3).
+   */
+  private enforceWatercolorStyle(
+    prompt: string,
+    gradeLevel: GradeLevel,
+  ): string {
+    // Grade-specific watercolor prefix — physical medium descriptors that SD strongly responds to
+    const watercolorPrefix: Record<GradeLevel, string> = {
+      'K-2':
+        "watercolor painting on white textured paper, soft hand-painted brushstrokes, wet paint bleeding edges, children's book watercolor illustration style,",
+      '3-5':
+        "watercolor painting on textured watercolor paper, visible brushstrokes and paint layers, wet-on-dry watercolor technique, children's book illustration,",
+      '6-8':
+        'watercolor painting on rough textured paper, expressive wet-on-wet brushwork, paint bleeding and layered washes, visible paper grain texture,',
+      '9-12':
+        'professional watercolor painting on cold-pressed paper, masterful brushwork with visible strokes, layered transparent washes, paint bleeding on textured paper,',
+    };
+
+    // Style reinforcement suffix — brackets the scene description with style tokens
+    const watercolorSuffix =
+      ', traditional watercolor painting medium, hand-painted on paper, NOT digital art, NOT 3d render';
+
+    // Strip any existing "watercolor painting style" suffixes to avoid duplication
+    let cleaned = prompt
+      .replace(/,?\s*watercolor painting style/gi, '')
+      .replace(/,?\s*painted with watercolors on paper/gi, '')
+      .replace(/,?\s*traditional watercolor medium,?\s*painted on paper/gi, '')
+      .replace(/,?\s*NOT digital art,?\s*NOT 3d render/gi, '')
+      .trim();
+
+    // Remove leading/trailing commas and extra whitespace
+    cleaned = cleaned.replace(/^,\s*/, '').replace(/,\s*$/, '').trim();
+
+    const result = `${watercolorPrefix[gradeLevel]} ${cleaned}${watercolorSuffix}`;
+
+    console.log('🎨 [WATERCOLOR ENFORCEMENT] Prompt restructured:', {
+      gradeLevel,
+      originalStart: prompt.substring(0, 60),
+      newStart: result.substring(0, 80),
+      newEnd: result.substring(result.length - 60),
+    });
+
+    return result;
+  }
+
+  /**
    * US-003: Generate optimized image prompt using GPT-4 story analysis
    *
    * This method orchestrates LLM-based prompt generation by calling the OpenAI
@@ -12418,14 +12487,23 @@ class ImageGenerationService {
    * @returns Optimized image generation prompt
    * @throws Error if LLM analysis fails (caller should handle fallback)
    */
-  private async generatePromptWithLLM(storyText: string): Promise<string> {
+  private async generatePromptWithLLM(
+    storyText: string,
+    gradeLevel: GradeLevel,
+  ): Promise<string> {
     console.log('🤖 Using LLM for prompt generation...');
     const startTime = Date.now();
 
     try {
-      // Call GPT-4 story analysis from openaiClient
+      // Build art style guidance from ART_STYLE_MAPPING so GPT enforces watercolor style
+      const artStyle = ART_STYLE_MAPPING[gradeLevel];
+      const artStyleGuidance = `${artStyle.baseStyle}, ${artStyle.colorPalette}, ${artStyle.artisticTechnique}, ${artStyle.emotionalTone}`;
+
+      // Call GPT-4 story analysis from openaiClient with grade-specific art style
       const optimizedPrompt = await openaiClient.analyzeStoryForImageGeneration(
         storyText,
+        gradeLevel,
+        artStyleGuidance,
       );
 
       const elapsedMs = Date.now() - startTime;
@@ -12480,8 +12558,11 @@ class ImageGenerationService {
     gradeLevel: GradeLevel,
   ): Promise<string> {
     try {
-      // Try LLM first
-      const llmPrompt = await this.generatePromptWithLLM(storyContent);
+      // Try LLM first (pass gradeLevel for art style enforcement)
+      const llmPrompt = await this.generatePromptWithLLM(
+        storyContent,
+        gradeLevel,
+      );
 
       // US-008: Log successful LLM path
       console.log('✅ Using LLM-generated prompt (no fallback needed)');
