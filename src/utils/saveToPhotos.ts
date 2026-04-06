@@ -71,9 +71,15 @@ export async function requestPhotoLibraryPermission(): Promise<boolean> {
         '📸 [saveToPhotos] Permission request result:',
         requestResult,
       );
-      return (
-        requestResult === RESULTS.GRANTED || requestResult === RESULTS.LIMITED
-      );
+      const granted =
+        requestResult === RESULTS.GRANTED || requestResult === RESULTS.LIMITED;
+      if (granted) {
+        // iOS needs a brief pause after a fresh permission grant before the
+        // entitlement is fully active at the OS level. Without this,
+        // CameraRoll.saveAsset() can fail with "Unknown error from a native module".
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      return granted;
     }
 
     if (status === RESULTS.BLOCKED) {
@@ -136,7 +142,18 @@ export async function saveImageToPhotos(
       return { success: false, error: 'CameraRoll API not available' };
     }
 
-    await saveAsset(localFilePath, { type: 'photo' });
+    // Retry once on failure — covers the iOS race condition where the
+    // permission entitlement isn't fully propagated yet.
+    try {
+      await saveAsset(localFilePath, { type: 'photo' });
+    } catch (firstError: any) {
+      console.warn(
+        '📸 [saveToPhotos] First save attempt failed, retrying after delay:',
+        firstError.message,
+      );
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await saveAsset(localFilePath, { type: 'photo' });
+    }
 
     console.log('📸 [saveToPhotos] Image saved to Photos successfully');
     return { success: true };

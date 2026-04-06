@@ -55,6 +55,8 @@
     <string>Allow $(PRODUCT_NAME) to access your Face ID biometric data.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>CreativeBridge needs microphone access so you can dictate your story ideas using voice input.</string>
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>CreativeBridge would like to save your generated story illustrations to your Photo Library.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>CreativeBridge needs access to your photo library to save and share your generated story illustrations.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
@@ -72,6 +74,13 @@
     <key>UIStatusBarStyle</key>
     <string>UIStatusBarStyleDefault</string>
     <key>UISupportedInterfaceOrientations</key>
+    <array>
+      <string>UIInterfaceOrientationPortrait</string>
+      <string>UIInterfaceOrientationPortraitUpsideDown</string>
+      <string>UIInterfaceOrientationLandscapeLeft</string>
+      <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    <key>UISupportedInterfaceOrientations~ipad</key>
     <array>
       <string>UIInterfaceOrientationPortrait</string>
       <string>UIInterfaceOrientationPortraitUpsideDown</string>
