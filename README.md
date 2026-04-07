@@ -45,10 +45,7 @@ A mobile story-writing application where users create engaging narratives with A
 
 Image generation adapts art style by grade level:
 
-- **K-2**: Watercolor illustrations
-- **3-5**: Digital art style
-- **6-8**: Realistic art style
-- **9-12**: Sophisticated art style
+- **K-12**: Watercolor illustrations
 
 ## Tech Stack
 
