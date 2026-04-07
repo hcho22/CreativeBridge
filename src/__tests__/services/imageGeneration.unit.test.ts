@@ -149,8 +149,8 @@ describe('Image Generation Service - Unit Tests', () => {
         unsafeContent,
       );
 
-      // Should remove unsafe content and still have some content left
-      expect(sanitized.length).toBeLessThan(unsafeContent.length);
+      // Should sanitize content (replacements may make it longer or shorter)
+      expect(sanitized).not.toBe(unsafeContent.toLowerCase());
       expect(sanitized.length).toBeGreaterThan(0);
     });
   });
@@ -168,15 +168,15 @@ describe('Image Generation Service - Unit Tests', () => {
     test('should return correct art style for 3-5 grade level', () => {
       const style = imageGenerationService.getArtStyleForGrade('3-5');
 
-      expect(style).toContain("detailed children's book");
+      expect(style).toContain("watercolor children's book illustration");
       expect(style).toContain('vibrant colors');
-      expect(style).toContain('semi-realistic');
+      expect(style).toContain('expressive watercolor style');
     });
 
     test('should return correct art style for 6-8 grade level', () => {
       const style = imageGenerationService.getArtStyleForGrade('6-8');
 
-      expect(style).toContain('realistic digital illustration');
+      expect(style).toContain('watercolor illustration');
       expect(style).toContain('detailed artwork');
       expect(style).toContain('adventure book style');
     });
@@ -184,8 +184,8 @@ describe('Image Generation Service - Unit Tests', () => {
     test('should return correct art style for 9-12 grade level', () => {
       const style = imageGenerationService.getArtStyleForGrade('9-12');
 
-      expect(style).toContain('sophisticated digital art');
-      expect(style).toContain('realistic style');
+      expect(style).toContain('sophisticated watercolor art');
+      expect(style).toContain('expressive style');
       expect(style).toContain('mature artistic composition');
     });
 
@@ -466,7 +466,7 @@ describe('Image Generation Service - Unit Tests', () => {
           grade,
         );
 
-        expect(prompt).toMatch(/children's book|digital/);
+        expect(prompt).toMatch(/children's book|watercolor/);
         expect(prompt).toMatch(/safe for children|appropriate content/i);
         expect(prompt.length).toBeGreaterThan(50);
       });
@@ -869,9 +869,9 @@ describe('Image Generation Service - Unit Tests', () => {
       const gradeLevels: GradeLevel[] = ['K-2', '3-5', '6-8', '9-12'];
       const expectedBaseStyles = {
         'K-2': 'watercolor',
-        '3-5': 'illustration',
-        '6-8': 'realistic',
-        '9-12': 'sophisticated',
+        '3-5': 'watercolor',
+        '6-8': 'watercolor',
+        '9-12': 'watercolor',
       };
 
       gradeLevels.forEach(gradeLevel => {
