@@ -363,8 +363,10 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
           await RNFS.mkdir(cacheDir);
         }
 
-        // Generate cache filename based on URL hash
-        const urlHash = url.split('/').pop()?.split('.')[0] || 'image';
+        // Generate cache filename from full URL to avoid collisions
+        // Replicate delivery URLs often share the same filename (e.g., output.webp),
+        // so we hash the full URL to ensure each prediction gets a unique cache entry.
+        const urlHash = url.replace(/[^a-zA-Z0-9]/g, '').slice(-40);
         const filename = `cached_${urlHash}.jpg`;
         const localPath = `${cacheDir}/${filename}`;
 
@@ -915,8 +917,9 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
           await RNFS.mkdir(cacheDir);
         }
 
-        const urlHash =
-          effectiveImageUrl.split('/').pop()?.split('.')[0] || 'image';
+        const urlHash = effectiveImageUrl
+          .replace(/[^a-zA-Z0-9]/g, '')
+          .slice(-40);
         const filename = `cached_${urlHash}.jpg`;
         localPath = `${cacheDir}/${filename}`;
 

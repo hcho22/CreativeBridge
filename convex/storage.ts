@@ -434,6 +434,14 @@ export const uploadFromUrl = action({
 
       contentType = response.headers.get('content-type') || 'image/png';
 
+      // Replicate CDN may return application/octet-stream for valid images
+      if (
+        contentType === 'application/octet-stream' &&
+        args.sourceUrl.includes('replicate.delivery')
+      ) {
+        contentType = 'image/webp';
+      }
+
       // Verify it's an image
       if (!contentType.startsWith('image/')) {
         throw new Error(`Invalid content type: ${contentType}`);

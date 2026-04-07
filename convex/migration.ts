@@ -126,6 +126,7 @@ interface SupabaseImageGenerationEvent {
     | 'rate_limit';
   service_used:
     | 'stability-ai/stable-diffusion-3.5-large'
+    | 'sebastianbodza/flux_aquarell_watercolor_style'
     | 'google/nano-banana'
     | 'replicate'
     | 'backup_service';
@@ -381,6 +382,7 @@ export const insertMigratedImageGenerationEvent = internalMutation({
     ),
     serviceUsed: v.union(
       v.literal('stability-ai/stable-diffusion-3.5-large'),
+      v.literal('sebastianbodza/flux_aquarell_watercolor_style'),
       v.literal('google/nano-banana'),
       v.literal('replicate'),
       v.literal('backup_service'),

@@ -98,6 +98,7 @@ export const errorTypeValidator = v.union(
  */
 export const serviceUsedValidator = v.union(
   v.literal('stability-ai/stable-diffusion-3.5-large'),
+  v.literal('sebastianbodza/flux_aquarell_watercolor_style'),
   v.literal('google/nano-banana'),
   v.literal('replicate'),
   v.literal('backup_service'),
