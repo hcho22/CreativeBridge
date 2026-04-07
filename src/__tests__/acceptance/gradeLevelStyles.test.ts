@@ -83,12 +83,7 @@ class GradeLevelStyleValidator {
     },
     '3-5': {
       colorPalette: ['vibrant', 'balanced colors', 'natural tones', 'engaging'],
-      artStyle: [
-        'detailed illustration',
-        'semi-realistic',
-        'adventure book style',
-        'dynamic',
-      ],
+      artStyle: ['watercolor', 'illustration', 'expressive', 'dynamic'],
       complexity: [
         'moderate detail',
         'clear narrative',
@@ -111,10 +106,10 @@ class GradeLevelStyleValidator {
         'dramatic',
       ],
       artStyle: [
-        'realistic illustration',
+        'watercolor',
+        'illustration',
         'detailed artwork',
-        'cinematic',
-        'professional quality',
+        'expressive',
       ],
       complexity: [
         'high detail',
@@ -138,10 +133,10 @@ class GradeLevelStyleValidator {
     '9-12': {
       colorPalette: ['mature', 'nuanced', 'symbolic', 'sophisticated contrast'],
       artStyle: [
+        'watercolor',
+        'sophisticated',
         'artistic composition',
-        'realistic detail',
-        'conceptual elements',
-        'professional grade',
+        'expressive',
       ],
       complexity: [
         'complex themes',
@@ -317,14 +312,14 @@ class GradeLevelStyleValidator {
         break;
 
       case '3-5':
-        if (!style.includes('detailed') && !style.includes('illustration')) {
-          issues.push('Missing detailed illustration style for grade 3-5');
+        if (!style.includes('watercolor') && !style.includes('illustration')) {
+          issues.push('Missing watercolor illustration style for grade 3-5');
         }
         break;
 
       case '6-8':
-        if (!style.includes('realistic') && !style.includes('detailed')) {
-          issues.push('Missing realistic, detailed style for grade 6-8');
+        if (!style.includes('watercolor') && !style.includes('detailed')) {
+          issues.push('Missing watercolor, detailed style for grade 6-8');
         }
         break;
 
@@ -400,7 +395,7 @@ class GradeLevelStyleValidator {
 
       case '3-5':
         recommendations.push(
-          "Include detailed children's book illustration style",
+          "Include watercolor children's book illustration style",
         );
         recommendations.push('Balance vibrant colors with natural tones');
         recommendations.push(
@@ -409,9 +404,9 @@ class GradeLevelStyleValidator {
         break;
 
       case '6-8':
-        recommendations.push('Specify realistic digital illustration style');
+        recommendations.push('Specify watercolor illustration style');
         recommendations.push(
-          'Include sophisticated color palettes and dramatic elements',
+          'Include watercolor color palettes and expressive elements',
         );
         recommendations.push('Ensure high detail without being too complex');
         break;
@@ -562,13 +557,11 @@ describe('Grade Level Art Styles - User Acceptance Tests', () => {
       });
     });
 
-    test('should include realistic and detailed elements for 6-8', () => {
+    test('should include watercolor and detailed elements for 6-8', () => {
       const style = imageGenerationService.getArtStyleForGrade('6-8');
 
-      expect(style.toLowerCase()).toMatch(
-        /realistic|detailed|digital illustration/,
-      );
-      expect(style.toLowerCase()).toMatch(/adventure book|cinematic/);
+      expect(style.toLowerCase()).toMatch(/watercolor|detailed|illustration/);
+      expect(style.toLowerCase()).toMatch(/adventure book|watercolor/);
     });
 
     test('should handle complex themes appropriately for 6-8', () => {
@@ -608,7 +601,7 @@ describe('Grade Level Art Styles - User Acceptance Tests', () => {
         /sophisticated|artistic|professional/,
       );
       expect(enhancedStyle.artisticTechnique).toMatch(
-        /professional|advanced|complex/i,
+        /professional|watercolor|advanced/i,
       );
     });
 

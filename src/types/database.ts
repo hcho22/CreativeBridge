@@ -531,6 +531,7 @@ export type ErrorType =
   | 'rate_limit';
 export type ServiceUsed =
   | 'stability-ai/stable-diffusion-3.5-large'
+  | 'sebastianbodza/flux_aquarell_watercolor_style'
   | 'google/nano-banana'
   | 'replicate'
   | 'backup_service';

@@ -34,15 +34,18 @@ describe('Task 3.5: Enhanced Grade-Level Art Style Mapping Tests', () => {
       const prompt = imageGenerationService.generatePrompt(story, '3-5');
 
       // Test enhanced 3-5 style elements
-      expect(prompt).toContain("detailed children's book illustration");
+      expect(prompt).toContain("watercolor children's book illustration");
       expect(prompt).toContain('vibrant colors, rich earth tones');
       expect(prompt).toContain('moderate detail, clear focal points');
-      expect(prompt).toContain('digital painting, clean line art');
+      expect(prompt).toContain(
+        'watercolor painting style, textured brushstrokes',
+      );
       expect(prompt).toContain(
         'adventurous and exciting, encouraging exploration',
       );
-      expect(prompt).toContain('dynamic composition, balanced elements');
-      expect(prompt).toContain('semi-realistic characters, expressive poses');
+      expect(prompt).toContain(
+        'expressive watercolor characters, lively poses',
+      );
     });
 
     it('should use enhanced art style definitions for 6-8', () => {
@@ -51,18 +54,19 @@ describe('Task 3.5: Enhanced Grade-Level Art Style Mapping Tests', () => {
       const prompt = imageGenerationService.generatePrompt(story, '6-8');
 
       // Test enhanced 6-8 style elements
-      expect(prompt).toContain('realistic digital illustration');
+      expect(prompt).toContain('watercolor illustration');
       expect(prompt).toContain(
         'sophisticated color schemes, dramatic lighting',
       );
       expect(prompt).toContain(
-        'high detail, complex compositions, realistic proportions',
+        'high detail, complex compositions, well-proportioned figures',
       );
-      expect(prompt).toContain('digital art, realistic shading, texture work');
-      expect(prompt).toContain('adventurous and heroic, inspiring confidence');
-      expect(prompt).toContain('dynamic action compositions, cinematic angles');
       expect(prompt).toContain(
-        'realistic human figures, detailed facial expressions',
+        'watercolor painting style, rich wet-on-wet techniques',
+      );
+      expect(prompt).toContain('adventurous and heroic, inspiring confidence');
+      expect(prompt).toContain(
+        'detailed watercolor characters, expressive facial features',
       );
     });
 
@@ -72,17 +76,18 @@ describe('Task 3.5: Enhanced Grade-Level Art Style Mapping Tests', () => {
       const prompt = imageGenerationService.generatePrompt(story, '9-12');
 
       // Test enhanced 9-12 style elements
-      expect(prompt).toContain('sophisticated digital art');
+      expect(prompt).toContain('sophisticated watercolor art');
       expect(prompt).toContain('mature color palettes, subtle gradients');
       expect(prompt).toContain('intricate details, advanced visual concepts');
-      expect(prompt).toContain('professional digital art, advanced lighting');
+      expect(prompt).toContain(
+        'professional watercolor technique, advanced color layering',
+      );
       expect(prompt).toContain(
         'thoughtful and inspiring, intellectually engaging',
       );
       expect(prompt).toContain(
-        'artistic composition, sophisticated visual hierarchy',
+        'detailed watercolor figures, nuanced expressions',
       );
-      expect(prompt).toContain('realistic human anatomy, nuanced expressions');
     });
   });
 
@@ -144,7 +149,7 @@ describe('Task 3.5: Enhanced Grade-Level Art Style Mapping Tests', () => {
       );
       expect(cityPrompt).toContain('city');
       expect(cityPrompt).toContain(
-        'detailed realistic environments, atmospheric perspective',
+        'detailed watercolor environments, atmospheric washes',
       );
     });
   });

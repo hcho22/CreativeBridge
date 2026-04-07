@@ -583,7 +583,15 @@ export class ImageStorageService {
       }
 
       // Get content type from response headers, default to image/png
-      const contentType = response.headers.get('content-type') || 'image/png';
+      let contentType = response.headers.get('content-type') || 'image/png';
+
+      // Replicate CDN may return application/octet-stream for valid images
+      if (
+        contentType === 'application/octet-stream' &&
+        url.includes('replicate.delivery')
+      ) {
+        contentType = 'image/webp';
+      }
 
       // Verify it's actually an image
       if (!contentType.startsWith('image/')) {

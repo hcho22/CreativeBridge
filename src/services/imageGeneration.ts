@@ -50,14 +50,14 @@ const REPLICATE_BASE_URL = 'https://api.replicate.com/v1';
 const REPLICATE_POLLING_INTERVAL = 1000; // 1 second
 const REPLICATE_MAX_POLLING_ATTEMPTS = 60; // 60 seconds max
 const REPLICATE_STABLE_DIFFUSION_VERSION =
-  'stability-ai/stable-diffusion-3.5-large'; // Stable Diffusion 3.5 Large
+  'stability-ai/stable-diffusion-3.5-large'; // Stable Diffusion 3.5 Large (now backup)
 
-// Backup Service (Google Nano Banana via Replicate) Configuration
-const BACKUP_SERVICE_BASE_URL = 'https://api.replicate.com/v1';
-const BACKUP_SERVICE_MODEL = 'google/nano-banana';
-const BACKUP_SERVICE_TIMEOUT = 45000; // 45 seconds
-const BACKUP_SERVICE_SIZE = '1024x1024'; // Standard size
-const BACKUP_SERVICE_QUALITY = 'standard';
+// Flux Aquarell Watercolor Model (Primary)
+const REPLICATE_FLUX_AQUARELL_MODEL =
+  'sebastianbodza/flux_aquarell_watercolor_style';
+const REPLICATE_FLUX_AQUARELL_VERSION =
+  '081a44215bf213876674a0a4623f9ea6def12c8a6986b5db9026985723fabcb4';
+const FLUX_AQUARELL_TRIGGER_TOKEN = 'AQUACOLTOK';
 
 // Replicate API Types and Interfaces
 export interface ReplicatePredictionRequest {
@@ -104,36 +104,10 @@ export interface ReplicateError {
 // Legacy interface for backward compatibility
 export interface ReplicateResponse extends ReplicatePrediction {}
 
-// Backup Service (Google Nano Banana via Replicate) Types
-export interface NanoBananaRequest {
+// Model configuration for multi-model support (US-002)
+export interface ReplicateModelConfig {
   version: string;
-  input: {
-    prompt: string;
-    width?: number;
-    height?: number;
-    num_inference_steps?: number;
-    guidance_scale?: number;
-    seed?: number;
-  };
-}
-
-// Legacy backup service response (maintained for compatibility)
-export interface BackupServiceResponse {
-  success: boolean;
-  image_url?: string;
-  error?: string;
-  response_time_ms: number;
-  revised_prompt?: string;
-  service_used: 'google/nano-banana' | 'generic';
-}
-
-export interface BackupServiceConfig {
-  apiToken: string;
-  baseUrl: string;
-  model: string;
-  timeout: number;
-  defaultSize: string;
-  defaultQuality: string;
+  defaults: Partial<ReplicatePredictionRequest['input']>;
 }
 
 export interface ImageGenerationRequest {
@@ -151,15 +125,6 @@ export interface ReplicateClientConfig {
   timeout: number;
   pollingInterval: number;
   maxPollingAttempts: number;
-}
-
-export interface BackupServiceClientConfig {
-  apiToken: string;
-  baseUrl: string;
-  model: string;
-  timeout: number;
-  defaultSize: '1024x1024' | '1024x1792' | '1792x1024';
-  defaultQuality: 'standard' | 'hd';
 }
 
 export interface ImageGenerationResult {
@@ -339,70 +304,73 @@ export interface EnhancedStyleOptions {
 // Enhanced grade-level art style mappings based on educational psychology and visual development
 const ART_STYLE_MAPPING: Record<GradeLevel, ArtStyleDefinition> = {
   'K-2': {
-    baseStyle: "watercolor children's book illustration",
+    baseStyle:
+      "watercolor children's book illustration, watercolor painting on textured paper",
     colorPalette:
       'bright primary colors, soft pastels, warm and inviting tones',
     visualComplexity:
       'simple shapes, clear outlines, minimal detail, large friendly elements',
     artisticTechnique:
-      'watercolor painting style, soft brush strokes, gentle textures',
+      'visible watercolor brushstrokes, soft wet paint edges, gentle color bleeding on paper, hand-painted watercolor texture',
     emotionalTone:
       'magical and whimsical, innocent and joyful, safe and comforting',
     layoutStyle: 'centered composition, spacious layout, uncluttered design',
     characterStyle:
       'friendly cartoon animals, simple human figures, expressive big eyes',
     backgroundStyle:
-      'soft dreamy backgrounds, simple landscapes, fairy-tale settings',
+      'soft dreamy watercolor wash backgrounds, simple landscapes, fairy-tale settings',
   },
   '3-5': {
-    baseStyle: "detailed children's book illustration",
+    baseStyle:
+      "watercolor children's book illustration, watercolor painting on textured paper",
     colorPalette:
       'vibrant colors, rich earth tones, balanced warm and cool colors',
     visualComplexity:
       'moderate detail, clear focal points, engaging visual elements',
     artisticTechnique:
-      'digital painting, clean line art, smooth color gradients',
+      'watercolor painting on paper, textured brushstrokes, layered color washes, visible paint texture, wet-on-dry watercolor technique',
     emotionalTone:
       'adventurous and exciting, encouraging exploration, positive energy',
     layoutStyle:
       'dynamic composition, balanced elements, visual storytelling flow',
     characterStyle:
-      'semi-realistic characters, expressive poses, diverse representation',
+      'expressive watercolor characters, lively poses, diverse representation',
     backgroundStyle:
-      'detailed environments, recognizable settings, immersive worlds',
+      'detailed watercolor environments, recognizable settings, immersive worlds',
   },
   '6-8': {
-    baseStyle: 'realistic digital illustration',
+    baseStyle: 'watercolor illustration, watercolor painting on textured paper',
     colorPalette:
       'sophisticated color schemes, dramatic lighting, atmospheric effects',
     visualComplexity:
-      'high detail, complex compositions, realistic proportions',
+      'high detail, complex compositions, well-proportioned figures',
     artisticTechnique:
-      'digital art, realistic shading, texture work, professional illustration',
+      'rich wet-on-wet watercolor techniques, expressive brush work, detailed watercolor washes, paint bleeding on paper, visible paper grain',
     emotionalTone:
       'adventurous and heroic, inspiring confidence, age-appropriate excitement',
     layoutStyle: 'dynamic action compositions, cinematic angles, visual depth',
     characterStyle:
-      'realistic human figures, detailed facial expressions, action poses',
+      'detailed watercolor characters, expressive facial features, action poses',
     backgroundStyle:
-      'detailed realistic environments, atmospheric perspective, world-building',
+      'detailed watercolor environments, atmospheric watercolor washes, layered depth',
   },
   '9-12': {
-    baseStyle: 'sophisticated digital art',
+    baseStyle:
+      'sophisticated watercolor art, professional watercolor painting on textured paper',
     colorPalette:
       'mature color palettes, subtle gradients, professional color theory',
     visualComplexity:
       'complex artistic composition, intricate details, advanced visual concepts',
     artisticTechnique:
-      'professional digital art, advanced lighting, realistic materials and textures',
+      'professional watercolor technique, advanced color layering, expressive washes and textures, visible brushstrokes on paper, wet paint edges',
     emotionalTone:
       'thoughtful and inspiring, intellectually engaging, emotionally resonant',
     layoutStyle:
       'artistic composition, sophisticated visual hierarchy, professional design',
     characterStyle:
-      'realistic human anatomy, nuanced expressions, diverse and inclusive',
+      'detailed watercolor figures, nuanced expressions, diverse and inclusive',
     backgroundStyle:
-      'photorealistic environments, architectural accuracy, atmospheric realism',
+      'richly detailed watercolor environments, architectural detail, atmospheric watercolor depth',
   },
 };
 
@@ -411,11 +379,11 @@ const SIMPLE_ART_STYLE_MAPPING: Record<GradeLevel, string> = {
   'K-2':
     "watercolor children's book illustration, bright colors, friendly cartoon style, simple shapes, magical and whimsical",
   '3-5':
-    "detailed children's book illustration, vibrant colors, semi-realistic style with cartoon elements",
+    "watercolor children's book illustration, vibrant colors, expressive watercolor style with engaging details",
   '6-8':
-    'realistic digital illustration, detailed artwork, adventure book style, dynamic composition',
+    'watercolor illustration, detailed artwork, adventure book style, dynamic composition',
   '9-12':
-    'sophisticated digital art, realistic style, detailed environments, mature artistic composition',
+    'sophisticated watercolor art, expressive style, detailed environments, mature artistic composition',
 };
 
 // Enhanced content extraction patterns
@@ -871,272 +839,8 @@ const RATE_LIMIT_CONFIG = {
   STATS_RESET_INTERVAL: 3600000, // 1 hour
 };
 
-// OpenAI DALL-E Backup Service Client
-class BackupServiceClient {
-  public config: BackupServiceClientConfig;
-
-  constructor(config: Partial<BackupServiceClientConfig> = {}) {
-    this.config = {
-      apiToken: config.apiToken || BACKUP_IMAGE_API_TOKEN || '',
-      baseUrl: config.baseUrl || BACKUP_SERVICE_BASE_URL,
-      model: config.model || BACKUP_SERVICE_MODEL,
-      timeout: config.timeout || BACKUP_SERVICE_TIMEOUT,
-      defaultSize: config.defaultSize || (BACKUP_SERVICE_SIZE as '1024x1024'),
-      defaultQuality:
-        config.defaultQuality || (BACKUP_SERVICE_QUALITY as 'standard'),
-    };
-  }
-
-  private async makeRequest<T>(
-    endpoint: string,
-    options: RequestInit = {},
-    timeoutMs?: number,
-  ): Promise<T> {
-    const url = `${this.config.baseUrl}${endpoint}`;
-    const timeout = timeoutMs || this.config.timeout;
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      console.warn(
-        `⏰ Request timeout after ${timeout}ms for endpoint: ${endpoint}`,
-      );
-      controller.abort();
-    }, timeout);
-
-    const startTime = Date.now();
-
-    try {
-      console.log(
-        `🚀 Starting OpenAI API request to ${endpoint} with ${timeout}ms timeout`,
-      );
-
-      const response = await fetch(url, {
-        ...options,
-        headers: {
-          Authorization: `Token ${this.config.apiToken}`,
-          'Content-Type': 'application/json',
-          ...options.headers,
-        },
-        signal: controller.signal as any, // Type workaround for React Native
-      });
-
-      const responseTime = Date.now() - startTime;
-      console.log(`⚡ OpenAI API response received in ${responseTime}ms`);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorData: ReplicateError;
-
-        try {
-          errorData = JSON.parse(errorText);
-        } catch {
-          errorData = {
-            error: {
-              message: errorText,
-              type: 'api_error',
-            },
-          };
-        }
-
-        throw new Error(
-          `OpenAI API error (${response.status}): ${errorData.error.message}`,
-        );
-      }
-
-      return await response.json();
-    } catch (error) {
-      const responseTime = Date.now() - startTime;
-
-      if (error.name === 'AbortError') {
-        console.error(
-          `❌ OpenAI API request timed out after ${responseTime}ms (limit: ${timeout}ms)`,
-        );
-        throw new Error(`Request timed out after ${timeout}ms`);
-      }
-
-      console.error(
-        `❌ OpenAI API request failed after ${responseTime}ms:`,
-        error,
-      );
-      throw error;
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  }
-
-  async generateImage(
-    prompt: string,
-    options: { size?: string } = {},
-    timeoutMs?: number,
-  ): Promise<string> {
-    const startTime = Date.now();
-    const timeout = timeoutMs || this.config.timeout;
-
-    console.log(
-      `🎨 Starting Google Nano Banana generation with ${timeout}ms timeout`,
-    );
-
-    // Extract dimensions from size (e.g., "1024x1024" -> width: 1024, height: 1024)
-    const size = options.size || this.config.defaultSize;
-    const [width, height] = size.split('x').map(Number);
-
-    const request: NanoBananaRequest = {
-      version: this.config.model,
-      input: {
-        prompt: this.sanitizePrompt(prompt, 'K-2'),
-        width: width || 1024,
-        height: height || 1024,
-        num_inference_steps: 20,
-        guidance_scale: 7.5,
-      },
-    };
-
-    console.log('🎨 Creating Google Nano Banana image...', {
-      prompt: prompt.substring(0, 100),
-      model: request.version,
-      size: `${request.input.width}x${request.input.height}`,
-      timeout,
-    });
-
-    try {
-      // Start prediction
-      const prediction = await this.makeRequest<ReplicatePrediction>(
-        '/predictions',
-        {
-          method: 'POST',
-          body: JSON.stringify(request),
-        },
-        timeout,
-      );
-
-      if (!prediction.id) {
-        throw new Error('No prediction ID returned from Google Nano Banana');
-      }
-
-      // Poll for completion using the same logic as ReplicateClient
-      const pollingInterval = 1000; // 1 second
-      const maxAttempts = Math.floor(timeout / pollingInterval);
-
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        await new Promise(resolve => setTimeout(resolve, pollingInterval));
-
-        const status = await this.makeRequest<ReplicatePrediction>(
-          `/predictions/${prediction.id}`,
-          {
-            method: 'GET',
-          },
-          10000,
-        ); // 10 second timeout for status checks
-
-        if (
-          status.status === 'succeeded' &&
-          status.output &&
-          status.output.length > 0
-        ) {
-          const rawOutput = Array.isArray(status.output)
-            ? status.output[0]
-            : status.output;
-          console.log(
-            `🔍 [DEBUG] Raw Google Nano Banana output:`,
-            JSON.stringify(status.output),
-          );
-          console.log(
-            `🔍 [DEBUG] First output item:`,
-            typeof rawOutput,
-            rawOutput,
-          );
-
-          // Validate that we have a proper URL
-          if (!rawOutput || typeof rawOutput !== 'string') {
-            throw new Error(
-              `Invalid output format from Google Nano Banana: ${typeof rawOutput} - ${JSON.stringify(
-                rawOutput,
-              )}`,
-            );
-          }
-
-          // Check if the output looks like a valid URL
-          if (
-            rawOutput.length < 10 ||
-            (!rawOutput.startsWith('http') && !rawOutput.startsWith('data:'))
-          ) {
-            throw new Error(
-              `Invalid image URL from Google Nano Banana: "${rawOutput}" (length: ${rawOutput.length})`,
-            );
-          }
-
-          const imageUrl = rawOutput;
-          const totalTime = Date.now() - startTime;
-          console.log(
-            `✅ Google Nano Banana generation completed in ${totalTime}ms:`,
-            imageUrl,
-          );
-          return imageUrl;
-        }
-
-        if (status.status === 'failed') {
-          throw new Error(
-            `Google Nano Banana generation failed: ${
-              status.error || 'Unknown error'
-            }`,
-          );
-        }
-
-        if (status.status === 'canceled') {
-          throw new Error('Google Nano Banana generation was canceled');
-        }
-      }
-
-      throw new Error(
-        `Google Nano Banana generation timed out after ${timeout}ms`,
-      );
-    } catch (error) {
-      const totalTime = Date.now() - startTime;
-      console.error(
-        `❌ Google Nano Banana generation failed after ${totalTime}ms:`,
-        error,
-      );
-      throw error;
-    }
-  }
-
-  private sanitizePrompt(
-    prompt: string,
-    gradeLevel: GradeLevel = 'K-2',
-  ): string {
-    // Enhanced prompt sanitization for Google Nano Banana with grade-level awareness
-    let sanitized = prompt
-      .replace(/\b(explicit|nsfw|inappropriate|violent|graphic)\b/gi, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    // Ensure prompt meets minimum requirements
-    if (sanitized.length < 10) {
-      sanitized = `A safe, family-friendly illustration: ${sanitized}`;
-    }
-
-    // Add grade-appropriate safety suffixes
-    const safetySuffixes = {
-      'K-2':
-        ', safe for toddlers and young children, G-rated, colorful and friendly',
-      '3-5':
-        ', safe for elementary school children, appropriate content, educational',
-      '6-8': ', appropriate for middle school students, educational content',
-      '9-12':
-        ', appropriate for high school students, educational and age-appropriate',
-    };
-
-    sanitized += safetySuffixes[gradeLevel] || safetySuffixes['K-2'];
-
-    return sanitized;
-  }
-
-  getConfig(): BackupServiceClientConfig {
-    return { ...this.config };
-  }
-}
-
-// Replicate API Client
+// Replicate API Client (used for both Flux Aquarell primary and SD 3.5 backup)
+// BackupServiceClient (nano-banana) removed in US-006 — SD 3.5 backup now uses ReplicateClient
 class ReplicateClient {
   public config: ReplicateClientConfig;
 
@@ -1331,6 +1035,7 @@ class ReplicateClient {
     prompt: string,
     options: Partial<ReplicatePredictionRequest['input']> = {},
     timeoutMs?: number,
+    modelConfig?: ReplicateModelConfig,
   ): Promise<string> {
     const startTime = Date.now();
     const timeout = timeoutMs || this.config.timeout;
@@ -1339,23 +1044,33 @@ class ReplicateClient {
       `🎨 Starting Replicate image generation with ${timeout}ms timeout`,
     );
 
-    const request: ReplicatePredictionRequest = {
-      version: REPLICATE_STABLE_DIFFUSION_VERSION,
-      input: {
-        prompt,
-        width: 512,
-        height: 512,
-        // US-007: Optimized parameters for better quality and prompt adherence
-        num_inference_steps: 50, // Increased from 20 for better quality
-        guidance_scale: 7.5, // Optimal for prompt adherence
-        scheduler: 'DPMSolverMultistep', // Better quality than K_EULER
-        num_outputs: 1,
-        // US-007: Comprehensive negative prompt to avoid common quality issues
-        negative_prompt:
-          'blurry, out of focus, distorted, deformed, multiple scenes, split image, collage, low quality, pixelated, grainy, watermark, text, letters, numbers, cropped, cut off',
-        ...options,
-      },
-    };
+    // US-002: When modelConfig is provided, use its version and defaults instead of SD 3.5 hard-coded values
+    const request: ReplicatePredictionRequest = modelConfig
+      ? {
+          version: modelConfig.version,
+          input: {
+            prompt,
+            ...modelConfig.defaults,
+            ...options,
+          },
+        }
+      : {
+          version: REPLICATE_STABLE_DIFFUSION_VERSION,
+          input: {
+            prompt,
+            width: 512,
+            height: 512,
+            // US-007: Optimized parameters for watercolor style adherence
+            num_inference_steps: 50, // Increased from 20 for better quality
+            guidance_scale: 12, // Increased from 7.5 to strongly enforce watercolor style prompt
+            scheduler: 'DPMSolverMultistep', // Better quality than K_EULER
+            num_outputs: 1,
+            // US-007: Aggressive negative prompt to force watercolor and prevent 3D/digital rendering
+            negative_prompt:
+              '3d render, 3d art, 3d model, CGI, unreal engine, unity, octane render, ray tracing, digital art, digital painting, digital illustration, photorealistic, hyperrealistic, photograph, photo, camera, lens flare, bokeh, depth of field, anime, manga, cartoon, cel shading, flat shading, vector art, clip art, SVG, graphic design, logo, icon, plastic, glossy, metallic, chrome, glass, reflective, smooth shading, gradient mesh, neon, glowing, luminescent, blurry, out of focus, distorted, deformed, multiple scenes, split image, collage, low quality, pixelated, grainy, watermark, text, letters, numbers, cropped, cut off, oil painting, acrylic painting, pencil drawing, charcoal, pastel, crayon',
+            ...options,
+          },
+        };
 
     console.log('🎨 Creating Replicate prediction...', {
       prompt: prompt.substring(0, 100),
@@ -1448,11 +1163,9 @@ class ReplicateClient {
 
 class ImageGenerationService {
   private replicateClient: ReplicateClient;
-  private backupServiceClient: BackupServiceClient;
 
   constructor() {
     this.replicateClient = new ReplicateClient();
-    this.backupServiceClient = new BackupServiceClient();
   }
 
   private isConfigured(): boolean {
@@ -7694,7 +7407,9 @@ class ImageGenerationService {
     }
 
     // Safety guidelines
-    promptParts.push('Safe for children, appropriate content');
+    promptParts.push(
+      'Safe for children, appropriate content, watercolor painting style, painted with watercolors on paper',
+    );
 
     // Validate and clean final prompt
     const finalPrompt = promptParts.join(', ');
@@ -8207,9 +7922,9 @@ class ImageGenerationService {
       case '3-5':
         return 'colorful and engaging, slightly more detailed, maintaining child-friendly appeal';
       case '6-8':
-        return 'more realistic details, dynamic composition, appealing to pre-teens';
+        return 'more watercolor detail, dynamic composition, appealing to pre-teens';
       case '9-12':
-        return 'sophisticated artistry, realistic proportions, mature but appropriate content';
+        return 'sophisticated watercolor artistry, well-proportioned figures, mature but appropriate content';
       default:
         return 'child-appropriate and engaging';
     }
@@ -8433,43 +8148,55 @@ class ImageGenerationService {
     }
   }
 
-  private async callBackupService(
+  private async callFluxAquarellAPI(
     prompt: string,
     timeoutMs: number,
   ): Promise<string> {
-    if (!BACKUP_IMAGE_API_TOKEN) {
-      throw new Error('Backup service API token not configured');
+    if (!REPLICATE_API_TOKEN) {
+      throw new Error('Replicate API token not configured');
     }
 
     try {
-      console.log(
-        `🚀 Calling backup service (OpenAI DALL-E) with ${timeoutMs}ms timeout`,
-      );
+      // Inject AQUACOLTOK trigger token — required for Flux Aquarell LoRA activation
+      const fluxPrompt = `${FLUX_AQUARELL_TRIGGER_TOKEN} ${prompt}`;
+      console.log(`🚀 Calling Flux Aquarell API with ${timeoutMs}ms timeout`);
 
-      // Mock implementation for development - replace with actual backup service API call
-      if (__DEV__) {
+      // Mock implementation for development - controlled by environment variable
+      if (__DEV__ && process.env.USE_MOCK_IMAGE_GENERATION === 'true') {
         console.log(
-          `🎨 Mock Backup API (DALL-E) call with prompt: ${prompt.substring(
+          `🎨 Mock Flux Aquarell API call with prompt: ${fluxPrompt.substring(
             0,
             100,
           )}...`,
         );
 
-        // Simulate timeout scenario for testing (5% chance)
-        if (Math.random() < 0.05) {
+        // Simulate timeout scenario for testing (10% chance)
+        if (Math.random() < 0.1) {
           await new Promise(resolve => setTimeout(resolve, timeoutMs + 1000));
           throw new Error(`Request timed out after ${timeoutMs}ms`);
         }
 
-        await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API delay
-        return 'https://backup-service.com/dall-e-generated-image.jpg';
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API delay
+        return 'https://example.com/flux-aquarell-generated-image.webp';
       }
 
-      // Use the enhanced OpenAI DALL-E backup service client with proper timeout handling
-      return await this.backupServiceClient.generateImage(
-        prompt,
+      // Use the Replicate client with Flux Aquarell model config
+      const fluxModelConfig: ReplicateModelConfig = {
+        version: REPLICATE_FLUX_AQUARELL_VERSION,
+        defaults: {
+          width: 1024,
+          height: 1024,
+          num_inference_steps: 28,
+          guidance_scale: 3.5,
+          num_outputs: 1,
+        },
+      };
+
+      return await this.replicateClient.generateImage(
+        fluxPrompt,
         {},
         timeoutMs,
+        fluxModelConfig,
       );
     } catch (error) {
       // Enhanced error logging with timeout detection
@@ -8477,13 +8204,16 @@ class ImageGenerationService {
       const errorName = error instanceof Error ? error.name : 'Unknown';
 
       if (errorMsg.includes('timeout') || errorName === 'AbortError') {
-        console.error(`⏰ Backup service timeout after ${timeoutMs}ms:`, error);
+        console.error(
+          `⏰ Flux Aquarell API timeout after ${timeoutMs}ms:`,
+          error,
+        );
 
         // Log timeout error to monitoring system
         await errorLogger
           .logTimeoutError(
-            'backup_service',
-            `Backup service request timed out after ${timeoutMs}ms`,
+            'flux_aquarell',
+            `Flux Aquarell API request timed out after ${timeoutMs}ms`,
             { timeoutMs, prompt: prompt.substring(0, 100) },
           )
           .catch(logError => {
@@ -8491,17 +8221,17 @@ class ImageGenerationService {
           });
 
         throw new Error(
-          `Backup service request timed out after ${timeoutMs}ms`,
+          `Flux Aquarell API request timed out after ${timeoutMs}ms`,
         );
       }
 
-      console.error('💥 Backup service API call failed:', error);
+      console.error('💥 Flux Aquarell API call failed:', error);
 
       // Log API error to monitoring system
       await errorLogger
         .logAPIError(
-          'backup_service',
-          `Backup service API call failed: ${errorMsg}`,
+          'flux_aquarell',
+          `Flux Aquarell API call failed: ${errorMsg}`,
           {
             timeoutMs,
             prompt: prompt.substring(0, 100),
@@ -8525,12 +8255,15 @@ class ImageGenerationService {
     }
   }
 
+  // callBackupService (nano-banana) removed in US-006 — SD 3.5 backup now uses callReplicateAPI directly
+
   private async processRequest(
     request: ImageGenerationRequest,
   ): Promise<ImageGenerationResult> {
     const startTime = Date.now();
     let eventId: string | undefined;
-    let serviceUsed: ServiceUsed = 'stability-ai/stable-diffusion-3.5-large';
+    let serviceUsed: ServiceUsed =
+      'sebastianbodza/flux_aquarell_watercolor_style';
     let errorType: ErrorType | undefined;
 
     try {
@@ -8613,19 +8346,22 @@ class ImageGenerationService {
         };
       }
 
-      // Try primary service (Replicate) with enhanced timeout handling
+      // US-007: Enforce watercolor style as final prompt guardrail before API call
+      // This ensures watercolor medium descriptors are the FIRST tokens in the prompt,
+      // which is critical because Stable Diffusion weights early tokens 3-5x more heavily.
+      prompt = this.enforceWatercolorStyle(prompt, request.gradeLevel);
+
+      // Try primary service (Flux Aquarell) with enhanced timeout handling
       let imageUrl: string;
       try {
         const primaryTimeout = TIMEOUT_CONFIG.PRIMARY_SERVICE.STANDARD;
         console.log(
-          `🎯 Attempting primary service (Stable Diffusion 3.5 Large) with ${primaryTimeout}ms timeout`,
+          `🎯 Attempting primary service (Flux Aquarell) with ${primaryTimeout}ms timeout`,
         );
 
-        imageUrl = await this.callReplicateAPI(prompt, primaryTimeout);
-        serviceUsed = 'stability-ai/stable-diffusion-3.5-large';
-        console.log(
-          '✅ Primary service (Stable Diffusion 3.5 Large) succeeded',
-        );
+        imageUrl = await this.callFluxAquarellAPI(prompt, primaryTimeout);
+        serviceUsed = 'sebastianbodza/flux_aquarell_watercolor_style';
+        console.log('✅ Primary service (Flux Aquarell) succeeded');
       } catch (primaryError) {
         const primaryErrorMsg =
           primaryError instanceof Error
@@ -8637,12 +8373,12 @@ class ImageGenerationService {
 
         if (isInvalidUrl) {
           console.log(
-            '🔄 Primary service returned invalid URL, attempting backup service:',
+            '🔄 Primary service (Flux Aquarell) returned invalid URL, attempting backup service (SD 3.5):',
             primaryError,
           );
         } else {
           console.log(
-            '🔄 Primary service failed, attempting backup service:',
+            '🔄 Primary service (Flux Aquarell) failed, attempting backup service (SD 3.5):',
             primaryError,
           );
         }
@@ -8655,23 +8391,24 @@ class ImageGenerationService {
           primaryErrorName === 'AbortError';
         if (isPrimaryTimeout) {
           console.warn(
-            '⏰ Primary service failed due to timeout, trying backup with shorter timeout',
+            '⏰ Primary service (Flux Aquarell) failed due to timeout, trying SD 3.5 backup with shorter timeout',
           );
         }
 
-        // Fallback to backup service with appropriate timeout
+        // Fallback to SD 3.5 backup via Replicate with appropriate timeout
+        // Note: prompt does NOT contain AQUACOLTOK — token injection is isolated inside callFluxAquarellAPI
         try {
           const backupTimeout = isPrimaryTimeout
             ? TIMEOUT_CONFIG.BACKUP_SERVICE.QUICK
             : TIMEOUT_CONFIG.BACKUP_SERVICE.STANDARD;
 
           console.log(
-            `🛡️ Attempting backup service (Google Nano Banana) with ${backupTimeout}ms timeout`,
+            `🛡️ Attempting backup service (Stable Diffusion 3.5) with ${backupTimeout}ms timeout`,
           );
 
-          imageUrl = await this.callBackupService(prompt, backupTimeout);
-          serviceUsed = 'google/nano-banana';
-          console.log('✅ Backup service (Google Nano Banana) succeeded');
+          imageUrl = await this.callReplicateAPI(prompt, backupTimeout);
+          serviceUsed = 'stability-ai/stable-diffusion-3.5-large';
+          console.log('✅ Backup service (Stable Diffusion 3.5) succeeded');
         } catch (backupError) {
           // Both services failed - determine error type
           const backupErrorMsg =
@@ -8686,10 +8423,14 @@ class ImageGenerationService {
 
           if (isPrimaryTimeout && isBackupTimeout) {
             errorType = 'timeout';
-            console.error('⏰ Both services failed due to timeout');
+            console.error(
+              '⏰ Both Flux Aquarell and Stable Diffusion 3.5 failed due to timeout',
+            );
           } else {
             errorType = 'api_failure';
-            console.error('💥 Both services failed due to API errors');
+            console.error(
+              '💥 Both Flux Aquarell and Stable Diffusion 3.5 failed due to API errors',
+            );
           }
 
           // XP refund is handled by the component on failure
@@ -8706,8 +8447,8 @@ class ImageGenerationService {
 
           const errorMessage =
             isPrimaryTimeout && isBackupTimeout
-              ? 'Both image generation services timed out. Please try again.'
-              : 'Both primary and backup image generation services failed';
+              ? 'Both Flux Aquarell and Stable Diffusion 3.5 timed out. Please try again.'
+              : 'Both Flux Aquarell and Stable Diffusion 3.5 image generation services failed';
 
           return {
             success: false,
@@ -9597,8 +9338,9 @@ class ImageGenerationService {
     return { ...this.replicateClient.config };
   }
 
-  public getBackupServiceConfig(): BackupServiceClientConfig {
-    return { ...this.backupServiceClient.config };
+  public getBackupServiceConfig(): ReplicateClientConfig {
+    // US-006: Backup is now SD 3.5 via the same ReplicateClient
+    return { ...this.replicateClient.config };
   }
 
   public async testBackupServiceConnection(): Promise<{
@@ -9609,10 +9351,10 @@ class ImageGenerationService {
     const startTime = Date.now();
 
     try {
-      if (!BACKUP_IMAGE_API_TOKEN) {
+      if (!REPLICATE_API_TOKEN) {
         return {
           success: false,
-          error: 'Backup service API token not configured',
+          error: 'Replicate API token not configured (used for SD 3.5 backup)',
         };
       }
 
@@ -9622,11 +9364,11 @@ class ImageGenerationService {
       const connectionTimeout = TIMEOUT_CONFIG.CONNECTION_TEST;
 
       console.log(
-        `🧪 Testing backup service connection with ${connectionTimeout}ms timeout`,
+        `🧪 Testing SD 3.5 backup connection with ${connectionTimeout}ms timeout`,
       );
 
       if (__DEV__) {
-        console.log('🧪 Testing backup service connection (mock mode)...');
+        console.log('🧪 Testing SD 3.5 backup connection (mock mode)...');
         await new Promise(resolve => setTimeout(resolve, 800)); // Simulate quick test
         return {
           success: true,
@@ -9634,7 +9376,8 @@ class ImageGenerationService {
         };
       }
 
-      await this.backupServiceClient.generateImage(
+      // US-006: Test via replicateClient (SD 3.5) instead of removed backupServiceClient
+      await this.replicateClient.generateImage(
         testPrompt,
         {},
         connectionTimeout,
@@ -9642,7 +9385,7 @@ class ImageGenerationService {
 
       const responseTime = Date.now() - startTime;
       console.log(
-        `✅ Backup service connection test completed in ${responseTime}ms`,
+        `✅ SD 3.5 backup connection test completed in ${responseTime}ms`,
       );
 
       return {
@@ -9657,7 +9400,7 @@ class ImageGenerationService {
         errorMsg.includes('timeout') || errorName === 'AbortError';
 
       console.error(
-        `❌ Backup service connection test failed after ${responseTime}ms:`,
+        `❌ SD 3.5 backup connection test failed after ${responseTime}ms:`,
         error,
       );
 
@@ -10757,8 +10500,9 @@ class ImageGenerationService {
           );
         }
 
-        // Always add safety constraint
-        prompt += ', safe for children, G-rated content';
+        // Always add safety constraint and watercolor style reinforcement
+        prompt +=
+          ', safe for children, G-rated content, watercolor painting style, painted with watercolors on paper';
 
         console.log('📝 Story-specific elements extracted:', {
           character: visualElements.character,
@@ -12174,7 +11918,8 @@ class ImageGenerationService {
         );
 
         // Always add safety constraints
-        prompt += ', safe for children, G-rated content';
+        prompt +=
+          ', safe for children, G-rated content, watercolor painting style, painted with watercolors on paper';
 
         return prompt;
       }
@@ -12245,7 +11990,8 @@ class ImageGenerationService {
       `✅ generateFallbackAdvancedPrompt: Added full art style enforcement for ${gradeLevel}`,
     );
 
-    prompt += ', safe for children, G-rated content';
+    prompt +=
+      ', safe for children, G-rated content, watercolor painting style, painted with watercolors on paper';
 
     return prompt;
   }
@@ -12359,7 +12105,8 @@ class ImageGenerationService {
       );
 
       // Always add safety constraints
-      prompt += ', safe for children, G-rated content';
+      prompt +=
+        ', safe for children, G-rated content, watercolor painting style, painted with watercolors on paper';
 
       return prompt;
     } else {
@@ -12370,7 +12117,8 @@ class ImageGenerationService {
       fallbackPrompt += `, rendered in ${artStyleDefinition.artisticTechnique}`;
       fallbackPrompt += `, ${artStyleDefinition.emotionalTone}`;
       fallbackPrompt += `, ${artStyleDefinition.characterStyle}`;
-      fallbackPrompt += ', safe for children, G-rated content';
+      fallbackPrompt +=
+        ', safe for children, G-rated content, watercolor painting style, painted with watercolors on paper';
 
       console.log(
         `✅ generateAdvancedPromptLegacy (fallback): Added full art style enforcement for ${gradeLevel}`,
@@ -12408,6 +12156,59 @@ class ImageGenerationService {
   }
 
   /**
+   * US-007: Final guardrail that restructures any prompt to enforce watercolor style.
+   *
+   * Stable Diffusion weights tokens by position — early tokens get 3-5x more attention.
+   * This method prepends watercolor medium descriptors so they are always the FIRST tokens,
+   * and appends a style reinforcement suffix ("style sandwich" technique).
+   *
+   * Applied as the LAST transformation before the prompt is sent to the Replicate API,
+   * regardless of which path generated the prompt (LLM, Tier 1, Tier 2, or Tier 3).
+   */
+  private enforceWatercolorStyle(
+    prompt: string,
+    gradeLevel: GradeLevel,
+  ): string {
+    // Grade-specific watercolor prefix — physical medium descriptors that SD strongly responds to
+    const watercolorPrefix: Record<GradeLevel, string> = {
+      'K-2':
+        "watercolor painting on white textured paper, soft hand-painted brushstrokes, wet paint bleeding edges, children's book watercolor illustration style,",
+      '3-5':
+        "watercolor painting on textured watercolor paper, visible brushstrokes and paint layers, wet-on-dry watercolor technique, children's book illustration,",
+      '6-8':
+        'watercolor painting on rough textured paper, expressive wet-on-wet brushwork, paint bleeding and layered washes, visible paper grain texture,',
+      '9-12':
+        'professional watercolor painting on cold-pressed paper, masterful brushwork with visible strokes, layered transparent washes, paint bleeding on textured paper,',
+    };
+
+    // Style reinforcement suffix — brackets the scene description with style tokens
+    const watercolorSuffix =
+      ', traditional watercolor painting medium, hand-painted on paper, NOT digital art, NOT 3d render';
+
+    // Strip any existing "watercolor painting style" suffixes to avoid duplication
+    let cleaned = prompt
+      .replace(/,?\s*watercolor painting style/gi, '')
+      .replace(/,?\s*painted with watercolors on paper/gi, '')
+      .replace(/,?\s*traditional watercolor medium,?\s*painted on paper/gi, '')
+      .replace(/,?\s*NOT digital art,?\s*NOT 3d render/gi, '')
+      .trim();
+
+    // Remove leading/trailing commas and extra whitespace
+    cleaned = cleaned.replace(/^,\s*/, '').replace(/,\s*$/, '').trim();
+
+    const result = `${watercolorPrefix[gradeLevel]} ${cleaned}${watercolorSuffix}`;
+
+    console.log('🎨 [WATERCOLOR ENFORCEMENT] Prompt restructured:', {
+      gradeLevel,
+      originalStart: prompt.substring(0, 60),
+      newStart: result.substring(0, 80),
+      newEnd: result.substring(result.length - 60),
+    });
+
+    return result;
+  }
+
+  /**
    * US-003: Generate optimized image prompt using GPT-4 story analysis
    *
    * This method orchestrates LLM-based prompt generation by calling the OpenAI
@@ -12418,14 +12219,23 @@ class ImageGenerationService {
    * @returns Optimized image generation prompt
    * @throws Error if LLM analysis fails (caller should handle fallback)
    */
-  private async generatePromptWithLLM(storyText: string): Promise<string> {
+  private async generatePromptWithLLM(
+    storyText: string,
+    gradeLevel: GradeLevel,
+  ): Promise<string> {
     console.log('🤖 Using LLM for prompt generation...');
     const startTime = Date.now();
 
     try {
-      // Call GPT-4 story analysis from openaiClient
+      // Build art style guidance from ART_STYLE_MAPPING so GPT enforces watercolor style
+      const artStyle = ART_STYLE_MAPPING[gradeLevel];
+      const artStyleGuidance = `${artStyle.baseStyle}, ${artStyle.colorPalette}, ${artStyle.artisticTechnique}, ${artStyle.emotionalTone}`;
+
+      // Call GPT-4 story analysis from openaiClient with grade-specific art style
       const optimizedPrompt = await openaiClient.analyzeStoryForImageGeneration(
         storyText,
+        gradeLevel,
+        artStyleGuidance,
       );
 
       const elapsedMs = Date.now() - startTime;
@@ -12480,8 +12290,11 @@ class ImageGenerationService {
     gradeLevel: GradeLevel,
   ): Promise<string> {
     try {
-      // Try LLM first
-      const llmPrompt = await this.generatePromptWithLLM(storyContent);
+      // Try LLM first (pass gradeLevel for art style enforcement)
+      const llmPrompt = await this.generatePromptWithLLM(
+        storyContent,
+        gradeLevel,
+      );
 
       // US-008: Log successful LLM path
       console.log('✅ Using LLM-generated prompt (no fallback needed)');
@@ -12533,4 +12346,4 @@ setInterval(() => {
 export const imageGenerationService = new ImageGenerationService();
 
 // Export clients for testing
-export { ReplicateClient, BackupServiceClient };
+export { ReplicateClient };

@@ -31,7 +31,7 @@ export const serviceName = new ServiceName();
 ### Image Generation
 
 - `imageGeneration.ts` - Replicate API with grade-appropriate art style enforcement
-- Art styles defined in `ART_STYLE_MAPPING` (K-2 watercolor, 3-5 digital, 6-8 realistic, 9-12 sophisticated)
+- Art styles defined in `ART_STYLE_MAPPING` (all grades use watercolor with age-appropriate complexity)
 - 3-tier prompt generation: story-specific > advanced NER > grade-appropriate fallback
 - XP cost: `IMAGE_GENERATION_COST = 1000`
 - Art style details: `.claude/.agent/SOP/image-generation-art-styles.md`

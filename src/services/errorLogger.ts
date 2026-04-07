@@ -18,6 +18,7 @@ export interface ErrorLogEntry {
   severity: 'low' | 'medium' | 'high' | 'critical';
   service:
     | 'replicate'
+    | 'flux_aquarell'
     | 'backup_service'
     | 'xp_system'
     | 'database'
@@ -487,7 +488,7 @@ class ErrorLogger {
 
   // Convenience methods for common error types
   public async logAPIError(
-    service: 'replicate' | 'backup_service',
+    service: 'replicate' | 'flux_aquarell' | 'backup_service',
     message: string,
     context: Record<string, any> = {},
     error?: Error,
