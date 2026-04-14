@@ -1,587 +1,359 @@
 /**
- * Accessibility Testing for Voice Input/Output Features
- * Validates all accessibility requirements from TASKS-voice-input-output-PRD.md (1752-1757)
+ * Accessibility Testing for the Voice-First Input Bar
  *
- * Tests:
- * 1. VoiceOver reads all elements correctly (iOS)
- * 2. TalkBack reads all elements correctly (Android)
- * 3. Button states are announced
- * 4. Error messages are accessible
- * 5. Keyboard navigation works
- * 6. Touch targets meet 44pt minimum
+ * Updated for PRD "Voice-First Input Bar" US-012. Verifies VoiceOver /
+ * TalkBack affordances on the three round buttons and on mode transitions:
+ *
+ *   1. Static `accessibilityLabel` strings match US-008 literally.
+ *   2. `accessibilityRole="button"` on every tappable control.
+ *   3. `accessibilityState` reports `{ disabled, selected }` derived from the
+ *      reducer so screen readers can announce toggle state.
+ *   4. `AccessibilityInfo.announceForAccessibility` fires the AC-mandated
+ *      copy on every reducer-driven mode entry (listening, reviewing-
+ *      transcript, playing-tts, typing). `idle` stays silent on purpose
+ *      (US-008 Implementation Notes).
+ *   5. Touch targets: Speak is 96pt (primary) and Listen/Keyboard are 64pt
+ *      — both comfortably above the 44pt iOS HIG minimum.
  */
 
 import React from 'react';
-import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
-import { Platform, AccessibilityInfo, Alert } from 'react-native';
-import HomeScreen from '../../screens/HomeScreen';
-// import VoiceInput from '../../components/common/VoiceInput'; // Currently unused in tests
-import { textToSpeechService } from '../../services/textToSpeechIsolated';
-import Voice from '@react-native-voice/voice';
+import { render, fireEvent, act } from '@testing-library/react-native';
+import { AccessibilityInfo, Animated, TextInput } from 'react-native';
+import VoiceFirstInputBar, {
+  VoiceFirstInputBarProps,
+} from '../../components/story/VoiceFirstInputBar';
+import { theme } from '../../constants/theme';
 
-// Mock dependencies - must be before imports
-jest.mock('react-native-url-polyfill/auto', () => ({}));
-jest.mock('../../services/textToSpeechIsolated');
+// jest.setup.js omits announceForAccessibility from AccessibilityInfo — add it
+// before the spy in beforeEach can attach to a defined property.
+(AccessibilityInfo as any).announceForAccessibility = jest.fn();
+
+// jest.setup.js's Animated.loop mock lacks `.stop()`; VoiceFirstInputBar's
+// pulse animation cleanup calls it on unmount. Patch to supply both handles.
+(Animated as any).loop = jest.fn(() => ({
+  start: jest.fn(),
+  stop: jest.fn(),
+}));
+
+jest.mock('../../components/common/VoiceInput', () => ({
+  __esModule: true,
+  VoiceInput: (props: any) => {
+    (global as any).__lastSpeechResult = props.onSpeechResult;
+    return null;
+  },
+  default: (props: any) => {
+    (global as any).__lastSpeechResult = props.onSpeechResult;
+    return null;
+  },
+}));
+
+jest.mock('../../services/textToSpeechIsolated', () => ({
+  textToSpeechService: {
+    stop: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
 jest.mock('@react-native-voice/voice');
-jest.mock('@react-native-clipboard/clipboard', () => ({
-  setString: jest.fn(),
-  getString: jest.fn(() => Promise.resolve('')),
-}));
-jest.mock('../../context/AuthContext', () => ({
-  useAuth: () => ({
-    user: { id: 'test-user' },
-    userProfile: { preferred_grade_level: 'K-2', speech_enabled: true },
-  }),
-}));
-jest.mock('../../services/storyAgent');
-jest.mock('../../services/storyGenerationService');
-jest.mock('../../services/api');
-jest.mock('../../services/storySessionManager');
-jest.mock('../../services/challengeService');
-jest.mock('../../services/storyDownloadService');
-jest.mock('../../utils/rnfsWrapper');
+
+// Override jest.setup.js's broken MaterialIcons mock (returns Text() instead
+// of JSX). No-op icon — this suite only inspects button a11y metadata.
+jest.mock('react-native-vector-icons/MaterialIcons', () => {
+  return function MockIcon() {
+    return null;
+  };
+});
+
+const baseProps = (): VoiceFirstInputBarProps => ({
+  userInput: '',
+  onUserInputChange: jest.fn(),
+  storyInputRef: React.createRef<TextInput | null>() as any,
+  onVoiceResult: jest.fn(),
+  voiceInputEnabled: true,
+  onSpeakerPress: jest.fn(),
+  onSpeakerLongPress: jest.fn(),
+  speakerState: 'idle',
+  canUseSpeaker: true,
+  onSubmit: jest.fn(),
+  isGenerating: false,
+  isGameCompleted: false,
+  isUserStarting: false,
+});
+
+const renderBar = (
+  overrides: Partial<VoiceFirstInputBarProps> = {},
+  announceSpy?: jest.SpyInstance,
+) => {
+  const props = { ...baseProps(), ...overrides };
+  // Re-install the spy BEFORE rendering so the initial mount sees it. The
+  // mode effect fires synchronously during render for the initial 'idle' —
+  // silent, but future transitions must be captured.
+  if (!announceSpy) {
+    jest
+      .spyOn(AccessibilityInfo, 'announceForAccessibility')
+      .mockImplementation(() => {});
+  }
+  const utils = render(<VoiceFirstInputBar {...props} />);
+  return { ...utils, props };
+};
 
 describe('Voice Features Accessibility Testing', () => {
-  let announceForAccessibilitySpy: jest.SpyInstance;
+  let announceSpy: jest.SpyInstance;
 
   beforeEach(() => {
     jest.clearAllMocks();
-
-    // Mock AccessibilityInfo
-    announceForAccessibilitySpy = jest
+    (global as any).__lastSpeechResult = undefined;
+    announceSpy = jest
       .spyOn(AccessibilityInfo, 'announceForAccessibility')
       .mockImplementation(() => {});
-    jest
-      .spyOn(AccessibilityInfo, 'isScreenReaderEnabled')
-      .mockResolvedValue(true);
-
-    // Mock TTS service
-    (textToSpeechService.isServiceAvailable as jest.Mock).mockReturnValue(true);
-    (textToSpeechService.initialize as jest.Mock).mockResolvedValue(undefined);
-    (textToSpeechService.setupEventListeners as jest.Mock).mockImplementation(
-      callbacks => {
-        // Store callbacks for simulation
-        if (callbacks.onStart) {
-          setTimeout(() => callbacks.onStart(), 100);
-        }
-      },
-    );
-    (textToSpeechService.removeAllListeners as jest.Mock).mockImplementation(
-      () => {},
-    );
-    (textToSpeechService.speakStoryContent as jest.Mock).mockResolvedValue(
-      undefined,
-    );
-
-    // Mock Voice service
-    (Voice.start as jest.Mock).mockResolvedValue(undefined);
-    (Voice.stop as jest.Mock).mockResolvedValue(undefined);
-    (Voice.destroy as jest.Mock).mockResolvedValue(undefined);
-    (Voice.removeAllListeners as jest.Mock).mockImplementation(() => {});
-
-    // Mock story session manager
-    const storySessionManager = require('../../services/storySessionManager');
-    storySessionManager.getCurrentSession = jest.fn().mockResolvedValue({
-      id: 'test-session',
-      story_content: 'Test story content',
-    });
-
-    // Mock Alert
-    jest.spyOn(Alert, 'alert').mockImplementation(() => {});
   });
 
-  describe('1. VoiceOver reads all elements correctly (iOS)', () => {
-    beforeEach(() => {
-      Platform.OS = 'ios';
+  afterEach(() => {
+    announceSpy.mockRestore();
+  });
+
+  describe('1. Static accessibility labels match PRD literally', () => {
+    test('Listen button label is "Listen to the story so far"', () => {
+      const { getByLabelText } = renderBar();
+      expect(
+        getByLabelText('Listen to the story so far').props.accessibilityLabel,
+      ).toBe('Listen to the story so far');
     });
 
-    test('speaker button has proper accessibility label', () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const speakerButton = getByTestId('speaker-button');
-
-      expect(speakerButton.props.accessibilityLabel).toBeTruthy();
-      expect(speakerButton.props.accessibilityLabel).toContain('Read story');
+    test('Speak button label is "Speak your contribution"', () => {
+      const { getByLabelText } = renderBar();
+      expect(
+        getByLabelText('Speak your contribution').props.accessibilityLabel,
+      ).toBe('Speak your contribution');
     });
 
-    test('speaker button has proper accessibility hint', () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const speakerButton = getByTestId('speaker-button');
-
-      expect(speakerButton.props.accessibilityHint).toBeTruthy();
-      expect(speakerButton.props.accessibilityHint.length).toBeGreaterThan(10);
-    });
-
-    test('mic button has proper accessibility label', () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const micButton = getByTestId('mic-button');
-
-      expect(micButton.props.accessibilityLabel).toBeTruthy();
-      expect(micButton.props.accessibilityLabel).toContain('Voice input');
-    });
-
-    test('mic button has proper accessibility hint', () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const micButton = getByTestId('mic-button');
-
-      expect(micButton.props.accessibilityHint).toBeTruthy();
-      expect(micButton.props.accessibilityHint.length).toBeGreaterThan(10);
-    });
-
-    test('input field has proper accessibility label', () => {
-      const { getByPlaceholderText } = render(
-        <HomeScreen navigation={{} as any} />,
-      );
-
-      const input = getByPlaceholderText(/continue/i);
-
-      expect(input).toBeTruthy();
-      // Input should be accessible
-      expect(input.props.accessible).not.toBe(false);
-    });
-
-    test('all interactive elements have accessibility role', () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const speakerButton = getByTestId('speaker-button');
-      const micButton = getByTestId('mic-button');
-
-      expect(speakerButton.props.accessibilityRole).toBe('button');
-      expect(micButton.props.accessibilityRole).toBe('button');
+    test('Keyboard button label is "Type with the keyboard"', () => {
+      const { getByLabelText } = renderBar();
+      expect(
+        getByLabelText('Type with the keyboard').props.accessibilityLabel,
+      ).toBe('Type with the keyboard');
     });
   });
 
-  describe('2. TalkBack reads all elements correctly (Android)', () => {
-    beforeEach(() => {
-      Platform.OS = 'android';
-    });
-
-    test('speaker button has proper accessibility label on Android', () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const speakerButton = getByTestId('speaker-button');
-
-      expect(speakerButton.props.accessibilityLabel).toBeTruthy();
-      expect(speakerButton.props.accessibilityLabel).toContain('Read story');
-    });
-
-    test('mic button has proper accessibility label on Android', () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const micButton = getByTestId('mic-button');
-
-      expect(micButton.props.accessibilityLabel).toBeTruthy();
-      expect(micButton.props.accessibilityLabel).toContain('Voice input');
-    });
-
-    test('all elements are accessible on Android', () => {
-      const { getByTestId, getByPlaceholderText } = render(
-        <HomeScreen navigation={{} as any} />,
-      );
-
-      const speakerButton = getByTestId('speaker-button');
-      const micButton = getByTestId('mic-button');
-      const input = getByPlaceholderText(/continue/i);
-
-      expect(speakerButton).toBeTruthy();
-      expect(micButton).toBeTruthy();
-      expect(input).toBeTruthy();
+  describe('2. Speak button carries the AC-specified accessibilityHint', () => {
+    test('hint explains primary action + VoiceOver "double tap" gesture', () => {
+      const { getByLabelText } = renderBar();
+      expect(
+        getByLabelText('Speak your contribution').props.accessibilityHint,
+      ).toBe('Primary input. Double tap to start voice recording.');
     });
   });
 
-  describe('3. Button states are announced', () => {
-    test('speaker button idle state is announced', () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const speakerButton = getByTestId('speaker-button');
-
-      // Idle state should have appropriate label
-      expect(speakerButton.props.accessibilityLabel).toContain('Read story');
+  describe('3. accessibilityRole="button" on every round control', () => {
+    test('Listen has role="button"', () => {
+      const { getByLabelText } = renderBar();
+      expect(
+        getByLabelText('Listen to the story so far').props.accessibilityRole,
+      ).toBe('button');
     });
 
-    test('speaker button speaking state is announced', async () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
+    test('Speak has role="button"', () => {
+      const { getByLabelText } = renderBar();
+      expect(
+        getByLabelText('Speak your contribution').props.accessibilityRole,
+      ).toBe('button');
+    });
 
-      const speakerButton = getByTestId('speaker-button');
+    test('Keyboard has role="button"', () => {
+      const { getByLabelText } = renderBar();
+      expect(
+        getByLabelText('Type with the keyboard').props.accessibilityRole,
+      ).toBe('button');
+    });
+  });
 
-      await act(async () => {
-        fireEvent.press(speakerButton);
+  describe('4. accessibilityState derived from the reducer', () => {
+    test('Speak.selected flips true entering listening, false on cancel', () => {
+      const { getByLabelText } = renderBar();
+      const speak = getByLabelText('Speak your contribution');
+      expect(speak.props.accessibilityState.selected).toBe(false);
+      fireEvent.press(speak);
+      expect(speak.props.accessibilityState.selected).toBe(true);
+      fireEvent.press(speak);
+      expect(speak.props.accessibilityState.selected).toBe(false);
+    });
+
+    test('Listen.selected reflects speakerState="speaking"', () => {
+      const { getByLabelText } = renderBar({ speakerState: 'speaking' });
+      expect(
+        getByLabelText('Listen to the story so far').props.accessibilityState
+          .selected,
+      ).toBe(true);
+    });
+
+    test('Keyboard.selected flips true in typing mode', () => {
+      const { getByLabelText } = renderBar();
+      fireEvent.press(getByLabelText('Type with the keyboard'));
+      expect(
+        getByLabelText('Type with the keyboard').props.accessibilityState
+          .selected,
+      ).toBe(true);
+    });
+
+    test('all three expose disabled=false at idle with good session state', () => {
+      const { getByLabelText } = renderBar();
+      expect(
+        getByLabelText('Listen to the story so far').props.accessibilityState
+          .disabled,
+      ).toBe(false);
+      expect(
+        getByLabelText('Speak your contribution').props.accessibilityState
+          .disabled,
+      ).toBe(false);
+      expect(
+        getByLabelText('Type with the keyboard').props.accessibilityState
+          .disabled,
+      ).toBe(false);
+    });
+
+    test('all three expose disabled=true while generating', () => {
+      const { getByLabelText } = renderBar({ isGenerating: true });
+      expect(
+        getByLabelText('Listen to the story so far').props.accessibilityState
+          .disabled,
+      ).toBe(true);
+      expect(
+        getByLabelText('Speak your contribution').props.accessibilityState
+          .disabled,
+      ).toBe(true);
+      expect(
+        getByLabelText('Type with the keyboard').props.accessibilityState
+          .disabled,
+      ).toBe(true);
+    });
+
+    test('Speak exposes busy=true while isGenerating (spinner surfaces in UI)', () => {
+      const { getByLabelText } = renderBar({ isGenerating: true });
+      expect(
+        getByLabelText('Speak your contribution').props.accessibilityState.busy,
+      ).toBe(true);
+    });
+  });
+
+  describe('5. announceForAccessibility fires on each mode transition', () => {
+    test('idle → listening announces "Listening. Speak now."', () => {
+      const { getByLabelText } = renderBar();
+      announceSpy.mockClear();
+      fireEvent.press(getByLabelText('Speak your contribution'));
+      expect(announceSpy).toHaveBeenCalledWith('Listening. Speak now.');
+    });
+
+    test('listening → reviewing-transcript announces "Review your transcription."', () => {
+      const { getByLabelText } = renderBar();
+      fireEvent.press(getByLabelText('Speak your contribution'));
+      announceSpy.mockClear();
+      act(() => {
+        (global as any).__lastSpeechResult?.('hello');
       });
+      expect(announceSpy).toHaveBeenCalledWith('Review your transcription.');
+    });
 
-      // Simulate speaking state
-      const setupCallbacks = (
-        textToSpeechService.setupEventListeners as jest.Mock
-      ).mock.calls[0][0];
-      if (setupCallbacks.onStart) {
-        act(() => {
-          setupCallbacks.onStart();
-        });
+    test('speakerState="speaking" (mode → playing-tts) announces "Playing story."', () => {
+      const { rerender } = renderBar({ speakerState: 'idle' });
+      announceSpy.mockClear();
+      // Same props object mutation would be invisible — construct a fresh
+      // element tree with updated speakerState.
+      rerender(<VoiceFirstInputBar {...baseProps()} speakerState="speaking" />);
+      expect(announceSpy).toHaveBeenCalledWith('Playing story.');
+    });
+
+    test('idle → typing announces "Keyboard open."', () => {
+      const { getByLabelText } = renderBar();
+      announceSpy.mockClear();
+      fireEvent.press(getByLabelText('Type with the keyboard'));
+      expect(announceSpy).toHaveBeenCalledWith('Keyboard open.');
+    });
+
+    test('idle entry is silent (US-008: no noisy return-to-idle announcement)', () => {
+      // Fresh mount lands in 'idle'. The mode effect runs for the initial
+      // mount with state.mode === 'idle'; the switch case is intentionally
+      // empty, so nothing should be announced.
+      announceSpy.mockClear();
+      renderBar();
+      expect(announceSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('6. Touch targets exceed 44pt minimum (iOS HIG)', () => {
+    test('Speak (primary) is configured to be visibly larger than Listen/Keyboard', () => {
+      // These are sourced from theme.voiceFirst.* — we verify the tokens
+      // themselves satisfy the HIG floor AND the primary > secondary
+      // hierarchy mandated by US-001.
+      expect(theme.voiceFirst.primaryButtonSize).toBeGreaterThan(44);
+      expect(theme.voiceFirst.secondaryButtonSize).toBeGreaterThan(44);
+      expect(theme.voiceFirst.primaryButtonSize).toBeGreaterThan(
+        theme.voiceFirst.secondaryButtonSize,
+      );
+    });
+
+    test('all three buttons render with valid onPress handlers (keyboard-activatable)', () => {
+      const { getByLabelText } = renderBar();
+      expect(
+        getByLabelText('Listen to the story so far').props.onPress,
+      ).toBeTruthy();
+      expect(
+        getByLabelText('Speak your contribution').props.onPress,
+      ).toBeTruthy();
+      expect(
+        getByLabelText('Type with the keyboard').props.onPress,
+      ).toBeTruthy();
+    });
+  });
+
+  describe('7. Focus / navigation order', () => {
+    // Walk the toJSON() tree instead of getAllByRole('button'): the TouchableOpacity
+    // mock from jest.setup.js exposes accessibilityRole but RNTL's role query can't
+    // resolve it (host-component mismatch). DOM traversal is mock-independent and
+    // asserts exactly what a screen reader's swipe order would report.
+    const collectButtonLabels = (node: any, acc: string[] = []): string[] => {
+      if (!node) return acc;
+      if (Array.isArray(node)) {
+        node.forEach(n => collectButtonLabels(n, acc));
+        return acc;
       }
-
-      await waitFor(() => {
-        expect(announceForAccessibilitySpy).toHaveBeenCalledWith(
-          expect.stringContaining('playback started'),
-        );
-      });
-    });
-
-    test('speaker button paused state is announced', async () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const speakerButton = getByTestId('speaker-button');
-
-      await act(async () => {
-        fireEvent.press(speakerButton);
-      });
-
-      const setupCallbacks = (
-        textToSpeechService.setupEventListeners as jest.Mock
-      ).mock.calls[0][0];
-      if (setupCallbacks.onStart) {
-        act(() => {
-          setupCallbacks.onStart();
-        });
+      if (
+        node.props?.accessibilityRole === 'button' &&
+        typeof node.props?.accessibilityLabel === 'string'
+      ) {
+        acc.push(node.props.accessibilityLabel);
       }
+      if (node.children) collectButtonLabels(node.children, acc);
+      return acc;
+    };
 
-      await act(async () => {
-        fireEvent.press(speakerButton);
-      });
-
-      if (setupCallbacks.onPause) {
-        act(() => {
-          setupCallbacks.onPause();
-        });
-      }
-
-      await waitFor(() => {
-        expect(announceForAccessibilitySpy).toHaveBeenCalledWith(
-          expect.stringContaining('paused'),
-        );
-      });
-    });
-
-    test('mic button idle state is announced', () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const micButton = getByTestId('mic-button');
-
-      // Idle state should have appropriate label
-      expect(micButton.props.accessibilityLabel).toContain('Voice input');
-    });
-
-    test('mic button listening state is announced', async () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const micButton = getByTestId('mic-button');
-
-      await act(async () => {
-        fireEvent.press(micButton);
-      });
-
-      act(() => {
-        (Voice.onSpeechStart as any)?.({});
-      });
-
-      await waitFor(() => {
-        expect(announceForAccessibilitySpy).toHaveBeenCalledWith(
-          expect.stringContaining('listening'),
-        );
-      });
-    });
-
-    test('mic button processing state is announced', async () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const micButton = getByTestId('mic-button');
-
-      await act(async () => {
-        fireEvent.press(micButton);
-      });
-
-      act(() => {
-        (Voice.onSpeechEnd as any)?.({});
-      });
-
-      await waitFor(() => {
-        expect(announceForAccessibilitySpy).toHaveBeenCalledWith(
-          expect.stringContaining('Processing'),
-        );
-      });
-    });
-
-    test('button disabled state is announced', () => {
-      (textToSpeechService.isServiceAvailable as jest.Mock).mockReturnValue(
-        false,
-      );
-
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const speakerButton = getByTestId('speaker-button');
-
-      expect(speakerButton.props.accessibilityLabel).toContain('disabled');
-      expect(speakerButton.props.accessibilityState.disabled).toBe(true);
+    test('tree traversal yields Listen → Speak → Keyboard (VoiceOver swipe direction)', () => {
+      const { toJSON } = renderBar();
+      const labels = collectButtonLabels(toJSON());
+      // Expect the first three labels to be our primary row in this exact order;
+      // review-card buttons (Re-record/Edit/Submit) aren't mounted in idle mode.
+      expect(labels.slice(0, 3)).toEqual([
+        'Listen to the story so far',
+        'Speak your contribution',
+        'Type with the keyboard',
+      ]);
     });
   });
 
-  describe('4. Error messages are accessible', () => {
-    test('error messages are announced to screen readers', async () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const micButton = getByTestId('mic-button');
-
-      await act(async () => {
-        fireEvent.press(micButton);
-      });
-
+  describe('8. Review card affordances', () => {
+    test('Re-record / Edit / Submit each have accessibilityRole="button" and a label', () => {
+      const { getByLabelText } = renderBar({ userInput: 'Review me' });
+      fireEvent.press(getByLabelText('Speak your contribution'));
       act(() => {
-        (Voice.onSpeechError as any)?.({
-          error: { code: 'recognition', message: 'Recognition failed' },
-        });
+        (global as any).__lastSpeechResult?.('Review me');
       });
-
-      await waitFor(() => {
-        expect(announceForAccessibilitySpy).toHaveBeenCalled();
-      });
-    });
-
-    test('error messages have accessible format', async () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const micButton = getByTestId('mic-button');
-
-      await act(async () => {
-        fireEvent.press(micButton);
-      });
-
-      act(() => {
-        (Voice.onSpeechError as any)?.({
-          error: { code: 'network', message: 'Network error' },
-        });
-      });
-
-      await waitFor(() => {
-        const announcement = announceForAccessibilitySpy.mock.calls.find(
-          call => call[0] && typeof call[0] === 'string',
-        );
-        expect(announcement).toBeTruthy();
-        expect(announcement[0]).toBeTruthy();
-        expect(announcement[0].length).toBeGreaterThan(10);
-      });
-    });
-
-    test('permission error messages are accessible', async () => {
-      Platform.OS = 'ios';
-      (Voice.start as jest.Mock).mockRejectedValue({
-        error: { code: 'permission', message: 'Permission denied' },
-      });
-
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const micButton = getByTestId('mic-button');
-
-      await act(async () => {
-        fireEvent.press(micButton);
-      });
-
-      await waitFor(() => {
-        expect(Alert.alert).toHaveBeenCalled();
-        // Error should be accessible via Alert
-      });
-    });
-
-    test('transcription completion is announced', async () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const micButton = getByTestId('mic-button');
-
-      await act(async () => {
-        fireEvent.press(micButton);
-      });
-
-      act(() => {
-        (Voice.onSpeechResults as any)?.({
-          value: ['Test transcription'],
-        });
-      });
-
-      await waitFor(() => {
-        expect(announceForAccessibilitySpy).toHaveBeenCalledWith(
-          expect.stringContaining('Transcription complete'),
-        );
-      });
-    });
-  });
-
-  describe('5. Keyboard navigation works', () => {
-    test('speaker button is keyboard accessible', () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const speakerButton = getByTestId('speaker-button');
-
-      // Button should be focusable
-      expect(speakerButton.props.accessible).not.toBe(false);
-      expect(speakerButton.props.accessibilityRole).toBe('button');
-    });
-
-    test('mic button is keyboard accessible', () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const micButton = getByTestId('mic-button');
-
-      // Button should be focusable
-      expect(micButton.props.accessible).not.toBe(false);
-      expect(micButton.props.accessibilityRole).toBe('button');
-    });
-
-    test('input field is keyboard accessible', () => {
-      const { getByPlaceholderText } = render(
-        <HomeScreen navigation={{} as any} />,
+      expect(
+        getByLabelText('Re-record voice input').props.accessibilityRole,
+      ).toBe('button');
+      expect(getByLabelText('Edit transcript').props.accessibilityRole).toBe(
+        'button',
       );
-
-      const input = getByPlaceholderText(/continue/i);
-
-      // Input should be keyboard accessible
-      expect(input).toBeTruthy();
-      expect(input.props.editable).not.toBe(false);
-    });
-
-    test('buttons can be activated with keyboard', async () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const speakerButton = getByTestId('speaker-button');
-
-      // Simulate keyboard activation
-      fireEvent.press(speakerButton);
-
-      await waitFor(() => {
-        expect(textToSpeechService.speakStoryContent).toHaveBeenCalled();
-      });
-    });
-
-    test('focus order is logical', () => {
-      const { getByTestId, getByPlaceholderText } = render(
-        <HomeScreen navigation={{} as any} />,
+      expect(getByLabelText('Submit transcript').props.accessibilityRole).toBe(
+        'button',
       );
-
-      const speakerButton = getByTestId('speaker-button');
-      const micButton = getByTestId('mic-button');
-      const input = getByPlaceholderText(/continue/i);
-
-      // All elements should be accessible
-      expect(speakerButton).toBeTruthy();
-      expect(micButton).toBeTruthy();
-      expect(input).toBeTruthy();
-    });
-  });
-
-  describe('6. Touch targets meet 44pt minimum', () => {
-    test('speaker button meets minimum touch target size', () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const speakerButton = getByTestId('speaker-button');
-      // const buttonStyle = speakerButton.props.style; // Currently unused
-
-      // Button should have minimum dimensions
-      // In React Native, touch targets should be at least 44x44 points
-      // We verify the button exists and is accessible
-      expect(speakerButton).toBeTruthy();
-      expect(speakerButton.props.accessible).not.toBe(false);
-    });
-
-    test('mic button meets minimum touch target size', () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const micButton = getByTestId('mic-button');
-
-      // Button should have minimum dimensions
-      expect(micButton).toBeTruthy();
-      expect(micButton.props.accessible).not.toBe(false);
-    });
-
-    test('continue story button meets minimum touch target size', () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const continueButton = getByTestId('continue-story-button');
-
-      // Button should have minimum dimensions
-      expect(continueButton).toBeTruthy();
-      expect(continueButton.props.accessible).not.toBe(false);
-    });
-
-    test('all interactive elements are tappable', () => {
-      const { getByTestId, getByPlaceholderText } = render(
-        <HomeScreen navigation={{} as any} />,
-      );
-
-      const speakerButton = getByTestId('speaker-button');
-      const micButton = getByTestId('mic-button');
-      const input = getByPlaceholderText(/continue/i);
-
-      // All should be interactive
-      expect(speakerButton.props.onPress).toBeTruthy();
-      expect(micButton.props.onPress).toBeTruthy();
-      expect(input).toBeTruthy();
-    });
-
-    test('disabled buttons still meet touch target requirements', () => {
-      (textToSpeechService.isServiceAvailable as jest.Mock).mockReturnValue(
-        false,
-      );
-
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const speakerButton = getByTestId('speaker-button');
-
-      // Even when disabled, should meet touch target requirements
-      expect(speakerButton).toBeTruthy();
-      expect(speakerButton.props.accessible).not.toBe(false);
-    });
-  });
-
-  describe('Additional Accessibility Features', () => {
-    test('accessibility live region is set for dynamic content', () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const speakerButton = getByTestId('speaker-button');
-      const micButton = getByTestId('mic-button');
-
-      // Should have live region for dynamic announcements
-      expect(speakerButton.props.accessibilityLiveRegion).toBe('polite');
-      expect(micButton.props.accessibilityLiveRegion).toBe('polite');
-    });
-
-    test('accessibility state is properly set', () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const speakerButton = getByTestId('speaker-button');
-      const micButton = getByTestId('mic-button');
-
-      // Should have accessibility state
-      expect(speakerButton.props.accessibilityState).toBeDefined();
-      expect(micButton.props.accessibilityState).toBeDefined();
-    });
-
-    test('accessibility labels update with state changes', async () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const micButton = getByTestId('mic-button');
-      // const initialLabel = micButton.props.accessibilityLabel; // Currently unused
-
-      await act(async () => {
-        fireEvent.press(micButton);
-      });
-
-      act(() => {
-        (Voice.onSpeechStart as any)?.({});
-      });
-
-      // Label should update for listening state
-      await waitFor(() => {
-        expect(announceForAccessibilitySpy).toHaveBeenCalled();
-      });
     });
   });
 });

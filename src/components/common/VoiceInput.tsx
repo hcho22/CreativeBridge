@@ -70,6 +70,14 @@ interface VoiceInputProps {
   };
   silenceTimeout?: number; // Timeout in milliseconds to wait for silence before finalizing (default: 2000ms)
   showRecordingTips?: boolean; // Show tips for optimal recording conditions (default: true)
+  /**
+   * When true, the component calls `startListening()` automatically as soon as
+   * it mounts with permissions granted and `isEnabled === true`. Used by
+   * `VoiceFirstInputBar` (PRD: Voice-First Input Bar, US-004) so the user's
+   * tap on the Speak button begins recording without a second tap on the
+   * embedded VoiceInput. Default: `false` (tap-to-start remains the norm).
+   */
+  autoStart?: boolean;
 }
 
 type VoiceState = 'idle' | 'listening' | 'processing' | 'error';
@@ -88,6 +96,7 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
     },
     silenceTimeout = 2000, // Default: 2 seconds of silence before finalizing
     showRecordingTips = true, // Show tips for optimal recording conditions
+    autoStart = false, // Auto-start recording on mount (PRD: Voice-First Input Bar, US-004)
   }) => {
     const [voiceState, setVoiceState] = useState<VoiceState>('idle');
     const [hasPermission, setHasPermission] = useState<boolean | null>(null);
@@ -1334,6 +1343,26 @@ const VoiceInput: React.FC<VoiceInputProps> = React.memo(
         }, 3000);
       }
     }, [isEnabled, hasPermission, voiceState, language, onError]);
+
+    // Auto-start: when caller passes `autoStart`, begin recording automatically
+    // as soon as the component has permissions and is enabled. Used by
+    // VoiceFirstInputBar (US-004) so the user's single tap on the Speak button
+    // begins recording without a second tap on this inner VoiceInput.
+    // Guarded on `voiceState === 'idle'` to avoid re-triggering if the effect
+    // re-runs after listening begins. Runs only once when conditions first align.
+    const hasAutoStartedRef = useRef<boolean>(false);
+    useEffect(() => {
+      if (!autoStart) return;
+      if (hasAutoStartedRef.current) return;
+      if (!isEnabled) return;
+      if (hasPermission !== true) return;
+      if (voiceState !== 'idle') return;
+      hasAutoStartedRef.current = true;
+      console.log(
+        '🎤 [VoiceInput] autoStart=true, permissions OK — starting listening automatically',
+      );
+      startListening();
+    }, [autoStart, isEnabled, hasPermission, voiceState, startListening]);
 
     const stopListening = async () => {
       try {

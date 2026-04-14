@@ -207,6 +207,23 @@ export const theme = {
     slow: 500,
   },
 
+  // Voice-First Input Bar tokens (see PRD: Voice-First Input Bar, US-001)
+  // Two distinct button sizes express the Speak-is-primary hierarchy:
+  // primary (Speak, center) is strictly larger than secondary (Listen, Keyboard).
+  // Colors intentionally omitted — consumers reference theme.colors.primary /
+  // theme.colors.disabled directly at the style callsite to avoid duplication.
+  voiceFirst: {
+    primaryButtonSize: 96,
+    secondaryButtonSize: 64,
+    primaryButtonRadius: 48,
+    secondaryButtonRadius: 32,
+    idleElevation: 4,
+    activeElevation: 8,
+    labelFontSize: 12,
+    primaryLabelFontSize: 14,
+    labelMarginTop: 6,
+  },
+
   // Liquid Glass / blur / solid fallback configuration
   // iOS 26+: native Liquid Glass via expo-glass-effect
   // iOS < 26: Gaussian blur via expo-blur
@@ -277,6 +294,7 @@ export type ThemeSpacing = typeof theme.spacing;
 export type ThemeTypography = typeof theme.typography;
 export type ThemeBorderRadius = typeof theme.borderRadius;
 export type ThemeShadows = typeof theme.shadows;
+export type ThemeVoiceFirst = typeof theme.voiceFirst;
 export type ThemeGlass = typeof theme.glass;
 export type ThemeGlassSurface =
   (typeof theme.glass.surfaces)[keyof typeof theme.glass.surfaces];
