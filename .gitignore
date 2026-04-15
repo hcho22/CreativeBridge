@@ -86,3 +86,6 @@ convex/_generated/
 ios/Pods/
 # Note: Podfile.lock should be committed for reproducible builds
 # Podfile.lock
+
+# Expo — generated web bundle output (other .expo/ files are intentionally tracked)
+.expo/web/
