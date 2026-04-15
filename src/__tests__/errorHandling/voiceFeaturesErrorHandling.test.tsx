@@ -490,11 +490,7 @@ describe('Voice Features Error Handling Testing', () => {
         .mockImplementation(() => {});
 
       const { getByTestId } = render(
-        <VoiceInput
-          onSpeechResult={jest.fn()}
-          isEnabled={true}
-          showRecordingTips={true}
-        />,
+        <VoiceInput onSpeechResult={jest.fn()} isEnabled={true} />,
       );
 
       const micButton = getByTestId('mic-button');

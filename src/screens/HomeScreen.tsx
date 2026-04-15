@@ -57,7 +57,7 @@ import {
   requestPhotoLibraryPermission,
   saveImageToPhotos,
 } from '../utils/saveToPhotos';
-import { VoiceInput } from '../components/common/VoiceInput';
+import VoiceFirstInputBar from '../components/story/VoiceFirstInputBar';
 import Share from '../utils/shareWrapper';
 import { CelebrationModal } from '../components/common/CelebrationModal';
 import {
@@ -3319,93 +3319,39 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                   </View>
                 )}
 
-                {/* TextInput */}
-                <TextInput
-                  ref={storyInputRef}
-                  testID="story-input"
-                  style={styles.floatingTextInput}
-                  placeholder={
-                    isUserStarting
-                      ? 'Start your story...'
-                      : 'Continue the story...'
-                  }
-                  placeholderTextColor="#999"
-                  multiline
-                  value={userInput}
-                  onChangeText={(text: string) => {
+                {/*
+                 * Voice-First Input Bar (US-009): single component replaces the
+                 * former TextInput + mic/speaker/submit row. All handlers below
+                 * are passed UNCHANGED from their existing HomeScreen
+                 * definitions — `VoiceFirstInputBar` does not reimplement
+                 * `handleVoiceResult`, `handleContinueStory`,
+                 * `handleSpeakerButtonPress`, or `handleSpeakerButtonLongPress`
+                 * (FR-10). `testID="story-input"` and
+                 * `testID="continue-story-button"` are preserved inside the
+                 * component so existing integration/perf tests keep resolving.
+                 */}
+                <VoiceFirstInputBar
+                  userInput={userInput}
+                  // Composite setter: preserve the legacy TextInput's dual
+                  // behavior of (a) updating controlled state and (b) feeding
+                  // the real-time input validator, which used to live in
+                  // onChangeText but now runs via this prop.
+                  onUserInputChange={(text: string) => {
                     setUserInput(text);
                     inputDebouncer?.handleInput(text);
                   }}
-                  editable={!loadingState.isGenerating && !isGameCompleted}
+                  storyInputRef={storyInputRef}
+                  isUserStarting={isUserStarting}
+                  onVoiceResult={handleVoiceResult}
+                  voiceInputEnabled={voiceInputEnabled}
+                  onSpeakerPress={handleSpeakerButtonPress}
+                  onSpeakerLongPress={handleSpeakerButtonLongPress}
+                  speakerState={speakerState}
+                  canUseSpeaker={canUseSpeaker}
+                  onSubmit={handleContinueStory}
+                  isGenerating={loadingState.isGenerating}
+                  isGameCompleted={isGameCompleted}
                 />
-
-                {/* Button Row: Mic → Speaker → spacer → Submit */}
-                <View style={styles.floatingButtonRow}>
-                  {/* Mic Button — VoiceInput component */}
-                  <View>
-                    <VoiceInput
-                      onSpeechResult={handleVoiceResult}
-                      isEnabled={
-                        voiceInputEnabled && !loadingState.isGenerating
-                      }
-                      style={styles.floatingIconButton}
-                    />
-                  </View>
-
-                  {/* Speaker Button */}
-                  <TouchableOpacity
-                    testID="speaker-button"
-                    style={[
-                      styles.floatingIconButton,
-                      !canUseSpeaker && styles.floatingIconButtonDisabled,
-                    ]}
-                    onPress={handleSpeakerButtonPress}
-                    onLongPress={handleSpeakerButtonLongPress}
-                    disabled={!canUseSpeaker}
-                    accessibilityLabel={
-                      speakerState === 'speaking' || speakerState === 'starting'
-                        ? 'Stop reading story'
-                        : 'Read story aloud'
-                    }
-                    accessibilityRole="button"
-                  >
-                    <Text style={styles.floatingIconText}>
-                      {speakerState === 'speaking' ||
-                      speakerState === 'starting'
-                        ? '\u23F9\uFE0F'
-                        : '\uD83D\uDD0A'}
-                    </Text>
-                  </TouchableOpacity>
-
-                  {/* Spacer */}
-                  <View style={{ flex: 1 }} />
-
-                  {/* Submit Button */}
-                  <TouchableOpacity
-                    testID="continue-story-button"
-                    style={[
-                      styles.floatingSubmitButton,
-                      (!userInput.trim() ||
-                        loadingState.isGenerating ||
-                        isGameCompleted) &&
-                        styles.floatingSubmitButtonDisabled,
-                    ]}
-                    onPress={handleContinueStory}
-                    disabled={
-                      !userInput.trim() ||
-                      loadingState.isGenerating ||
-                      isGameCompleted
-                    }
-                    accessibilityLabel="Submit story contribution"
-                    accessibilityRole="button"
-                  >
-                    {loadingState.isGenerating ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Text style={styles.floatingSubmitText}>{'\u2191'}</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
               </AdaptiveGlassBackground>
             </Animated.View>
           )}
@@ -3885,7 +3831,7 @@ const styles = StyleSheet.create({
   },
   storyScrollContent: {
     flexGrow: 1,
-    paddingBottom: 200, // Increased from 120 to account for absolute-positioned glass tab bar (US-005)
+    paddingBottom: 240, // US-009: bumped 200 → 240 to clear the taller VoiceFirstInputBar (96-px primary Speak button + label + occasional review card). Previous bump 120 → 200 covered the glass tab bar (US-005).
   },
   // Floating input bar — layout positioning only (US-006: split from floatingInputBar)
   floatingInputBarPositioner: {
@@ -3913,35 +3859,15 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 4,
   },
-  floatingButtonRow: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    marginTop: 4,
-    gap: 4,
-  },
-  floatingIconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    paddingVertical: 0,
-    paddingHorizontal: 0,
-    minWidth: 36,
-  },
+  // US-009: the legacy mic/speaker button row styles were removed as dead
+  // code — the VoiceFirstInputBar component owns its button sizing and
+  // styling via `theme.voiceFirst.*` tokens. `floatingTextInput` above is
+  // retained intentionally per the PRD in case of future style pass-through.
   floatingIconButtonDisabled: {
     opacity: 0.3,
   },
   floatingIconText: {
     fontSize: 22,
-  },
-  floatingSubmitButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#4CAF50',
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
   },
   floatingSubmitButtonDisabled: {
     backgroundColor: '#ccc',

@@ -94,10 +94,20 @@ describe('[US-004] Prevent Input After Game Completion', () => {
     __dirname,
     '../../screens/HomeScreen.tsx',
   );
+  // Voice-First PRD US-009 (2026-04-13) relocated the TextInput and submit
+  // button out of HomeScreen into VoiceFirstInputBar, so the UI-level
+  // source-string assertions below read from the component file while
+  // handler-level assertions continue to target HomeScreen.
+  const voiceBarPath = path.resolve(
+    __dirname,
+    '../../components/story/VoiceFirstInputBar.tsx',
+  );
   let homeScreenSource: string;
+  let voiceBarSource: string;
 
   beforeAll(() => {
     homeScreenSource = fs.readFileSync(homeScreenPath, 'utf-8');
+    voiceBarSource = fs.readFileSync(voiceBarPath, 'utf-8');
   });
 
   beforeEach(() => {
@@ -113,9 +123,11 @@ describe('[US-004] Prevent Input After Game Completion', () => {
 
   describe('TextInput editable prop', () => {
     it('input is disabled when isGameCompleted is true', () => {
-      // TextInput editable prop should include isGameCompleted check
-      expect(homeScreenSource).toContain(
-        'editable={!loadingState.isGenerating && !isGameCompleted}',
+      // Post US-009, the TextInput lives in VoiceFirstInputBar.tsx and props
+      // are referenced via `props.`; the editable prop still composites
+      // isGenerating + isGameCompleted to lock input after game completion.
+      expect(voiceBarSource).toContain(
+        'editable={!props.isGenerating && !props.isGameCompleted}',
       );
     });
 
@@ -123,8 +135,8 @@ describe('[US-004] Prevent Input After Game Completion', () => {
       // The editable prop gates on isGenerating for mid-game generation,
       // and isGameCompleted for post-game lockout — both must be false for input
       const editablePattern =
-        /editable=\{!loadingState\.isGenerating\s*&&\s*!isGameCompleted\}/;
-      expect(homeScreenSource).toMatch(editablePattern);
+        /editable=\{!props\.isGenerating\s*&&\s*!props\.isGameCompleted\}/;
+      expect(voiceBarSource).toMatch(editablePattern);
     });
   });
 
@@ -132,19 +144,23 @@ describe('[US-004] Prevent Input After Game Completion', () => {
 
   describe('Submit button disabled prop', () => {
     it('submit button is disabled when isGameCompleted is true', () => {
-      // Find the submit button disabled prop — should include isGameCompleted
+      // Post US-009, the submit button lives in VoiceFirstInputBar.tsx and
+      // its disabled prop flows through `submitDisabled`/`typingSubmitDisabled`
+      // which both OR in `props.isGameCompleted`.
       const disabledPattern = /disabled=\{[\s\S]*?isGameCompleted[\s\S]*?\}/;
-      const match = homeScreenSource.match(disabledPattern);
+      const match = voiceBarSource.match(disabledPattern);
       expect(match).not.toBeNull();
     });
 
-    it('submit button has disabled styling when isGameCompleted is true', () => {
-      // The button style should also reflect the disabled state
-      expect(homeScreenSource).toContain('isGameCompleted');
-      // Verify it's part of the disabled style condition
-      const stylePattern =
-        /floatingSubmitButtonDisabled[\s\S]*?isGameCompleted|isGameCompleted[\s\S]*?floatingSubmitButtonDisabled/;
-      expect(homeScreenSource).toMatch(stylePattern);
+    it('submit button composites isGameCompleted into its disabled state', () => {
+      // Post US-009, the `floatingSubmitButtonDisabled` style moved out with
+      // the button. The equivalent guard now lives as `submitDisabled =
+      // props.isGenerating || props.isGameCompleted` (and similarly
+      // `typingSubmitDisabled`) — verify isGameCompleted contributes to it.
+      expect(voiceBarSource).toContain('isGameCompleted');
+      const guardPattern =
+        /(submitDisabled|typingSubmitDisabled)[\s\S]{0,200}?props\.isGameCompleted/;
+      expect(voiceBarSource).toMatch(guardPattern);
     });
   });
 

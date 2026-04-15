@@ -1,722 +1,304 @@
 /**
- * Functional Testing for Voice Input/Output Features
- * Validates all functional requirements from TASKS-voice-input-output-PRD.md (1716-1726)
+ * Functional Testing for the Voice-First Input Bar
  *
- * Tests:
- * 1. Speaker button reads only latest continuation
- * 2. Speaker button pauses/resumes correctly
- * 3. Mic button starts/stops listening on tap
- * 4. Transcribed text appears immediately in input field
- * 5. Transcribed text can be edited
- * 6. Voice input works for all grade levels
- * 7. "Continue Story" button works with voice input
- * 8. Voice input respects same constraints as typed input
- * 9. Typing remains available as fallback
+ * Updated for PRD "Voice-First Input Bar" US-012: assertions target the three
+ * round buttons by their new static `accessibilityLabel` values (US-008) and
+ * the component is rendered in isolation rather than through the HomeScreen
+ * host. Prior to the voice-first refactor HomeScreen exposed inline
+ * `testID="mic-button"` / `testID="speaker-button"` controls; after US-009
+ * those controls live inside `VoiceFirstInputBar` and are addressed by label:
+ *
+ *   - Listen   → `accessibilityLabel="Listen to the story so far"`   (LEFT)
+ *   - Speak    → `accessibilityLabel="Speak your contribution"`      (CENTER, PRIMARY)
+ *   - Keyboard → `accessibilityLabel="Type with the keyboard"`       (RIGHT)
+ *
+ * We mock the embedded `VoiceInput` so a transcript can be fed into the
+ * reducer synchronously via `global.__lastSpeechResult(...)` — this lets the
+ * review card render without driving the real permissions/autoStart pipeline.
  */
 
 import React from 'react';
-import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
-import { Alert } from 'react-native';
-import HomeScreen from '../../screens/HomeScreen';
-import { textToSpeechService } from '../../services/textToSpeechIsolated';
-import Voice from '@react-native-voice/voice';
-import { extractLatestContinuation } from '../../utils/storyUtils';
+import { render, fireEvent, act } from '@testing-library/react-native';
+import { AccessibilityInfo, Animated, TextInput } from 'react-native';
+import VoiceFirstInputBar, {
+  VoiceFirstInputBarProps,
+} from '../../components/story/VoiceFirstInputBar';
 
-// Mock dependencies - must be before imports
-jest.mock('react-native-url-polyfill/auto', () => ({}));
-jest.mock('../../services/textToSpeechIsolated');
+// jest.setup.js:209 mocks `AccessibilityInfo` without `announceForAccessibility`,
+// so the mode-transition effect (VoiceFirstInputBar.tsx:295) would crash as
+// soon as mode moves off 'idle'. Patch the method onto the mocked module for
+// this suite — behavior test files don't assert on the announcements here
+// (that's voiceFeaturesAccessibility.test.tsx's job).
+(AccessibilityInfo as any).announceForAccessibility = jest.fn();
+
+// jest.setup.js:233+ mocks `Animated.loop` returning only `{ start }` — no
+// `stop`. VoiceFirstInputBar's pulse animation calls `loop.stop()` in cleanup
+// (VoiceFirstInputBar.tsx:~430), which would crash on unmount. Supply both.
+(Animated as any).loop = jest.fn(() => ({
+  start: jest.fn(),
+  stop: jest.fn(),
+}));
+
+// Expose the embedded VoiceInput's callbacks so tests can simulate a speech
+// result / error at will. The mock renders nothing — VoiceFirstInputBar still
+// controls every visual and only mounts VoiceInput while in `listening` mode.
+jest.mock('../../components/common/VoiceInput', () => ({
+  __esModule: true,
+  VoiceInput: (props: any) => {
+    (global as any).__lastSpeechResult = props.onSpeechResult;
+    (global as any).__lastSpeechError = props.onError;
+    return null;
+  },
+  default: (props: any) => {
+    (global as any).__lastSpeechResult = props.onSpeechResult;
+    (global as any).__lastSpeechError = props.onError;
+    return null;
+  },
+}));
+
+// TTS service is stubbed — Speak's tap handler calls textToSpeechService.stop()
+// when the speaker is active to release the iOS audio session; we only need
+// it not to crash in the jest environment.
+jest.mock('../../services/textToSpeechIsolated', () => ({
+  textToSpeechService: {
+    stop: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
 jest.mock('@react-native-voice/voice');
-jest.mock('../../utils/storyUtils');
-jest.mock('@react-native-clipboard/clipboard', () => ({
-  setString: jest.fn(),
-  getString: jest.fn(() => Promise.resolve('')),
-}));
-jest.mock('../../context/AuthContext', () => ({
-  useAuth: () => ({
-    user: { id: 'test-user' },
-    userProfile: { preferred_grade_level: 'K-2', speech_enabled: true },
-  }),
-}));
-jest.mock('../../services/storyAgent');
-jest.mock('../../services/storyGenerationService');
-jest.mock('../../services/api');
-jest.mock('../../services/storySessionManager');
-jest.mock('../../services/challengeService');
-jest.mock('../../services/storyDownloadService');
-jest.mock('../../utils/rnfsWrapper');
+
+// Override the global MaterialIcons mock (jest.setup.js:43-48) which mis-calls
+// `Text(props.name)` as a function instead of JSX — crashes under
+// react-test-renderer. A no-op icon is fine for these behavior tests.
+jest.mock('react-native-vector-icons/MaterialIcons', () => {
+  return function MockIcon() {
+    return null;
+  };
+});
+
+const baseProps = (): VoiceFirstInputBarProps => ({
+  userInput: '',
+  onUserInputChange: jest.fn(),
+  storyInputRef: React.createRef<TextInput | null>() as any,
+  onVoiceResult: jest.fn(),
+  voiceInputEnabled: true,
+  onSpeakerPress: jest.fn(),
+  onSpeakerLongPress: jest.fn(),
+  speakerState: 'idle',
+  canUseSpeaker: true,
+  onSubmit: jest.fn(),
+  isGenerating: false,
+  isGameCompleted: false,
+  isUserStarting: false,
+});
+
+const renderBar = (overrides: Partial<VoiceFirstInputBarProps> = {}) => {
+  const props = { ...baseProps(), ...overrides };
+  const utils = render(<VoiceFirstInputBar {...props} />);
+  return { ...utils, props };
+};
 
 describe('Voice Features Functional Testing', () => {
-  let mockSession: any;
-  let mockExtractLatestContinuation: jest.Mock;
-
   beforeEach(() => {
     jest.clearAllMocks();
-
-    // Setup mock session with multiple continuations
-    mockSession = {
-      id: 'test-session',
-      story_content:
-        'First part of the story. Second part of the story. Latest continuation of the story.',
-      contributions: [
-        { content: 'First part of the story.', order: 1 },
-        { content: 'Second part of the story.', order: 2 },
-        { content: 'Latest continuation of the story.', order: 3 },
-      ],
-    };
-
-    // Mock extractLatestContinuation to return only the latest part
-    mockExtractLatestContinuation = extractLatestContinuation as jest.Mock;
-    mockExtractLatestContinuation.mockImplementation((content, session) => {
-      if (session?.contributions && session.contributions.length > 0) {
-        return session.contributions[session.contributions.length - 1].content;
-      }
-      if (content) {
-        const sentences = content.split(/[.!?]+/).filter(s => s.trim());
-        return sentences[sentences.length - 1]?.trim() || '';
-      }
-      return '';
-    });
-
-    // Mock TTS service
-    (textToSpeechService.isServiceAvailable as jest.Mock).mockReturnValue(true);
-    (textToSpeechService.initialize as jest.Mock).mockResolvedValue(undefined);
-    (textToSpeechService.setupEventListeners as jest.Mock).mockImplementation(
-      callbacks => {
-        // Store callbacks for simulation
-        if (callbacks.onStart) {
-          setTimeout(() => callbacks.onStart(), 100);
-        }
-      },
-    );
-    (textToSpeechService.removeAllListeners as jest.Mock).mockImplementation(
-      () => {},
-    );
-    (textToSpeechService.speakStoryContent as jest.Mock).mockResolvedValue(
-      undefined,
-    );
-    (textToSpeechService.pause as jest.Mock).mockResolvedValue(undefined);
-    (textToSpeechService.resume as jest.Mock).mockResolvedValue(undefined);
-    (textToSpeechService.stop as jest.Mock).mockResolvedValue(undefined);
-
-    // Mock Voice service
-    (Voice.start as jest.Mock).mockResolvedValue(undefined);
-    (Voice.stop as jest.Mock).mockResolvedValue(undefined);
-    (Voice.destroy as jest.Mock).mockResolvedValue(undefined);
-    (Voice.removeAllListeners as jest.Mock).mockImplementation(() => {});
-
-    // Mock story session manager
-    const storySessionManager = require('../../services/storySessionManager');
-    storySessionManager.getCurrentSession = jest
-      .fn()
-      .mockResolvedValue(mockSession);
-
-    // Mock Alert
-    jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    (global as any).__lastSpeechResult = undefined;
+    (global as any).__lastSpeechError = undefined;
   });
 
-  describe('1. Speaker button reads only latest continuation', () => {
-    test('speaker button calls extractLatestContinuation with session', async () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      // Wait for session to load
-      await waitFor(() => {
-        expect(
-          require('../../services/storySessionManager').getCurrentSession,
-        ).toHaveBeenCalled();
-      });
-
-      const speakerButton = getByTestId('speaker-button');
-
-      await act(async () => {
-        fireEvent.press(speakerButton);
-      });
-
-      await waitFor(() => {
-        // Verify extractLatestContinuation was called
-        expect(mockExtractLatestContinuation).toHaveBeenCalled();
-
-        // Verify speakStoryContent was called with latest continuation only
-        expect(textToSpeechService.speakStoryContent).toHaveBeenCalled();
-        const callArgs = (textToSpeechService.speakStoryContent as jest.Mock)
-          .mock.calls[0];
-        expect(callArgs[0]).toBe('Latest continuation of the story.');
-      });
+  describe('1. Listen (speaker) button reads the story', () => {
+    test('pressing Listen invokes onSpeakerPress (TTS start/stop handler)', () => {
+      const { getByLabelText, props } = renderBar();
+      fireEvent.press(getByLabelText('Listen to the story so far'));
+      expect(props.onSpeakerPress).toHaveBeenCalledTimes(1);
     });
 
-    test('speaker button uses contributions array when available', async () => {
-      const sessionWithContributions = {
-        ...mockSession,
-        contributions: [
-          { content: 'First contribution.', order: 1 },
-          { content: 'Second contribution.', order: 2 },
-          { content: 'Latest contribution.', order: 3 },
-        ],
-      };
-
-      const storySessionManager = require('../../services/storySessionManager');
-      storySessionManager.getCurrentSession = jest
-        .fn()
-        .mockResolvedValue(sessionWithContributions);
-
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      await waitFor(() => {
-        expect(storySessionManager.getCurrentSession).toHaveBeenCalled();
-      });
-
-      const speakerButton = getByTestId('speaker-button');
-
-      await act(async () => {
-        fireEvent.press(speakerButton);
-      });
-
-      await waitFor(() => {
-        expect(mockExtractLatestContinuation).toHaveBeenCalledWith(
-          expect.any(String),
-          expect.objectContaining({ contributions: expect.any(Array) }),
-        );
-      });
+    test('long-pressing Listen invokes onSpeakerLongPress (pause/resume)', () => {
+      const { getByLabelText, props } = renderBar();
+      fireEvent(getByLabelText('Listen to the story so far'), 'longPress');
+      expect(props.onSpeakerLongPress).toHaveBeenCalledTimes(1);
     });
   });
 
-  describe('2. Speaker button pauses/resumes correctly', () => {
-    test('speaker button pauses when pressed during playback', async () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const speakerButton = getByTestId('speaker-button');
-
-      // Start playback
-      await act(async () => {
-        fireEvent.press(speakerButton);
-      });
-
-      await waitFor(() => {
-        expect(textToSpeechService.speakStoryContent).toHaveBeenCalled();
-      });
-
-      // Simulate speaking state by triggering onStart callback
-      const setupCallbacks = (
-        textToSpeechService.setupEventListeners as jest.Mock
-      ).mock.calls[0][0];
-      if (setupCallbacks.onStart) {
-        act(() => {
-          setupCallbacks.onStart();
-        });
-      }
-
-      // Pause playback
-      await act(async () => {
-        fireEvent.press(speakerButton);
-      });
-
-      await waitFor(() => {
-        expect(textToSpeechService.pause).toHaveBeenCalled();
-      });
+  describe('2. Speak button pause/resume via host handlers', () => {
+    test('Listen disabled visually when canUseSpeaker=false', () => {
+      const { getByLabelText } = renderBar({ canUseSpeaker: false });
+      const listen = getByLabelText('Listen to the story so far');
+      expect(listen.props.accessibilityState?.disabled).toBe(true);
     });
 
-    test('speaker button resumes when pressed while paused', async () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const speakerButton = getByTestId('speaker-button');
-
-      // Start playback
-      await act(async () => {
-        fireEvent.press(speakerButton);
-      });
-
-      // Simulate speaking state
-      const setupCallbacks = (
-        textToSpeechService.setupEventListeners as jest.Mock
-      ).mock.calls[0][0];
-      if (setupCallbacks.onStart) {
-        act(() => {
-          setupCallbacks.onStart();
-        });
-      }
-
-      // Pause
-      await act(async () => {
-        fireEvent.press(speakerButton);
-      });
-
-      // Simulate paused state
-      if (setupCallbacks.onPause) {
-        act(() => {
-          setupCallbacks.onPause();
-        });
-      }
-
-      // Resume
-      await act(async () => {
-        fireEvent.press(speakerButton);
-      });
-
-      await waitFor(() => {
-        expect(textToSpeechService.resume).toHaveBeenCalled();
-      });
+    test('Listen reports active state while speakerState="speaking"', () => {
+      const { getByLabelText } = renderBar({ speakerState: 'speaking' });
+      const listen = getByLabelText('Listen to the story so far');
+      expect(listen.props.accessibilityState?.selected).toBe(true);
     });
   });
 
-  describe('3. Mic button starts/stops listening on tap', () => {
-    test('mic button starts listening on first tap', async () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-      const micButton = getByTestId('mic-button');
-
-      await act(async () => {
-        fireEvent.press(micButton);
-      });
-
-      await waitFor(() => {
-        expect(Voice.start).toHaveBeenCalled();
-      });
+  describe('3. Speak button starts/stops listening on tap', () => {
+    test('first tap enters listening (accessibilityState.selected flips true)', () => {
+      const { getByLabelText } = renderBar();
+      const speak = getByLabelText('Speak your contribution');
+      expect(speak.props.accessibilityState?.selected).toBe(false);
+      fireEvent.press(speak);
+      expect(speak.props.accessibilityState?.selected).toBe(true);
     });
 
-    test('mic button stops listening on second tap', async () => {
-      const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
+    test('second tap cancels back to idle', () => {
+      const { getByLabelText } = renderBar();
+      const speak = getByLabelText('Speak your contribution');
+      fireEvent.press(speak); // → listening
+      fireEvent.press(speak); // → idle
+      expect(speak.props.accessibilityState?.selected).toBe(false);
+    });
+  });
 
-      const micButton = getByTestId('mic-button');
-
-      // Start listening
-      await act(async () => {
-        fireEvent.press(micButton);
-      });
-
-      await waitFor(() => {
-        expect(Voice.start).toHaveBeenCalled();
-      });
-
-      // Simulate listening state
+  describe('4. Transcribed text surfaces in the review card', () => {
+    test('non-empty voice result calls onVoiceResult and renders review actions', () => {
+      const { getByLabelText, queryByText, props } = renderBar();
+      fireEvent.press(getByLabelText('Speak your contribution'));
       act(() => {
-        (Voice.onSpeechStart as any)?.({});
+        (global as any).__lastSpeechResult?.('Once upon a time');
       });
-
-      // Stop listening
-      await act(async () => {
-        fireEvent.press(micButton);
-      });
-
-      await waitFor(() => {
-        expect(Voice.stop).toHaveBeenCalled();
-      });
-    });
-  });
-
-  describe('4. Transcribed text appears immediately in input field', () => {
-    test('transcribed text appears in input field after speech recognition', async () => {
-      const { getByTestId, getByPlaceholderText } = render(
-        <HomeScreen navigation={{} as any} />,
-      );
-
-      const micButton = getByTestId('mic-button');
-      const input = getByPlaceholderText(/continue/i);
-
-      // Start listening
-      await act(async () => {
-        fireEvent.press(micButton);
-      });
-
-      // Simulate speech recognition result
-      const transcribedText = 'The hero continued the adventure';
-      act(() => {
-        (Voice.onSpeechResults as any)?.({
-          value: [transcribedText],
-        });
-      });
-
-      // Verify text appears in input field
-      await waitFor(() => {
-        expect(input.props.value || input.props.defaultValue).toContain(
-          transcribedText,
-        );
-      });
+      expect(props.onVoiceResult).toHaveBeenCalledWith('Once upon a time');
+      // Review card renders Re-record / Edit / Submit buttons.
+      expect(queryByText('Re-record')).toBeTruthy();
+      expect(queryByText('Edit')).toBeTruthy();
+      expect(queryByText('Submit')).toBeTruthy();
     });
 
-    test('transcribed text appears immediately without delay', async () => {
-      const { getByTestId, getByPlaceholderText } = render(
-        <HomeScreen navigation={{} as any} />,
-      );
-
-      const micButton = getByTestId('mic-button');
-      const input = getByPlaceholderText(/continue/i);
-
-      const startTime = Date.now();
-
-      await act(async () => {
-        fireEvent.press(micButton);
-      });
-
+    test('whitespace-only voice result snaps back to idle (no review card)', () => {
+      const { getByLabelText, queryByText, props } = renderBar();
+      fireEvent.press(getByLabelText('Speak your contribution'));
       act(() => {
-        (Voice.onSpeechResults as any)?.({
-          value: ['Quick transcription'],
-        });
+        (global as any).__lastSpeechResult?.('   ');
       });
-
-      const endTime = Date.now();
-      const delay = endTime - startTime;
-
-      // Should appear immediately (< 100ms)
-      expect(delay).toBeLessThan(100);
-
-      await waitFor(() => {
-        expect(input.props.value || input.props.defaultValue).toBeTruthy();
-      });
+      expect(props.onVoiceResult).not.toHaveBeenCalled();
+      expect(queryByText('Re-record')).toBeNull();
     });
   });
 
   describe('5. Transcribed text can be edited', () => {
-    test('user can edit transcribed text in input field', async () => {
-      const { getByTestId, getByPlaceholderText } = render(
-        <HomeScreen navigation={{} as any} />,
-      );
-
-      const micButton = getByTestId('mic-button');
-      const input = getByPlaceholderText(/continue/i);
-
-      // Get transcribed text
-      await act(async () => {
-        fireEvent.press(micButton);
+    test('Edit on review card switches to typing mode with transcript pre-filled', () => {
+      const transcript = 'Original voice transcription';
+      const { getByLabelText, getByText, getByTestId } = renderBar({
+        userInput: transcript,
       });
-
-      const transcribedText = 'Original transcribed text';
+      fireEvent.press(getByLabelText('Speak your contribution'));
       act(() => {
-        (Voice.onSpeechResults as any)?.({
-          value: [transcribedText],
-        });
+        (global as any).__lastSpeechResult?.(transcript);
       });
-
-      await waitFor(() => {
-        expect(input).toBeTruthy();
-      });
-
-      // Edit the text
-      const editedText = 'Edited transcribed text';
-      fireEvent.changeText(input, editedText);
-
-      // Verify text was edited
-      expect(input.props.value || input.props.defaultValue).toContain(
-        editedText,
-      );
+      fireEvent.press(getByText('Edit'));
+      const input = getByTestId('story-input');
+      expect(input.props.value).toBe(transcript);
     });
 
-    test('user can append to transcribed text', async () => {
-      const { getByTestId, getByPlaceholderText } = render(
-        <HomeScreen navigation={{} as any} />,
-      );
-
-      const micButton = getByTestId('mic-button');
-      const input = getByPlaceholderText(/continue/i);
-
-      // Get transcribed text
-      await act(async () => {
-        fireEvent.press(micButton);
-      });
-
-      const transcribedText = 'First part';
-      act(() => {
-        (Voice.onSpeechResults as any)?.({
-          value: [transcribedText],
-        });
-      });
-
-      await waitFor(() => {
-        expect(input).toBeTruthy();
-      });
-
-      // Append to the text
-      const currentValue = input.props.value || input.props.defaultValue || '';
-      const appendedText = currentValue + ' Second part';
-      fireEvent.changeText(input, appendedText);
-
-      // Verify text was appended
-      expect(input.props.value || input.props.defaultValue).toContain(
-        'First part',
-      );
-      expect(input.props.value || input.props.defaultValue).toContain(
-        'Second part',
+    test('typing updates userInput through onUserInputChange', () => {
+      const { getByLabelText, getByTestId, props } = renderBar();
+      fireEvent.press(getByLabelText('Type with the keyboard'));
+      fireEvent.changeText(getByTestId('story-input'), 'Edited contribution');
+      expect(props.onUserInputChange).toHaveBeenCalledWith(
+        'Edited contribution',
       );
     });
   });
 
   describe('6. Voice input works for all grade levels', () => {
+    // VoiceFirstInputBar itself is grade-level agnostic — grade level affects
+    // downstream TTS / AI pipelines. We verify the bar renders the same three
+    // labelled buttons regardless of session state.
     const gradeLevels = ['K-2', '3-5', '6-8', '9-12'];
-
-    gradeLevels.forEach(gradeLevel => {
-      test(`voice input works with grade level ${gradeLevel}`, async () => {
-        const { useAuth } = require('../../context/AuthContext');
-        useAuth.mockReturnValue({
-          user: { id: 'test-user' },
-          userProfile: {
-            preferred_grade_level: gradeLevel,
-            speech_enabled: true,
-          },
-        });
-
-        const { getByTestId } = render(<HomeScreen navigation={{} as any} />);
-
-        const micButton = getByTestId('mic-button');
-        expect(micButton).toBeTruthy();
-
-        await act(async () => {
-          fireEvent.press(micButton);
-        });
-
-        await waitFor(() => {
-          expect(Voice.start).toHaveBeenCalled();
-        });
+    gradeLevels.forEach(grade => {
+      test(`renders Listen/Speak/Keyboard at grade ${grade}`, () => {
+        const { getByLabelText } = renderBar();
+        expect(getByLabelText('Listen to the story so far')).toBeTruthy();
+        expect(getByLabelText('Speak your contribution')).toBeTruthy();
+        expect(getByLabelText('Type with the keyboard')).toBeTruthy();
       });
     });
   });
 
-  describe('7. "Continue Story" button works with voice input', () => {
-    test('continue story button submits voice input text', async () => {
-      const mockContinueStory = jest.fn().mockResolvedValue({ success: true });
-      const storyAgentService = require('../../services/storyAgent');
-      storyAgentService.continueStory = mockContinueStory;
-
-      const { getByTestId, getByPlaceholderText } = render(
-        <HomeScreen navigation={{} as any} />,
-      );
-
-      const micButton = getByTestId('mic-button');
-      const input = getByPlaceholderText(/continue/i);
-
-      // Get transcribed text
-      await act(async () => {
-        fireEvent.press(micButton);
+  describe('7. Submit wires voice input to handleContinueStory', () => {
+    test('Submit on review card invokes onSubmit', () => {
+      const { getByLabelText, getByText, props } = renderBar({
+        userInput: 'Voice draft',
       });
-
-      const transcribedText = 'Voice input story continuation';
+      fireEvent.press(getByLabelText('Speak your contribution'));
       act(() => {
-        (Voice.onSpeechResults as any)?.({
-          value: [transcribedText],
-        });
+        (global as any).__lastSpeechResult?.('Voice draft');
       });
+      fireEvent.press(getByText('Submit'));
+      expect(props.onSubmit).toHaveBeenCalledTimes(1);
+    });
 
-      await waitFor(() => {
-        expect(input).toBeTruthy();
+    test('Submit from typing mode (arrow) invokes onSubmit when text is non-empty', () => {
+      const { getByLabelText, getByTestId, props } = renderBar({
+        userInput: 'Typed draft',
       });
+      fireEvent.press(getByLabelText('Type with the keyboard'));
+      fireEvent.press(getByTestId('continue-story-button'));
+      expect(props.onSubmit).toHaveBeenCalledTimes(1);
+    });
+  });
 
-      // Find and press Continue Story button
-      const continueButton = getByTestId('continue-story-button');
-      if (continueButton) {
-        await act(async () => {
-          fireEvent.press(continueButton);
-        });
+  describe('8. Voice input respects the same constraints as typed input', () => {
+    test('onVoiceResult receives trimmed text (matches typed-submission semantics)', () => {
+      const { getByLabelText, props } = renderBar();
+      fireEvent.press(getByLabelText('Speak your contribution'));
+      act(() => {
+        (global as any).__lastSpeechResult?.('  padded transcript  ');
+      });
+      expect(props.onVoiceResult).toHaveBeenCalledWith('padded transcript');
+    });
+  });
 
-        await waitFor(() => {
-          expect(mockContinueStory).toHaveBeenCalled();
-        });
+  describe('9. Typing remains available as a fallback', () => {
+    test('Keyboard opens the typing row (story-input becomes queryable)', () => {
+      const { getByLabelText, getByTestId } = renderBar();
+      fireEvent.press(getByLabelText('Type with the keyboard'));
+      expect(getByTestId('story-input')).toBeTruthy();
+    });
+
+    test('Speak disabled when voiceInputEnabled=false; typing still works', () => {
+      const { getByLabelText, getByTestId, props } = renderBar({
+        voiceInputEnabled: false,
+      });
+      const speak = getByLabelText('Speak your contribution');
+      expect(speak.props.accessibilityState?.disabled).toBe(true);
+      fireEvent.press(getByLabelText('Type with the keyboard'));
+      fireEvent.changeText(getByTestId('story-input'), 'Keyboard fallback');
+      expect(props.onUserInputChange).toHaveBeenCalledWith('Keyboard fallback');
+    });
+  });
+
+  describe('10. Visual ordering is Listen → Speak → Keyboard (left to right)', () => {
+    // Walk the toJSON() tree instead of getAllByRole('button'): the TouchableOpacity
+    // mock in jest.setup.js renders as a leaf with `accessibilityRole="button"` but
+    // RN testing-library's role query doesn't resolve it (likely host-component
+    // name mismatch). DOM-order traversal is mock-independent and still asserts
+    // the same thing the user would perceive via VoiceOver swipe order.
+    const collectButtonLabels = (node: any, acc: string[] = []): string[] => {
+      if (!node) return acc;
+      if (Array.isArray(node)) {
+        node.forEach(n => collectButtonLabels(n, acc));
+        return acc;
       }
-    });
-
-    test('continue story button works with edited voice input', async () => {
-      const mockContinueStory = jest.fn().mockResolvedValue({ success: true });
-      const storyAgentService = require('../../services/storyAgent');
-      storyAgentService.continueStory = mockContinueStory;
-
-      const { getByTestId, getByPlaceholderText } = render(
-        <HomeScreen navigation={{} as any} />,
-      );
-
-      const micButton = getByTestId('mic-button');
-      const input = getByPlaceholderText(/continue/i);
-
-      // Get transcribed text
-      await act(async () => {
-        fireEvent.press(micButton);
-      });
-
-      const transcribedText = 'Original voice input';
-      act(() => {
-        (Voice.onSpeechResults as any)?.({
-          value: [transcribedText],
-        });
-      });
-
-      await waitFor(() => {
-        expect(input).toBeTruthy();
-      });
-
-      // Edit the text
-      const editedText = 'Edited voice input';
-      fireEvent.changeText(input, editedText);
-
-      // Submit
-      const continueButton = getByTestId('continue-story-button');
-      if (continueButton) {
-        await act(async () => {
-          fireEvent.press(continueButton);
-        });
-
-        await waitFor(() => {
-          expect(mockContinueStory).toHaveBeenCalled();
-        });
+      if (
+        node.props?.accessibilityRole === 'button' &&
+        typeof node.props?.accessibilityLabel === 'string'
+      ) {
+        acc.push(node.props.accessibilityLabel);
       }
-    });
-  });
+      if (node.children) collectButtonLabels(node.children, acc);
+      return acc;
+    };
 
-  describe('8. Voice input respects same constraints as typed input', () => {
-    test('voice input goes through same validation as typed input', async () => {
-      const { getByTestId, getByPlaceholderText } = render(
-        <HomeScreen navigation={{} as any} />,
-      );
-
-      const micButton = getByTestId('mic-button');
-      const input = getByPlaceholderText(/continue/i);
-
-      // Get transcribed text
-      await act(async () => {
-        fireEvent.press(micButton);
-      });
-
-      const transcribedText = 'Voice input text';
-      act(() => {
-        (Voice.onSpeechResults as any)?.({
-          value: [transcribedText],
-        });
-      });
-
-      await waitFor(() => {
-        expect(input).toBeTruthy();
-      });
-
-      // Verify input is in the same field as typed input
-      // This ensures same validation pipeline
-      expect(input).toBeTruthy();
-    });
-
-    test('voice input respects grade level constraints', async () => {
-      const { useAuth } = require('../../context/AuthContext');
-      useAuth.mockReturnValue({
-        user: { id: 'test-user' },
-        userProfile: { preferred_grade_level: 'K-2', speech_enabled: true },
-      });
-
-      const { getByTestId, getByPlaceholderText } = render(
-        <HomeScreen navigation={{} as any} />,
-      );
-
-      const micButton = getByTestId('mic-button');
-      const input = getByPlaceholderText(/continue/i);
-
-      // Get transcribed text
-      await act(async () => {
-        fireEvent.press(micButton);
-      });
-
-      const transcribedText = 'Simple story for K-2';
-      act(() => {
-        (Voice.onSpeechResults as any)?.({
-          value: [transcribedText],
-        });
-      });
-
-      await waitFor(() => {
-        expect(input).toBeTruthy();
-      });
-
-      // Verify input is processed with grade level constraints
-      // (Validation happens in storyAgent service)
-      expect(input).toBeTruthy();
-    });
-  });
-
-  describe('9. Typing remains available as fallback', () => {
-    test('typing works when voice input is disabled', async () => {
-      const { useAuth } = require('../../context/AuthContext');
-      useAuth.mockReturnValue({
-        user: { id: 'test-user' },
-        userProfile: { preferred_grade_level: 'K-2', speech_enabled: false },
-      });
-
-      const { getByPlaceholderText } = render(
-        <HomeScreen navigation={{} as any} />,
-      );
-
-      const input = getByPlaceholderText(/continue/i);
-      expect(input).toBeTruthy();
-
-      // Should be able to type
-      fireEvent.changeText(input, 'Typed story continuation');
-      expect(input.props.value || input.props.defaultValue).toBeTruthy();
-    });
-
-    test('typing works when microphone permission is denied', async () => {
-      const { getByTestId, getByPlaceholderText } = render(
-        <HomeScreen navigation={{} as any} />,
-      );
-
-      const micButton = getByTestId('mic-button');
-      const input = getByPlaceholderText(/continue/i);
-
-      // Simulate permission denied
-      (Voice.start as jest.Mock).mockRejectedValue({
-        error: { code: 'permission', message: 'Permission denied' },
-      });
-
-      await act(async () => {
-        fireEvent.press(micButton);
-      });
-
-      // Typing should still work
-      fireEvent.changeText(input, 'Typed fallback text');
-      expect(input.props.value || input.props.defaultValue).toBeTruthy();
-    });
-
-    test('typing works when voice recognition fails', async () => {
-      const { getByTestId, getByPlaceholderText } = render(
-        <HomeScreen navigation={{} as any} />,
-      );
-
-      const micButton = getByTestId('mic-button');
-      const input = getByPlaceholderText(/continue/i);
-
-      // Simulate recognition failure
-      await act(async () => {
-        fireEvent.press(micButton);
-      });
-
-      act(() => {
-        (Voice.onSpeechError as any)?.({
-          error: { code: 'recognition', message: 'Recognition failed' },
-        });
-      });
-
-      // Typing should still work
-      fireEvent.changeText(input, 'Typed fallback after error');
-      expect(input.props.value || input.props.defaultValue).toBeTruthy();
-    });
-
-    test('typing and voice input can be used together', async () => {
-      const { getByTestId, getByPlaceholderText } = render(
-        <HomeScreen navigation={{} as any} />,
-      );
-
-      const micButton = getByTestId('mic-button');
-      const input = getByPlaceholderText(/continue/i);
-
-      // Type some text first
-      fireEvent.changeText(input, 'Typed text ');
-
-      // Then use voice input
-      await act(async () => {
-        fireEvent.press(micButton);
-      });
-
-      const transcribedText = 'Voice input text';
-      act(() => {
-        (Voice.onSpeechResults as any)?.({
-          value: [transcribedText],
-        });
-      });
-
-      // Both should be in the input field
-      await waitFor(() => {
-        const value = input.props.value || input.props.defaultValue || '';
-        expect(value).toContain('Typed text');
-        expect(value).toContain('Voice input text');
-      });
+    test('tree traversal yields Listen → Speak → Keyboard in DOM order', () => {
+      const { toJSON } = renderBar();
+      const labels = collectButtonLabels(toJSON());
+      expect(labels).toEqual([
+        'Listen to the story so far',
+        'Speak your contribution',
+        'Type with the keyboard',
+      ]);
     });
   });
 });

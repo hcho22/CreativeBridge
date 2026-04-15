@@ -1,401 +1,200 @@
 /**
- * Integration tests for Speaker Button functionality
- * Tests complete flow: idle → speaking → pause → resume → finish
+ * Integration tests for the Speaker (Listen) Round Button
+ *
+ * Updated for PRD "Voice-First Input Bar" US-012: the Listen button lives
+ * inside `VoiceFirstInputBar` and exposes `accessibilityLabel="Listen to the
+ * story so far"`. Its `testID="speaker-button"` is preserved for back-compat
+ * with existing test harnesses. This suite verifies:
+ *
+ *   - a single tap still toggles TTS by invoking `onSpeakerPress`
+ *   - a long press still invokes `onSpeakerLongPress` (pause/resume)
+ *   - disabled state reflects `canUseSpeaker` and `isGenerating`
+ *   - the icon swaps to a Stop glyph while TTS is actively speaking
+ *
+ * Host-side behavior (the actual TTS engine calls made from
+ * `handleSpeakerButtonPress`) is verified in services/textToSpeech* tests.
  */
 
 import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
-import { Alert } from 'react-native';
-import HomeScreen from '../../screens/HomeScreen';
-import { useAuth } from '../../context/AuthContext';
-import { textToSpeechService } from '../../services/textToSpeechIsolated';
-import { extractLatestContinuation } from '../../utils/storyUtils';
-import { StorySession } from '../../services/storySessionManager';
+import { render, fireEvent } from '@testing-library/react-native';
+import { AccessibilityInfo, Animated, TextInput } from 'react-native';
+import VoiceFirstInputBar, {
+  VoiceFirstInputBarProps,
+} from '../../components/story/VoiceFirstInputBar';
 
-// Mock dependencies - must be before imports
-jest.mock('react-native-url-polyfill/auto', () => ({}));
-jest.mock('../../context/AuthContext');
-jest.mock('../../services/textToSpeechIsolated');
-jest.mock('../../utils/storyUtils');
-jest.mock('../../services/storySessionManager');
-jest.mock('../../services/storyAgent');
-jest.mock('../../services/storyGenerationService');
-jest.mock('../../services/api');
-jest.mock('../../services/challengeService');
-jest.mock('../../utils/debounceUtils');
-jest.mock('@react-native-clipboard/clipboard', () => ({
-  setString: jest.fn(),
+// jest.setup.js omits announceForAccessibility from its AccessibilityInfo mock;
+// patch it so the mode-entry effect doesn't throw on render.
+(AccessibilityInfo as any).announceForAccessibility = jest.fn();
+
+// jest.setup.js's Animated.loop mock returns `{ start }` only; the component's
+// pulse animation cleanup calls `.stop()` on unmount. Supply both handles.
+(Animated as any).loop = jest.fn(() => ({
+  start: jest.fn(),
+  stop: jest.fn(),
 }));
-jest.mock('@react-native-async-storage/async-storage', () => ({
-  getItem: jest.fn(),
-  setItem: jest.fn(),
-  removeItem: jest.fn(),
+
+jest.mock('../../components/common/VoiceInput', () => ({
+  __esModule: true,
+  VoiceInput: () => null,
+  default: () => null,
 }));
-jest.mock('react-native', () => {
-  const RN = jest.requireActual('react-native');
-  return {
-    ...RN,
-    Alert: {
-      alert: jest.fn(),
-    },
+
+jest.mock('../../services/textToSpeechIsolated', () => ({
+  textToSpeechService: {
+    stop: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
+jest.mock('@react-native-voice/voice');
+
+// Override jest.setup.js's broken MaterialIcons mock (it calls Text() instead
+// of returning JSX). No-op icon — this suite only checks button behavior.
+jest.mock('react-native-vector-icons/MaterialIcons', () => {
+  return function MockIcon() {
+    return null;
   };
 });
 
-// Mock Alert
-jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+const baseProps = (): VoiceFirstInputBarProps => ({
+  userInput: '',
+  onUserInputChange: jest.fn(),
+  storyInputRef: React.createRef<TextInput | null>() as any,
+  onVoiceResult: jest.fn(),
+  voiceInputEnabled: true,
+  onSpeakerPress: jest.fn(),
+  onSpeakerLongPress: jest.fn(),
+  speakerState: 'idle',
+  canUseSpeaker: true,
+  onSubmit: jest.fn(),
+  isGenerating: false,
+  isGameCompleted: false,
+  isUserStarting: false,
+});
 
-// Mock navigation
-const mockNavigate = jest.fn();
-const mockSetOptions = jest.fn();
-const mockNavigation = {
-  navigate: mockNavigate,
-  setOptions: mockSetOptions,
+const renderBar = (overrides: Partial<VoiceFirstInputBarProps> = {}) => {
+  const props = { ...baseProps(), ...overrides };
+  const utils = render(<VoiceFirstInputBar {...props} />);
+  return { ...utils, props };
 };
 
-// Mock user data
-const mockUser = {
-  id: 'user-123',
-  email: 'test@example.com',
-};
-
-const mockUserProfile = {
-  id: 'user-123',
-  username: 'testuser',
-  display_name: 'Test User',
-  preferred_grade_level: 'K-2',
-  speech_enabled: true,
-  total_xp: 100,
-};
-
-const mockUseAuth = {
-  user: mockUser,
-  userProfile: mockUserProfile,
-  signOut: jest.fn(),
-  session: { access_token: 'mock-token' },
-};
-
-// Mock TTS service
-const mockTtsService = {
-  initialize: jest.fn().mockResolvedValue(undefined),
-  isServiceAvailable: jest.fn().mockReturnValue(true),
-  setGradeLevelOptions: jest.fn().mockResolvedValue(undefined),
-  setupEventListeners: jest.fn(),
-  removeAllListeners: jest.fn(),
-  speakStoryContent: jest.fn().mockResolvedValue(undefined),
-  pause: jest.fn().mockResolvedValue(undefined),
-  resume: jest.fn().mockResolvedValue(undefined),
-  stop: jest.fn().mockResolvedValue(undefined),
-  isPaused: jest.fn().mockReturnValue(false),
-};
-
-// Mock story session with contributions
-const createMockSession = (storyContent: string, contributions?: any[]) => {
-  return {
-    id: 'session-123',
-    user_id: 'user-123',
-    created_at: new Date().toISOString(),
-    grade_level: 'K-2',
-    final_score: 0,
-    words_written: 0,
-    sentences_completed: 0,
-    challenges_completed: 0,
-    xp_earned: 0,
-    story_content: storyContent,
-    contributions: contributions || [],
-    isCompleted: false,
-    sessionStats: {
-      totalWords: 0,
-      userWords: 0,
-      aiWords: 0,
-      sessionDuration: 0,
-      contributionCount: contributions?.length || 0,
-    },
-    metadata: {},
-  } as StorySession;
-};
-
-describe('Speaker Button Integration', () => {
+describe('Speaker (Listen) Button Integration', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (useAuth as jest.Mock).mockReturnValue(mockUseAuth);
-    (textToSpeechService as any).initialize = mockTtsService.initialize;
-    (textToSpeechService as any).isServiceAvailable =
-      mockTtsService.isServiceAvailable;
-    (textToSpeechService as any).setGradeLevelOptions =
-      mockTtsService.setGradeLevelOptions;
-    (textToSpeechService as any).setupEventListeners =
-      mockTtsService.setupEventListeners;
-    (textToSpeechService as any).removeAllListeners =
-      mockTtsService.removeAllListeners;
-    (textToSpeechService as any).speakStoryContent =
-      mockTtsService.speakStoryContent;
-    (textToSpeechService as any).pause = mockTtsService.pause;
-    (textToSpeechService as any).resume = mockTtsService.resume;
-    (textToSpeechService as any).stop = mockTtsService.stop;
-    (textToSpeechService as any).isPaused = mockTtsService.isPaused;
-
-    // Mock event listeners to trigger callbacks
-    let eventCallbacks: any = {};
-    (textToSpeechService as any).setupEventListeners = jest.fn(callbacks => {
-      eventCallbacks = callbacks;
-    });
-
-    // Helper to trigger events
-    (textToSpeechService as any).triggerEvent = (event: string) => {
-      if (eventCallbacks[event]) {
-        eventCallbacks[event]();
-      }
-    };
   });
 
-  describe('Complete Playback Flow', () => {
-    test('complete flow: idle → speaking → pause → resume → finish', async () => {
-      // const mockStory = createMockSession( // Currently unused
-      createMockSession('Part 1. Part 2. Part 3.', [
-        { type: 'ai', content: 'Part 1.', timestamp: 1000, wordCount: 2 },
-        { type: 'user', content: 'Part 2.', timestamp: 2000, wordCount: 2 },
-        { type: 'ai', content: 'Part 3.', timestamp: 3000, wordCount: 2 },
-      ]);
-
-      // Mock extractLatestContinuation to return last part
-      (extractLatestContinuation as jest.Mock).mockReturnValue('Part 3.');
-
-      const { getByTestId } = render(
-        <HomeScreen navigation={mockNavigation as any} />,
-      );
-
-      // Set up session (this would normally be done by the component)
-      // For testing, we'll need to mock the session state
-      // This is a simplified test - full integration would require more setup
-
-      const speakerButton = getByTestId('speaker-button');
-      expect(speakerButton).toBeTruthy();
+  describe('testID compatibility', () => {
+    test('renders under the preserved testID="speaker-button"', () => {
+      const { getByTestId } = renderBar();
+      expect(getByTestId('speaker-button')).toBeTruthy();
     });
 
-    test('extracts only latest continuation before speaking', async () => {
-      const fullStory =
-        'First continuation. Second continuation. Third continuation.';
-      const mockSession = createMockSession(fullStory, [
-        {
-          type: 'ai',
-          content: 'First continuation.',
-          timestamp: 1000,
-          wordCount: 2,
-        },
-        {
-          type: 'user',
-          content: 'Second continuation.',
-          timestamp: 2000,
-          wordCount: 2,
-        },
-        {
-          type: 'ai',
-          content: 'Third continuation.',
-          timestamp: 3000,
-          wordCount: 2,
-        },
-      ]);
-
-      (extractLatestContinuation as jest.Mock).mockReturnValue(
-        'Third continuation.',
+    test('is also resolvable by its new accessibilityLabel', () => {
+      const { getByLabelText, getByTestId } = renderBar();
+      expect(getByTestId('speaker-button')).toBe(
+        getByLabelText('Listen to the story so far'),
       );
-
-      // Verify extractLatestContinuation is called with correct parameters
-      const latest = extractLatestContinuation(fullStory, mockSession);
-      expect(extractLatestContinuation).toHaveBeenCalledWith(
-        fullStory,
-        mockSession,
-      );
-      expect(latest).toBe('Third continuation.');
     });
   });
 
-  describe('State Transitions', () => {
-    test('transitions from idle to speaking when button pressed', async () => {
-      // const mockSession = createMockSession('Test story content.'); // Currently unused
-      createMockSession('Test story content.');
-      (extractLatestContinuation as jest.Mock).mockReturnValue(
-        'Test story content.',
-      );
-
-      const { getByTestId } = render(
-        <HomeScreen navigation={mockNavigation as any} />,
-      );
-
-      const speakerButton = getByTestId('speaker-button');
-
-      // Button should be rendered
-      expect(speakerButton).toBeTruthy();
-
-      // Note: Full state transition testing would require more complex setup
-      // to mock the component's internal state management
+  describe('Tap toggles TTS', () => {
+    test('single tap invokes onSpeakerPress exactly once', () => {
+      const { getByTestId, props } = renderBar();
+      fireEvent.press(getByTestId('speaker-button'));
+      expect(props.onSpeakerPress).toHaveBeenCalledTimes(1);
     });
 
-    test('pauses when speaking', async () => {
-      // This would test pause functionality
-      // Requires mocking the component state to be 'speaking'
-      expect(mockTtsService.pause).toBeDefined();
-    });
-
-    test('resumes when paused', async () => {
-      // This would test resume functionality
-      // Requires mocking the component state to be 'paused'
-      expect(mockTtsService.resume).toBeDefined();
+    test('two taps invoke the handler twice (TTS start → stop toggle)', () => {
+      const { getByTestId, props } = renderBar();
+      const button = getByTestId('speaker-button');
+      fireEvent.press(button);
+      fireEvent.press(button);
+      expect(props.onSpeakerPress).toHaveBeenCalledTimes(2);
     });
   });
 
-  describe('Error Handling', () => {
-    test('handles TTS service unavailable gracefully', async () => {
-      (textToSpeechService as any).isServiceAvailable = jest
-        .fn()
-        .mockReturnValue(false);
-
-      const { getByTestId } = render(
-        <HomeScreen navigation={mockNavigation as any} />,
-      );
-
-      const speakerButton = getByTestId('speaker-button');
-
-      // Button should still render
-      expect(speakerButton).toBeTruthy();
-
-      // When pressed, should show error alert
-      fireEvent.press(speakerButton);
-
-      await waitFor(() => {
-        expect(Alert.alert).toHaveBeenCalledWith(
-          'Speech Not Available',
-          expect.any(String),
-          expect.any(Array),
-        );
-      });
-    });
-
-    test('handles empty story content', () => {
-      const { getByTestId } = render(
-        <HomeScreen navigation={mockNavigation as any} />,
-      );
-
-      const speakerButton = getByTestId('speaker-button');
-
-      // Button should be disabled when no content
-      expect(speakerButton).toBeTruthy();
-      // Note: Testing disabled state requires checking props
-    });
-
-    test('handles empty latest continuation', async () => {
-      (extractLatestContinuation as jest.Mock).mockReturnValue('');
-
-      // const mockSession = createMockSession('Some content.'); // Currently unused
-      createMockSession('Some content.');
-      const { getByTestId } = render(
-        <HomeScreen navigation={mockNavigation as any} />,
-      );
-
-      const speakerButton = getByTestId('speaker-button');
-      fireEvent.press(speakerButton);
-
-      await waitFor(() => {
-        expect(Alert.alert).toHaveBeenCalledWith(
-          'No Content',
-          expect.any(String),
-          expect.any(Array),
-        );
-      });
+  describe('Long press invokes pause/resume', () => {
+    test('onLongPress fires onSpeakerLongPress', () => {
+      const { getByTestId, props } = renderBar();
+      fireEvent(getByTestId('speaker-button'), 'longPress');
+      expect(props.onSpeakerLongPress).toHaveBeenCalledTimes(1);
     });
   });
 
-  describe('Latest Continuation Extraction', () => {
-    test('uses contributions array when available', () => {
-      const mockSession = createMockSession('Full story.', [
-        { type: 'ai', content: 'First.', timestamp: 1000, wordCount: 1 },
-        { type: 'user', content: 'Second.', timestamp: 2000, wordCount: 1 },
-        { type: 'ai', content: 'Third.', timestamp: 3000, wordCount: 1 },
-      ]);
-
-      extractLatestContinuation('Full story.', mockSession);
-
-      expect(extractLatestContinuation).toHaveBeenCalledWith(
-        'Full story.',
-        mockSession,
-      );
+  describe('Disabled states', () => {
+    test('canUseSpeaker=false renders disabled button', () => {
+      const { getByTestId } = renderBar({ canUseSpeaker: false });
+      const button = getByTestId('speaker-button');
+      expect(button.props.accessibilityState?.disabled).toBe(true);
     });
 
-    test('falls back to string parsing when no contributions', () => {
-      const mockSession = createMockSession('First. Second. Third.');
-      (extractLatestContinuation as jest.Mock).mockReturnValue('Third.');
+    test('isGenerating=true renders disabled button', () => {
+      const { getByTestId } = renderBar({ isGenerating: true });
+      const button = getByTestId('speaker-button');
+      expect(button.props.accessibilityState?.disabled).toBe(true);
+    });
 
-      const latest = extractLatestContinuation(
-        'First. Second. Third.',
-        mockSession,
-      );
-      expect(latest).toBe('Third.');
+    test('disabled state propagates to TouchableOpacity.disabled prop', () => {
+      // @testing-library/react-native's `fireEvent.press` calls the onPress
+      // prop directly regardless of `disabled` — that's a platform-level guard
+      // inside RN's native TouchableOpacity, not something we can verify with
+      // fireEvent. The next-best assertion is that we *wired* the disabled
+      // prop through correctly (RN handles the rest at runtime).
+      const { getByTestId } = renderBar({ canUseSpeaker: false });
+      const button = getByTestId('speaker-button');
+      expect(button.props.disabled).toBe(true);
+      expect(button.props.accessibilityState?.disabled).toBe(true);
     });
   });
 
-  describe('Button UI States', () => {
-    test('shows correct icon for idle state', () => {
-      const { getByTestId } = render(
-        <HomeScreen navigation={mockNavigation as any} />,
-      );
-
-      const speakerButton = getByTestId('speaker-button');
-      expect(speakerButton).toBeTruthy();
-      // Icon testing would require checking text content
+  describe('Icon swap follows speakerState (not mode)', () => {
+    test('idle speakerState renders the speaker icon (not stop)', () => {
+      // Icon is a MaterialIcons child — we verify by checking accessibility
+      // state is NOT selected (which is what Listen toggles when TTS is live).
+      const { getByTestId } = renderBar({ speakerState: 'idle' });
+      expect(
+        getByTestId('speaker-button').props.accessibilityState?.selected,
+      ).toBe(false);
     });
 
-    test('button is disabled when no story content', () => {
-      const { getByTestId } = render(
-        <HomeScreen navigation={mockNavigation as any} />,
-      );
-
-      const speakerButton = getByTestId('speaker-button');
-      expect(speakerButton).toBeTruthy();
-      // Disabled state testing requires checking props
-    });
-  });
-
-  describe('Event Listener Management', () => {
-    test('sets up event listeners on mount', () => {
-      render(<HomeScreen navigation={mockNavigation as any} />);
-
-      expect(mockTtsService.setupEventListeners).toHaveBeenCalled();
+    test('speaking speakerState renders the active / stop-icon look', () => {
+      const { getByTestId } = renderBar({ speakerState: 'speaking' });
+      expect(
+        getByTestId('speaker-button').props.accessibilityState?.selected,
+      ).toBe(true);
     });
 
-    test('removes event listeners on unmount', () => {
-      const { unmount } = render(
-        <HomeScreen navigation={mockNavigation as any} />,
-      );
+    test('starting speakerState ALSO shows active look (handshake window)', () => {
+      // speakerState transitions 'idle' → 'starting' → 'speaking'; the active
+      // styling must not flicker off during the 'starting' handshake.
+      const { getByTestId } = renderBar({ speakerState: 'starting' });
+      expect(
+        getByTestId('speaker-button').props.accessibilityState?.selected,
+      ).toBe(true);
+    });
 
-      unmount();
-
-      expect(mockTtsService.removeAllListeners).toHaveBeenCalled();
+    test('paused speakerState still shows Listen, not active', () => {
+      // When paused, the user sees a "resume" affordance, not "stop" — the
+      // active styling should be off.
+      const { getByTestId } = renderBar({ speakerState: 'paused' });
+      expect(
+        getByTestId('speaker-button').props.accessibilityState?.selected,
+      ).toBe(false);
     });
   });
 
-  describe('Memory Leak Prevention', () => {
-    test('cleans up event listeners on unmount', () => {
-      const { unmount } = render(
-        <HomeScreen navigation={mockNavigation as any} />,
+  describe('Accessibility affordances', () => {
+    test('has accessibilityRole="button"', () => {
+      const { getByTestId } = renderBar();
+      expect(getByTestId('speaker-button').props.accessibilityRole).toBe(
+        'button',
       );
-
-      unmount();
-
-      expect(mockTtsService.removeAllListeners).toHaveBeenCalled();
     });
 
-    test('does not create duplicate listeners on re-render', () => {
-      const { rerender } = render(
-        <HomeScreen navigation={mockNavigation as any} />,
+    test('label is the AC-specified static string', () => {
+      const { getByTestId } = renderBar();
+      expect(getByTestId('speaker-button').props.accessibilityLabel).toBe(
+        'Listen to the story so far',
       );
-
-      // const initialCallCount = mockTtsService.setupEventListeners.mock.calls.length; // Currently unused
-
-      rerender(<HomeScreen navigation={mockNavigation as any} />);
-
-      // Should not create additional listeners unnecessarily
-      // (This depends on useEffect dependencies)
-      expect(mockTtsService.setupEventListeners).toHaveBeenCalled();
     });
   });
 });

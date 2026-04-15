@@ -105,6 +105,31 @@ export class OpenAIClient {
 
     return imagePrompt;
   }
+
+  /**
+   * Transcribe a recorded audio clip via the Convex `transcribeAudio` action
+   * (OpenAI Whisper). Replaces on-device speech recognition for US-013 —
+   * Whisper handles arbitrary-length utterances without iOS
+   * `SFSpeechRecognizer`'s aggressive segmentation problems.
+   */
+  public async transcribeAudio(
+    audioBase64: string,
+    mimeType: string,
+    language?: string,
+  ): Promise<string> {
+    const client = getConvexClient();
+    if (!client) {
+      throw new Error('Convex client not available. Cannot transcribe audio.');
+    }
+
+    const transcript = await client.action(api.ai.transcribeAudio, {
+      audioBase64,
+      mimeType,
+      language,
+    });
+
+    return transcript;
+  }
 }
 
 // Export singleton instance
