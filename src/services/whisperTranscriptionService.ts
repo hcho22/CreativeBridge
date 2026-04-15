@@ -31,6 +31,10 @@
 import { Platform } from 'react-native';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
+import Voice, {
+  SpeechResultsEvent,
+  SpeechErrorEvent,
+} from '@react-native-voice/voice';
 import { openaiClient } from './openaiClient';
 
 // ----------------------------------------------------------------------------
@@ -61,6 +65,15 @@ export class WhisperTranscriptionService {
   private recording: Audio.Recording | null = null;
   private recordingStartedAt = 0;
   private safetyTimer: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * True once the secondary `@react-native-voice/voice` recognizer has been
+   * started for live-partial display. Whisper still owns the final transcript
+   * — Voice is a best-effort "typing as you speak" hint only. We track this
+   * separately from `recording` so we always tear Voice down, even if the
+   * expo-av side failed. See the class-level comment block and the 2026-04-15
+   * real-time-partials change.
+   */
+  private voicePartialsActive = false;
 
   /**
    * True when Convex is reachable AND we have (or can get) mic permission.
@@ -101,6 +114,19 @@ export class WhisperTranscriptionService {
    */
   public async startRecording(
     onMetering?: (meteringDb: number) => void,
+    /**
+     * Optional live-partial callback. When provided, we start
+     * `@react-native-voice/voice` in parallel with the expo-av file capture
+     * and forward partial transcriptions (best concat of `value[]`) so the
+     * host UI can show text as the user speaks. Whisper's post-hoc transcript
+     * is still the authoritative final — callers that wire this should be
+     * prepared for the final text to differ from the last partial.
+     *
+     * Best-effort: if Voice.start() throws (permissions, mic contention with
+     * AVAudioRecorder on iOS, missing Android recognizer), we log and
+     * continue without partials rather than failing the whole recording.
+     */
+    onPartial?: (text: string) => void,
   ): Promise<void> {
     if (this.recording) {
       throw new Error(
@@ -154,6 +180,59 @@ export class WhisperTranscriptionService {
     this.recording = recording;
     this.recordingStartedAt = Date.now();
 
+    // Best-effort live partials via @react-native-voice/voice. Runs in
+    // parallel with the expo-av file capture so the host can show text as
+    // the user speaks; Whisper's final transcript still replaces it. Any
+    // failure here is non-fatal — we just don't get partials. The #1 failure
+    // mode on iOS is AVAudioSession contention with AVAudioRecorder, which
+    // *sometimes* surfaces as Voice.start rejecting, *sometimes* as silent
+    // partials that never fire. Either way we don't care: the file recording
+    // keeps going, and the user still gets an accurate transcript ~1–3s
+    // after they stop.
+    if (onPartial) {
+      try {
+        Voice.onSpeechPartialResults = (e: SpeechResultsEvent) => {
+          // Voice returns `value` as an array of candidate hypotheses ordered
+          // by confidence. We only surface the top guess — alternatives would
+          // just be noise in a live-typing display.
+          const top = e?.value?.[0];
+          if (typeof top === 'string' && top.length > 0) {
+            onPartial(top);
+          }
+        };
+        // Also catch final results so the partial text keeps updating even
+        // after iOS's VAD auto-finalizes mid-sentence (the original bug that
+        // pushed us to Whisper). The Whisper round-trip still owns the true
+        // final — this just keeps the live text stable until it arrives.
+        Voice.onSpeechResults = (e: SpeechResultsEvent) => {
+          const top = e?.value?.[0];
+          if (typeof top === 'string' && top.length > 0) {
+            onPartial(top);
+          }
+        };
+        Voice.onSpeechError = (_e: SpeechErrorEvent) => {
+          // Swallow — logged by the native module. Whisper is still running.
+        };
+        await Voice.start('en-US');
+        this.voicePartialsActive = true;
+      } catch (err) {
+        // Non-fatal. Most commonly: permissions not yet granted to
+        // SFSpeechRecognizer (separate from mic permission), or mic already
+        // owned by AVAudioRecorder on an iOS version that doesn't allow
+        // concurrent taps. Clean up listeners so we don't leak.
+        console.warn(
+          '[WhisperTranscriptionService] Voice.start failed; continuing without live partials:',
+          (err as Error).message,
+        );
+        try {
+          Voice.removeAllListeners();
+        } catch {
+          /* ignore */
+        }
+        this.voicePartialsActive = false;
+      }
+    }
+
     // Runaway-recording guard. If the caller never invokes stop, we flip the
     // recording off after MAX_RECORDING_MS so we don't burn battery. We
     // don't auto-transcribe here — the caller's UI state machine would get
@@ -167,6 +246,10 @@ export class WhisperTranscriptionService {
         recording.stopAndUnloadAsync().catch(() => {
           /* ignore — stop errors aren't recoverable here */
         });
+        // Partials recognizer would otherwise keep the mic until the caller
+        // eventually invokes stop/cancel — kill it here too so battery and
+        // the audio route both recover promptly.
+        this.stopVoicePartials().catch(() => {});
       }
     }, MAX_RECORDING_MS);
   }
@@ -189,6 +272,10 @@ export class WhisperTranscriptionService {
     }
     this.clearSafetyTimer();
     this.recording = null;
+    // Stop the partials feed BEFORE we hit Whisper so any in-flight
+    // recognizer callbacks can't overwrite the host's state after the final
+    // transcript arrives.
+    await this.stopVoicePartials();
 
     const durationMs = Date.now() - this.recordingStartedAt;
     let uri: string | null = null;
@@ -247,6 +334,7 @@ export class WhisperTranscriptionService {
     if (!recording) return;
     this.clearSafetyTimer();
     this.recording = null;
+    await this.stopVoicePartials();
 
     let uri: string | null = null;
     try {
@@ -284,6 +372,29 @@ export class WhisperTranscriptionService {
     if (this.safetyTimer) {
       clearTimeout(this.safetyTimer);
       this.safetyTimer = null;
+    }
+  }
+
+  /**
+   * Tear down the best-effort `@react-native-voice/voice` recognizer used for
+   * live partials. Idempotent and swallows all errors — partials are a UX
+   * enhancement, not a correctness-critical path, so we never want a Voice
+   * cleanup failure to mask a Whisper success or surface as a user-facing
+   * error. Called from `stopAndTranscribe`, `cancel`, and the MAX_RECORDING_MS
+   * safety timer so there's no path that leaves Voice listening on the mic.
+   */
+  private async stopVoicePartials(): Promise<void> {
+    if (!this.voicePartialsActive) return;
+    this.voicePartialsActive = false;
+    try {
+      await Voice.cancel();
+    } catch {
+      /* ignore — we may have already been torn down by onSpeechEnd */
+    }
+    try {
+      Voice.removeAllListeners();
+    } catch {
+      /* ignore */
     }
   }
 

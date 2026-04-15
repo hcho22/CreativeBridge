@@ -128,7 +128,7 @@ describe('Microphone Integration', () => {
     (Voice as any).stop = mockVoice.stop;
     (Voice as any).destroy = mockVoice.destroy;
     (Voice as any).removeAllListeners = mockVoice.removeAllListeners;
-    (VoiceInput as jest.Mock).mockImplementation(mockVoiceInput);
+    (VoiceInput as unknown as jest.Mock).mockImplementation(mockVoiceInput);
   });
 
   describe('Complete Voice Input Flow', () => {
@@ -267,7 +267,9 @@ describe('Microphone Integration', () => {
         );
       });
 
-      (VoiceInput as jest.Mock).mockImplementation(mockErrorVoiceInput);
+      (VoiceInput as unknown as jest.Mock).mockImplementation(
+        mockErrorVoiceInput,
+      );
 
       const { getByTestId } = render(
         <HomeScreen navigation={mockNavigation as any} />,

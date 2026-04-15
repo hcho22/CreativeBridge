@@ -1,5 +1,12 @@
 # PRD: Voice-First Input Bar for Game Session
 
+> **Revision history**
+>
+> - **2026-04-13** — Initial PRD (US-001 – US-013). Three-button layout + transcript review card with three small inline actions (Re-record / Edit / Submit).
+> - **2026-04-14** — Voice-recognition backend swapped to OpenAI Whisper via Convex action (documented inline in `VoiceInput.tsx` header comment and in `voice-first-input-bar-manual-qa.md`).
+> - **2026-04-15** — **Immediate Submit/Redo UX** added via US-014 – US-017. The three small inline review-card buttons are removed; their behaviors move to the three main round buttons (Redo left / Submit-↑ center / Edit-via-Keyboard right). The center button additionally becomes a stop-and-submit ↑ during listening with a pre-speech guard and a medium haptic pulse. US-005 is marked superseded.
+> - **2026-04-15 (later)** — US-017 **manual-QA portion completed** ahead of US-014–US-016: `voice-first-input-bar-manual-qa.md` scenarios 3–6 rewritten for the new button layout, and regression guards R7 (pre-speech guard) and R8 (haptics) added. The **automated-test portion** of US-017 remains blocked on US-014–US-016 and is marked 🟡 IN PROGRESS below.
+
 ## Introduction
 
 Today, the primary way a user contributes a turn in a CreativeBridge game session is by **typing** into a floating textbox; voice input is a secondary mic icon sitting next to a speaker icon at the bottom of `HomeScreen.tsx`. Users have indicated they'd prefer speaking to be the _default_ way to tell the story — especially for K-2 learners who can't yet type fluently.
@@ -216,7 +223,9 @@ npx tsc --noEmit
 
 ---
 
-### US-005: Transcript Review Card with Re-record / Edit / Submit ✅ COMPLETED (2026-04-13)
+### US-005: Transcript Review Card with Re-record / Edit / Submit ⚠️ SUPERSEDED BY US-014–US-017 (2026-04-15) — originally completed 2026-04-13
+
+> **Superseded notice (2026-04-15):** The three small inline buttons (Re-record / Edit / Submit) described here were retired per user feedback that the targets are too small and users had to wait the silence-detection window before the card even appeared. The equivalent actions now live in the three main round buttons (Redo left, Submit-↑ center, Edit-via-Keyboard right), and an immediate submit path during listening was added. See **US-014 through US-017** below for the replacement design. This section is preserved as historical context for the `review-actions` styles and handlers that are being removed — do NOT re-implement.
 
 **Description:** As a user, after I speak, I want to see what was transcribed with the option to re-record, edit, or submit so I'm never surprised by a misheard word getting sent as my turn.
 
@@ -586,6 +595,17 @@ Per the 2026-04-14 decision, the voice-first input bar's recognition backend was
 
 **Test files marked stale pending rewrite:** `src/__tests__/performance/voiceFeaturesPerformance.test.tsx` — the whole describe is `describe.skip` with a migration TODO. The suite simulates speech recognition by invoking the old library's event callbacks directly and is architecturally incompatible with the Whisper flow. Follow-up: rewrite against `whisperTranscriptionService` mock. The other 4 voice test suites that fail to load (`voiceFeaturesPlatform`, `voiceFeaturesTechnical`, `voiceFeaturesErrorHandling`, `crossPlatformVoiceFeatures`) were already failing before this migration due to an unrelated `@react-navigation/bottom-tabs` mock gap and are not a regression of this work.
 
+**🔄 ARCHITECTURE UPDATE — 2026-04-15: Live-partial hybrid (fixes "text-appears-late" UX)**
+
+User report: on-device testing showed a ~1–3s blank window between finishing a sentence and the transcript appearing, because the Whisper pipeline only emits text after the full round-trip. Fix keeps Whisper as the authoritative final but adds a best-effort **live preview** stream so users see text as they speak.
+
+- `whisperTranscriptionService.startRecording(onMetering, onPartial?)` now spins up `@react-native-voice/voice` in parallel with the expo-av file capture when `onPartial` is provided. Partial results from the on-device recognizer are forwarded to the host for display-only.
+- `VoiceInput` gained an `onPartialResult` prop that pipes through to the service. No change to the final `onSpeechResult` contract — Whisper still wins.
+- `VoiceFirstInputBar` renders a new live-transcript card above the button row while `mode === 'listening'`, showing either the current partial or a "Listening…" hint. Card is styled identically to the review card so the handoff to the post-finalize state is visually continuous. The partial is cleared on every mode exit to prevent stale text leakage.
+- **Graceful degrade**: if `Voice.start()` throws (denied SFSpeechRecognizer permission, iOS AVAudioSession contention with `AVAudioRecorder`), the service logs and continues Whisper-only — the user sees the "Listening…" placeholder and the original ~1–3s spinner before the final transcript lands. No regression versus the pre-2026-04-15 behavior.
+- **Why the sentence-fragmentation bug doesn't return**: the bug was that `SFSpeechRecognizer`'s final result truncated long sentences. We now discard the Voice final entirely — partials are the only thing we surface, and Whisper's complete-audio transcript is still the source of truth for submission.
+- **Teardown**: `stopAndTranscribe`, `cancel`, and the `MAX_RECORDING_MS` safety timer all invoke `stopVoicePartials()` so the secondary recognizer never keeps the mic after the primary recording ends.
+
 ---
 
 **Description:** As the product owner, I need on-device manual verification because TTS and speech recognition require real hardware (the simulator mocks both services).
@@ -619,12 +639,214 @@ test -f .claude/.agent/Tasks/voice-first-input-bar-manual-qa.md && echo "QA log 
 
 ---
 
+### US-014: Expose Imperative `finalize()` on `VoiceInput` ✅ COMPLETED (2026-04-15)
+
+**Description:** As a developer, I need `VoiceInput` to accept a `ref` and expose a `finalize()` method so the parent `VoiceFirstInputBar` can stop recording immediately when the user taps the center button (bypassing the 2000 ms silence-detection timeout). Without this, the parent has no way to trigger the Whisper round-trip on user demand.
+
+**Acceptance Criteria:**
+
+- [x] `VoiceInput` is wrapped in `React.forwardRef<VoiceInputHandle, VoiceInputProps>` (keeping the existing `React.memo` wrapper). — `src/components/common/VoiceInput.tsx:151-171` (`React.memo(React.forwardRef<VoiceInputHandle, VoiceInputProps>((...)))`)
+- [x] A new exported type `VoiceInputHandle` with shape `{ finalize: () => Promise<void> }` is defined in `src/components/common/VoiceInput.tsx` and re-exported from the component's module so `VoiceFirstInputBar` can import it. — `src/components/common/VoiceInput.tsx:115-124` (`export interface VoiceInputHandle { finalize: () => Promise<void> }`)
+- [x] `useImperativeHandle(ref, () => ({ finalize }), [finalize])` is installed AFTER the existing `finalize` `useCallback` declaration (around line 203) so the ref exposes the same idempotent function that silence-detection already uses. — `src/components/common/VoiceInput.tsx:304-320` (installed right after the `finalize` `useCallback` at line 252)
+- [x] Calling `finalize()` via the ref while already finalizing is a no-op (existing `isFinalizingRef` guard handles this). — The handle delegates to `finalize`, which still short-circuits on `isFinalizingRef.current === true` at the top of its body.
+- [x] Calling `finalize()` via the ref before any recording started is a no-op — i.e. the imperative handle must guard against `whisperTranscriptionService.isRecording() === false` and simply return without throwing. — Guard implemented inside the imperative handle (not inside `finalize` itself) so the silence-check timer's defensive "service stopped us" branch is preserved. See `src/components/common/VoiceInput.tsx:307-315` + unit test `VoiceInput.test.tsx > is a no-op when called before any recording has started`.
+- [x] No existing consumer of `VoiceInput` breaks: `component.displayName === 'VoiceInput'` is preserved and all current props still accepted. — `src/components/common/VoiceInput.tsx:573` (`VoiceInput.displayName = 'VoiceInput'`); unit test asserts this. Consumer `VoiceFirstInputBar.tsx` typechecks clean.
+- [x] Typecheck passes (`npx tsc --noEmit`). — Zero `VoiceInput`-related errors. One collateral fix: `src/__tests__/integration/microphoneIntegration.test.tsx` two `(VoiceInput as jest.Mock)` casts widened to `as unknown as jest.Mock` (TypeScript 5.x no longer accepts the narrow cast now that `forwardRef<VoiceInputHandle, VoiceInputProps>` adds ref attributes to the component type).
+- [x] Unit test asserts `ref.current.finalize()` calls `whisperTranscriptionService.stopAndTranscribe` exactly once. — `src/__tests__/components/VoiceInput.test.tsx` added; 3/3 tests passing.
+
+**Implementation notes:**
+
+- Why imperative-handle over a "triggerFinalize" prop: a prop toggle would require parents to bounce boolean state after each finalize (the exact pattern the bar currently avoids for `autoStart`). An imperative method is the idiomatic React escape hatch for "do this verb now," matches how `TextInput.focus()` works, and keeps the bar's reducer free of new actions.
+- Why re-export the type, not inline it: `VoiceInputHandle` needs to be typed on the parent's `useRef<VoiceInputHandle>(null)`. Keeping the type owned by `VoiceInput`'s module means future handle additions don't fan out a dozen import sites.
+
+**Validation Test:**
+
+```bash
+# forwardRef is in use
+grep -n 'forwardRef' src/components/common/VoiceInput.tsx
+
+# Handle type exported
+grep -n 'export.*VoiceInputHandle' src/components/common/VoiceInput.tsx
+
+# Imperative handle installed
+grep -n 'useImperativeHandle' src/components/common/VoiceInput.tsx
+
+# Typecheck clean
+npx tsc --noEmit
+```
+
+---
+
+### US-015: Speak Button Becomes ↑ During Listening + Review, With Pre-Speech Guard and Haptics ✅ COMPLETED (2026-04-15)
+
+**Description:** As a user, when I am done speaking I want to tap the main (center) button to immediately stop recording and either submit what I said (if already in review) or kick off transcription (if still listening) — without having to wait for the silence-detection window to auto-finalize.
+
+**Acceptance Criteria:**
+
+- [x] While `mode === 'listening'` or `mode === 'reviewing-transcript'`, the center button renders `MaterialIcons name="arrow-upward"` (size 40, `theme.colors.primary`) INSTEAD of the mic icon. The spinner branches for `props.isGenerating || isTranscribing` remain unchanged and take precedence over the ↑ icon. — `src/components/story/VoiceFirstInputBar.tsx:620` (`centerShowsArrow = isReviewing || isSpeakActive`) + JSX icon precedence at line 906–923.
+- [x] In `idle`, `playing-tts`, and `typing` modes, the center button continues to render the `mic` icon as today. — Falls through the ternary to the `MaterialIcons name="mic"` branch.
+- [x] `handleSpeakPress` branches on `state.mode`:
+  - `reviewing-transcript` → calls `handleSubmit()` (existing handler — fires `props.onSubmit()` and dispatches `SUBMIT`). — `VoiceFirstInputBar.tsx:457-461`.
+  - `listening` → calls `voiceInputRef.current?.finalize()` (new imperative handle from US-014). Does NOT dispatch `TAP_SPEAK`. — `VoiceFirstInputBar.tsx:462-466`.
+  - Any other mode → unchanged (pre-empts TTS if needed, then dispatches `TAP_SPEAK`). — `VoiceFirstInputBar.tsx:467-480`.
+- [x] The center button's tap is **disabled** while `mode === 'listening'` and the user has not yet produced at least one above-threshold metering frame (pre-speech guard). Implementation: `VoiceInput` exposes `onHasSpokenChange?: (hasSpoken: boolean) => void` fired the first time a metering sample crosses `SILENCE_DB_THRESHOLD`; the bar stores that in a `hasSpoken` state and factors it into `speakDisabled`. — Prop added at `VoiceInput.tsx:92-102`; fired once in `handleMetering` at `VoiceInput.tsx:231-241` (guarded on `hasSpokenRef.current`); reset to `false` in `startListening` at `VoiceInput.tsx:324-329`. Parent wiring: `const [hasSpoken, setHasSpoken] = useState(false)` + `onHasSpokenChange={setHasSpoken}` passed to `<VoiceInput>`.
+- [x] Tapping the ↑ button during `listening` fires `Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)` (from `expo-haptics`) BEFORE calling `finalize()`. Haptic failure (simulator, Android devices without motor) is swallowed — fire-and-forget. — `VoiceFirstInputBar.tsx:462-465`.
+- [x] Tapping the ↑ button during `reviewing-transcript` does NOT fire a haptic (submit is a less "physical" action than stop-recording). — The reviewing-transcript branch calls `handleSubmit()` only; haptic call is confined to the listening branch.
+- [x] `accessibilityLabel` on the center button becomes:
+  - `idle` / `playing-tts`: `"Speak your contribution"` (unchanged).
+  - `listening`: `"Submit voice input"` (new).
+  - `reviewing-transcript`: `"Submit transcript"` (new). — `VoiceFirstInputBar.tsx:623-627` (`centerAccessibilityLabel`).
+- [x] `accessibilityHint` becomes: `"Tap to stop recording and submit."` during listening; `"Tap to send the transcript."` during review. — `VoiceFirstInputBar.tsx:628-632` (`centerAccessibilityHint`).
+- [x] `testID="continue-story-button"` is attached to the center button when `mode === 'reviewing-transcript'` (replaces the old inline Submit's testID so existing integration tests resolve). The idle/listening testID remains `"voice-speak-button"`. — `VoiceFirstInputBar.tsx:621-622` (`centerTestID`). The old inline `continue-story-button` on the review card was removed by US-016, so no testID duplication remains.
+- [x] `speakDisabled` logic updated: in `reviewing-transcript` mode it derives from `submitDisabled` (i.e. `isGenerating || isGameCompleted`), NOT from `voiceInputEnabled` or `isTranscribing`. — `VoiceFirstInputBar.tsx:610-616` (three-way ternary: reviewing → `submitDisabled`; listening → `!hasSpoken || isTranscribing`; else → idle logic).
+- [x] Typecheck passes. All 5 grep-based validation commands return the expected matches; zero new TS errors in `VoiceInput.tsx` or `VoiceFirstInputBar.tsx`. Updated unit tests are deferred to US-017, which rewrites the full test suite for the new surfaces.
+
+**Implementation notes:**
+
+- **Why a pre-speech guard (2A)**: if the user taps ↑ before speaking at all, silence-detect would have deferred anyway (`hasSpokenRef` inside `VoiceInput`). We surface the same gate to the parent so the UI reflects the block visually (disabled button) rather than letting the user tap into a no-op. This avoids a confusing "I tapped but nothing happened" moment.
+- **Why haptics on stop, not submit (3A)**: the user's intent in listening mode is a physical "cut the mic" gesture — haptic feedback is a well-established iOS convention for "you pressed the recording off." In review mode the ↑ button is logically closer to a keyboard send and should feel like the typing-mode arrow (which does not vibrate).
+- **Why the `TAP_SPEAK: listening → idle` reducer case stays in place**: even though `handleSpeakPress` no longer dispatches `TAP_SPEAK` during listening, keeping the reducer branch defensive against a future caller is cheap and reduces surprise.
+
+**Validation Test:**
+
+```bash
+# expo-haptics installed via expo install
+grep -n '"expo-haptics"' package.json
+
+# Imperative ref wired
+grep -n 'voiceInputRef.current?.finalize' src/components/story/VoiceFirstInputBar.tsx
+
+# Arrow icon rendered in listening + review
+grep -n 'arrow-upward' src/components/story/VoiceFirstInputBar.tsx
+
+# New accessibility labels
+grep -n 'Submit voice input\|Submit transcript' src/components/story/VoiceFirstInputBar.tsx
+
+# Haptic fire
+grep -n 'Haptics.impactAsync' src/components/story/VoiceFirstInputBar.tsx
+
+# Typecheck
+npx tsc --noEmit
+```
+
+---
+
+### US-016: Redo Button Replaces Listen Slot During Review; Keyboard Slot Acts as Edit ✅ COMPLETED (2026-04-15)
+
+**Description:** As a user, after I finish recording and see my transcript, I want a big, obvious "Redo" button to re-record (not a small corner button), and I want to be able to edit the transcript by tapping the Keyboard button I already know.
+
+**Acceptance Criteria:**
+
+- [x] While `mode === 'reviewing-transcript'`, the LEFT-slot button (formerly Listen) renders:
+  - `MaterialIcons name="refresh"` (size 28, `theme.colors.text`).
+  - Label text `"Redo"` (replaces `"Listen"`).
+  - `accessibilityLabel="Redo voice input"`.
+  - `onPress={handleReRecord}` (reuses existing handler — clears `props.userInput` and dispatches `RE_RECORD`).
+  - `onLongPress={undefined}` (no TTS pause/resume semantics in this context).
+  - Disabled iff `submitDisabled`.
+- [x] In all other modes, the LEFT-slot button continues to behave as today (Listen → TTS, with `volume-up` ↔ `stop` icon swap).
+- [x] The reducer's `TAP_KEYBOARD` case is extended to accept `reviewing-transcript` as a legal source state: `reviewing-transcript → typing`. `userInput` is unchanged by the reducer, so the TextInput naturally shows the pre-filled transcript.
+- [x] Tapping the RIGHT-slot Keyboard button while `mode === 'reviewing-transcript'` transitions to `typing` mode with the transcript pre-filled, soft keyboard open, and cursor at the end of the text (focus is already wired via the existing `useEffect` on `state.mode === 'typing'`).
+- [x] The inline review-card button row (`reviewActions`, the three `TouchableOpacity`s for Re-record / Edit / Submit at lines 617–647 of the old JSX) is **deleted**. The review card JSX collapses to just the transcript `ScrollView`.
+- [x] Orphaned styles deleted from `StyleSheet.create`: `reviewActions`, `reviewSecondaryButton`, `reviewSecondaryLabel`, `reviewPrimaryButton`, `reviewPrimaryLabel`. `reviewCard`, `transcriptScroll`, `transcriptText`, `livePartialCard`, and `livePartialPlaceholder` stay.
+- [x] The existing `handleReRecord` and `handleSubmit` handlers are retained. `handleEdit` is deleted (the PRD's recommended option) — its only former referent (the inline review card's Edit button) no longer exists, and the typing-mode focus `useEffect` fires on every `mode → 'typing'` transition regardless of source state, so the handler-local focus call was redundant.
+- [x] `AccessibilityInfo.announceForAccessibility("Review your transcription.")` on entry to `reviewing-transcript` is unchanged (the `useEffect` keyed on `state.mode` was not modified).
+- [x] Typecheck passes — zero new errors in `VoiceFirstInputBar.tsx` (pre-existing errors elsewhere in the repo — `convex/storage.ts`, `__tests__/**`, etc. — are unrelated to US-016 and were present on `main` before this change).
+
+**Verification (2026-04-15 test run):**
+
+- `grep -n 'reviewActions\|reviewSecondaryButton\|reviewPrimaryButton' src/components/story/VoiceFirstInputBar.tsx` → **no matches** ✅ (inline review buttons and their styles removed)
+- `grep -n '>Redo<\|Redo voice input\|name="refresh"' src/components/story/VoiceFirstInputBar.tsx` → matches on lines carrying `'Redo voice input'` a11y label, `'refresh'` icon name, and `'Redo'` label text ✅ (JSX uses single-quoted string expressions in ternaries rather than literal `>Redo<` / `name="refresh"` HTML-attribute form, so the alternation grep matches via the `Redo voice input` branch as intended)
+- `grep -n "state.mode === 'reviewing-transcript'" src/components/story/VoiceFirstInputBar.tsx` → matches the new `TAP_KEYBOARD` case (line ~212) alongside the pre-existing `RE_RECORD`, `EDIT`, `SUBMIT` branches ✅
+- `npx tsc --noEmit` filtered to `VoiceFirstInputBar.tsx` → 0 errors ✅
+- `npm test -- --testPathPattern='VoiceFirstInputBar'` → **30/30 tests pass** (reducer suite green, component suite green). Note: new test coverage for the extended `TAP_KEYBOARD` case and the review-mode Redo/Keyboard surfaces lives in US-017, not US-016 — this run verifies no regressions in the existing suite.
+
+**Implementation notes:**
+
+- **Why Redo replaces Listen and not some fourth button** (1A / prior AskUserQuestion answer): introducing a fourth primary affordance would break the three-button rhythm the user already knows. Contextualizing the left slot keeps the geometry constant — users' muscle memory for "that position is a secondary action" is preserved.
+- **Why Edit is NOT dropped entirely**: users occasionally need to fix a misheard homophone (e.g. "their" vs "there"). Forcing a full re-record for a single-word typo is a regression. Routing Edit through the Keyboard button is free (reducer tweak + pre-filled TextInput already works) and requires no new UI surface.
+- **Why `handleEdit` can be deleted even though the typing-mode focus `useEffect` still exists**: the effect at lines 367–375 fires on any `mode → 'typing'` transition (whether from idle or reviewing-transcript), so we don't need a handler-local `setTimeout(focus, 0)` as a belt-and-suspenders duplicate.
+
+**Validation Test:**
+
+```bash
+# Inline review buttons are gone
+grep -n 'reviewActions\|reviewSecondaryButton\|reviewPrimaryButton' src/components/story/VoiceFirstInputBar.tsx
+# Should return no matches.
+
+# Redo label + icon
+grep -n '>Redo<\|Redo voice input\|name="refresh"' src/components/story/VoiceFirstInputBar.tsx
+
+# Reducer handles reviewing-transcript + TAP_KEYBOARD
+grep -n "state.mode === 'reviewing-transcript'" src/components/story/VoiceFirstInputBar.tsx
+
+# Typecheck
+npx tsc --noEmit
+```
+
+---
+
+### US-017: Update Tests + Manual QA for the New Review-Mode Surfaces 🟡 IN PROGRESS (2026-04-15)
+
+**Status:** Manual-QA portion ✅ complete (2026-04-15). Automated-test portion ⛔ blocked — **depends on US-014, US-015, and US-016 landing first**, because every new assertion references surfaces those stories introduce (`VoiceInput.finalize()` imperative handle, `onHasSpokenChange` callback, the left-slot Redo / center ↑-Submit / right-slot Keyboard-as-Edit button row, `expo-haptics`). Writing the tests now would yield TypeScript errors against props that don't exist and assertions against DOM nodes that aren't rendered.
+
+**Description:** As a QA engineer and future agent working on this codebase, I need the automated test suite and the manual-QA log to match the new affordances so regressions are caught early and reviewers know what to tap.
+
+**Acceptance Criteria:**
+
+**Automated tests:** ⛔ BLOCKED on US-014–US-016
+
+- [ ] `src/__tests__/components/VoiceFirstInputBar.test.tsx` updated:
+  - Replaces assertions against `getByText('Re-record' | 'Edit' | 'Submit')` and `getByLabelText('Re-record voice input' | 'Edit transcript' | 'Submit transcript')` with assertions against the new surfaces (Redo via the left-slot label, Submit via `getByTestId('continue-story-button')` on the center slot, Edit via `getByLabelText('Type with the keyboard')`).
+  - Adds a new test: `tapping center button during listening calls VoiceInput.finalize()`. Spy on `whisperTranscriptionService.stopAndTranscribe` and assert it is called exactly once after a simulated tap, without waiting for the silence interval to fire.
+  - Adds a new test: `center button is disabled during listening until hasSpoken fires`. Mount, verify `disabled=true`, invoke the `onHasSpokenChange(true)` callback, verify `disabled=false`.
+  - Adds a new reducer test: `reviewing-transcript + TAP_KEYBOARD → typing`.
+- [ ] `src/__tests__/functional/voiceFeaturesFunctional.test.tsx` — same label replacement pattern; existing `Edit`-from-review assertion becomes a `Keyboard`-button tap assertion.
+- [ ] `src/__tests__/accessibility/voiceFeaturesAccessibility.test.tsx` — add assertions for `"Submit voice input"` (listening) and `"Submit transcript"` (review), and `"Redo voice input"` on the left slot in review.
+- [ ] `src/__tests__/integration/endToEndVoiceFeatures.test.tsx` — full journey update: listening → tap center → review card → tap center (Submit) → `onSubmit` fires; also: review → tap left (Redo) → `onUserInputChange('')` + listening re-enters; review → tap right (Keyboard) → typing mode with transcript pre-filled.
+- [ ] `npm test -- VoiceFirstInputBar` and `npm test -- voiceFeatures` both pass at 100%.
+
+**Manual QA:** ✅ COMPLETE (2026-04-15)
+
+- [x] `.claude/.agent/Tasks/voice-first-input-bar-manual-qa.md` updated:
+  - [x] Scenario 3: appended sub-step — _"While listening, tap the center **↑** button: recording stops immediately, Transcribing spinner appears within one frame, no 2 s wait."_ (manual-qa.md line 78)
+  - [x] Scenario 4 (Re-record): rewritten as **↺ Redo** via the left slot. (manual-qa.md line 79)
+  - [x] Scenario 5 (Edit): rewritten as tapping **Keyboard** during review → typing mode with transcript pre-filled. (manual-qa.md line 80)
+  - [x] Scenario 6 (Submit): rewritten as tapping center **↑** during review. (manual-qa.md line 81)
+  - [x] New Regression **R7**: Pre-speech guard — tap Speak, DON'T talk, tap center ↑ immediately: nothing happens (button disabled until at least one spoken frame). No empty transcript sent to Whisper. (manual-qa.md line 104)
+  - [x] New Regression **R8**: Haptic feedback fires on ↑ during listening on a physical iOS device with System Haptics enabled. On simulator / Android motor-less: no crash. (manual-qa.md line 105)
+  - [x] Header revision-log block updated with the 2026-04-15 entry.
+  - [x] Validation grep `grep -n 'R7\|R8\|Redo\|↑' .claude/.agent/Tasks/voice-first-input-bar-manual-qa.md` returns matches (lines 7, 78–81, 83, 104, 105).
+
+**Implementation notes:**
+
+- **Why we keep `testID="continue-story-button"` bound to the Submit role (not a fixed button element)**: historical E2E + integration tests treat this testID as "whatever button commits the turn." As the Submit role migrates from the old inline card button to the center-slot Speak-as-↑, moving the testID with it keeps those tests passing without a mass rewrite. The typing-mode arrow continues to own the testID when `mode === 'typing'`; because `typing` and `reviewing-transcript` are disjoint in the state machine, RNTL's uniqueness invariant on `getByTestId` is maintained.
+- **Why the pre-speech guard needs its own test**: without an explicit test the guard could be accidentally removed during a future refactor; the test captures the intent.
+
+**Validation Test:**
+
+```bash
+# Component suite
+npm test -- VoiceFirstInputBar.test.tsx
+
+# Full voice suite
+npm test -- voiceFeatures
+
+# Typecheck
+npx tsc --noEmit
+
+# Manual QA file updated
+grep -n 'R7\|R8\|Redo\|↑' .claude/.agent/Tasks/voice-first-input-bar-manual-qa.md
+```
+
+---
+
 ## Functional Requirements
 
 - **FR-1**: The bottom of the game session must show three circular buttons rendered left-to-right in this order: **Listen, Speak, Keyboard**. The Speak button must be visibly larger than the other two (primary size from `theme.voiceFirst.primaryButtonSize`; Listen and Keyboard use `secondaryButtonSize`).
 - **FR-2**: No textbox may be visible in `idle` mode (typing is opt-in via the Keyboard button).
 - **FR-3**: Tapping **Speak** (center, primary) must start voice recognition using the existing `VoiceInput` component (preserving the Jan 2026 REPLACE-semantics fix for cumulative partial results).
-- **FR-4**: After voice recognition finalizes with non-empty text, a transcript review card must be shown with exactly three actions: Re-record, Edit, Submit. Auto-submission is explicitly disallowed.
+- **FR-4** ⚠️ SUPERSEDED by FR-12/FR-13 (2026-04-15): ~~After voice recognition finalizes with non-empty text, a transcript review card must be shown with exactly three actions: Re-record, Edit, Submit. Auto-submission is explicitly disallowed.~~ — Retained as historical context; the "three inline actions" are replaced by the three main round buttons reconfigured for review mode (Redo left, Submit-↑ center, Edit-via-Keyboard right). Auto-submission remains explicitly disallowed.
 - **FR-5**: Tapping **Listen** (leftmost) must invoke `handleSpeakerButtonPress` (TTS); long-press must invoke `handleSpeakerButtonLongPress` (pause/resume).
 - **FR-6**: Tapping **Keyboard** (rightmost) must reveal an embedded `<TextInput>` that sits above the three buttons (buttons stay visible), with `testID="story-input"` preserved.
 - **FR-7**: If TTS is playing when the user taps Speak, the system must call `textToSpeechService.stop()` before starting voice recognition.
@@ -632,6 +854,10 @@ test -f .claude/.agent/Tasks/voice-first-input-bar-manual-qa.md && echo "QA log 
 - **FR-9**: Icons must use `MaterialIcons` from `react-native-vector-icons` (not emoji) for cross-platform visual consistency.
 - **FR-10**: The new component must not modify `handleVoiceResult`, `handleContinueStory`, `handleSpeakerButtonPress`, or `handleSpeakerButtonLongPress` in HomeScreen — it only invokes them via props.
 - **FR-11**: The Speak button must carry a default (non-active) visual emphasis (tinted background or colored border using `theme.colors.primary`) so its primacy is evident even when no mode is active.
+- **FR-12** (new, 2026-04-15): During `mode === 'reviewing-transcript'`, the three round buttons must reconfigure: left slot = **Redo** (MaterialIcons `refresh`, label `"Redo"`, calls the existing `handleReRecord`); center slot = **Submit-↑** (MaterialIcons `arrow-upward`, calls the existing `handleSubmit`); right slot = **Edit** semantics (Keyboard icon unchanged, but tapping it transitions to `typing` with the transcript pre-filled via an extended reducer case).
+- **FR-13** (new, 2026-04-15): During `mode === 'listening'`, the center button must render the ↑ (arrow-upward) icon instead of the mic and, on tap, call `VoiceInput.finalize()` via an imperative ref to stop recording immediately — bypassing the 2000 ms silence-detection timeout. The existing silence-detection auto-finalize remains as a fallback for users who do not tap.
+- **FR-14** (new, 2026-04-15): The center button must be disabled during `listening` until the embedded `VoiceInput` reports at least one above-threshold metering frame. This prevents submitting a truly silent clip.
+- **FR-15** (new, 2026-04-15): Tapping the center ↑ button during `listening` (but NOT during `reviewing-transcript`) must fire `Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)` from `expo-haptics`. Failures on devices without a haptic motor are swallowed silently.
 
 ## Non-Goals (Out of Scope)
 
@@ -643,6 +869,11 @@ test -f .claude/.agent/Tasks/voice-first-input-bar-manual-qa.md && echo "QA log 
 - No voice playback of the transcript _before_ submitting (user sees text, not hears it, on the review card).
 - No Android-specific visual polish beyond what MaterialIcons provides by default.
 - No PRD-level work on the onboarding milestone tracking — it already works and stays untouched.
+- **(2026-04-15, re: US-014–US-017)** No removal of the silence-detection auto-finalize: it remains as a fallback for users who don't tap ↑. The new explicit-tap path is additive, not replacive.
+- **(2026-04-15)** No long-press "cancel recording" gesture on the ↑ button: cancel is handled by tapping Redo in the review state (after finalize). Users cannot mid-recording cancel without producing a transcript.
+- **(2026-04-15)** No analytics instrumentation for "tap-↑-early vs wait-for-silence" rates: per reviewer choice (4B), validation is manual-QA only for v1. A future PRD may add analytics if perceived-latency feedback is mixed.
+- **(2026-04-15)** No new "pre-speech hint" toast or warning text when the ↑ button is disabled: the disabled visual state is the sole feedback. Adding copy was considered (option 2C) and rejected as overkill for a condition that resolves within milliseconds of real speech.
+- **(2026-04-15)** No change to the live-partial transcript card shown during listening: the 2026-04-15 real-time partials feature remains unchanged and is orthogonal to this submit/redo UX.
 
 ## Design Considerations
 
@@ -670,6 +901,11 @@ test -f .claude/.agent/Tasks/voice-first-input-bar-manual-qa.md && echo "QA log 
 - **Test ID preservation**: `testID="story-input"`, `testID="continue-story-button"`, and `testID="speaker-button"` are all referenced by existing tests and E2E docs. The new component must surface all three.
 - **Simulator safety**: `textToSpeechIsolated.ts` already mocks on simulator; VoiceInput uses `nativeSpeechRecognizer.isModuleAvailable()` gate. No new conditional logic needed for simulator.
 - **Duplication-bug regression guard**: the Jan 2026 fix in `HomeScreen.tsx:802-860` lives in `handleVoiceResult` and is preserved verbatim — the new component only _invokes_ it; it does not re-implement the replace logic.
+- **(2026-04-15, US-014–US-017)** One new dependency: `expo-haptics`. Must be installed via `npx expo install expo-haptics` (NOT `npm install`) to pin the SDK-compatible version — see the repo's memory note on `npx expo install`. Run `npx expo install --check` after adding to confirm no other Expo packages drift.
+- **(2026-04-15)** `expo-haptics` safely no-ops on iOS simulator and on Android devices without a linear-resonant-actuator motor — no runtime check required at call sites; wrap `Haptics.impactAsync` in a fire-and-forget with `.catch(() => {})`.
+- **(2026-04-15)** The imperative-handle pattern used for `VoiceInput.finalize()` requires `React.forwardRef` — verify that `React.memo(forwardRef(...))` is the outer-to-inner wrapping order. `forwardRef(React.memo(...))` compiles but drops the ref forwarding at runtime on React 18.
+- **(2026-04-15)** No native-code rebuild required: `expo-haptics` is a JS-only wrapper around the existing iOS `UIImpactFeedbackGenerator` and Android `Vibrator` APIs — both are already accessible from the current native bundle. `npx expo prebuild` should be run to pull the pod, but EAS dev builds already include the Taptic Engine entitlements.
+- **(2026-04-15)** The center button's disable-during-pre-speech requires a new callback prop `onHasSpokenChange` on `VoiceInput`. Wire it to flip alongside the internal `hasSpokenRef` the first time metering crosses `SILENCE_DB_THRESHOLD`; do not fire it on every metering frame (would be noisy).
 
 ## Success Metrics
 
@@ -679,6 +915,9 @@ test -f .claude/.agent/Tasks/voice-first-input-bar-manual-qa.md && echo "QA log 
 - **Test suite**: 100% pass rate in `npm test` after all stories are implemented.
 - **Zero new TypeScript errors**: `npx tsc --noEmit` clean.
 - **Zero regressions**: existing voice duplication fix, TTS pause/resume, and test IDs all verified post-release.
+- **(2026-04-15, US-014–US-017)** Manual-QA sign-off on the updated `voice-first-input-bar-manual-qa.md` (scenarios 3–6 rewritten, R7 + R8 added) with an overall verdict of **PASS**. Per reviewer choice (4B), no analytics goal is defined for this iteration — success is qualitative: the reviewer confirms the center ↑ tap stops recording "immediately" (subjectively < 300 ms from tap to spinner appearing) and the new layout reads as clearer than the old small-buttons layout.
+- **(2026-04-15)** Zero new TypeScript errors in `VoiceInput.tsx` and `VoiceFirstInputBar.tsx` after the `forwardRef` + imperative-handle refactor.
+- **(2026-04-15)** Zero test regressions: existing `npm test` suites pass after label updates; new tests added in US-017 all pass.
 
 ## Open Questions
 
@@ -686,3 +925,8 @@ test -f .claude/.agent/Tasks/voice-first-input-bar-manual-qa.md && echo "QA log 
 - Should the transcript review card additionally offer a "Play back transcript" button (TTS the transcription before submit)? (Deferred — not in initial scope.)
 - For the Android platform, should we tint MaterialIcons to match the "handwritten" aesthetic of the rest of HomeScreen, or leave them flat? (Recommend flat/consistent; revisit after release if it clashes visually.)
 - Should the Jan 2026 voice-duplication regression test be named and referenced here so we lock it in before the refactor begins? (Yes — see validation tests for US-012; the `voiceFeaturesTechnical.test.tsx` partial-results handling test is the one to watch.)
+- **(2026-04-15, US-014–US-017)** Should the ↑ button during `listening` also show a brief "Stopping…" label the moment the user taps it, or is the existing Transcribing spinner sufficient? (Deferred — the existing spinner already swaps in on `onProcessingStateChange(true)`, which fires inside `finalize()` before the await. If user feedback in QA says the tap feels unacknowledged, revisit.)
+- **(2026-04-15)** Should Redo also reset the live-partial card to the "Listening…" placeholder immediately on tap, or let the `useEffect` at lines 310–314 handle it on the next render? (Current design: let the effect handle it — avoids double-clearing. Revisit if a visible flash of stale partial appears during the Redo transition.)
+- **(2026-04-15)** Should the `TAP_SPEAK: listening → idle` reducer case be deleted as dead code now that no UI path dispatches it? (Keep for now as defensive no-op; reconsider during a future state-machine cleanup pass.)
+- **(2026-04-15)** Should we expose a single unified `onFirstSpeech` prop on `VoiceInput` instead of `onHasSpokenChange`? (The latter matches the `on*Change` convention already used for `onProcessingStateChange`. Preferring consistency.)
+- **(2026-04-15)** Future: should tapping ↑ in review mode also fire a subtle haptic tick (distinct from the Medium impact used in listening)? Deferred — matches the user's choice to not vibrate on pure submits (reviewer choice 3A).

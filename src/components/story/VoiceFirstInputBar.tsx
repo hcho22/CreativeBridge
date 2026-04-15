@@ -19,6 +19,7 @@
  *   listening            | VOICE_ERROR         | idle
  *   reviewing-transcript | RE_RECORD           | listening
  *   reviewing-transcript | EDIT                | typing
+ *   reviewing-transcript | TAP_KEYBOARD        | typing       (US-016)
  *   reviewing-transcript | SUBMIT              | idle
  *   playing-tts          | TTS_COMPLETED       | idle
  *   playing-tts          | TAP_LISTEN (stop)   | idle
@@ -53,11 +54,18 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import * as Haptics from 'expo-haptics';
 import { theme } from '../../constants/theme';
 // US-004: the embedded VoiceInput drives actual speech recognition while we
 // stop the TTS engine before entering `listening` mode so the iOS audio
 // session isn't captured by playback when the mic tries to start.
-import { VoiceInput } from '@/components/common/VoiceInput';
+// US-015 (2026-04-15): we now also talk to VoiceInput imperatively via a
+// ref, invoking `finalize()` when the user taps the center ↑ button to
+// stop recording immediately (bypassing the 2000ms silence-detect window).
+import {
+  VoiceInput,
+  type VoiceInputHandle,
+} from '@/components/common/VoiceInput';
 import { textToSpeechService } from '../../services/textToSpeechIsolated';
 
 // ============================================================================
@@ -197,7 +205,11 @@ export function voiceFirstReducer(
 
     case 'TAP_KEYBOARD':
       // From idle: open typing. From typing: close back to idle.
-      if (state.mode === 'idle') {
+      // From reviewing-transcript: enter typing mode to edit the transcript
+      // (US-016). `userInput` is intentionally NOT mutated here — it still
+      // holds the Whisper transcript set by HomeScreen's `onVoiceResult`, so
+      // the TextInput renders the transcript pre-filled automatically.
+      if (state.mode === 'idle' || state.mode === 'reviewing-transcript') {
         return { mode: 'typing' };
       }
       if (state.mode === 'typing') {
@@ -300,6 +312,34 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
   // be lost). VoiceInput reports the transition via `onProcessingStateChange`.
   const [isTranscribing, setIsTranscribing] = useState(false);
 
+  // US-015 (2026-04-15): the parent talks to VoiceInput imperatively via
+  // this ref so tapping the center ↑ button during listening can stop
+  // recording on demand, bypassing the 2000ms silence-detect window. The
+  // handle's `finalize()` is idempotent and no-ops if no recording is in
+  // flight, so we don't have to guard the call site.
+  const voiceInputRef = useRef<VoiceInputHandle>(null);
+
+  // US-015 pre-speech guard: the center ↑ button stays disabled during
+  // `listening` until VoiceInput reports at least one above-threshold
+  // metering frame. Without this, a user who taps Speak and immediately
+  // taps ↑ would ship an empty audio clip to Whisper for no reason.
+  // VoiceInput fires `onHasSpokenChange(false)` on every `startListening`
+  // and `onHasSpokenChange(true)` the first time the mic hears speech.
+  const [hasSpoken, setHasSpoken] = useState(false);
+
+  // 2026-04-15 real-time partials: live transcript streamed from the
+  // secondary `@react-native-voice/voice` recognizer while Whisper records
+  // in parallel. Display-only — the authoritative final comes from Whisper
+  // via `props.onVoiceResult` (which drives `props.userInput`, rendered in
+  // the review card). The partial is wiped on every mode transition out of
+  // `listening` so a stale preview never leaks into review / idle.
+  const [livePartial, setLivePartial] = useState('');
+  useEffect(() => {
+    if (state.mode !== 'listening' && livePartial) {
+      setLivePartial('');
+    }
+  }, [state.mode, livePartial]);
+
   // US-013 safety: if the mode leaves `listening` for any reason (cancel,
   // result received, error), make sure the transcribing spinner is off.
   // The embedded VoiceInput normally clears this via its
@@ -377,25 +417,58 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
     }
   }, [props.speakerState]);
 
-  // --- US-004: Speak button wiring ----------------------------------------
+  // Submit — fires the host's submit handler (wired to `handleContinueStory`
+  // via props per FR-10) and dispatches SUBMIT. Hoisted above
+  // `handleSpeakPress` as a `useCallback` so US-015's center ↑ handler
+  // can reach it in `reviewing-transcript` mode without a forward reference.
+  // If the host wants to guard against double-submit, that's its concern —
+  // dispatch is idempotent for unchanged state.
+  const handleSubmit = useCallback(() => {
+    props.onSubmit();
+    dispatch({ type: 'SUBMIT' });
+  }, [props.onSubmit]);
+
+  // --- Speak button wiring (US-004, extended by US-015 on 2026-04-15) -----
   //
-  // The Speak tap handler must accomplish three things in order:
-  //   (a) pre-empt any in-flight TTS so the iOS audio session is released
-  //       before the mic tries to claim it — skipping this is the #1 cause
-  //       of "speech recognition starts but captures nothing" on device;
-  //   (b) dispatch TAP_SPEAK so the reducer flips mode → 'listening'
-  //       (or back to 'idle' when tapped again during listening — cancel);
-  //   (c) do nothing else: the embedded <VoiceInput autoStart> renders only
-  //       when mode === 'listening' and kicks off recording via its own
-  //       permission-aware effect (see `autoStart` on VoiceInput).
+  // Behavior branches on the current mode:
+  //   · reviewing-transcript → calls `handleSubmit()`. The center button
+  //     has already swapped its icon to ↑, so the tap reads visually as
+  //     "send." Does NOT dispatch TAP_SPEAK.
+  //   · listening → fires a medium-strength haptic pulse FIRST (the
+  //     "physical cut-the-mic" moment), then calls `voiceInputRef.current
+  //     ?.finalize()` to stop recording immediately and hand the audio to
+  //     Whisper. Bypasses the 2000 ms silence-detect window. Does NOT
+  //     dispatch TAP_SPEAK — the reducer moves to `reviewing-transcript`
+  //     via VOICE_RESULT when Whisper returns.
+  //   · idle / playing-tts → existing behavior: pre-empt any in-flight TTS
+  //     so the iOS audio session is released before the mic tries to
+  //     claim it, then dispatch TAP_SPEAK to flip mode → 'listening'.
+  //   · typing → no-op (the center button is visually occluded by the
+  //     typing-mode arrow; handler stays defensive).
   //
-  // Wrapped in useCallback because the <TouchableOpacity>'s onPress prop
-  // identity would otherwise change every render and force children to
-  // re-render for no reason.
+  // Haptics are fire-and-forget: `expo-haptics` safely no-ops on iOS
+  // simulator and on Android devices without a linear-resonant actuator,
+  // so we don't need to probe device capability. The `.catch(() => {})`
+  // is defense-in-depth against unforeseen native-side rejections.
+  //
+  // Wrapped in useCallback so the <TouchableOpacity>'s onPress identity
+  // stays stable and children don't re-render gratuitously.
   const handleSpeakPress = useCallback(() => {
-    // Fire-and-forget is safe here: textToSpeechIsolated.stop() internally
-    // guards against double-stop and returns quickly on the simulator where
-    // TTS is a no-op fallback.
+    if (state.mode === 'reviewing-transcript') {
+      handleSubmit();
+      return;
+    }
+    if (state.mode === 'listening') {
+      // US-015 AC #5: haptic on stop-recording, NOT on submit. The review-
+      // mode submit above deliberately skips this call.
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      voiceInputRef.current?.finalize();
+      return;
+    }
+    // Any other mode (idle / playing-tts): pre-empt TTS, then dispatch
+    // TAP_SPEAK. Fire-and-forget is safe: textToSpeechIsolated.stop()
+    // internally guards against double-stop and returns quickly on the
+    // simulator where TTS is a no-op fallback.
     if (
       props.speakerState === 'speaking' ||
       props.speakerState === 'starting'
@@ -403,7 +476,7 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
       textToSpeechService.stop();
     }
     dispatch({ type: 'TAP_SPEAK' });
-  }, [props.speakerState]);
+  }, [state.mode, props.speakerState, handleSubmit]);
 
   // Bridge from the embedded VoiceInput's `onSpeechResult` into our state
   // machine + the host's `handleVoiceResult`. Empty/whitespace-only results
@@ -482,23 +555,12 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
     dispatch({ type: 'RE_RECORD' });
   };
 
-  const handleEdit = () => {
-    dispatch({ type: 'EDIT' });
-    // Focus the TextInput mounted by US-007. Deferred one tick so the
-    // 'typing' render has committed before we call focus. No-ops safely
-    // until US-007 lands (ref will be null).
-    setTimeout(() => {
-      props.storyInputRef.current?.focus();
-    }, 0);
-  };
-
-  const handleSubmit = () => {
-    // Fire the host's submit (wired to `handleContinueStory` via props per
-    // FR-10) first, then transition. If the host wants to guard against
-    // double-submit, that's its concern — dispatch is idempotent here.
-    props.onSubmit();
-    dispatch({ type: 'SUBMIT' });
-  };
+  // US-016: `handleEdit` removed — the Keyboard button now owns the Edit
+  // role via the reducer's extended `TAP_KEYBOARD` case
+  // (reviewing-transcript → typing). The typing-mode focus `useEffect`
+  // (see earlier in this component) already focuses the TextInput on every
+  // `mode → 'typing'` transition, regardless of source state, so a handler-
+  // local `setTimeout(focus, 0)` is unnecessary.
 
   // US-010: when the session is complete, the bar disappears entirely.
   if (props.isGameCompleted) {
@@ -535,16 +597,99 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
 
   // Disabled logic (visual only at US-003; US-010 refines interactions).
   const listenDisabled = !props.canUseSpeaker || props.isGenerating;
-  // `isTranscribing` blocks Speak taps during the Whisper round-trip so the
-  // user can't accidentally cancel a transcribe mid-upload (which would
-  // unmount VoiceInput and discard the audio).
-  const speakDisabled =
-    !props.voiceInputEnabled || props.isGenerating || isTranscribing;
+  // US-015 (2026-04-15): the center button's disabled rule is now mode-
+  // aware.
+  //   · reviewing-transcript → derive from `submitDisabled` (isGenerating
+  //     || isGameCompleted). `voiceInputEnabled` and `isTranscribing` are
+  //     irrelevant here since the button is a Submit, not a mic tap.
+  //   · listening → block until the pre-speech guard fires (hasSpoken)
+  //     AND while Whisper is uploading (isTranscribing). Tapping during
+  //     transcribing would unmount VoiceInput mid-upload and drop audio.
+  //   · all other modes → preserved idle behavior.
+  const isReviewing = mode === 'reviewing-transcript';
+  const speakDisabled = isReviewing
+    ? submitDisabled
+    : isSpeakActive
+    ? !hasSpoken || isTranscribing
+    : !props.voiceInputEnabled || props.isGenerating || isTranscribing;
   const keyboardDisabled = props.isGenerating;
+
+  // US-015 center-button presentation: icon / testID / a11y strings all key
+  // off `isReviewing` + `isSpeakActive`. Hoisted out of JSX for
+  // readability and so they're grep-able for the US-015 validation tests.
+  const centerShowsArrow = isReviewing || isSpeakActive;
+  const centerTestID = isReviewing
+    ? 'continue-story-button'
+    : 'voice-speak-button';
+  const centerAccessibilityLabel = isReviewing
+    ? 'Submit transcript'
+    : isSpeakActive
+    ? 'Submit voice input'
+    : 'Speak your contribution';
+  const centerAccessibilityHint = isReviewing
+    ? 'Tap to send the transcript.'
+    : isSpeakActive
+    ? 'Tap to stop recording and submit.'
+    : 'Primary input. Double tap to start voice recording.';
 
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom + 16 }]}>
-      {/* US-005: Transcript review card — only rendered while reviewing. */}
+      {/*
+        2026-04-15 live partial transcript. Rendered only while listening so
+        the user sees text as they speak (closes the ~1–3s Whisper round-trip
+        perceived-latency gap). Styled like the review card so the visual
+        handoff to the post-finalize review card is seamless. If the
+        `@react-native-voice/voice` recognizer failed to start (iOS mic
+        contention, denied recognizer permission) `livePartial` stays empty
+        and we fall back to a muted "Listening…" hint rather than an empty
+        white rectangle.
+      */}
+      {mode === 'listening' && (
+        <View
+          style={styles.livePartialCard}
+          accessibilityLiveRegion="polite"
+          accessibilityLabel={
+            livePartial
+              ? `Partial transcript: ${livePartial}`
+              : isTranscribing
+              ? 'Transcribing your speech'
+              : 'Listening for speech'
+          }
+        >
+          <Text
+            style={[
+              styles.transcriptText,
+              !livePartial && styles.livePartialPlaceholder,
+            ]}
+            numberOfLines={3}
+          >
+            {/*
+              Three-state placeholder copy keyed off `livePartial` +
+              `isTranscribing`:
+                · partial present         → show the partial text live
+                · no partial, not done    → "Listening…" (pre-speech or the
+                   Voice recognizer failed to start)
+                · no partial, transcribing → "Transcribing…" (user stopped,
+                   Whisper round-trip is in flight — accurate text imminent)
+              Without the third branch the card would freeze on "Listening…"
+              for the 1–3s Whisper window, which is the exact UX bug this
+              change was meant to fix.
+            */}
+            {livePartial || (isTranscribing ? 'Transcribing…' : 'Listening…')}
+          </Text>
+        </View>
+      )}
+
+      {/*
+        US-005 / US-016: Transcript review card — only rendered while
+        reviewing. Collapsed in US-016 to just the transcript surface: the
+        three inline action buttons (Re-record / Edit / Submit) were replaced
+        by the contextualized main button row beneath (left slot → Redo,
+        right slot → Edit via Keyboard, and — once US-015 lands — center slot
+        → Submit-↑). Keeping the three primary round buttons as the only
+        action surface preserves the three-button rhythm the user already
+        knows and avoids introducing a fourth primary affordance.
+      */}
       {mode === 'reviewing-transcript' && (
         <View style={styles.reviewCard} accessibilityLiveRegion="polite">
           <ScrollView
@@ -554,37 +699,6 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
           >
             <Text style={styles.transcriptText}>{props.userInput}</Text>
           </ScrollView>
-          <View style={styles.reviewActions}>
-            <TouchableOpacity
-              style={styles.reviewSecondaryButton}
-              onPress={handleReRecord}
-              accessibilityRole="button"
-              accessibilityLabel="Re-record voice input"
-            >
-              <Text style={styles.reviewSecondaryLabel}>Re-record</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.reviewSecondaryButton}
-              onPress={handleEdit}
-              accessibilityRole="button"
-              accessibilityLabel="Edit transcript"
-            >
-              <Text style={styles.reviewSecondaryLabel}>Edit</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              testID="continue-story-button"
-              style={[
-                styles.reviewPrimaryButton,
-                submitDisabled && styles.disabledButton,
-              ]}
-              onPress={handleSubmit}
-              disabled={submitDisabled}
-              accessibilityRole="button"
-              accessibilityLabel="Submit transcript"
-            >
-              <Text style={styles.reviewPrimaryLabel}>Submit</Text>
-            </TouchableOpacity>
-          </View>
         </View>
       )}
 
@@ -643,29 +757,68 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
       </View>
 
       <View style={styles.buttonRow}>
-        {/* Listen — LEFT, secondary */}
+        {/*
+          LEFT slot.
+          · Default modes (idle / playing-tts / listening / typing): acts as
+            the Listen/TTS control (US-003 / US-006).
+          · `reviewing-transcript` (US-016): re-skins as "Redo" — a primary
+            re-record affordance sitting in the same geometric slot so the
+            user's muscle memory for "leftmost = secondary action" stays
+            intact. Icon swaps to `refresh`, label swaps to "Redo",
+            onPress → `handleReRecord` (clears `props.userInput` +
+            dispatches RE_RECORD), onLongPress is intentionally undefined
+            (TTS pause/resume semantics do not apply here), and disabled is
+            derived from `submitDisabled` rather than `listenDisabled`.
+        */}
         <View style={styles.buttonColumn}>
           <TouchableOpacity
             testID="speaker-button"
             style={[
               styles.secondaryButton,
-              isListenActive && styles.activeButton,
-              listenDisabled && styles.disabledButton,
+              // Only apply the TTS-active styling outside review mode —
+              // during review the button is semantically "Redo", so there
+              // is no "active TTS" state for it to reflect.
+              mode !== 'reviewing-transcript' &&
+                isListenActive &&
+                styles.activeButton,
+              (mode === 'reviewing-transcript'
+                ? submitDisabled
+                : listenDisabled) && styles.disabledButton,
             ]}
-            onPress={props.onSpeakerPress}
-            onLongPress={props.onSpeakerLongPress}
-            disabled={listenDisabled}
+            onPress={
+              mode === 'reviewing-transcript'
+                ? handleReRecord
+                : props.onSpeakerPress
+            }
+            // Explicitly pass `undefined` during review so the default long-
+            // press TTS pause/resume doesn't leak into the Redo context.
+            onLongPress={
+              mode === 'reviewing-transcript'
+                ? undefined
+                : props.onSpeakerLongPress
+            }
+            disabled={
+              mode === 'reviewing-transcript' ? submitDisabled : listenDisabled
+            }
             accessibilityRole="button"
-            // US-008: static label — VoiceOver conveys *running* state via the
-            // "Playing story." announcement fired by the mode effect above,
-            // and the volume-up → stop icon swap handles sighted feedback.
-            // Keeping the label static avoids drifting away from the AC's
-            // literal string (the validation grep scans for exactly this).
-            accessibilityLabel="Listen to the story so far"
-            accessibilityState={{
-              disabled: listenDisabled,
-              selected: isListenActive,
-            }}
+            // US-008: static label outside review mode — VoiceOver conveys
+            // *running* state via the "Playing story." announcement fired by
+            // the mode effect above, and the volume-up → stop icon swap
+            // handles sighted feedback. US-016: review mode gets the
+            // dedicated "Redo voice input" label.
+            accessibilityLabel={
+              mode === 'reviewing-transcript'
+                ? 'Redo voice input'
+                : 'Listen to the story so far'
+            }
+            accessibilityState={
+              mode === 'reviewing-transcript'
+                ? { disabled: submitDisabled }
+                : {
+                    disabled: listenDisabled,
+                    selected: isListenActive,
+                  }
+            }
           >
             <MaterialIcons
               // US-006: mirror HomeScreen.tsx:3373-3377 emoji swap — show a
@@ -673,9 +826,13 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
               // icon. Keys off `speakerState` (not `mode`) so the swap tracks
               // the real engine even during the 'starting' → 'speaking'
               // handshake window.
+              // US-016: in review mode, swap to `refresh` to match the Redo
+              // semantics (re-record the transcript from scratch).
               name={
-                props.speakerState === 'speaking' ||
-                props.speakerState === 'starting'
+                mode === 'reviewing-transcript'
+                  ? 'refresh'
+                  : props.speakerState === 'speaking' ||
+                    props.speakerState === 'starting'
                   ? 'stop'
                   : 'volume-up'
               }
@@ -683,7 +840,9 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
               color={theme.colors.text}
             />
           </TouchableOpacity>
-          <Text style={styles.secondaryLabel}>Listen</Text>
+          <Text style={styles.secondaryLabel}>
+            {mode === 'reviewing-transcript' ? 'Redo' : 'Listen'}
+          </Text>
         </View>
 
         {/* Speak — CENTER, PRIMARY (visibly larger) */}
@@ -708,7 +867,13 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
               />
             )}
             <TouchableOpacity
-              testID="voice-speak-button"
+              // US-015 (2026-04-15): testID migrates to `continue-story-button`
+              // during reviewing-transcript so existing E2E / integration tests
+              // that target "whatever button commits the turn" keep resolving
+              // (see US-017 note in the PRD). Retains `voice-speak-button` in
+              // every other mode so idle / listening / typing tests are
+              // unaffected.
+              testID={centerTestID}
               style={[
                 styles.primaryButton,
                 isSpeakActive && styles.activePrimaryButton,
@@ -717,14 +882,13 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
               onPress={handleSpeakPress}
               disabled={speakDisabled}
               accessibilityRole="button"
-              accessibilityLabel="Speak your contribution"
-              // US-008: the hint is what screen readers announce AFTER the
-              // label as explanatory text. "Primary input." signals this is
-              // the main action relative to Listen / Keyboard; "Double tap
-              // to start voice recording." is VoiceOver's own phrasing (a
-              // VoiceOver single-finger tap is "double tap" in its model),
-              // so users hear guidance that matches their actual gesture.
-              accessibilityHint="Primary input. Double tap to start voice recording."
+              // US-015: a11y copy is mode-aware. Idle/playing-tts keeps the
+              // US-008 "Speak your contribution" / "Primary input. Double tap
+              // to start voice recording." phrasing; listening and
+              // reviewing-transcript flip to Submit-facing copy since the
+              // button's meaning is "commit this."
+              accessibilityLabel={centerAccessibilityLabel}
+              accessibilityHint={centerAccessibilityHint}
               accessibilityState={{
                 disabled: speakDisabled,
                 selected: isSpeakActive,
@@ -732,14 +896,14 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
               }}
             >
               {/*
-                US-010 AC #1: while the story engine is generating, swap the
-                mic glyph for an ActivityIndicator so the disabled state is
-                visually unambiguous (opacity alone reads as "you can tap but
-                it'll be greyed" to many users). The spinner uses the same
-                primary-green tint as the mic icon so the button's identity
-                stays coherent across the swap. `size="large"` matches the
-                40pt MaterialIcons footprint visually without needing a
-                numeric override.
+                Icon precedence:
+                  1. Spinner during isGenerating || isTranscribing (US-010
+                     AC #1 + US-013 Whisper round-trip). Opaque enough that
+                     users never mistake the state for "tappable."
+                  2. ↑ arrow-upward during listening or reviewing-transcript
+                     (US-015). Same size/color as the mic so the button's
+                     footprint stays constant across the swap.
+                  3. mic icon in every other mode.
               */}
               {props.isGenerating || isTranscribing ? (
                 <ActivityIndicator
@@ -750,6 +914,12 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
                       ? 'Transcribing your voice'
                       : 'Generating response'
                   }
+                />
+              ) : centerShowsArrow ? (
+                <MaterialIcons
+                  name="arrow-upward"
+                  size={40}
+                  color={theme.colors.primary}
                 />
               ) : (
                 <MaterialIcons
@@ -770,16 +940,26 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
             {isSpeakActive && (
               <View style={styles.hiddenVoiceInput} pointerEvents="none">
                 <VoiceInput
+                  // US-015: `ref` exposes `VoiceInput.finalize()` so the
+                  // center ↑ handler can stop recording immediately.
+                  // `onHasSpokenChange` drives the pre-speech guard on the
+                  // button (disabled until the first speech-level metering
+                  // frame arrives from the recorder).
+                  ref={voiceInputRef}
                   isEnabled
                   autoStart
                   onSpeechResult={handleEmbeddedSpeechResult}
                   onError={handleEmbeddedVoiceError}
                   onProcessingStateChange={setIsTranscribing}
+                  onPartialResult={setLivePartial}
+                  onHasSpokenChange={setHasSpoken}
                 />
               </View>
             )}
           </View>
-          <Text style={styles.primaryLabel}>Speak</Text>
+          <Text style={styles.primaryLabel}>
+            {centerShowsArrow ? 'Upload' : 'Speak'}
+          </Text>
         </View>
 
         {/* Keyboard — RIGHT, secondary */}
@@ -958,6 +1138,26 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 8, // 8px gap above the three-button row, per AC.
   },
+  // Live partial card: mirrors `reviewCard` metrics so the handoff from
+  // "speaking" (this card) to "reviewing" (the review card below) is
+  // visually continuous — same padding, radius, and row spacing above the
+  // buttons. Slightly softer background separates it from the finalized
+  // transcript state.
+  livePartialCard: {
+    backgroundColor: '#F9F9F9',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    minHeight: 48,
+  },
+  livePartialPlaceholder: {
+    fontStyle: 'italic',
+    // `textSecondary` is the theme's semantic token for subordinate text
+    // (same shade used for field hints). Matches the "not-yet-spoken" feel
+    // we want for the pre-partial placeholder — reads as inactive without
+    // feeling disabled.
+    color: theme.colors.textSecondary,
+  },
   transcriptScroll: {
     // ~4 visible lines at fontSize 16 + lineHeight 22 → 88pt. Any overflow
     // scrolls vertically (nestedScrollEnabled above keeps gesture priority
@@ -969,41 +1169,13 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: theme.colors.text,
   },
-  reviewActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    marginTop: 12,
-    gap: 8,
-  },
-  reviewSecondaryButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  reviewSecondaryLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: theme.colors.text,
-  },
-  reviewPrimaryButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    // Primary green background — semantic token, not a hex literal (keeps
-    // the button in lockstep with any future brand-color change).
-    backgroundColor: theme.colors.primary,
-  },
-  reviewPrimaryLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    // `headerText` is the theme's semantic token for "text on primary green"
-    // (it's used wherever there's a primary-background surface already).
-    color: theme.colors.headerText,
-  },
+  // US-016: the inline review card button row and its five associated
+  // styles were removed alongside the three inline action buttons. The
+  // review-mode actions now live on the three main round buttons (Redo on
+  // the left slot, Edit on the Keyboard slot, and once US-015 lands,
+  // Submit-↑ on the center slot) so no dedicated inline button styles
+  // are needed.
+
   // --- US-007: Typing-mode TextInput row + submit arrow ---
   // Row sits ABOVE the three round buttons (which remain visible during
   // typing per the user's one-tap mode-switch UX decision). `alignItems:

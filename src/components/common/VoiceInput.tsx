@@ -30,6 +30,7 @@
 import React, {
   useCallback,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
@@ -78,6 +79,48 @@ interface VoiceInputProps {
    * "listening" pulse to a "transcribing" spinner.
    */
   onProcessingStateChange?: (isProcessing: boolean) => void;
+  /**
+   * Live-partial transcripts emitted while the user is still speaking.
+   * Best-effort stream from `@react-native-voice/voice` running in parallel
+   * with the Whisper recording — lets the host show text as it's being
+   * spoken rather than waiting the full Whisper round-trip. The final
+   * transcript (passed to `onSpeechResult`) still comes from Whisper and
+   * may differ from the last partial. See the 2026-04-15 real-time
+   * partials change in `whisperTranscriptionService.ts`.
+   */
+  onPartialResult?: (text: string) => void;
+  /**
+   * Fired whenever the "user has spoken at least once this session" flag
+   * changes: `true` the first time a metering sample crosses
+   * `SILENCE_DB_THRESHOLD` after recording starts, `false` when a new
+   * recording begins (reset). The voice-first bar uses this as a pre-speech
+   * guard — the center ↑ button stays disabled until the mic has actually
+   * caught speech, so a too-eager tap can't ship an empty audio clip to
+   * Whisper. Added by US-015 (2026-04-15).
+   */
+  onHasSpokenChange?: (hasSpoken: boolean) => void;
+}
+
+/**
+ * Imperative handle exposed via `ref`. Lets the parent
+ * (`VoiceFirstInputBar`) stop recording immediately when the user taps the
+ * center ↑ button — bypassing the 2000ms silence-detection window.
+ *
+ * Added by US-014 (2026-04-15). See PRD note on why an imperative handle
+ * is preferable to a "triggerFinalize" prop: props require the parent to
+ * bounce boolean state after each call; an imperative verb matches the
+ * way `TextInput.focus()` works and keeps the bar's reducer free of
+ * bookkeeping actions.
+ */
+export interface VoiceInputHandle {
+  /**
+   * Stop recording and hand the audio to Whisper. Idempotent:
+   *  - Safe to call while already finalizing (existing `isFinalizingRef`
+   *    guard inside `finalize` absorbs the second call).
+   *  - Safe to call before any recording started — a no-op that returns
+   *    without throwing. Matches US-014 AC #5.
+   */
+  finalize: () => Promise<void>;
 }
 
 type VoiceState = 'idle' | 'listening' | 'processing' | 'error';
@@ -105,349 +148,429 @@ const START_GRACE_MS = 400;
 // Component
 // ---------------------------------------------------------------------------
 
-const VoiceInput: React.FC<VoiceInputProps> = React.memo(
-  ({
-    onSpeechResult,
-    isEnabled,
-    onError,
-    language = 'en-US',
-    style,
-    buttonText = {
-      idle: '🎤 Voice',
-      listening: '🔴 Recording...',
-      processing: '⏳ Transcribing...',
-    },
-    silenceTimeout = 2000,
-    autoStart = false,
-    onProcessingStateChange,
-  }) => {
-    const [voiceState, setVoiceState] = useState<VoiceState>('idle');
+const VoiceInput = React.memo(
+  React.forwardRef<VoiceInputHandle, VoiceInputProps>(
+    (
+      {
+        onSpeechResult,
+        isEnabled,
+        onError,
+        language = 'en-US',
+        style,
+        buttonText = {
+          idle: '🎤 Voice',
+          listening: '🔴 Recording...',
+          processing: '⏳ Transcribing...',
+        },
+        silenceTimeout = 2000,
+        autoStart = false,
+        onProcessingStateChange,
+        onPartialResult,
+        onHasSpokenChange,
+      },
+      ref,
+    ) => {
+      const [voiceState, setVoiceState] = useState<VoiceState>('idle');
 
-    // Keep latest prop callbacks accessible from effects without re-running them.
-    const onSpeechResultRef = useRef(onSpeechResult);
-    const onErrorRef = useRef(onError);
-    const onProcessingStateChangeRef = useRef(onProcessingStateChange);
-    useEffect(() => {
-      onSpeechResultRef.current = onSpeechResult;
-    }, [onSpeechResult]);
-    useEffect(() => {
-      onErrorRef.current = onError;
-    }, [onError]);
-    useEffect(() => {
-      onProcessingStateChangeRef.current = onProcessingStateChange;
-    }, [onProcessingStateChange]);
+      // Keep latest prop callbacks accessible from effects without re-running them.
+      const onSpeechResultRef = useRef(onSpeechResult);
+      const onErrorRef = useRef(onError);
+      const onProcessingStateChangeRef = useRef(onProcessingStateChange);
+      const onPartialResultRef = useRef(onPartialResult);
+      const onHasSpokenChangeRef = useRef(onHasSpokenChange);
+      useEffect(() => {
+        onSpeechResultRef.current = onSpeechResult;
+      }, [onSpeechResult]);
+      useEffect(() => {
+        onErrorRef.current = onError;
+      }, [onError]);
+      useEffect(() => {
+        onProcessingStateChangeRef.current = onProcessingStateChange;
+      }, [onProcessingStateChange]);
+      useEffect(() => {
+        onPartialResultRef.current = onPartialResult;
+      }, [onPartialResult]);
+      useEffect(() => {
+        onHasSpokenChangeRef.current = onHasSpokenChange;
+      }, [onHasSpokenChange]);
 
-    // --- Silence-detection refs (updated by metering callbacks) -----------
-    // Timestamp of the last metering reading that exceeded the speech
-    // threshold. The silence timer compares against this to decide whether
-    // to finalize.
-    const lastSpeechAtRef = useRef<number>(0);
-    // Whether we've seen at least one speech-level sample since start.
-    // Prevents the silence timer from firing before the user even speaks.
-    const hasSpokenRef = useRef<boolean>(false);
-    // Wall-clock moment recording began — used for START_GRACE_MS guard.
-    const recordingStartedAtRef = useRef<number>(0);
-    // Polling timer that checks for silence at ~200ms cadence; simpler than
-    // arming/disarming timeouts on every metering reading.
-    const silenceCheckTimerRef = useRef<ReturnType<typeof setInterval> | null>(
-      null,
-    );
+      // --- Silence-detection refs (updated by metering callbacks) -----------
+      // Timestamp of the last metering reading that exceeded the speech
+      // threshold. The silence timer compares against this to decide whether
+      // to finalize.
+      const lastSpeechAtRef = useRef<number>(0);
+      // Whether we've seen at least one speech-level sample since start.
+      // Prevents the silence timer from firing before the user even speaks.
+      const hasSpokenRef = useRef<boolean>(false);
+      // Wall-clock moment recording began — used for START_GRACE_MS guard.
+      const recordingStartedAtRef = useRef<number>(0);
+      // Polling timer that checks for silence at ~200ms cadence; simpler than
+      // arming/disarming timeouts on every metering reading.
+      const silenceCheckTimerRef = useRef<ReturnType<
+        typeof setInterval
+      > | null>(null);
 
-    const isMountedRef = useRef<boolean>(true);
-    // Latches once we begin finalizing so overlapping triggers (tap + silence
-    // racing, or metering callbacks arriving after stop) don't double-submit.
-    const isFinalizingRef = useRef<boolean>(false);
+      const isMountedRef = useRef<boolean>(true);
+      // Latches once we begin finalizing so overlapping triggers (tap + silence
+      // racing, or metering callbacks arriving after stop) don't double-submit.
+      const isFinalizingRef = useRef<boolean>(false);
 
-    // -------------------------------------------------------------------
-    // Lifecycle helpers
-    // -------------------------------------------------------------------
+      // -------------------------------------------------------------------
+      // Lifecycle helpers
+      // -------------------------------------------------------------------
 
-    const clearSilenceChecker = useCallback(() => {
-      if (silenceCheckTimerRef.current) {
-        clearInterval(silenceCheckTimerRef.current);
-        silenceCheckTimerRef.current = null;
-      }
-    }, []);
-
-    /**
-     * Metering callback: Whisper service invokes this every ~100ms while
-     * recording. We just update the timestamps — the actual silence check
-     * runs on an interval so a single quiet frame doesn't race the decision.
-     */
-    const handleMetering = useCallback((meteringDb: number) => {
-      if (meteringDb > SILENCE_DB_THRESHOLD) {
-        lastSpeechAtRef.current = Date.now();
-        hasSpokenRef.current = true;
-      }
-    }, []);
-
-    /**
-     * Stop recording + transcribe + fire result. Idempotent: safe to call
-     * from both the silence-checker and the user's tap-to-stop path.
-     */
-    const finalize = useCallback(async () => {
-      if (isFinalizingRef.current) return;
-      isFinalizingRef.current = true;
-      clearSilenceChecker();
-
-      if (!isMountedRef.current) return;
-      setVoiceState('processing');
-      onProcessingStateChangeRef.current?.(true);
-
-      try {
-        const transcript = await whisperTranscriptionService.stopAndTranscribe(
-          // Strip region suffix: Whisper wants ISO-639-1 two-letter code.
-          language.split('-')[0],
-        );
-        if (!isMountedRef.current) return;
-        onSpeechResultRef.current(transcript);
-        setVoiceState('idle');
-        onProcessingStateChangeRef.current?.(false);
-      } catch (err) {
-        console.error('[VoiceInput] Transcription failed:', err);
-        if (!isMountedRef.current) return;
-        onProcessingStateChangeRef.current?.(false);
-        const message = (err as Error).message ?? 'Transcription failed';
-        onErrorRef.current?.(message);
-        setVoiceState('error');
-        // Auto-reset after a beat so the next Speak tap is clean.
-        setTimeout(() => {
-          if (isMountedRef.current) setVoiceState('idle');
-        }, 2000);
-      }
-    }, [clearSilenceChecker, language]);
-
-    /**
-     * Main start path: request permission, kick off recording, install the
-     * silence checker. All error paths route through the caller's
-     * `onError` so the bar can surface a user-facing message.
-     */
-    const startListening = useCallback(async () => {
-      if (whisperTranscriptionService.isRecording()) {
-        // Already recording (double-invocation guard) — nothing to do.
-        return;
-      }
-      isFinalizingRef.current = false;
-      hasSpokenRef.current = false;
-      lastSpeechAtRef.current = Date.now();
-      recordingStartedAtRef.current = Date.now();
-
-      try {
-        await whisperTranscriptionService.startRecording(handleMetering);
-      } catch (err) {
-        console.error('[VoiceInput] Failed to start recording:', err);
-        const message = (err as Error).message ?? 'Failed to start recording';
-        onErrorRef.current?.(message);
-        if ((err as Error).message?.includes('permission')) {
-          Alert.alert(
-            'Microphone Permission Required',
-            'Microphone permission is required for voice input. You can enable it in your device settings. Typing is still available.',
-            [
-              { text: 'OK' },
-              {
-                text: 'Open Settings',
-                onPress: () => {
-                  Linking.openSettings().catch(() => {
-                    /* ignore */
-                  });
-                },
-              },
-            ],
-          );
+      const clearSilenceChecker = useCallback(() => {
+        if (silenceCheckTimerRef.current) {
+          clearInterval(silenceCheckTimerRef.current);
+          silenceCheckTimerRef.current = null;
         }
-        if (isMountedRef.current) {
+      }, []);
+
+      /**
+       * Metering callback: Whisper service invokes this every ~100ms while
+       * recording. We just update the timestamps — the actual silence check
+       * runs on an interval so a single quiet frame doesn't race the decision.
+       */
+      const handleMetering = useCallback((meteringDb: number) => {
+        if (meteringDb > SILENCE_DB_THRESHOLD) {
+          lastSpeechAtRef.current = Date.now();
+          // Fire the pre-speech callback exactly once per recording session —
+          // the first time the mic hears speech-level audio. The bar uses
+          // this to flip its center ↑ button from disabled to enabled. See
+          // US-015 AC #4. Guarded on the ref so re-entering this callback
+          // for every subsequent speech frame doesn't re-fire the callback
+          // (cheap, but the host shouldn't see spurious state churn).
+          if (!hasSpokenRef.current) {
+            hasSpokenRef.current = true;
+            onHasSpokenChangeRef.current?.(true);
+          }
+        }
+      }, []);
+
+      /**
+       * Stop recording + transcribe + fire result. Idempotent: safe to call
+       * from both the silence-checker and the user's tap-to-stop path.
+       */
+      const finalize = useCallback(async () => {
+        if (isFinalizingRef.current) return;
+        isFinalizingRef.current = true;
+        clearSilenceChecker();
+
+        if (!isMountedRef.current) return;
+        setVoiceState('processing');
+        onProcessingStateChangeRef.current?.(true);
+
+        try {
+          const transcript =
+            await whisperTranscriptionService.stopAndTranscribe(
+              // Strip region suffix: Whisper wants ISO-639-1 two-letter code.
+              language.split('-')[0],
+            );
+          if (!isMountedRef.current) return;
+          onSpeechResultRef.current(transcript);
+          setVoiceState('idle');
+          onProcessingStateChangeRef.current?.(false);
+        } catch (err) {
+          console.error('[VoiceInput] Transcription failed:', err);
+          if (!isMountedRef.current) return;
+          onProcessingStateChangeRef.current?.(false);
+          const message = (err as Error).message ?? 'Transcription failed';
+          onErrorRef.current?.(message);
           setVoiceState('error');
+          // Auto-reset after a beat so the next Speak tap is clean.
           setTimeout(() => {
             if (isMountedRef.current) setVoiceState('idle');
           }, 2000);
         }
-        return;
-      }
+      }, [clearSilenceChecker, language]);
 
-      if (!isMountedRef.current) {
-        // Unmounted while awaiting startRecording — bail cleanly.
-        whisperTranscriptionService.cancel().catch(() => {});
-        return;
-      }
+      // -------------------------------------------------------------------
+      // Imperative handle (US-014)
+      // -------------------------------------------------------------------
+      //
+      // Expose `finalize` to the parent so `VoiceFirstInputBar` can stop
+      // recording on demand when the user taps the center ↑ button —
+      // bypassing the 2000ms silence-detection window.
+      //
+      // Why this lives AFTER the `finalize` useCallback: the handle closes
+      // over the memoized callback; installing before it exists would mean
+      // referencing `finalize` before the `const` binding is initialized.
+      //
+      // Why we wrap the call (rather than just exposing `finalize` raw):
+      // AC #5 requires the handle to no-op when no recording is in flight.
+      // The underlying `finalize` is also called from the silence-check
+      // timer's defensive "service stopped us" branch, which is allowed to
+      // run with `isRecording() === false`. Keeping the guard at the
+      // handle boundary confines the new behavior to explicit caller
+      // intent and preserves the silence-check path unchanged.
+      useImperativeHandle(
+        ref,
+        () => ({
+          finalize: async () => {
+            // If we're not recording and haven't already started finalizing,
+            // nothing to do. Matches AC #5.
+            if (
+              !whisperTranscriptionService.isRecording() &&
+              !isFinalizingRef.current
+            ) {
+              return;
+            }
+            await finalize();
+          },
+        }),
+        [finalize],
+      );
 
-      setVoiceState('listening');
-
-      // Silence-watch interval: fires every 200ms, decides whether to
-      // finalize. This is cheaper than reacting to every metering frame,
-      // and the 200ms granularity is well below human perceptual latency.
-      silenceCheckTimerRef.current = setInterval(() => {
-        if (!isMountedRef.current || isFinalizingRef.current) {
-          clearSilenceChecker();
-          return;
-        }
-        const now = Date.now();
-        // Still inside the start-grace window: don't finalize yet.
-        if (now - recordingStartedAtRef.current < START_GRACE_MS) return;
-        // User hasn't spoken yet — wait (but don't extend beyond the
-        // service's MAX_RECORDING_MS cap, which stops the recording on its
-        // own if hit). We still want finalize to run at that point, so
-        // check the service's isRecording() flag.
-        if (!whisperTranscriptionService.isRecording()) {
-          // Safety timer inside the service stopped us; transcribe what
-          // we have.
-          finalize();
-          return;
-        }
-        if (!hasSpokenRef.current) return;
-        const silenceMs = now - lastSpeechAtRef.current;
-        if (silenceMs >= silenceTimeout) {
-          finalize();
-        }
-      }, 200);
-    }, [clearSilenceChecker, finalize, handleMetering, silenceTimeout]);
-
-    // -------------------------------------------------------------------
-    // Mount / unmount
-    // -------------------------------------------------------------------
-
-    useEffect(() => {
-      isMountedRef.current = true;
-      return () => {
-        isMountedRef.current = false;
-        clearSilenceChecker();
-        // If the user unmounts mid-recording (e.g. tapped Speak to cancel),
-        // discard the audio — don't upload the aborted clip.
+      /**
+       * Main start path: request permission, kick off recording, install the
+       * silence checker. All error paths route through the caller's
+       * `onError` so the bar can surface a user-facing message.
+       */
+      const startListening = useCallback(async () => {
         if (whisperTranscriptionService.isRecording()) {
+          // Already recording (double-invocation guard) — nothing to do.
+          return;
+        }
+        isFinalizingRef.current = false;
+        hasSpokenRef.current = false;
+        // Notify the parent that the pre-speech guard should re-arm. Fires on
+        // every fresh recording — including the Redo path (US-016) where the
+        // same VoiceInput instance remounts and has to start from a
+        // hasSpoken=false state again. See US-015 AC #4.
+        onHasSpokenChangeRef.current?.(false);
+        lastSpeechAtRef.current = Date.now();
+        recordingStartedAtRef.current = Date.now();
+
+        try {
+          // Pass the partial-result callback through the ref wrapper so the
+          // service always sees the latest handler even if the host swaps it
+          // mid-recording. The service only reads this once at startRecording
+          // time, so a stable closure over the ref is what we want.
+          await whisperTranscriptionService.startRecording(
+            handleMetering,
+            onPartialResultRef.current
+              ? (text: string) => onPartialResultRef.current?.(text)
+              : undefined,
+          );
+        } catch (err) {
+          console.error('[VoiceInput] Failed to start recording:', err);
+          const message = (err as Error).message ?? 'Failed to start recording';
+          onErrorRef.current?.(message);
+          if ((err as Error).message?.includes('permission')) {
+            Alert.alert(
+              'Microphone Permission Required',
+              'Microphone permission is required for voice input. You can enable it in your device settings. Typing is still available.',
+              [
+                { text: 'OK' },
+                {
+                  text: 'Open Settings',
+                  onPress: () => {
+                    Linking.openSettings().catch(() => {
+                      /* ignore */
+                    });
+                  },
+                },
+              ],
+            );
+          }
+          if (isMountedRef.current) {
+            setVoiceState('error');
+            setTimeout(() => {
+              if (isMountedRef.current) setVoiceState('idle');
+            }, 2000);
+          }
+          return;
+        }
+
+        if (!isMountedRef.current) {
+          // Unmounted while awaiting startRecording — bail cleanly.
           whisperTranscriptionService.cancel().catch(() => {});
+          return;
         }
-      };
-    }, [clearSilenceChecker]);
 
-    // autoStart: when the host mounts us with autoStart=true (voice-first
-    // input bar), begin recording immediately rather than waiting for the
-    // user to tap this (hidden) button.
-    useEffect(() => {
-      if (!autoStart || !isEnabled) return;
-      if (voiceState !== 'idle') return;
-      // Announce for VoiceOver so the user knows the mic is live even
-      // though the visual feedback (pulse ring) is owned by the bar.
-      AccessibilityInfo.announceForAccessibility('Listening. Speak now.');
-      startListening();
-      // We intentionally DON'T put startListening in deps — its identity
-      // can churn on callback re-binding and we only want one auto-start
-      // per mount. The bar unmounts/remounts us for every listening
-      // session, so scoping to mount is correct.
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [autoStart, isEnabled]);
+        setVoiceState('listening');
 
-    // -------------------------------------------------------------------
-    // Interaction handlers
-    // -------------------------------------------------------------------
+        // Silence-watch interval: fires every 200ms, decides whether to
+        // finalize. This is cheaper than reacting to every metering frame,
+        // and the 200ms granularity is well below human perceptual latency.
+        silenceCheckTimerRef.current = setInterval(() => {
+          if (!isMountedRef.current || isFinalizingRef.current) {
+            clearSilenceChecker();
+            return;
+          }
+          const now = Date.now();
+          // Still inside the start-grace window: don't finalize yet.
+          if (now - recordingStartedAtRef.current < START_GRACE_MS) return;
+          // User hasn't spoken yet — wait (but don't extend beyond the
+          // service's MAX_RECORDING_MS cap, which stops the recording on its
+          // own if hit). We still want finalize to run at that point, so
+          // check the service's isRecording() flag.
+          if (!whisperTranscriptionService.isRecording()) {
+            // Safety timer inside the service stopped us; transcribe what
+            // we have.
+            finalize();
+            return;
+          }
+          if (!hasSpokenRef.current) return;
+          const silenceMs = now - lastSpeechAtRef.current;
+          if (silenceMs >= silenceTimeout) {
+            finalize();
+          }
+        }, 200);
+      }, [clearSilenceChecker, finalize, handleMetering, silenceTimeout]);
 
-    const handlePress = useCallback(async () => {
-      if (!isEnabled) {
-        Alert.alert(
-          'Voice Input Disabled',
-          'Voice input is currently disabled.',
-        );
-        return;
-      }
-      switch (voiceState) {
-        case 'idle':
-          await startListening();
-          break;
-        case 'listening':
-          // Tap-to-stop: user is done talking. Same path as silence
-          // auto-finalize.
-          await finalize();
-          break;
-        case 'processing':
-          // Ignore taps during upload.
-          break;
-        case 'error':
-          setVoiceState('idle');
-          break;
-      }
-    }, [isEnabled, voiceState, startListening, finalize]);
+      // -------------------------------------------------------------------
+      // Mount / unmount
+      // -------------------------------------------------------------------
 
-    // -------------------------------------------------------------------
-    // Button text + styles
-    // -------------------------------------------------------------------
+      useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+          isMountedRef.current = false;
+          clearSilenceChecker();
+          // If the user unmounts mid-recording (e.g. tapped Speak to cancel),
+          // discard the audio — don't upload the aborted clip.
+          if (whisperTranscriptionService.isRecording()) {
+            whisperTranscriptionService.cancel().catch(() => {});
+          }
+        };
+      }, [clearSilenceChecker]);
 
-    const buttonTextValue = useMemo(() => {
-      switch (voiceState) {
-        case 'listening':
-          return buttonText.listening;
-        case 'processing':
-          return buttonText.processing;
-        default:
-          return buttonText.idle;
-      }
-    }, [voiceState, buttonText]);
+      // autoStart: when the host mounts us with autoStart=true (voice-first
+      // input bar), begin recording immediately rather than waiting for the
+      // user to tap this (hidden) button.
+      useEffect(() => {
+        if (!autoStart || !isEnabled) return;
+        if (voiceState !== 'idle') return;
+        // Announce for VoiceOver so the user knows the mic is live even
+        // though the visual feedback (pulse ring) is owned by the bar.
+        AccessibilityInfo.announceForAccessibility('Listening. Speak now.');
+        startListening();
+        // We intentionally DON'T put startListening in deps — its identity
+        // can churn on callback re-binding and we only want one auto-start
+        // per mount. The bar unmounts/remounts us for every listening
+        // session, so scoping to mount is correct.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [autoStart, isEnabled]);
 
-    const buttonStyle = useMemo(() => {
-      const base = [styles.voiceButton];
-      if (!isEnabled) return [...base, styles.disabled, style];
-      switch (voiceState) {
-        case 'listening':
-          return [...base, styles.listening, style];
-        case 'processing':
-          return [...base, styles.processing, style];
-        case 'error':
-          return [...base, styles.error, style];
-        default:
-          return [...base, styles.idle, style];
-      }
-    }, [voiceState, isEnabled, style]);
+      // -------------------------------------------------------------------
+      // Interaction handlers
+      // -------------------------------------------------------------------
 
-    return (
-      <TouchableOpacity
-        testID="mic-button"
-        style={buttonStyle}
-        onPress={handlePress}
-        disabled={voiceState === 'processing' || !isEnabled}
-        accessibilityRole="button"
-        accessibilityLabel={
-          !isEnabled
-            ? 'Voice input button, disabled'
-            : voiceState === 'listening'
-            ? 'Voice input, recording'
-            : voiceState === 'processing'
-            ? 'Voice input, transcribing'
-            : voiceState === 'error'
-            ? 'Voice input, error occurred'
-            : 'Voice input button'
+      const handlePress = useCallback(async () => {
+        if (!isEnabled) {
+          Alert.alert(
+            'Voice Input Disabled',
+            'Voice input is currently disabled.',
+          );
+          return;
         }
-        accessibilityHint={
-          !isEnabled
-            ? 'Voice input is disabled. You can type your story contribution instead.'
-            : voiceState === 'listening'
-            ? 'Tap to stop recording and transcribe'
-            : voiceState === 'processing'
-            ? 'Transcribing your speech, please wait'
-            : voiceState === 'error'
-            ? 'An error occurred. Tap to try again or type your input.'
-            : 'Tap to start voice recording. Speak your contribution, then stop talking or tap again to finish.'
+        switch (voiceState) {
+          case 'idle':
+            await startListening();
+            break;
+          case 'listening':
+            // Tap-to-stop: user is done talking. Same path as silence
+            // auto-finalize.
+            await finalize();
+            break;
+          case 'processing':
+            // Ignore taps during upload.
+            break;
+          case 'error':
+            setVoiceState('idle');
+            break;
         }
-        accessibilityState={{
-          disabled: !isEnabled || voiceState === 'processing',
-          selected: voiceState === 'listening',
-          busy: voiceState === 'processing',
-        }}
-        accessibilityLiveRegion="polite"
-      >
-        <View style={styles.buttonContent}>
-          {voiceState === 'processing' && (
-            <ActivityIndicator
-              size="small"
-              color={theme.colors.surface}
-              style={styles.loadingIcon}
-            />
-          )}
-          <Text style={styles.voiceButtonText} numberOfLines={1}>
-            {String(buttonTextValue || buttonText.idle || '🎤')}
-          </Text>
-        </View>
-      </TouchableOpacity>
-    );
-  },
+      }, [isEnabled, voiceState, startListening, finalize]);
+
+      // -------------------------------------------------------------------
+      // Button text + styles
+      // -------------------------------------------------------------------
+
+      const buttonTextValue = useMemo(() => {
+        switch (voiceState) {
+          case 'listening':
+            return buttonText.listening;
+          case 'processing':
+            return buttonText.processing;
+          default:
+            return buttonText.idle;
+        }
+      }, [voiceState, buttonText]);
+
+      const buttonStyle = useMemo(() => {
+        const base = [styles.voiceButton];
+        if (!isEnabled) return [...base, styles.disabled, style];
+        switch (voiceState) {
+          case 'listening':
+            return [...base, styles.listening, style];
+          case 'processing':
+            return [...base, styles.processing, style];
+          case 'error':
+            return [...base, styles.error, style];
+          default:
+            return [...base, styles.idle, style];
+        }
+      }, [voiceState, isEnabled, style]);
+
+      return (
+        <TouchableOpacity
+          testID="mic-button"
+          style={buttonStyle}
+          onPress={handlePress}
+          disabled={voiceState === 'processing' || !isEnabled}
+          accessibilityRole="button"
+          accessibilityLabel={
+            !isEnabled
+              ? 'Voice input button, disabled'
+              : voiceState === 'listening'
+              ? 'Voice input, recording'
+              : voiceState === 'processing'
+              ? 'Voice input, transcribing'
+              : voiceState === 'error'
+              ? 'Voice input, error occurred'
+              : 'Voice input button'
+          }
+          accessibilityHint={
+            !isEnabled
+              ? 'Voice input is disabled. You can type your story contribution instead.'
+              : voiceState === 'listening'
+              ? 'Tap to stop recording and transcribe'
+              : voiceState === 'processing'
+              ? 'Transcribing your speech, please wait'
+              : voiceState === 'error'
+              ? 'An error occurred. Tap to try again or type your input.'
+              : 'Tap to start voice recording. Speak your contribution, then stop talking or tap again to finish.'
+          }
+          accessibilityState={{
+            disabled: !isEnabled || voiceState === 'processing',
+            selected: voiceState === 'listening',
+            busy: voiceState === 'processing',
+          }}
+          accessibilityLiveRegion="polite"
+        >
+          <View style={styles.buttonContent}>
+            {voiceState === 'processing' && (
+              <ActivityIndicator
+                size="small"
+                color={theme.colors.surface}
+                style={styles.loadingIcon}
+              />
+            )}
+            <Text style={styles.voiceButtonText} numberOfLines={1}>
+              {String(buttonTextValue || buttonText.idle || '🎤')}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      );
+    },
+  ),
 );
 
+// `displayName` assigns to the OUTER memo wrapper. React's devtools and
+// consumers reading `component.displayName === 'VoiceInput'` resolve
+// through memo/forwardRef chains, so the name propagates correctly even
+// though the wrapped function is anonymous.
 VoiceInput.displayName = 'VoiceInput';
 
 export { VoiceInput };
