@@ -380,3 +380,133 @@ export const moderateContent = action({
     }
   },
 });
+
+/**
+ * Transcribe an audio recording via OpenAI Whisper.
+ *
+ * Replaces on-device speech recognition (`@react-native-voice/voice`) for the
+ * voice-first input bar (US-013). iOS's `SFSpeechRecognizer` aggressively
+ * auto-finalizes in "search" mode, chopping long sentences — Whisper handles
+ * arbitrary-length utterances server-side with no segmentation loss.
+ *
+ * Keeps the OpenAI API key server-side per US-001 / COPPA C03. The returned
+ * transcript is passed through `scrubPII` before returning to the client so
+ * the downstream story pipeline never sees child PII in memory on-device.
+ *
+ * @param audioBase64 Base64-encoded audio content (m4a/aac from iOS,
+ *   opus/webm on Android via expo-av HIGH_QUALITY preset). Size cap ~25MB
+ *   (Whisper hard limit); in practice our recordings are <1MB for 30s.
+ * @param mimeType e.g. "audio/m4a", "audio/mp4", "audio/webm".
+ * @param language Optional ISO-639-1 code ("en", "es", ...). Improves
+ *   accuracy when known; Whisper auto-detects if omitted.
+ */
+export const transcribeAudio = action({
+  args: {
+    audioBase64: v.string(),
+    mimeType: v.string(),
+    language: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<string> => {
+    await requireAuth(ctx);
+
+    // Decode base64 → Uint8Array → Blob for multipart upload.
+    // atob is available in the Convex Node runtime.
+    const binary = atob(args.audioBase64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    // Derive a reasonable filename extension from mimeType so Whisper's
+    // format detection picks the right decoder. Whisper rejects unknown
+    // extensions even when given via multipart, so this is load-bearing.
+    const extFromMime: Record<string, string> = {
+      'audio/m4a': 'm4a',
+      'audio/mp4': 'm4a',
+      'audio/aac': 'm4a',
+      'audio/mpeg': 'mp3',
+      'audio/mp3': 'mp3',
+      'audio/wav': 'wav',
+      'audio/x-wav': 'wav',
+      'audio/webm': 'webm',
+      'audio/ogg': 'ogg',
+    };
+    const ext = extFromMime[args.mimeType.toLowerCase()] ?? 'm4a';
+    // Convex's TS lib narrows Blob/FormData shapes vs. the Node runtime where
+    // this actually executes; cast through `any` only at these Web API
+    // boundaries. Runtime has full spec support (Blob accepts BufferSource,
+    // FormData.append accepts (name, blob, filename)).
+    const blob = new Blob([bytes as any], { type: args.mimeType } as any);
+
+    const form = new FormData();
+    (form as any).append('file', blob, `recording.${ext}`);
+    form.append('model', 'whisper-1');
+    form.append('response_format', 'json');
+    // `temperature=0` gives deterministic transcripts; helpful for tests.
+    form.append('temperature', '0');
+    if (args.language) {
+      form.append('language', args.language);
+    }
+
+    const url = `${OPENAI_BASE_URL}/audio/transcriptions`;
+    // Whisper auth uses Bearer but Content-Type must be auto-set by fetch for
+    // multipart boundaries — do NOT reuse getOpenAIHeaders() which pins JSON.
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${getOpenAIApiKey()}`,
+    };
+    if (process.env.OPENAI_ORG_ID) {
+      headers['OpenAI-Organization'] = process.env.OPENAI_ORG_ID;
+    }
+
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: form,
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            throw new Error(`OpenAI authentication error: ${response.status}`);
+          }
+          if (isRetryableStatus(response.status) && attempt < MAX_RETRIES - 1) {
+            await sleep(BASE_DELAY_MS * Math.pow(2, attempt));
+            continue;
+          }
+          const errorText = await response.text();
+          throw new Error(`Whisper API error ${response.status}: ${errorText}`);
+        }
+
+        const data = (await response.json()) as { text?: string };
+        const text = (data.text ?? '').trim();
+        // Scrub PII out of the TRANSCRIPT before returning (not the input —
+        // we can't scrub audio). This keeps the downstream story prompt
+        // build in the same COPPA posture as generateStoryCompletion.
+        return scrubPII(text);
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+          if (attempt < MAX_RETRIES - 1) {
+            await sleep(BASE_DELAY_MS * Math.pow(2, attempt));
+            continue;
+          }
+          throw new Error('Whisper request timed out after 30 seconds');
+        }
+        if (error.message?.includes('authentication error')) {
+          throw error;
+        }
+        if (attempt < MAX_RETRIES - 1) {
+          await sleep(BASE_DELAY_MS * Math.pow(2, attempt));
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw new Error('Whisper request failed after maximum retries');
+  },
+});

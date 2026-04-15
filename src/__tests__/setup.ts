@@ -78,7 +78,9 @@ jest.mock('@react-navigation/native', () => {
   };
 });
 
-// Mock react-native-voice
+// Mock react-native-voice (legacy — VoiceInput no longer uses it directly
+// as of 2026-04-14 Whisper migration, but older tests and imports may still
+// pull it in transitively).
 jest.mock('@react-native-voice/voice', () => ({
   default: {
     start: jest.fn(),
@@ -89,6 +91,38 @@ jest.mock('@react-native-voice/voice', () => ({
     onSpeechEnd: jest.fn(),
     onSpeechResults: jest.fn(),
     onSpeechError: jest.fn(),
+  },
+}));
+
+// Mock expo-av (Whisper recording backend). The tests need recording to be
+// a no-op — they shouldn't actually try to access the simulator mic.
+jest.mock('expo-av', () => ({
+  Audio: {
+    Recording: jest.fn().mockImplementation(() => ({
+      prepareToRecordAsync: jest.fn().mockResolvedValue(undefined),
+      startAsync: jest.fn().mockResolvedValue(undefined),
+      stopAndUnloadAsync: jest.fn().mockResolvedValue(undefined),
+      getURI: jest.fn().mockReturnValue('file:///mock/recording.m4a'),
+      setOnRecordingStatusUpdate: jest.fn(),
+      setProgressUpdateInterval: jest.fn(),
+    })),
+    RecordingOptionsPresets: {
+      HIGH_QUALITY: {},
+    },
+    getPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
+    requestPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
+    setAudioModeAsync: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
+// Mock expo-file-system/legacy (used by whisperTranscriptionService to
+// base64-encode the recorded audio file before upload).
+jest.mock('expo-file-system/legacy', () => ({
+  readAsStringAsync: jest.fn().mockResolvedValue('bW9jay1iYXNlNjQ='),
+  deleteAsync: jest.fn().mockResolvedValue(undefined),
+  EncodingType: {
+    Base64: 'base64',
+    UTF8: 'utf8',
   },
 }));
 

@@ -31,7 +31,13 @@
  * US-003+. Theme tokens from US-001 are not referenced here yet.
  */
 
-import React, { useCallback, useEffect, useReducer, useRef } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
 import {
   AccessibilityInfo,
   ActivityIndicator,
@@ -285,6 +291,26 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
   const [state, dispatch] = useReducer(voiceFirstReducer, initialState);
   const insets = useSafeAreaInsets();
 
+  // US-013 (Whisper migration, 2026-04-14): after silence auto-finalize or
+  // tap-to-stop, the embedded VoiceInput spends ~1–3s uploading audio to
+  // Whisper. Bar stays in `listening` mode throughout (the reducer doesn't
+  // need a new state for this) but the visual swaps from the pulsing ring
+  // to an ActivityIndicator, and Speak is disabled so a second tap can't
+  // cancel a transcribe that's already in flight (the user's words would
+  // be lost). VoiceInput reports the transition via `onProcessingStateChange`.
+  const [isTranscribing, setIsTranscribing] = useState(false);
+
+  // US-013 safety: if the mode leaves `listening` for any reason (cancel,
+  // result received, error), make sure the transcribing spinner is off.
+  // The embedded VoiceInput normally clears this via its
+  // `onProcessingStateChange(false)` call, but an unmount mid-upload skips
+  // that — this effect catches that case.
+  useEffect(() => {
+    if (state.mode !== 'listening' && isTranscribing) {
+      setIsTranscribing(false);
+    }
+  }, [state.mode, isTranscribing]);
+
   // US-005 / US-006 / US-008: announce mode entries to VoiceOver / TalkBack.
   // Keyed on `state.mode` rather than the dispatching action so every entry
   // path (VOICE_RESULT, TTS_STARTED, TAP_KEYBOARD, TAP_SPEAK, EDIT, RE_RECORD,
@@ -509,7 +535,11 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
 
   // Disabled logic (visual only at US-003; US-010 refines interactions).
   const listenDisabled = !props.canUseSpeaker || props.isGenerating;
-  const speakDisabled = !props.voiceInputEnabled || props.isGenerating;
+  // `isTranscribing` blocks Speak taps during the Whisper round-trip so the
+  // user can't accidentally cancel a transcribe mid-upload (which would
+  // unmount VoiceInput and discard the audio).
+  const speakDisabled =
+    !props.voiceInputEnabled || props.isGenerating || isTranscribing;
   const keyboardDisabled = props.isGenerating;
 
   return (
@@ -711,11 +741,15 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
                 40pt MaterialIcons footprint visually without needing a
                 numeric override.
               */}
-              {props.isGenerating ? (
+              {props.isGenerating || isTranscribing ? (
                 <ActivityIndicator
                   size="large"
                   color={theme.colors.primary}
-                  accessibilityLabel="Generating response"
+                  accessibilityLabel={
+                    isTranscribing
+                      ? 'Transcribing your voice'
+                      : 'Generating response'
+                  }
                 />
               ) : (
                 <MaterialIcons
@@ -740,6 +774,7 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
                   autoStart
                   onSpeechResult={handleEmbeddedSpeechResult}
                   onError={handleEmbeddedVoiceError}
+                  onProcessingStateChange={setIsTranscribing}
                 />
               </View>
             )}
