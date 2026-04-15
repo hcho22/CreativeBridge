@@ -617,19 +617,30 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
   // US-015 center-button presentation: icon / testID / a11y strings all key
   // off `isReviewing` + `isSpeakActive`. Hoisted out of JSX for
   // readability and so they're grep-able for the US-015 validation tests.
-  const centerShowsArrow = isReviewing || isSpeakActive;
+  //
+  // 2026-04-15 update: the button now has THREE distinct visual phases —
+  // Speak (mic) → Stop (stop icon) → Upload (↑). The stop phase covers
+  // both active listening and the Whisper transcribing round-trip (both
+  // live under the reducer's `mode === 'listening'`), so a single
+  // `centerShowsStop` flag drives both sub-states.
+  const centerShowsArrow = isReviewing;
+  const centerShowsStop = isSpeakActive;
   const centerTestID = isReviewing
     ? 'continue-story-button'
     : 'voice-speak-button';
   const centerAccessibilityLabel = isReviewing
     ? 'Submit transcript'
     : isSpeakActive
-    ? 'Submit voice input'
+    ? isTranscribing
+      ? 'Transcribing your voice'
+      : 'Stop recording'
     : 'Speak your contribution';
   const centerAccessibilityHint = isReviewing
     ? 'Tap to send the transcript.'
     : isSpeakActive
-    ? 'Tap to stop recording and submit.'
+    ? isTranscribing
+      ? 'Please wait for transcription to finish.'
+      : 'Tap to stop recording and begin transcription.'
     : 'Primary input. Double tap to start voice recording.';
 
   return (
@@ -897,27 +908,35 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
             >
               {/*
                 Icon precedence:
-                  1. Spinner during isGenerating || isTranscribing (US-010
-                     AC #1 + US-013 Whisper round-trip). Opaque enough that
-                     users never mistake the state for "tappable."
-                  2. ↑ arrow-upward during listening or reviewing-transcript
-                     (US-015). Same size/color as the mic so the button's
-                     footprint stays constant across the swap.
-                  3. mic icon in every other mode.
+                  1. Spinner during isGenerating (post-submit AI generation —
+                     no user-recoverable stop action, so loading state is
+                     appropriate). Opaque enough that users never mistake the
+                     state for "tappable."
+                  2. ↑ arrow-upward during reviewing-transcript (US-015) —
+                     tap to submit. Same size/color as the mic so the
+                     button's footprint stays constant across the swap.
+                  3. Stop (filled square) during listening AND transcribing
+                     (2026-04-15). The stop icon during transcribing is
+                     intentionally rendered disabled (see `speakDisabled`)
+                     so the glyph is consistent but non-interactive while
+                     Whisper is in flight — a "can't stop this now" hint.
+                  4. mic icon in every other mode.
               */}
-              {props.isGenerating || isTranscribing ? (
+              {props.isGenerating ? (
                 <ActivityIndicator
                   size="large"
                   color={theme.colors.primary}
-                  accessibilityLabel={
-                    isTranscribing
-                      ? 'Transcribing your voice'
-                      : 'Generating response'
-                  }
+                  accessibilityLabel="Generating response"
                 />
               ) : centerShowsArrow ? (
                 <MaterialIcons
                   name="arrow-upward"
+                  size={40}
+                  color={theme.colors.primary}
+                />
+              ) : centerShowsStop ? (
+                <MaterialIcons
+                  name="stop"
                   size={40}
                   color={theme.colors.primary}
                 />
@@ -958,7 +977,7 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
             )}
           </View>
           <Text style={styles.primaryLabel}>
-            {centerShowsArrow ? 'Upload' : 'Speak'}
+            {centerShowsArrow ? 'Upload' : centerShowsStop ? 'Stop' : 'Speak'}
           </Text>
         </View>
 

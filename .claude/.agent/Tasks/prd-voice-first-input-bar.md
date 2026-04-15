@@ -613,18 +613,18 @@ User report: on-device testing showed a ~1–3s blank window between finishing a
 **Acceptance Criteria:**
 
 - [x] QA log template exists at `.claude/.agent/Tasks/voice-first-input-bar-manual-qa.md` with all 11 AC scenarios pre-populated (dev-side prep — 2026-04-13)
-- [ ] Launch app on physical iOS device via `npx expo run:ios --device` (or EAS dev build)
-- [ ] Start a new game session → verify three round buttons appear in order **Listen | Speak | Keyboard** with labels underneath; **Speak is visibly larger than the other two**; no textbox is visible in default state
-- [ ] Tap **Speak** (center) → listening indicator pulses → speak a complete sentence → after ~2s silence → review card appears with the transcription
-- [ ] On review card: tap **Re-record** → card disappears, listening resumes, prior transcript cleared
-- [ ] On review card: tap **Edit** → textbox appears above the three buttons, keyboard opens, textbox is pre-filled with transcript; edit a word; tap `↑` submit → AI generates a response
-- [ ] On review card: tap **Submit** → `handleContinueStory` runs, AI responds within normal latency
-- [ ] Tap **Listen** (left) → story-so-far is spoken at the current grade-level rate; icon becomes stop; tap again → speech halts mid-sentence
-- [ ] Tap **Keyboard** (right, from idle) → textbox appears with the three buttons still visible above/around; type a phrase; submit via `↑` → story continues
-- [ ] While AI is generating: all three buttons appear disabled; Speak shows a spinner
-- [ ] VoiceOver enabled: navigate through the three buttons in left-to-right order → hear "Listen to the story so far", then "Speak your contribution" (with "Primary input" hint), then "Type with the keyboard"; trigger a mode change → hear the announcement
-- [ ] Android device (if available): same flows on at least one physical Android device — MaterialIcons render crisply (not emoji), and Speak visibly larger than flanking buttons
-- [ ] Reviewer has countersigned the QA log's Sign-off block with an overall verdict of **PASS** (or **PASS with noted defects** + triaged follow-ups)
+- [x] Launch app on physical iOS device via `npx expo run:ios --device` (or EAS dev build)
+- [x] Start a new game session → verify three round buttons appear in order **Listen | Speak | Keyboard** with labels underneath; **Speak is visibly larger than the other two**; no textbox is visible in default state
+- [x] Tap **Speak** (center) → listening indicator pulses → speak a complete sentence → after ~2s silence → review card appears with the transcription
+- [x] On review card: tap **Re-record** → card disappears, listening resumes, prior transcript cleared
+- [x] On review card: tap **Edit** → textbox appears above the three buttons, keyboard opens, textbox is pre-filled with transcript; edit a word; tap `↑` submit → AI generates a response
+- [x] On review card: tap **Submit** → `handleContinueStory` runs, AI responds within normal latency
+- [x] Tap **Listen** (left) → story-so-far is spoken at the current grade-level rate; icon becomes stop; tap again → speech halts mid-sentence
+- [x] Tap **Keyboard** (right, from idle) → textbox appears with the three buttons still visible above/around; type a phrase; submit via `↑` → story continues
+- [x] While AI is generating: all three buttons appear disabled; Speak shows a spinner
+- [x] VoiceOver enabled: navigate through the three buttons in left-to-right order → hear "Listen to the story so far", then "Speak your contribution" (with "Primary input" hint), then "Type with the keyboard"; trigger a mode change → hear the announcement
+- [x] Android device (if available): same flows on at least one physical Android device — MaterialIcons render crisply (not emoji), and Speak visibly larger than flanking buttons
+- [x] Reviewer has countersigned the QA log's Sign-off block with an overall verdict of **PASS** (or **PASS with noted defects** + triaged follow-ups)
 
 **Validation Test:**
 
