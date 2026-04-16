@@ -28,7 +28,7 @@ import {
   handleClerkCallback,
 } from './src/utils/clerkDeepLink';
 import { useSafeClerkAuth } from './src/hooks/useSafeClerkAuth';
-import { useQuery } from 'convex/react';
+import { useQuery, useConvexAuth } from 'convex/react';
 import { api } from './src/services/convex';
 // Note (US-016): Supabase import removed — auth handled by Clerk only
 
@@ -68,13 +68,16 @@ const MainApp: React.FC = () => {
     signOut,
   } = useAuth();
   const { clerkUser, clerkAuth } = useSafeClerkAuth();
+  const { isAuthenticated: isConvexAuthenticated } = useConvexAuth();
   const appState = useRef(AppState.currentState);
   const clerkCallbackProcessed = useRef(false);
 
   // COPPA consent check (US-002) — Convex reactive query
+  // Gate on isConvexAuthenticated to avoid race: Clerk userId can be truthy
+  // (restored from cache) before the JWT reaches the Convex server.
   const consentCheck = useQuery(
     api.consent.isConsentRequired,
-    clerkAuth?.userId ? {} : 'skip',
+    clerkAuth?.userId && isConvexAuthenticated ? {} : 'skip',
   );
 
   // ALL useEffect hooks must be called at the top level, before any returns
