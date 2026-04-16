@@ -21,7 +21,7 @@ import {
   Linking,
 } from 'react-native';
 import { theme } from '../constants/theme';
-import { useQuery, useAction } from 'convex/react';
+import { useQuery, useAction, useConvexAuth } from 'convex/react';
 import { api } from '../services/convex';
 import { useSafeClerkAuth } from '../hooks/useSafeClerkAuth';
 
@@ -36,6 +36,7 @@ const ConsentPendingScreen: React.FC<ConsentPendingScreenProps> = ({
 }) => {
   const { clerkUser } = useSafeClerkAuth();
   const clerkUserId = clerkUser?.user?.id;
+  const { isAuthenticated: isConvexAuthenticated } = useConvexAuth();
 
   const [loading, setLoading] = useState(false);
   const [consentUrl, setConsentUrl] = useState<string | null>(null);
@@ -44,9 +45,10 @@ const ConsentPendingScreen: React.FC<ConsentPendingScreenProps> = ({
   >(null);
 
   // Real-time consent status query — Convex will reactively update
+  // Gate on isConvexAuthenticated to avoid Clerk/Convex auth timing race.
   const consentStatus = useQuery(
     api.consent.getConsentStatus,
-    clerkUserId ? {} : 'skip',
+    clerkUserId && isConvexAuthenticated ? {} : 'skip',
   );
 
   const getConsentUrl = useAction(api.consent.getConsentUrl);

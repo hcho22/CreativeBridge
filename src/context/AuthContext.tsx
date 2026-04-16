@@ -35,7 +35,7 @@ import {
 } from '../utils/clerkTokenCache';
 import * as WebBrowser from 'expo-web-browser';
 // Convex imports for database migration (US-017)
-import { useQuery, useMutation, useConvex } from 'convex/react';
+import { useQuery, useMutation, useConvex, useConvexAuth } from 'convex/react';
 import { api } from '../services/convex';
 import type { Doc } from '../../convex/_generated/dataModel';
 
@@ -320,6 +320,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Get Convex client for direct mutations
   const convex = useConvex();
+  const { isAuthenticated: isConvexAuthenticated } = useConvexAuth();
 
   // Convex mutations for user profile operations
   const convexCreateProfile = useMutation(api.userProfiles.createOAuthProfile);
@@ -335,11 +336,12 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
   const convexRecordTermsConsent = useMutation(api.consent.recordTermsConsent);
 
   // Convex reactive query for current user's profile
-  // This will automatically update when the profile changes in the database
+  // Gate on isConvexAuthenticated to avoid race: Clerk userId can be truthy
+  // (restored from cache) before the JWT reaches the Convex server.
   const clerkUserId = clerkAuth?.userId;
   const convexProfile = useQuery(
     api.userProfiles.getProfileByClerkId,
-    clerkUserId ? {} : 'skip',
+    clerkUserId && isConvexAuthenticated ? {} : 'skip',
   );
 
   // Effect to sync Convex profile to local state

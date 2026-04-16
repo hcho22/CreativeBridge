@@ -39,6 +39,7 @@ import {
   AccessibilityInfo,
   ActivityIndicator,
   Alert,
+  AppState,
   Linking,
   Platform,
   StyleSheet,
@@ -341,22 +342,67 @@ const VoiceInput = React.memo(
         lastSpeechAtRef.current = Date.now();
         recordingStartedAtRef.current = Date.now();
 
-        try {
-          // Pass the partial-result callback through the ref wrapper so the
-          // service always sees the latest handler even if the host swaps it
-          // mid-recording. The service only reads this once at startRecording
-          // time, so a stable closure over the ref is what we want.
-          await whisperTranscriptionService.startRecording(
-            handleMetering,
-            onPartialResultRef.current
-              ? (text: string) => onPartialResultRef.current?.(text)
-              : undefined,
-          );
-        } catch (err) {
-          console.error('[VoiceInput] Failed to start recording:', err);
-          const message = (err as Error).message ?? 'Failed to start recording';
+        // iOS refuses to activate AVAudioSession while the app is in the
+        // background or inactive (iPad Split View / Slide Over transitions,
+        // notification banners, incoming call UI). expo-av throws
+        // "This experience is currently in the background" before even
+        // reaching the native AVAudioSession.setActive() call. Wait for
+        // the active state before attempting, with one retry for the TOCTOU
+        // race where the app slips into inactive between our check and the
+        // actual iOS call inside prepareToRecordAsync.
+        const waitForForeground = (): Promise<void> => {
+          if (AppState.currentState === 'active') return Promise.resolve();
+          return new Promise<void>(resolve => {
+            const sub = AppState.addEventListener('change', nextState => {
+              if (nextState === 'active') {
+                sub.remove();
+                resolve();
+              }
+            });
+            // Don't block indefinitely — fall through after 5s and let the
+            // normal error path handle it.
+            setTimeout(() => {
+              sub.remove();
+              resolve();
+            }, 5000);
+          });
+        };
+
+        let startErr: Error | null = null;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          await waitForForeground();
+          try {
+            // Pass the partial-result callback through the ref wrapper so the
+            // service always sees the latest handler even if the host swaps it
+            // mid-recording. The service only reads this once at startRecording
+            // time, so a stable closure over the ref is what we want.
+            await whisperTranscriptionService.startRecording(
+              handleMetering,
+              onPartialResultRef.current
+                ? (text: string) => onPartialResultRef.current?.(text)
+                : undefined,
+            );
+            startErr = null;
+            break;
+          } catch (err) {
+            startErr = err as Error;
+            // Transient background error on first attempt — retry after
+            // waiting for foreground again (handles the TOCTOU race).
+            if (attempt === 0 && startErr.message?.includes('background')) {
+              console.warn(
+                '[VoiceInput] App backgrounded during recording setup, retrying...',
+              );
+              continue;
+            }
+            break;
+          }
+        }
+
+        if (startErr) {
+          console.error('[VoiceInput] Failed to start recording:', startErr);
+          const message = startErr.message ?? 'Failed to start recording';
           onErrorRef.current?.(message);
-          if ((err as Error).message?.includes('permission')) {
+          if (startErr.message?.includes('permission')) {
             Alert.alert(
               'Microphone Permission Required',
               'Microphone permission is required for voice input. You can enable it in your device settings. Typing is still available.',
