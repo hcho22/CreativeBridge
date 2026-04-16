@@ -1331,22 +1331,11 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
   const renderUploadStatusBadge = () => {
     // Only show upload status if we have new props and an image is displayed
     if (!uploadStatus || state.hasError || !effectiveImageUrl) return null;
+    // Suppress transient "backing up" UI — only show terminal states
+    if (uploadStatus === 'pending') return null;
 
     return (
       <View style={styles.uploadStatusBadgeContainer}>
-        {uploadStatus === 'pending' && (
-          <View style={styles.uploadStatusBadge}>
-            <ActivityIndicator
-              size="small"
-              color="#6f42c1"
-              testID="upload-spinner"
-            />
-            <Text style={styles.uploadStatusText}>
-              🔄 Backing up to permanent storage...
-            </Text>
-          </View>
-        )}
-
         {uploadStatus === 'uploaded' && (
           <View style={[styles.uploadStatusBadge, styles.uploadSuccessBadge]}>
             <Text style={styles.uploadSuccessIcon}>✅</Text>
@@ -1402,7 +1391,13 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
             ) : (
               <>
                 <Text style={styles.actionButtonIcon}>📥</Text>
-                <Text style={styles.actionButtonText}>Save Image</Text>
+                <Text
+                  style={styles.actionButtonText}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                >
+                  Save Image
+                </Text>
               </>
             )}
           </TouchableOpacity>

@@ -805,7 +805,7 @@ class StoryGenerationService {
       model: this.config.model,
     });
 
-    const content = await openaiClient.generateStoryCompletion(
+    let content = await openaiClient.generateStoryCompletion(
       systemPrompt,
       userPrompt,
       {
@@ -816,6 +816,12 @@ class StoryGenerationService {
         stop: ['\n\n', '###'],
       },
     );
+
+    // Safety net: replace any PII placeholders that leaked into the AI output.
+    // The server-side PII scrub can cause the AI to echo [NAME] in its response.
+    if (request.characterName) {
+      content = content.replace(/\[NAME\]/g, request.characterName);
+    }
 
     // Apply content filtering and sentence limiting
     console.log('📝 OpenAI generated content:', {
@@ -1010,6 +1016,7 @@ class StoryGenerationService {
       request.gradeLevel,
       diversityGuidance,
       request.genre,
+      request.characterName,
     );
     const userPrompt = this.buildUserPrompt(request);
 
@@ -1059,6 +1066,7 @@ class StoryGenerationService {
     gradeLevel: GradeLevel,
     diversityGuidance: string = '',
     genre?: string,
+    characterName?: string,
   ): string {
     // Grade-specific vocabulary guidance
     const vocabularyGuidance = {
@@ -1092,7 +1100,13 @@ ${vocabularyGuidance[gradeLevel]}`;
 - Keep sentences short and simple for young readers
 - If continuing a story, maintain the same characters, setting, and tone
 - Build on what the student has written without changing their creative direction
-- Use familiar, everyday words that ${gradeLevel} students know`;
+- Use familiar, everyday words that ${gradeLevel} students know
+- NEVER use bracket placeholders like [NAME], [LOCATION], or [SCHOOL] in your story. Always invent actual names for every character, place, and school`;
+
+    // Provide character name context so the AI uses the correct name
+    if (characterName) {
+      systemPrompt += `\n\nThe main character is called ${characterName}. Always refer to this character by name.`;
+    }
 
     // Append diversity guidance if available
     if (diversityGuidance) {
@@ -1156,7 +1170,7 @@ ${vocabularyGuidance[gradeLevel]}`;
     // content. PII scrubbing still applies; the server-side scrub in convex/ai.ts
     // provides a second pass. Long-context truncation is handled separately at
     // MAX_CONTEXT_CHARS (8000) below which correctly keeps the tail, not the head.
-    const scrubbedStorySoFar = request.storySoFar
+    let scrubbedStorySoFar = request.storySoFar
       ? piiScrubber.scrubText(request.storySoFar)
       : undefined;
     let scrubbedUserInput = request.userInput
@@ -1165,11 +1179,22 @@ ${vocabularyGuidance[gradeLevel]}`;
 
     // Restore user-chosen character name if PII scrubber replaced it with [NAME].
     // Character names from the story setup wizard are fictional, not real PII.
-    if (scrubbedUserInput && request.characterName) {
-      scrubbedUserInput = scrubbedUserInput.replace(
-        /\bnamed \[NAME\]/,
-        `named ${request.characterName}`,
-      );
+    // Replace ALL [NAME] occurrences — the scrubber catches patterns like
+    // "my name is X" and "named X" which appear throughout story text.
+    if (request.characterName) {
+      const nameRe = /\[NAME\]/g;
+      if (scrubbedUserInput) {
+        scrubbedUserInput = scrubbedUserInput.replace(
+          nameRe,
+          request.characterName,
+        );
+      }
+      if (scrubbedStorySoFar) {
+        scrubbedStorySoFar = scrubbedStorySoFar.replace(
+          nameRe,
+          request.characterName,
+        );
+      }
     }
 
     // Use Story_Quest's simple and effective approach
