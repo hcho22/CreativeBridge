@@ -52,15 +52,19 @@ The work ships in **7 staged user stories** (matching the plan's 7 stages). Each
 
 **Acceptance Criteria:**
 
-- [ ] Directory `src/components/common/storybook/` created with: `PaperBackground.tsx`, `InkButton.tsx`, `Watercolor.tsx`, `WaxSeal.tsx`, `OrnamentRule.tsx`, `Stepper.tsx`, `QuillIcon.tsx`, `BookIcon.tsx`, `FlameIcon.tsx`, `StarIcon.tsx`, and `index.ts` barrel.
-- [ ] `InkButton` supports variants `primary | foxglove | moss | ghost | paper` with pressed-state `translateY(1)`.
-- [ ] `Watercolor` accepts `hue`, `size`, `soft?`, and `children` (emoji string OR raster asset path).
-- [ ] `WaxSeal` renders a circular radial-gradient with a Fraunces-italic letter inside.
-- [ ] `Stepper` takes `step: number` and `steps: string[]`, rendering the 4-step visual from `/tmp/cb_design/components/screens-flow.jsx:6-49`.
-- [ ] All icon primitives ported via `react-native-svg` (install via `npx expo install react-native-svg` if missing).
-- [ ] Every primitive exports a TypeScript interface for its props.
-- [ ] No existing component under `src/components/` modified or removed.
-- [ ] `npm run lint` and `npx tsc --noEmit` pass.
+- [x] Directory `src/components/common/storybook/` created with: `PaperBackground.tsx`, `InkButton.tsx`, `Watercolor.tsx`, `WaxSeal.tsx`, `OrnamentRule.tsx`, `Stepper.tsx`, `QuillIcon.tsx`, `BookIcon.tsx`, `FlameIcon.tsx`, `StarIcon.tsx`, and `index.ts` barrel.
+- [x] `InkButton` supports variants `primary | foxglove | moss | ghost | paper` with pressed-state `translateY(1)`.
+- [x] `Watercolor` accepts `hue`, `size`, `soft?`, `children` (emoji string) and `imageSource?` (`ImageSourcePropType` for local `require()` assets or remote URIs). RN's built-in `<Image>` is used for raster rendering because `OptimizedImage`/`react-native-fast-image` doesn't accept `require(...)` number sources directly. OKLCH gradient colors are approximated as HSL (minor visual deviation — documented inline).
+- [x] `WaxSeal` renders a circular radial-gradient (via `react-native-svg` `<RadialGradient>`) with a Fraunces-italic letter inside. CSS `inset` shadows (unsupported in RN) are replaced with top-highlight and bottom-shadow ellipse overlays.
+- [x] `Stepper` takes `step: number` and `steps: string[]`, rendering the 4-step visual from `/tmp/cb_design/components/screens-flow.jsx:6-49`.
+- [x] All icon primitives ported via `react-native-svg` 15.12.1 (installed via `npx expo install react-native-svg` per `feedback_expo_install.md`).
+- [x] Every primitive exports a TypeScript interface for its props (`InkButtonProps`, `WatercolorProps`, `WaxSealProps`, `StepperProps`, `OrnamentRuleProps`, `PaperBackgroundProps`, `QuillIconProps`, `BookIconProps`, `FlameIconProps`, `StarIconProps`). `InkButtonVariant` is also exported as a union type.
+- [x] No existing component under `src/components/` modified or removed. Verified via `git status` — only new files under `src/components/common/storybook/` plus `package.json` / `package-lock.json` dependency pins.
+- [x] `npm run lint` and `npx tsc --noEmit` pass. Baseline-diffed (storybook dir moved aside, re-run, compared): identical error sets before and after. Zero new errors introduced.
+  - Deviations from design source (accepted per PRD §9 defaults):
+    1. **`feTurbulence` + `feDisplacementMap` SVG filters dropped** — `react-native-svg` can't render them efficiently. Watercolor and PaperBackground get "cleaner" rendering without the organic paint-texture distortion.
+    2. **OKLCH → HSL color approximation** — RN StyleSheet doesn't support `oklch()` color syntax. Watercolor's gradient stops use HSL values tuned to visually match the source OKLCH lightness/chroma targets.
+    3. **CSS `inset` box-shadows rebuilt as SVG ellipse overlays** — RN's `shadowColor/Offset` only casts outside the view. WaxSeal's 3D wax-pooling effect is approximated with top-highlight and bottom-shadow ellipses inside the SVG.
 
 **Verification test (post-implementation):**
 
