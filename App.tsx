@@ -11,6 +11,18 @@ import {
 import { useFonts } from 'expo-font';
 import { KaushanScript_400Regular } from '@expo-google-fonts/kaushan-script';
 import { ArchitectsDaughter_400Regular } from '@expo-google-fonts/architects-daughter';
+import {
+  Fraunces_400Regular,
+  Fraunces_700Bold,
+  Fraunces_700Bold_Italic,
+} from '@expo-google-fonts/fraunces';
+import { Caveat_400Regular, Caveat_700Bold } from '@expo-google-fonts/caveat';
+import {
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+} from '@expo-google-fonts/inter';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { AppNavigator } from './src/navigation';
 import {
@@ -59,6 +71,16 @@ const MainApp: React.FC = () => {
   const [fontsLoaded] = useFonts({
     KaushanScript_400Regular,
     ArchitectsDaughter_400Regular,
+    // Storybook faces (US-001) — consumed via theme.typography.fontFamily
+    Fraunces_400Regular,
+    Fraunces_700Bold,
+    Fraunces_700Bold_Italic,
+    Caveat_400Regular,
+    Caveat_700Bold,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
   });
   const {
     loading,

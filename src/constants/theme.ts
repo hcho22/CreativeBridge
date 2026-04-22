@@ -32,9 +32,72 @@ export const theme = {
     inputBackgroundError: '#fff5f5',
     inputBackgroundWarning: '#fffaf0',
     inputBackgroundValid: '#f0fff0',
+
+    // Storybook paper palette — aged-paper surfaces (US-001)
+    // Maps to CSS custom properties --paper, --paper-cream, --paper-deep, --paper-edge,
+    // plus --card and --card-warm warm tints used behind prompt/round cards.
+    paper: {
+      base: '#F6EFE1',
+      cream: '#FBF5E6',
+      deep: '#EEE3C8',
+      edge: '#E3D5B2',
+      card: '#FDF9EC',
+      cardWarm: '#F9F0D8',
+    },
+
+    // Storybook ink hierarchy — warm-brown text cascade (US-001)
+    // Primary body copy uses `base`; secondary labels `soft`; tertiary/disabled `faint`.
+    ink: {
+      base: '#2B1D14',
+      soft: '#5C4432',
+      faint: '#8A7256',
+    },
+
+    // Storybook accent palette — adventure red, quill green, and mood tints (US-001)
+    // Note (plural "accents"): the legacy top-level `accent: '#4CAF50'` string is
+    // preserved untouched per FR-12; this new object lives alongside it to avoid
+    // rename/remove of an existing token. Downstream storybook screens should
+    // consume `theme.colors.accents.foxglove`, etc.
+    accents: {
+      foxglove: '#C2410C', // adventure red — primary CTAs, active-state pill
+      moss: '#3F6A3A', // quill green — secondary success / progress
+      inkwell: '#1E3A5F', // navy — information / links
+      gold: '#B8860B', // XP gold — reward callouts
+      plum: '#7A3B5C', // mystery / rarer badges
+      amber: '#D97706', // streak / warm highlights
+    },
   },
 
   typography: {
+    // Storybook font-family tokens (US-001)
+    // Mirrors CSS --f-serif / --f-hand / --f-ui plus the legacy display faces.
+    // The `*Family` entries are comma-separated RN fallback chains; the per-weight
+    // entries match the exact module names exported by @expo-google-fonts/* so they
+    // resolve directly to the registered fontFamily after App.tsx useFonts loads.
+    fontFamily: {
+      // Primary display serif — Fraunces
+      serif: 'Fraunces_400Regular',
+      serifBold: 'Fraunces_700Bold',
+      serifItalic: 'Fraunces_700Bold_Italic',
+      serifFamily: 'Fraunces, Cochin, Georgia, serif',
+
+      // Handwritten accent — Caveat
+      hand: 'Caveat_400Regular',
+      handBold: 'Caveat_700Bold',
+      handFamily: "Caveat, 'Bradley Hand', cursive",
+
+      // UI / body sans — Inter
+      uiRegular: 'Inter_400Regular',
+      uiMedium: 'Inter_500Medium',
+      uiSemibold: 'Inter_600SemiBold',
+      uiBold: 'Inter_700Bold',
+      uiFamily: 'Inter, -apple-system, system-ui, sans-serif',
+
+      // Existing display faces preserved for current consumers (AuthScreen etc.)
+      kaushan: 'KaushanScript_400Regular',
+      architectsDaughter: 'ArchitectsDaughter_400Regular',
+    },
+
     // Font sizes
     fontSize: {
       xs: 12,
@@ -188,6 +251,32 @@ export const theme = {
       shadowOpacity: 0.25,
       shadowRadius: 16,
       elevation: 6,
+    },
+
+    // Storybook warm-ink shadows (US-001)
+    // RN supports one shadow per view; CSS --shadow-* tokens stack two layers.
+    // We keep the dominant ambient layer and tint the shadow color warm-brown
+    // (#2B1D14 == ink.base) so elevation reads as parchment, not neutral grey.
+    paper: {
+      shadowColor: '#2B1D14',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.06,
+      shadowRadius: 12,
+      elevation: 2,
+    },
+    card: {
+      shadowColor: '#2B1D14',
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: 0.1,
+      shadowRadius: 28,
+      elevation: 5,
+    },
+    lift: {
+      shadowColor: '#2B1D14',
+      shadowOffset: { width: 0, height: 20 },
+      shadowOpacity: 0.2,
+      shadowRadius: 60,
+      elevation: 12,
     },
   },
 
