@@ -81,6 +81,9 @@
   "dependencies": {
     "@clerk/clerk-expo": "^2.19.12",
     "@expo-google-fonts/architects-daughter": "^0.4.1",
+    "@expo-google-fonts/caveat": "^0.4.2",
+    "@expo-google-fonts/fraunces": "^0.4.1",
+    "@expo-google-fonts/inter": "^0.4.2",
     "@expo-google-fonts/kaushan-script": "^0.4.1",
     "@hookform/resolvers": "^5.2.2",
     "@react-native-async-storage/async-storage": "^2.2.0",
