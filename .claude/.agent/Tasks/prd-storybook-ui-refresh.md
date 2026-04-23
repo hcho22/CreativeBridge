@@ -83,11 +83,14 @@ The work ships in **7 staged user stories** (matching the plan's 7 stages). Each
 
 **Acceptance Criteria:**
 
-- [ ] Directory `src/assets/storybook/` created.
-- [ ] All 20 files copied from `/tmp/cb_design/assets/`: `animal.png, beach.png, boy.png, castle.png, comedy.png, custom-char.png, fairytale.png, fantasy.png, fiction.png, forest.png, girl.png, keyboard.png, megaphone.png, mic.png, mystery-box.png, quill.png, space.png, speaker.png, suspense.png, wizard.png`.
-- [ ] `src/assets/storybook/index.ts` re-exports each as a typed `require(...)` asset for type-safe imports.
-- [ ] No pre-existing asset file overwritten (if names clash with current `src/assets/`, use a different filename and document the rename).
-- [ ] Metro bundler resolves each asset without warnings (`npm start` cold-start clean).
+- [x] Directory `src/assets/storybook/` created.
+- [x] All 20 files copied from `/tmp/cb_design/assets/`: `animal.png, beach.png, boy.png, castle.png, comedy.png, custom-char.png, fairytale.png, fantasy.png, fiction.png, forest.png, girl.png, keyboard.png, megaphone.png, mic.png, mystery-box.png, quill.png, space.png, speaker.png, suspense.png, wizard.png`. Total on-disk size: ~17 MB.
+- [x] `src/assets/storybook/index.ts` re-exports each as a typed `ImageSourcePropType` (cast from `require(...)`) for type-safe imports. Also exports a grouped `storybookAssets` object for iteration and a `StorybookAssetName` union type. Two hyphenated filenames are exposed under camelCased identifiers (`custom-char.png` → `customChar`, `mystery-box.png` → `mysteryBox`); on-disk filenames unchanged so Metro resolves them verbatim.
+- [x] No pre-existing asset file overwritten. `src/assets/` did not exist before this story — no name clash was possible. Verified via `ls` before copy.
+- [x] Static resolution check: every `require('./X.png')` path in the barrel exactly matches a file on disk (20/20 match, zero orphans, zero typos).
+- [ ] Metro bundler resolves each asset without warnings (`npm start` cold-start clean) — **this is a runtime check and is part of the manual simulator verification below.**
+- [x] `npx tsc --noEmit` passes. Baseline-diffed (dir moved aside, re-run, compared): identical error sets. 2855 pre-existing errors, 0 new.
+- [x] `npm run lint` passes. Baseline-diffed: identical error sets. 15 pre-existing errors, 0 new.
 
 **Verification test (post-implementation):**
 
