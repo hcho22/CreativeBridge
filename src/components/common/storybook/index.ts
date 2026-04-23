@@ -4,6 +4,9 @@
 export { BookIcon } from './BookIcon';
 export type { BookIconProps } from './BookIcon';
 
+export { BookSpread } from './BookSpread';
+export type { BookSpreadProps } from './BookSpread';
+
 export { FlameIcon } from './FlameIcon';
 export type { FlameIconProps } from './FlameIcon';
 

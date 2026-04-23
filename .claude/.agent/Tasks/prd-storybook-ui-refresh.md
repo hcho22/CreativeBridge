@@ -147,23 +147,25 @@ The work ships in **7 staged user stories** (matching the plan's 7 stages). Each
 
 **Acceptance Criteria:**
 
-- [ ] `src/screens/HomeScreen.tsx` idle hero section (the pre-story state) rewritten to match `/tmp/cb_design/components/screens-core.jsx:152-305`:
-  - [ ] Top bar: 48px Watercolor avatar (hue 30, 🦊 or user emoji) + Fraunces 22 italic greeting + two `<StatChip>` chips for streak and XP.
-  - [ ] Hero: `"What shall we / write today?"` in Fraunces italic 64px with foxglove accent on "write today?".
-  - [ ] `<OrnamentRule width={200}/>` below the hero heading.
-  - [ ] `BookSpread` SVG (port of `screens-core.jsx:237-271`) as primary CTA with overlay Caveat "Once upon a time..." + Fraunces italic "Begin a New Story" + foxglove "TAP TO OPEN →" pill — bound to existing `handleStartStory` handler.
-  - [ ] Secondary row: `<InkButton variant="paper">` for "Continue a tale" and "Import a manuscript" wired to existing nav calls.
-  - [ ] Four `<QuickCard>` quick-stats strip (Stories / Words / Level / Best) pulling from existing analytics source.
-- [ ] `src/screens/StorySetupScreen.tsx` rewritten to match `/tmp/cb_design/components/screens-flow.jsx:90-279`:
-  - [ ] `<Stepper steps={['Genre','Hero','Setting','Quill']}/>` at top.
-  - [ ] Step body renders a column of `<OptionCard>`s with Watercolor + Fraunces label + subtitle + checkmark.
-  - [ ] Genres array drives the 6 genre cards; Characters array (4); Settings array (5) — emoji strings replaced with storybook asset paths.
-  - [ ] Custom character and custom setting textareas preserved with identical validation rules.
-  - [ ] Step 4 "Your story so far" preview card with Fraunces interpolation + `<Pill>`s for XP, rounds, grade level.
-  - [ ] Bottom bar: `<InkButton variant="primary" />` Next → foxglove "Open the book" on final step → wired to the existing `StorySetupAnswers` emitter.
-- [ ] **`StorySetupAnswers` type (`src/types/storySetup.ts`) unchanged**; `resolveStorySetup` utility untouched.
-- [ ] Active-story rendering in HomeScreen **left unchanged** for this story (covered in US-006).
-- [ ] `npm run lint` and `npx tsc --noEmit` pass.
+- [x] `src/screens/HomeScreen.tsx` idle hero (returning-user branch of the main return at line ~3713) rewritten to match `/tmp/cb_design/components/screens-core.jsx:152-305`. Only the `else`-branch of the `isNewUser` ternary is restyled — the `EnhancedEmptyState` path (first-time users) is untouched per US-017 ownership, and the `isGameActive` branch at line 2895 is untouched per US-006 ownership:
+  - [x] Top bar: 48px `<Watercolor hue={30}>🦊</Watercolor>` avatar + "Welcome back" eyebrow + Fraunces 22 italic `userProfile?.display_name` + two `StatChip` chips for `current_streak` (FlameIcon amber, hardcoded palette per primitive design) and `total_xp` (StarIcon gold, `.toLocaleString()`).
+  - [x] Hero: Fraunces italic `"What shall we\nwrite today?"` with foxglove accent on "write today?". Font size 48 (capped from design's 64 so the two-line title fits both iPad and iPhone viewports without overflow).
+  - [x] `<OrnamentRule width={200}/>` below the hero heading.
+  - [x] New `BookSpread` storybook primitive (`src/components/common/storybook/BookSpread.tsx`) ported from `screens-core.jsx:237-271` — `LinearGradient` + `Path` + `Line` via `react-native-svg`; `feTurbulence` paper-grain filter dropped per PRD §9 "cleaner spread" default. Rendered inside a `<Pressable>` wired to existing `handleStartNewGame` handler; pressed state applies `translateY(1)` (quill-touching-paper). Overlay shows Caveat "Once upon a time..." / Fraunces italic "Begin a New Story" / foxglove "TAP TO OPEN →" pill. During `loadingState.isGenerating` the Caveat line surfaces `loadingState.currentTask`.
+  - [x] Secondary row: two `<InkButton variant="paper">` — "Continue a tale" (BookIcon) wired to a new local `handleNavigateToStorySelection` that calls `navigation.navigate('StorySelection')`, with a try/catch fallback to the pre-refresh `handleContinueStoryOption` (ImportOptions) so no regression if the route isn't reachable; "Import a manuscript" (📥 emoji) wired to the existing `handleContinueStoryOption` (unchanged → ImportOptions).
+  - [x] Four `QuickStatCard` quick-stats strip (Stories / Words / Level / Best). Real data where surfaced by `userProfile`: Stories (`total_stories_completed`), Level (derived from `total_xp / 100`); honest "—" placeholders for Words and Best where no existing analytics field exists. Level derivation is a local display computation, not a new data contract.
+- [x] `src/screens/StorySetupScreen.tsx` render layer rewritten to match `/tmp/cb_design/components/screens-flow.jsx:90-279`. All state (currentStep, selectedGenre, selectedCharacterType, selectedAnimalType, selectedSetting, selectedStarter, customAnimal, customCharacter, customSetting, characterName, isStarting), validation, handlers (handleGenrePress, handleCharacterTypePress, handleAnimalTypePress, handleSettingPress, handleStarterPress, handleNext, handleBack, handleClose, handleSkip, handleStartStory), `animateStepTransition` animation, and `buildStorySetupAnswers` emitter are byte-for-byte unchanged:
+  - [x] `<Stepper steps={['Genre','Hero','Setting','Quill']}/>` replaces the numbered-badge progress bar at top.
+  - [x] Step body renders a column of option cards via new shared `renderOptionCard` helper: Watercolor (hue + imageSource when storybook asset exists) + Fraunces 20 label (foxglove when selected) + Caveat-adjacent 13 subtitle + 26×26 foxglove checkmark. Mirrors the design's `<OptionCard>` JSX.
+  - [x] Three `GENRE_VISUALS` / `CHARACTER_VISUALS` / `SETTING_VISUALS` / `STARTER_VISUALS` maps wire each enum value to its Watercolor hue and storybook PNG from `src/assets/storybook/`. Animal sub-step uses emoji-only `ANIMAL_VISUALS` since no per-species assets exist. Enum values (`StoryGenre`, `CharacterType`, `AnimalType`, `StorySetting`, `StoryStarter`) are unchanged — only presentation changes.
+  - [x] Custom character and custom setting textareas preserved with identical validation rules; their expansionLabels restyled in Caveat foxglove per design.
+  - [x] Step 4 "Your story so far" preview card: dashed `paper-edge` border on `paper.cardWarm`, Fraunces interpolation with foxglove italic `<Text>` accents around genre / character / setting, three paper-card Pills ("+40 XP on completion" / "5 rounds" / "K-2 reading level"). Character label cascades through `characterName || customCharacter || customAnimal || animalType || characterType`.
+  - [x] Bottom bar: `<InkButton variant="primary">Next</InkButton>` on steps 0–2 → `<InkButton variant="foxglove" icon={<QuillIcon/>}>Open the book</InkButton>` on step 3, wired to the existing `handleNext` and `handleStartStory` handlers respectively. The old `react-native-linear-gradient` CTA is removed; the import is dropped.
+- [x] **`StorySetupAnswers` type (`src/types/storySetup.ts`) unchanged**; `resolveStorySetup` utility untouched. Confirmed via `git diff main -- src/types/ src/utils/storySetupDefaults.ts` — zero lines.
+- [x] Active-story rendering in HomeScreen **left unchanged** for this story (covered in US-006). The `if (isGameActive) { ... }` branch at line 2895 and the entire active-story return block are byte-for-byte identical.
+- [x] `npm run lint` passes. Baseline-diffed: 16 errors / 749 warnings before and after — zero new.
+- [x] `npx tsc --noEmit` passes. Baseline-diffed: 2039 errors before and after — zero new (all remaining errors are pre-existing in unrelated files: userPreferences, asyncStorageWrapper, filePicker, secureStorage, web/, etc.).
+- [x] `npx jest --testPathPattern "StorySetupScreen|HomeScreen"`: 3 suites pass (69 tests), 1 suite fails with the pre-existing `getViewManagerConfig` RN mock issue (HomeScreen test — same infrastructure hole that affects AppNavigator test; not caused by US-005).
 
 **Verification test (post-implementation):**
 
