@@ -35,6 +35,14 @@ import {
 } from '../components/common/OAuthSessionHelpModal';
 import { LEGAL_URLS } from '../config/legalUrls';
 import { useParentalGate } from '../components/common/ParentalGate';
+import {
+  InkButton,
+  OrnamentRule,
+  PaperBackground,
+  QuillIcon,
+  Watercolor,
+} from '../components/common/storybook';
+import { theme } from '../constants/theme';
 
 type AuthScreenNavigationProp = StackNavigationProp<AuthStackParamList, 'Auth'>;
 
@@ -1298,12 +1306,44 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <PaperBackground style={StyleSheet.absoluteFillObject}>
+        {/* US-004: decorative watercolor corners — ported from
+            /tmp/cb_design/components/screens-core.jsx:15-26 */}
+        <View style={styles.cornerTopLeft} pointerEvents="none">
+          <Watercolor hue={30} size={90} soft>
+            📜
+          </Watercolor>
+        </View>
+        <View style={styles.cornerTopRight} pointerEvents="none">
+          <Watercolor hue={60} size={70} soft>
+            ✒️
+          </Watercolor>
+        </View>
+        <View style={styles.cornerBottomLeft} pointerEvents="none">
+          <Watercolor hue={140} size={80} soft>
+            🌿
+          </Watercolor>
+        </View>
+        <View style={styles.cornerBottomRight} pointerEvents="none">
+          <Watercolor hue={340} size={90} soft>
+            🕯️
+          </Watercolor>
+        </View>
+      </PaperBackground>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.content}>
-          {/* App Logo/Title */}
+          {/* US-004: Storybook header — Kaushan "Creative" + foxglove "Bridge"
+              at 78px, with OrnamentRule + Caveat tagline. */}
           <View style={styles.headerSection}>
-            <Text style={styles.appTitle}>CreativeBridge</Text>
-            <Text style={styles.appSubtitle}>Create your best Story!</Text>
+            <Text style={styles.brandTitle}>
+              Creative<Text style={styles.brandTitleAccent}>Bridge</Text>
+            </Text>
+            <View style={styles.brandOrnament}>
+              <OrnamentRule width={180} />
+            </View>
+            <Text style={styles.brandTagline}>
+              Where your best stories begin
+            </Text>
           </View>
 
           {/* Auth Form */}
@@ -1655,41 +1695,38 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation: _navigation }) => {
               </View>
             )}
 
-            <TouchableOpacity
-              style={[
-                styles.authButton,
-                (loading ||
-                  emailValidating ||
-                  (emailTouched && !emailValidation?.isValid)) &&
-                  styles.disabledButton,
-              ]}
+            {/* US-004: Primary CTA is an InkButton (moss) + QuillIcon. Label
+                cascades through migration/loading/login/signup states; handler
+                and disabled logic unchanged from the previous TouchableOpacity. */}
+            <InkButton
+              variant="moss"
+              icon={<QuillIcon size={18} color={theme.colors.paper.cream} />}
               onPress={handleAuth}
               disabled={
                 loading ||
                 emailValidating ||
                 (emailTouched && !emailValidation?.isValid)
               }
+              style={styles.primaryCta}
             >
-              <Text style={styles.authButtonText}>
-                {isMigrating
-                  ? 'Upgrading account...'
-                  : loading
-                  ? 'Please wait...'
-                  : isLogin
-                  ? 'Sign In'
-                  : 'Create Account'}
-              </Text>
-            </TouchableOpacity>
+              {isMigrating
+                ? 'Upgrading account…'
+                : loading
+                ? 'Please wait…'
+                : isLogin
+                ? 'Sign in and write'
+                : 'Create Account'}
+            </InkButton>
 
             <View style={styles.switchContainer}>
               <Text style={styles.switchText}>
                 {isLogin
-                  ? "Don't have an account? "
+                  ? 'New to CreativeBridge? '
                   : 'Already have an account? '}
               </Text>
               <TouchableOpacity onPress={toggleAuthMode} disabled={loading}>
                 <Text style={styles.switchLink}>
-                  {isLogin ? 'Sign Up' : 'Sign In'}
+                  {isLogin ? 'Begin your story →' : 'Sign In'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1757,7 +1794,33 @@ const titleFontSize = Math.min(screenWidth * 0.11, 80);
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fcfcfc',
+    backgroundColor: theme.colors.paper.base,
+  },
+  // US-004: Decorative corner positions — ported from
+  // /tmp/cb_design/components/screens-core.jsx:15-26.
+  cornerTopLeft: {
+    position: 'absolute',
+    top: 60,
+    left: 30,
+    opacity: 0.35,
+  },
+  cornerTopRight: {
+    position: 'absolute',
+    top: 120,
+    right: 50,
+    opacity: 0.3,
+  },
+  cornerBottomLeft: {
+    position: 'absolute',
+    bottom: 120,
+    left: 60,
+    opacity: 0.3,
+  },
+  cornerBottomRight: {
+    position: 'absolute',
+    bottom: 180,
+    right: 40,
+    opacity: 0.35,
   },
   scrollContainer: {
     flexGrow: 1,
@@ -1773,6 +1836,33 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginTop: 80,
   },
+  // US-004: Kaushan at 78 (design spec) — kept responsive via titleFontSize
+  // so the logo still fits on narrow iPhone viewports. "Bridge" colored
+  // foxglove via an inline span (brandTitleAccent).
+  brandTitle: {
+    fontSize: Math.min(titleFontSize, 78),
+    fontFamily: theme.typography.fontFamily.kaushan,
+    color: theme.colors.ink.base,
+    letterSpacing: -2,
+    textAlign: 'center',
+    width: '100%',
+  },
+  brandTitleAccent: {
+    color: theme.colors.accents.foxglove,
+  },
+  brandOrnament: {
+    marginTop: 8,
+  },
+  brandTagline: {
+    marginTop: 12,
+    fontSize: 26,
+    fontFamily: theme.typography.fontFamily.hand,
+    color: theme.colors.ink.soft,
+    letterSpacing: 0.3,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  // Kept for sub-flow screens (migration, verification, 2FA, reset).
   appTitle: {
     fontSize: titleFontSize,
     fontFamily: 'KaushanScript_400Regular',
@@ -1813,27 +1903,34 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 6,
   },
+  // US-004: Paper-themed text inputs — card surface, paper-edge border,
+  // Inter 16px, ink text. Mirrors `inkInput` in
+  // /tmp/cb_design/components/screens-core.jsx:107-113.
   textInput: {
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    fontSize: 18,
-    backgroundColor: '#f8f9fa',
+    borderWidth: 1.5,
+    borderColor: theme.colors.paper.edge,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    fontFamily: theme.typography.fontFamily.uiRegular,
+    color: theme.colors.ink.base,
+    backgroundColor: theme.colors.paper.card,
   },
   passwordInputWrapper: {
     position: 'relative',
   },
   passwordInput: {
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
+    borderWidth: 1.5,
+    borderColor: theme.colors.paper.edge,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     paddingRight: 50,
-    fontSize: 18,
-    backgroundColor: '#f8f9fa',
+    fontSize: 16,
+    fontFamily: theme.typography.fontFamily.uiRegular,
+    color: theme.colors.ink.base,
+    backgroundColor: theme.colors.paper.card,
   },
   passwordToggle: {
     position: 'absolute',
@@ -1863,9 +1960,16 @@ const styles = StyleSheet.create({
   },
   forgotPasswordText: {
     fontSize: 16,
-    color: '#4CAF50',
+    color: theme.colors.accents.foxglove,
     fontWeight: '600',
   },
+  // US-004: spacing wrapper for the main-surface InkButton.
+  primaryCta: {
+    marginTop: 6,
+    marginBottom: 10,
+    width: '100%',
+  },
+  // Kept for sub-flow screens (migration, verification, 2FA, reset).
   authButton: {
     backgroundColor: '#4CAF50',
     paddingVertical: 12,
@@ -1893,7 +1997,7 @@ const styles = StyleSheet.create({
   },
   switchLink: {
     fontSize: 16,
-    color: '#4CAF50',
+    color: theme.colors.accents.foxglove,
     fontWeight: '600',
   },
   oauthDividerContainer: {

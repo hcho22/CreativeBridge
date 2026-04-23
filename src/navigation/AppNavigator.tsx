@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import {
@@ -7,6 +7,7 @@ import {
   getFocusedRouteNameFromRoute,
 } from '@react-navigation/native';
 import { AdaptiveGlassBackground } from '../components/common/AdaptiveGlassBackground';
+import { BookIcon, QuillIcon } from '../components/common/storybook';
 import { theme } from '../constants/theme';
 import type { StorySetupAnswers } from '../types/storySetup';
 
@@ -151,41 +152,69 @@ const SettingsStackNavigator: React.FC = () => {
   );
 };
 
-// Extract icon component to avoid nested component definition
+// US-004: Storybook tab icons. The 36×3 foxglove pill above the active icon
+// matches /tmp/cb_design/components/screens-core.jsx:330-335. React Navigation
+// bottom-tabs has no tabBarIndicator, so we render the pill as an absolute-
+// positioned sibling here when focused=true.
 const TabBarIcon: React.FC<{
   route: { name: keyof TabParamList };
   color: string;
-  size: number;
-}> = ({ route, color, size }) => {
-  let emoji: string;
+  focused: boolean;
+}> = ({ route, color, focused }) => {
+  let icon: React.ReactNode;
 
   switch (route.name) {
     case 'HomeStack':
-      emoji = '🏠';
+      icon = <BookIcon size={22} color={color} />;
       break;
     case 'SettingsStack':
-      emoji = '⚙️';
+      icon = <Text style={[tabIconStyles.cogLabel, { color }]}>⚙</Text>;
       break;
     case 'Profile':
-      emoji = '👤';
+      icon = <QuillIcon size={22} color={color} />;
       break;
     default:
-      emoji = '🏠';
+      icon = <BookIcon size={22} color={color} />;
   }
 
-  return <Text style={{ fontSize: size, color }}>{emoji}</Text>;
+  return (
+    <View style={tabIconStyles.wrapper}>
+      {focused && <View style={tabIconStyles.activePill} />}
+      {icon}
+    </View>
+  );
 };
+
+const tabIconStyles = StyleSheet.create({
+  wrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 6,
+  },
+  activePill: {
+    position: 'absolute',
+    top: -2,
+    width: 36,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: theme.colors.accents.foxglove,
+  },
+  cogLabel: {
+    fontSize: 22,
+  },
+});
 
 const AppNavigator: React.FC = () => {
   return (
     <NavigationContainer>
       <Tab.Navigator
         screenOptions={({ route }) => ({
-          tabBarIcon: ({ color, size }) => (
-            <TabBarIcon route={route} color={color} size={size} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon route={route} color={color} focused={focused} />
           ),
-          tabBarActiveTintColor: '#4CAF50', // Story_Quest green
-          tabBarInactiveTintColor: '#8E8E93',
+          // US-004: foxglove active / ink-faint inactive per storybook TabBar.
+          tabBarActiveTintColor: theme.colors.accents.foxglove,
+          tabBarInactiveTintColor: theme.colors.ink.faint,
           tabBarBackground: () => (
             <AdaptiveGlassBackground
               glassStyle={theme.glass.surfaces.tabBar.glassStyle}
@@ -230,6 +259,7 @@ const AppNavigator: React.FC = () => {
 
             return {
               title: 'Home',
+              tabBarLabel: 'Library',
               headerShown: false,
               ...(hideTabBar && {
                 tabBarStyle: { display: 'none' as const },
@@ -242,6 +272,7 @@ const AppNavigator: React.FC = () => {
           component={SettingsStackNavigator}
           options={{
             title: 'Settings',
+            tabBarLabel: 'Workshop',
             headerShown: false,
           }}
         />
@@ -250,6 +281,7 @@ const AppNavigator: React.FC = () => {
           component={ProfileScreen}
           options={{
             title: 'Profile',
+            tabBarLabel: 'Author',
             headerShown: false,
           }}
         />
