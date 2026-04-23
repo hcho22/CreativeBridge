@@ -38,6 +38,7 @@ module.exports = {
       '<rootDir>/src/__tests__/__mocks__/@react-native-async-storage/async-storage',
     '^react-native-keychain$':
       '<rootDir>/src/__tests__/__mocks__/react-native-keychain',
+    '^react-native-svg$': '<rootDir>/src/__tests__/__mocks__/react-native-svg',
     '^@react-native-community/netinfo$':
       '<rootDir>/src/__tests__/mocks/reactNativeMocks',
     '^react-native-url-polyfill/auto$': 'identity-obj-proxy',
