@@ -342,10 +342,12 @@ export const theme = {
     // Per-surface configuration — consumed by AdaptiveGlassBackground
     surfaces: {
       tabBar: {
+        // US-004: Android fallback color bumped to paper-cream to match the
+        // storybook tab-bar chrome (paper-cream background + paper-edge top border).
         glassStyle: 'regular' as const,
         fallbackBlurIntensity: 80,
         fallbackBlurTint: 'light' as const,
-        androidFallbackColor: 'rgba(252, 252, 252, 0.95)',
+        androidFallbackColor: 'rgba(251, 245, 230, 0.96)',
       },
       floatingInputBar: {
         glassStyle: 'regular' as const,

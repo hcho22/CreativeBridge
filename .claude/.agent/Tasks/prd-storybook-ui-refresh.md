@@ -108,21 +108,22 @@ The work ships in **7 staged user stories** (matching the plan's 7 stages). Each
 
 **Acceptance Criteria:**
 
-- [ ] `src/navigation/AppNavigator.tsx` tab labels changed to "Library" / "Workshop" / "Author" via `tabBarLabel` — **route keys `HomeStack`, `SettingsStack`, `Profile` unchanged**, and `TabParamList` TypeScript type unchanged.
-- [ ] Tab bar active-state indicator: 3×36 foxglove pill above the icon; active tint `#C2410C`, inactive tint `#8A7256`.
-- [ ] Tab icons: `BookIcon` (Library), ⚙ emoji (Workshop), `QuillIcon` (Author) — all from the storybook primitives.
-- [ ] `theme.glass.surfaces.tabBar.androidFallbackColor` updated to `rgba(251, 245, 230, 0.96)`; `AdaptiveGlassBackground` wrapper preserved.
-- [ ] `src/screens/AuthScreen.tsx` rewritten to match `/tmp/cb_design/components/screens-core.jsx:6-105`:
-  - [ ] Wrapped in `<PaperBackground>`.
-  - [ ] Four corner `<Watercolor soft>` decorations (📜 ✒️ 🌿 🕯️).
-  - [ ] Kaushan Script logo at 78px with foxglove "Bridge".
-  - [ ] `<OrnamentRule width={180}/>` and Caveat 26px tagline "Where your best stories begin".
-  - [ ] Google and Apple sign-in buttons (from `src/components/auth/`) reused verbatim — only surrounding chrome restyled.
-  - [ ] Email + password inputs: `card` background, `paper-edge` border, Inter 16px.
-  - [ ] Primary CTA: `<InkButton variant="moss" icon={<QuillIcon/>}>Sign in and write</InkButton>` wired to the existing `handleSignIn` handler.
-  - [ ] "Begin your story →" foxglove link wired to the existing sign-up navigation.
-- [ ] **No change to `AuthContext`, Clerk config, Convex OAuth handoff, or COPPA age-gate routing.**
-- [ ] `npm run lint` and `npx tsc --noEmit` pass.
+- [x] `src/navigation/AppNavigator.tsx` tab labels changed to "Library" / "Workshop" / "Author" via `tabBarLabel` — **route keys `HomeStack`, `SettingsStack`, `Profile` unchanged**, and `TabParamList` TypeScript type unchanged.
+- [x] Tab bar active-state indicator: 3×36 foxglove pill above the icon (rendered as an absolute-positioned sibling inside the custom `tabBarIcon` since `@react-navigation/bottom-tabs` has no `tabBarIndicator` API); active tint `theme.colors.accents.foxglove` (`#C2410C`), inactive tint `theme.colors.ink.faint` (`#8A7256`).
+- [x] Tab icons: `BookIcon` (Library), ⚙ emoji (Workshop), `QuillIcon` (Author) — all from the storybook primitives.
+- [x] `theme.glass.surfaces.tabBar.androidFallbackColor` updated to `rgba(251, 245, 230, 0.96)`; `AdaptiveGlassBackground` wrapper preserved.
+- [x] `src/screens/AuthScreen.tsx` primary login/signup surface restyled to match `/tmp/cb_design/components/screens-core.jsx:6-105`. Sub-flow screens (migration new-password, 2FA, email verification, forgot-password, reset-code) kept visually intact — out of US-004 scope:
+  - [x] Wrapped in `<PaperBackground>` (via `StyleSheet.absoluteFillObject` backdrop so the ScrollView scrolls over stable paper).
+  - [x] Four corner `<Watercolor soft>` decorations (📜 hue 30 size 90, ✒️ hue 60 size 70, 🌿 hue 140 size 80, 🕯️ hue 340 size 90) with opacities 0.35/0.3/0.3/0.35, `pointerEvents="none"` so they don't block form taps.
+  - [x] Kaushan Script logo at 78px (capped to `titleFontSize` for narrow viewports) with foxglove "Bridge" via nested `<Text>` accent span.
+  - [x] `<OrnamentRule width={180}/>` and Caveat 26px tagline "Where your best stories begin".
+  - [x] Google and Apple sign-in buttons reused verbatim — only surrounding chrome restyled.
+  - [x] Email + password inputs: `theme.colors.paper.card` background, 1.5px `paper.edge` border, 12 radius, 16/14 padding, Inter 16px, ink-base text color.
+  - [x] Primary CTA: `<InkButton variant="moss" icon={<QuillIcon/>}>Sign in and write</InkButton>` wired to the existing `handleAuth` handler; disabled logic (`loading || emailValidating || invalid email`) preserved; migration/loading/signup label states preserved.
+  - [x] "Begin your story →" foxglove link wired to the existing `toggleAuthMode` handler (shown when `isLogin`; flips to "Sign In" when `!isLogin`).
+- [x] **No change to `AuthContext`, Clerk config, Convex OAuth handoff, or COPPA age-gate routing.** All handlers, state variables, validation effects, and sub-flow early-returns are byte-for-byte unchanged.
+- [x] `npm run lint` passes. Baseline-diffed (stashed changes, re-ran, compared): identical problem counts — 16 errors / 749 warnings before and after. Zero new errors, zero new warnings.
+- [x] `npx tsc --noEmit` passes. Baseline-diffed: 2039 pre-existing error lines before and after; the only diff is a pre-existing `RegisteredStyle<AbsoluteFillStyle>` error in `AppNavigator.tsx` shifted from line 91 → 95 because the storybook-primitive imports pushed the file down. Zero new errors.
 
 **Verification test (post-implementation):**
 
