@@ -67,6 +67,17 @@ import {
 import { onboardingMilestoneTracker } from '../services/onboardingMilestoneTracker';
 import { AdaptiveGlassBackground } from '../components/common/AdaptiveGlassBackground';
 import { ImageDisplayModal } from '../components/common/ImageDisplayModal';
+import {
+  BookIcon,
+  BookSpread,
+  FlameIcon,
+  InkButton,
+  OrnamentRule,
+  PaperBackground,
+  StarIcon,
+  Watercolor,
+} from '../components/common/storybook';
+import { theme } from '../constants/theme';
 import { useMutation } from 'convex/react';
 import { getConvexClient, api, isConvexReady } from '../services/convex';
 import type { Id } from '../../convex/_generated/dataModel';
@@ -3690,8 +3701,35 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     console.log('📚 [US-017] Opening guidance modal from enhanced empty state');
   };
 
+  // US-005: Derived stats for the idle-hero QuickCard strip. Real data where
+  // available, honest "—" placeholders where no source exists yet — the strip
+  // is decorative and must not misrepresent progress. Level is derived from
+  // total_xp with a simple floor-division so existing users see a coherent
+  // number without a new backend contract.
+  const totalXp = userProfile?.total_xp ?? 0;
+  const storiesCount = userProfile?.total_stories_completed ?? 0;
+  const derivedLevel = Math.max(1, Math.floor(totalXp / 100));
+  const streakCount = userProfile?.current_streak ?? 0;
+
+  const heroGreeting = userProfile?.display_name || 'Writer';
+
+  const handleNavigateToStorySelection = () => {
+    if (!isAuthenticated) {
+      Alert.alert('Error', 'Please log in to continue a story');
+      return;
+    }
+    try {
+      navigation.navigate('StorySelection' as never);
+    } catch (error) {
+      console.warn('Navigation to StorySelection not configured:', error);
+      // Fall through to ImportOptions — preserves the pre-refresh nav target.
+      handleContinueStoryOption();
+    }
+  };
+
   return (
     <View style={styles.safeContainer}>
+      <PaperBackground style={StyleSheet.absoluteFillObject} />
       <ScrollView
         style={styles.container}
         contentContainerStyle={[
@@ -3712,71 +3750,116 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             </>
           ) : (
             <>
-              {/* Welcome Section - for returning users */}
-              <View style={styles.welcomeSection}>
-                <Text style={styles.welcomeTitle}>
-                  Welcome back, {userProfile?.display_name || 'Writer'}!
-                </Text>
-                <Text style={styles.welcomeSubtitle}>
-                  Ready to create amazing stories?
-                </Text>
+              {/* US-005: Storybook idle hero. Top bar avatar + greeting + chips,
+                  Fraunces hero, BookSpread CTA, secondary paper buttons, and
+                  QuickCard stats strip — all wired to the same pre-refresh
+                  handlers. */}
+              <View style={styles.idleTopBar}>
+                <View style={styles.idleGreetingRow}>
+                  <Watercolor hue={30} size={48}>
+                    🦊
+                  </Watercolor>
+                  <View style={styles.idleGreetingText}>
+                    <Text style={styles.idleEyebrow}>Welcome back</Text>
+                    <Text style={styles.idleName}>{heroGreeting}</Text>
+                  </View>
+                </View>
+                <View style={styles.idleChipRow}>
+                  <View style={styles.statChip}>
+                    <FlameIcon size={16} />
+                    <Text
+                      style={[
+                        styles.statChipValue,
+                        { color: theme.colors.accents.amber },
+                      ]}
+                    >
+                      {streakCount}
+                    </Text>
+                    <Text style={styles.statChipLabel}>day streak</Text>
+                  </View>
+                  <View style={styles.statChip}>
+                    <StarIcon size={14} color={theme.colors.accents.gold} />
+                    <Text
+                      style={[
+                        styles.statChipValue,
+                        { color: theme.colors.accents.gold },
+                      ]}
+                    >
+                      {totalXp.toLocaleString()}
+                    </Text>
+                    <Text style={styles.statChipLabel}>XP</Text>
+                  </View>
+                </View>
               </View>
 
-              {/* Story Action Buttons */}
-              <View style={styles.startSection}>
-                <TouchableOpacity
-                  style={[
-                    styles.startButton,
-                    loadingState.isGenerating && styles.disabledButton,
-                  ]}
-                  onPress={handleStartNewGame}
-                  disabled={loadingState.isGenerating}
-                >
-                  {loadingState.isGenerating ? (
-                    <View style={styles.loadingButtonContent}>
-                      <Animated.View
-                        style={{
-                          transform: [
-                            {
-                              rotate: spinValue.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: ['0deg', '360deg'],
-                              }),
-                            },
-                          ],
-                        }}
-                      >
-                        <Text style={styles.loadingSpinnerButton}>✨</Text>
-                      </Animated.View>
-                      <Text
-                        style={[
-                          styles.startButtonText,
-                          styles.loadingButtonText,
-                        ]}
-                      >
-                        {loadingState.currentTask || 'Creating Story...'}
-                      </Text>
-                    </View>
-                  ) : (
-                    <Text style={styles.startButtonText}>
-                      🎮 Start New Story
-                    </Text>
-                  )}
-                </TouchableOpacity>
+              <View style={styles.idleHero}>
+                <Text style={styles.idleHeroTitle}>
+                  What shall we{'\n'}
+                  <Text style={styles.idleHeroTitleAccent}>write today?</Text>
+                </Text>
+                <View style={styles.idleHeroOrnament}>
+                  <OrnamentRule width={200} />
+                </View>
+              </View>
 
-                {/* Continue Story Button */}
-                <TouchableOpacity
-                  style={[
-                    styles.continueButton,
-                    loadingState.isGenerating && styles.disabledButton,
-                  ]}
+              <Pressable
+                onPress={handleStartNewGame}
+                disabled={loadingState.isGenerating}
+                style={({ pressed }) => [
+                  styles.bookSpreadWrap,
+                  pressed && { transform: [{ translateY: 1 }] },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Begin a new story"
+              >
+                <BookSpread width={520} height={340} />
+                <View style={styles.bookSpreadOverlay} pointerEvents="none">
+                  <Text style={styles.bookSpreadCaveat}>
+                    {loadingState.isGenerating
+                      ? loadingState.currentTask || 'Creating your story...'
+                      : 'Once upon a time...'}
+                  </Text>
+                  <Text style={styles.bookSpreadTitle}>Begin a New Story</Text>
+                  <View style={styles.bookSpreadPill}>
+                    <Text style={styles.bookSpreadPillText}>TAP TO OPEN →</Text>
+                  </View>
+                </View>
+              </Pressable>
+
+              <View style={styles.idleSecondaryRow}>
+                <InkButton
+                  variant="paper"
+                  onPress={handleNavigateToStorySelection}
+                  disabled={loadingState.isGenerating}
+                  icon={<BookIcon size={18} color={theme.colors.ink.base} />}
+                  style={styles.idleSecondaryButton}
+                >
+                  Continue a tale
+                </InkButton>
+                <InkButton
+                  variant="paper"
                   onPress={handleContinueStoryOption}
                   disabled={loadingState.isGenerating}
+                  icon={<Text style={styles.idleSecondaryEmoji}>📥</Text>}
+                  style={styles.idleSecondaryButton}
                 >
-                  <Text style={styles.continueButtonText}>
-                    📖 Continue Story
-                  </Text>
-                </TouchableOpacity>
+                  Import a manuscript
+                </InkButton>
+              </View>
+
+              <View style={styles.quickCardStrip}>
+                <QuickStatCard
+                  icon="📖"
+                  label="Stories"
+                  value={String(storiesCount)}
+                />
+                <QuickStatCard icon="✒️" label="Words" value="—" accent />
+                <QuickStatCard
+                  icon="🏆"
+                  label="Level"
+                  value={String(derivedLevel)}
+                />
+                <QuickStatCard icon="⚡" label="Best" value="—" />
               </View>
             </>
           )}
@@ -3794,23 +3877,214 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   );
 };
 
+// US-005: QuickCard mirrors /tmp/cb_design/components/screens-core.jsx:290-305.
+// Extracted as a local helper to keep the hero return block readable. No props
+// typed interface exported because this is not a reusable primitive — it is a
+// layout fragment specific to the idle hero strip.
+const QuickStatCard: React.FC<{
+  icon: string;
+  label: string;
+  value: string;
+  accent?: boolean;
+}> = ({ icon, label, value, accent }) => (
+  <View style={[quickCardStyles.card, accent && quickCardStyles.cardAccent]}>
+    <View style={quickCardStyles.row}>
+      <Text style={quickCardStyles.icon}>{icon}</Text>
+      <Text style={quickCardStyles.value}>{value}</Text>
+    </View>
+    <Text style={quickCardStyles.label}>{label}</Text>
+  </View>
+);
+
+const quickCardStyles = StyleSheet.create({
+  card: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: theme.colors.paper.card,
+    borderWidth: 1,
+    borderColor: theme.colors.paper.edge,
+    gap: 2,
+  },
+  cardAccent: {
+    backgroundColor: theme.colors.paper.cardWarm,
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  icon: {
+    fontSize: 20,
+  },
+  value: {
+    fontFamily: theme.typography.fontFamily.serifBold,
+    fontSize: 22,
+    color: theme.colors.ink.base,
+  },
+  label: {
+    fontSize: 12,
+    color: theme.colors.ink.faint,
+    fontWeight: '500',
+  },
+});
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fcfcfc',
+    backgroundColor: 'transparent',
   },
   contentContainer: {
     flexGrow: 1,
     justifyContent: 'center',
   },
   homeContainer: {
-    padding: 40,
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    alignItems: 'stretch',
+  },
+  // US-005: Idle hero top bar (avatar + greeting + stat chips).
+  idleTopBar: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+    marginBottom: 24,
+  },
+  idleGreetingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  idleGreetingText: {
+    gap: 2,
+  },
+  idleEyebrow: {
+    fontSize: 13,
+    color: theme.colors.ink.faint,
+    fontWeight: '500',
+  },
+  idleName: {
+    fontFamily: theme.typography.fontFamily.serifBold,
+    fontSize: 22,
+    fontStyle: 'italic',
+    color: theme.colors.ink.base,
+    letterSpacing: -0.3,
+  },
+  idleChipRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  statChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: theme.colors.paper.card,
+    borderWidth: 1,
+    borderColor: theme.colors.paper.edge,
+  },
+  statChipValue: {
+    fontFamily: theme.typography.fontFamily.serifBold,
+    fontSize: 18,
+  },
+  statChipLabel: {
+    fontSize: 11,
+    color: theme.colors.ink.faint,
+    fontWeight: '500',
+  },
+  // US-005: Idle hero headline + ornament.
+  idleHero: {
+    alignItems: 'center',
+    marginVertical: 32,
+    paddingHorizontal: 24,
+  },
+  idleHeroTitle: {
+    fontFamily: theme.typography.fontFamily.serifBold,
+    fontSize: 48, // design: 64; reduced to fit both iPad + iPhone width
+    fontStyle: 'italic',
+    textAlign: 'center',
+    color: theme.colors.ink.base,
+    letterSpacing: -1.2,
+    lineHeight: 52,
+  },
+  idleHeroTitleAccent: {
+    color: theme.colors.accents.foxglove,
+  },
+  idleHeroOrnament: {
+    marginTop: 14,
+  },
+  // US-005: BookSpread CTA + overlay.
+  bookSpreadWrap: {
+    alignSelf: 'center',
+    marginBottom: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    maxWidth: 520,
+    width: '100%',
+  },
+  bookSpreadOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  bookSpreadCaveat: {
+    fontFamily: theme.typography.fontFamily.hand,
+    fontSize: 22,
+    color: theme.colors.ink.soft,
+  },
+  bookSpreadTitle: {
+    fontFamily: theme.typography.fontFamily.serifBold,
+    fontSize: 28,
+    fontStyle: 'italic',
+    color: theme.colors.ink.base,
+  },
+  bookSpreadPill: {
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    backgroundColor: theme.colors.accents.foxglove,
+    shadowColor: '#C2410C',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  bookSpreadPillText: {
+    color: theme.colors.paper.cream,
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  // US-005: Secondary buttons row.
+  idleSecondaryRow: {
+    flexDirection: 'row',
+    gap: 16,
+    marginTop: 4,
+    marginBottom: 28,
+    paddingHorizontal: 8,
+  },
+  idleSecondaryButton: {
+    flex: 1,
+  },
+  idleSecondaryEmoji: {
+    fontSize: 18,
+  },
+  // US-005: QuickCard strip.
+  quickCardStrip: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 8,
+    paddingBottom: 16,
   },
   // New three-section layout styles
   safeContainer: {
     flex: 1,
-    backgroundColor: '#fcfcfc',
+    backgroundColor: theme.colors.paper.base,
   },
   challengeHeaderSection: {
     position: 'absolute' as const,
