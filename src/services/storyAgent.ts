@@ -645,12 +645,18 @@ class StoryAgentService {
       prompt += ` exploring the rich theme of ${safeTheme} with depth and nuance`;
     }
 
+    // The `inspired by` / `set in the world of` wording was treating the
+    // user's explicit wizard choices as loose inspiration, so GPT-4 was
+    // swapping them for generic YA tropes (e.g. "A shy dragon named Buttons
+    // at a lighthouse" → "sixteen-year-old Maya finds an ancient map").
+    // Switch to directive quoting with a CRITICAL prefix so the model treats
+    // them as the requirements they are.
     if (safeCharacter) {
-      prompt += ` featuring a compelling character inspired by ${safeCharacter} with distinct personality, motivations, and challenges`;
+      prompt += `. CRITICAL: The main character is exactly this, do not substitute or reimagine: "${safeCharacter}". The opening must establish this character by the description above, not invent a different one.`;
     }
 
     if (safeSetting) {
-      prompt += ` set in the vivid and immersive world of ${safeSetting} with rich sensory details and authentic atmosphere`;
+      prompt += ` CRITICAL: The story is set in exactly this place, do not relocate to anywhere else: "${safeSetting}". The first scene must take place here.`;
     }
 
     const safetyWords = this.safetyKeywords[request.gradeLevel];
