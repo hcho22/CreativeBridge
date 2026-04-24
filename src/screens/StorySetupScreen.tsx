@@ -551,18 +551,24 @@ const StorySetupScreen: React.FC<StorySetupScreenProps> = ({ navigation }) => {
   };
 
   const renderGenreList = () => (
-    <View style={styles.optionCardList}>
-      {GENRE_OPTIONS.map(option =>
-        renderOptionCard({
-          key: option.value,
-          label: getGenreLabel(option.value, gradeLevel),
-          subtitle: GENRE_SUBTITLES[option.value],
-          selected: selectedGenre === option.value,
-          onPress: () => handleGenrePress(option.value),
-          meta: GENRE_VISUALS[option.value],
-        }),
-      )}
-    </View>
+    <ScrollView
+      style={styles.scrollView}
+      contentContainerStyle={styles.scrollViewContent}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={styles.optionCardList}>
+        {GENRE_OPTIONS.map(option =>
+          renderOptionCard({
+            key: option.value,
+            label: getGenreLabel(option.value, gradeLevel),
+            subtitle: GENRE_SUBTITLES[option.value],
+            selected: selectedGenre === option.value,
+            onPress: () => handleGenrePress(option.value),
+            meta: GENRE_VISUALS[option.value],
+          }),
+        )}
+      </View>
+    </ScrollView>
   );
 
   // ── Character Step (Step 1) ─────────────────────────────────────
