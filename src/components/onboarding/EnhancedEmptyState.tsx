@@ -265,6 +265,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.xl,
+    backgroundColor: theme.colors.paper.base,
   },
 
   // Header Section
@@ -278,14 +279,17 @@ const styles = StyleSheet.create({
   },
   tagline: {
     fontSize: theme.typography.fontSize.xxl,
+    fontFamily: theme.typography.fontFamily.serifItalic,
+    fontStyle: 'italic',
     fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.text,
+    color: theme.colors.ink.base,
     textAlign: 'center',
     marginBottom: theme.spacing.sm,
   },
   subtitle: {
-    fontSize: theme.typography.fontSize.md,
-    color: theme.colors.textSecondary,
+    fontSize: 20,
+    fontFamily: theme.typography.fontFamily.hand,
+    color: theme.colors.ink.soft,
     textAlign: 'center',
   },
 
@@ -297,18 +301,18 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   sampleCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.lg,
+    backgroundColor: theme.colors.paper.card,
+    borderRadius: 18,
     overflow: 'hidden',
-    ...theme.shadows.md,
+    ...theme.shadows.paper,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: theme.colors.paper.edge,
   },
 
   // Sample Image Section
   sampleImageContainer: {
     height: 140,
-    backgroundColor: '#E8F5E9', // Light green matching primary
+    backgroundColor: theme.colors.paper.cardWarm,
     overflow: 'hidden',
     position: 'relative',
   },
@@ -317,7 +321,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 100,
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    backgroundColor: 'rgba(251, 245, 230, 0.5)',
     transform: [{ skewX: '-20deg' }],
   },
   sampleImagePlaceholder: {
@@ -331,7 +335,8 @@ const styles = StyleSheet.create({
   },
   sampleImageText: {
     fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.primary,
+    fontFamily: theme.typography.fontFamily.uiMedium,
+    color: theme.colors.accents.moss,
     fontWeight: theme.typography.fontWeight.medium,
   },
 
@@ -347,27 +352,31 @@ const styles = StyleSheet.create({
   },
   sampleTitle: {
     fontSize: theme.typography.fontSize.lg,
+    fontFamily: theme.typography.fontFamily.serifItalic,
+    fontStyle: 'italic',
     fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.text,
+    color: theme.colors.ink.base,
     flex: 1,
   },
   completeBadge: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.accents.moss,
     justifyContent: 'center',
     alignItems: 'center',
   },
   completeBadgeText: {
-    color: '#ffffff',
+    color: theme.colors.paper.cream,
     fontSize: 16,
+    fontFamily: theme.typography.fontFamily.uiSemibold,
     fontWeight: theme.typography.fontWeight.bold,
   },
   samplePreview: {
     fontSize: theme.typography.fontSize.base,
-    color: theme.colors.textSecondary,
-    lineHeight: 20,
+    fontFamily: theme.typography.fontFamily.uiRegular,
+    color: theme.colors.ink.soft,
+    lineHeight: 22,
     marginBottom: theme.spacing.sm,
   },
   sampleFooter: {
@@ -377,18 +386,20 @@ const styles = StyleSheet.create({
   },
   sampleMeta: {
     fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.textDisabled,
+    fontFamily: theme.typography.fontFamily.uiRegular,
+    color: theme.colors.ink.faint,
   },
   xpBadge: {
-    backgroundColor: '#FFF3E0', // Light orange
+    backgroundColor: theme.colors.accents.moss + '22',
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.xs,
-    borderRadius: theme.borderRadius.sm,
+    borderRadius: 999,
   },
   xpBadgeText: {
     fontSize: theme.typography.fontSize.sm,
+    fontFamily: theme.typography.fontFamily.serifBold,
     fontWeight: theme.typography.fontWeight.semibold,
-    color: '#FF9800', // Orange
+    color: theme.colors.accents.moss,
   },
 
   // Example Label
@@ -396,16 +407,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -10,
     right: theme.spacing.base,
-    backgroundColor: theme.colors.secondary,
+    backgroundColor: theme.colors.accents.inkwell,
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.xs,
-    borderRadius: theme.borderRadius.sm,
+    borderRadius: 8,
     ...theme.shadows.sm,
   },
   exampleLabelText: {
     fontSize: theme.typography.fontSize.xs,
+    fontFamily: theme.typography.fontFamily.uiSemibold,
     fontWeight: theme.typography.fontWeight.semibold,
-    color: '#ffffff',
+    color: theme.colors.paper.cream,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -421,10 +433,12 @@ const styles = StyleSheet.create({
   featureItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.inputBackground,
+    backgroundColor: theme.colors.paper.cream,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
-    borderRadius: theme.borderRadius.full,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.colors.paper.edge,
   },
   featureEmoji: {
     fontSize: 18,
@@ -432,8 +446,9 @@ const styles = StyleSheet.create({
   },
   featureText: {
     fontSize: theme.typography.fontSize.sm,
+    fontFamily: theme.typography.fontFamily.uiSemibold,
     fontWeight: theme.typography.fontWeight.medium,
-    color: theme.colors.text,
+    color: theme.colors.ink.base,
   },
 
   // CTA Section
@@ -443,22 +458,23 @@ const styles = StyleSheet.create({
     gap: theme.spacing.base,
   },
   primaryButton: {
-    backgroundColor: '#f44336', // Red - matching existing start button
-    paddingVertical: theme.spacing.lg,
-    paddingHorizontal: theme.spacing.xxl,
-    borderRadius: 50,
+    backgroundColor: theme.colors.accents.foxglove,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 14,
     minWidth: 260,
     alignItems: 'center',
-    ...theme.shadows.lg,
+    ...theme.shadows.sm,
   },
   buttonDisabled: {
     backgroundColor: theme.colors.disabled,
     ...theme.shadows.sm,
   },
   primaryButtonText: {
-    color: '#ffffff',
-    fontSize: theme.typography.fontSize.lg,
-    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.paper.cream,
+    fontSize: 16,
+    fontFamily: theme.typography.fontFamily.uiSemibold,
+    fontWeight: '600',
   },
   secondaryButton: {
     paddingVertical: theme.spacing.md,
@@ -466,8 +482,9 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: {
     fontSize: theme.typography.fontSize.md,
+    fontFamily: theme.typography.fontFamily.uiSemibold,
     fontWeight: theme.typography.fontWeight.medium,
-    color: theme.colors.secondary,
+    color: theme.colors.accents.inkwell,
   },
 });
 

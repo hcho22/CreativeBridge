@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AdaptiveGlassBackground } from './AdaptiveGlassBackground';
 import StoryImageDisplay from './StoryImageDisplay';
+import { theme } from '../../constants/theme';
 
 export interface ImageDisplayModalProps {
   visible: boolean;
@@ -99,17 +100,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   container: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
+    backgroundColor: theme.colors.paper.card,
+    borderRadius: 22,
     padding: 0,
     width: '100%',
     maxWidth: 500,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 16,
-    borderWidth: 3,
-    borderColor: '#9C27B0',
+    borderWidth: 1.5,
+    borderColor: theme.colors.paper.edge,
+    ...theme.shadows.lift,
   },
 });

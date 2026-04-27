@@ -10,6 +10,8 @@ import { useAuth } from '../context/AuthContext';
 import { StorySelectionModal } from '../components/story/StorySelectionModal';
 import type { GameSession } from '../types/database';
 import type { HomeStackParamList } from '../navigation/AppNavigator';
+import { PaperBackground } from '../components/common/storybook';
+import { theme } from '../constants/theme';
 
 type StorySelectionNavigationProp = NativeStackNavigationProp<
   HomeStackParamList,
@@ -63,9 +65,13 @@ export const StorySelectionScreen: React.FC<StorySelectionScreenProps> = ({
   if (!user) {
     return (
       <View style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
+        <PaperBackground style={StyleSheet.absoluteFillObject} />
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor={theme.colors.paper.base}
+        />
         <View style={styles.errorContainer}>
-          <Text style={styles.errorTitle}>Authentication Required</Text>
+          <Text style={styles.errorTitle}>Authentication required</Text>
           <Text style={styles.errorMessage}>
             Please log in to access your story library.
           </Text>
@@ -76,14 +82,18 @@ export const StorySelectionScreen: React.FC<StorySelectionScreenProps> = ({
 
   return (
     <View style={[styles.container, { paddingTop: headerHeight }]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
+      <PaperBackground style={StyleSheet.absoluteFillObject} />
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor={theme.colors.paper.base}
+      />
 
       <StorySelectionModal
         visible={true}
         userId={user.id}
         onStorySelect={handleStorySelect}
         onClose={handleBack}
-        title="Your Stories"
+        title="Your library"
         showHeader={false}
       />
     </View>
@@ -93,38 +103,41 @@ export const StorySelectionScreen: React.FC<StorySelectionScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.colors.paper.base,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 24,
   },
   errorTitle: {
+    fontFamily: theme.typography.fontFamily.serifItalic,
     fontSize: 22,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
+    fontStyle: 'italic',
+    color: theme.colors.ink.base,
+    marginBottom: 10,
     textAlign: 'center',
   },
   errorMessage: {
-    fontSize: 18,
-    color: '#666',
+    fontFamily: theme.typography.fontFamily.uiRegular,
+    fontSize: 15,
+    color: theme.colors.ink.soft,
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 22,
   },
   errorBanner: {
-    backgroundColor: '#ffebee',
-    borderColor: '#f44336',
+    backgroundColor: theme.colors.paper.cardWarm,
+    borderColor: theme.colors.error,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 12,
     margin: 16,
   },
   errorBannerText: {
-    color: '#d32f2f',
-    fontSize: 16,
+    fontFamily: theme.typography.fontFamily.uiMedium,
+    color: theme.colors.error,
+    fontSize: 14,
     textAlign: 'center',
     fontWeight: '500',
   },

@@ -24,6 +24,11 @@ import { theme } from '../constants/theme';
 import { useQuery, useAction, useConvexAuth } from 'convex/react';
 import { api } from '../services/convex';
 import { useSafeClerkAuth } from '../hooks/useSafeClerkAuth';
+import {
+  PaperBackground,
+  Watercolor,
+  OrnamentRule,
+} from '../components/common/storybook';
 
 interface ConsentPendingScreenProps {
   onConsentGranted: () => void;
@@ -115,9 +120,15 @@ const ConsentPendingScreen: React.FC<ConsentPendingScreenProps> = ({
 
   return (
     <View style={styles.container} testID="consent-pending-screen">
+      <PaperBackground style={StyleSheet.absoluteFillObject} />
       <View style={styles.content}>
-        <Text style={styles.emoji}>&#9993;&#65039;</Text>
-        <Text style={styles.title}>Waiting for Your Parent</Text>
+        <Watercolor hue={50} size={88}>
+          ✉️
+        </Watercolor>
+        <Text style={styles.title}>Waiting for your parent</Text>
+        <View style={styles.ornamentWrap}>
+          <OrnamentRule width={140} />
+        </View>
 
         <View style={styles.statusCard}>
           <Text style={styles.statusText}>
@@ -130,7 +141,7 @@ const ConsentPendingScreen: React.FC<ConsentPendingScreenProps> = ({
         </View>
 
         <View style={styles.stepsContainer}>
-          <Text style={styles.stepsTitle}>What happens next:</Text>
+          <Text style={styles.stepsTitle}>What happens next</Text>
           <Step number={1} text="Share the link with your parent" />
           <Step number={2} text="They open the link" />
           <Step number={3} text="They review and approve" />
@@ -139,7 +150,7 @@ const ConsentPendingScreen: React.FC<ConsentPendingScreenProps> = ({
 
         {loading ? (
           <ActivityIndicator
-            color={theme.colors.primary}
+            color={theme.colors.accents.foxglove}
             size="large"
             style={{ marginBottom: 24 }}
           />
@@ -150,14 +161,14 @@ const ConsentPendingScreen: React.FC<ConsentPendingScreenProps> = ({
               style={styles.shareButton}
               onPress={handleShare}
             >
-              <Text style={styles.shareButtonText}>Share with Parent</Text>
+              <Text style={styles.shareButtonText}>Share with parent</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.copyButton}
               onPress={handleCopyLink}
             >
-              <Text style={styles.copyButtonText}>Copy Link</Text>
+              <Text style={styles.copyButtonText}>Copy link</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -165,7 +176,7 @@ const ConsentPendingScreen: React.FC<ConsentPendingScreenProps> = ({
               onPress={handleOpenInBrowser}
             >
               <Text style={styles.openButtonText}>
-                Open in Browser (for testing)
+                Open in browser (for testing)
               </Text>
             </TouchableOpacity>
           </>
@@ -176,7 +187,7 @@ const ConsentPendingScreen: React.FC<ConsentPendingScreenProps> = ({
           style={styles.signOutButton}
           onPress={onSignOut}
         >
-          <Text style={styles.signOutButtonText}>Sign Out</Text>
+          <Text style={styles.signOutButtonText}>Sign out</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -213,51 +224,60 @@ function maskEmail(email: string): string {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: theme.colors.paper.base,
     justifyContent: 'center',
     padding: 24,
   },
   content: {
     alignItems: 'center',
   },
-  emoji: {
-    fontSize: 56,
-    marginBottom: 16,
+  ornamentWrap: {
+    marginVertical: 12,
   },
   title: {
-    fontSize: theme.typography.fontSize.xl,
-    fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.text,
-    marginBottom: 24,
+    fontFamily: theme.typography.fontFamily.serifItalic,
+    fontSize: 26,
+    fontStyle: 'italic',
+    color: theme.colors.ink.base,
+    letterSpacing: -0.5,
+    marginTop: 14,
     textAlign: 'center',
   },
   statusCard: {
-    backgroundColor: '#f0f4ff',
-    borderRadius: 12,
-    padding: 20,
+    backgroundColor: theme.colors.paper.cardWarm,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: theme.colors.accents.foxglove,
+    borderRadius: 18,
+    padding: 18,
     width: '100%',
-    marginBottom: 24,
+    marginBottom: 22,
+    marginTop: 4,
   },
   statusText: {
-    fontSize: theme.typography.fontSize.base,
-    color: theme.colors.text,
+    fontFamily: theme.typography.fontFamily.serifBold,
+    fontSize: 16,
+    color: theme.colors.ink.base,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   statusSubtext: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.textSecondary,
+    fontFamily: theme.typography.fontFamily.uiRegular,
+    fontSize: 13,
+    color: theme.colors.ink.soft,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 19,
   },
   stepsContainer: {
     width: '100%',
-    marginBottom: 24,
+    marginBottom: 22,
   },
   stepsTitle: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text,
+    fontFamily: theme.typography.fontFamily.uiBold,
+    fontSize: 11,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    color: theme.colors.ink.faint,
     marginBottom: 12,
   },
   step: {
@@ -269,66 +289,76 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#e0e0e0',
+    backgroundColor: theme.colors.paper.deep,
+    borderWidth: 1,
+    borderColor: theme.colors.paper.edge,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
   stepNumberActive: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.accents.moss,
+    borderColor: theme.colors.accents.moss,
   },
   stepNumberText: {
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.bold,
-    color: '#888',
+    fontFamily: theme.typography.fontFamily.serifBold,
+    fontSize: 14,
+    color: theme.colors.ink.faint,
   },
   stepNumberTextActive: {
-    color: '#fff',
+    color: theme.colors.paper.cream,
   },
   stepText: {
-    fontSize: theme.typography.fontSize.base,
-    color: theme.colors.textSecondary,
+    fontFamily: theme.typography.fontFamily.uiRegular,
+    fontSize: 14,
+    color: theme.colors.ink.soft,
   },
   stepTextActive: {
-    color: theme.colors.text,
-    fontWeight: theme.typography.fontWeight.medium,
+    fontFamily: theme.typography.fontFamily.uiSemibold,
+    color: theme.colors.ink.base,
+    fontWeight: '500',
   },
   shareButton: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: 10,
+    backgroundColor: theme.colors.accents.foxglove,
+    borderRadius: 14,
     padding: 16,
     width: '100%',
     alignItems: 'center',
     marginBottom: 10,
+    ...theme.shadows.sm,
   },
   shareButtonText: {
-    color: '#fff',
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
+    fontFamily: theme.typography.fontFamily.uiSemibold,
+    color: theme.colors.paper.cream,
+    fontSize: 16,
+    fontWeight: '600',
   },
   copyButton: {
-    borderWidth: 1,
-    borderColor: theme.colors.primary,
-    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: theme.colors.accents.moss,
+    borderRadius: 14,
     padding: 14,
     width: '100%',
     alignItems: 'center',
     marginBottom: 10,
+    backgroundColor: theme.colors.paper.card,
   },
   copyButtonText: {
-    color: theme.colors.primary,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
+    fontFamily: theme.typography.fontFamily.uiSemibold,
+    color: theme.colors.accents.moss,
+    fontSize: 15,
+    fontWeight: '600',
   },
   openButton: {
-    padding: 12,
+    padding: 10,
     width: '100%',
     alignItems: 'center',
     marginBottom: 10,
   },
   openButtonText: {
-    color: theme.colors.textSecondary,
-    fontSize: theme.typography.fontSize.sm,
+    fontFamily: theme.typography.fontFamily.uiRegular,
+    color: theme.colors.ink.faint,
+    fontSize: 13,
     textDecorationLine: 'underline',
   },
   signOutButton: {
@@ -336,8 +366,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   signOutButtonText: {
-    color: theme.colors.textSecondary,
-    fontSize: theme.typography.fontSize.base,
+    fontFamily: theme.typography.fontFamily.uiMedium,
+    color: theme.colors.ink.faint,
+    fontSize: 14,
   },
 });
 

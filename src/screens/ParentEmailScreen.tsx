@@ -25,6 +25,11 @@ import {
 import { theme } from '../constants/theme';
 import { useMutation, useAction } from 'convex/react';
 import { api } from '../services/convex';
+import {
+  PaperBackground,
+  Watercolor,
+  OrnamentRule,
+} from '../components/common/storybook';
 
 interface ParentEmailScreenProps {
   onConsentInitiated: () => void;
@@ -97,19 +102,23 @@ const ParentEmailScreen: React.FC<ParentEmailScreenProps> = ({
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       testID="parent-email-screen"
     >
+      <PaperBackground style={StyleSheet.absoluteFillObject} />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <Text style={styles.emoji}>
+          <Watercolor hue={isRenewal ? 30 : 50} size={88}>
             {isRenewal
               ? '\u{1F504}'
               : '\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}'}
-          </Text>
+          </Watercolor>
           <Text style={styles.title}>
-            {isRenewal ? 'Time to Renew Consent' : 'Ask a Parent for Help'}
+            {isRenewal ? 'Time to renew consent' : 'Ask a parent for help'}
           </Text>
+          <View style={styles.ornamentWrap}>
+            <OrnamentRule width={140} />
+          </View>
           <Text style={styles.subtitle}>
             {isRenewal
               ? "It's been a year since your parent gave permission. We need them to confirm again so you can keep using CreativeBridge!"
@@ -181,10 +190,10 @@ const ParentEmailScreen: React.FC<ParentEmailScreenProps> = ({
             disabled={!canSubmit}
           >
             {loading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={theme.colors.paper.cream} />
             ) : (
               <Text style={styles.submitButtonText}>
-                {isRenewal ? 'Send Renewal Email' : 'Send Consent Email'}
+                {isRenewal ? 'Send renewal email' : 'Send consent email'}
               </Text>
             )}
           </TouchableOpacity>
@@ -209,7 +218,7 @@ const ParentEmailScreen: React.FC<ParentEmailScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: theme.colors.paper.base,
   },
   scrollContent: {
     flexGrow: 1,
@@ -218,79 +227,91 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 28,
   },
-  emoji: {
-    fontSize: 48,
-    marginBottom: 16,
+  ornamentWrap: {
+    marginVertical: 12,
   },
   title: {
-    fontSize: theme.typography.fontSize.xl,
-    fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.text,
+    fontFamily: theme.typography.fontFamily.serifItalic,
+    fontSize: 28,
+    fontStyle: 'italic',
+    color: theme.colors.ink.base,
+    letterSpacing: -0.5,
     textAlign: 'center',
-    marginBottom: 12,
+    marginTop: 14,
   },
   subtitle: {
-    fontSize: theme.typography.fontSize.base,
-    color: theme.colors.textSecondary,
+    fontFamily: theme.typography.fontFamily.uiRegular,
+    fontSize: 15,
+    color: theme.colors.ink.soft,
     textAlign: 'center',
     lineHeight: 22,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
   },
   form: {
     width: '100%',
   },
   label: {
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text,
+    fontFamily: theme.typography.fontFamily.uiSemibold,
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.colors.ink.soft,
     marginBottom: 6,
     marginTop: 16,
   },
   input: {
-    backgroundColor: theme.colors.inputBackground,
-    borderWidth: 1,
-    borderColor: theme.colors.inputBorder,
-    borderRadius: 10,
-    padding: 14,
-    fontSize: theme.typography.fontSize.base,
-    color: theme.colors.text,
+    fontFamily: theme.typography.fontFamily.uiRegular,
+    backgroundColor: theme.colors.paper.cream,
+    borderWidth: 1.5,
+    borderColor: theme.colors.paper.edge,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: theme.colors.ink.base,
   },
   inputError: {
-    borderColor: theme.colors.inputBorderError,
+    borderColor: theme.colors.error,
     backgroundColor: theme.colors.inputBackgroundError,
   },
   inputValid: {
-    borderColor: theme.colors.inputBorderValid,
-    backgroundColor: theme.colors.inputBackgroundValid,
+    borderColor: theme.colors.accents.moss,
+    backgroundColor: theme.colors.paper.card,
   },
   errorText: {
+    fontFamily: theme.typography.fontFamily.uiMedium,
     color: theme.colors.error,
-    fontSize: theme.typography.fontSize.sm,
+    fontSize: 13,
     marginTop: 6,
   },
   submitButton: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: 10,
-    padding: 16,
+    backgroundColor: theme.colors.accents.foxglove,
+    borderRadius: 14,
+    paddingVertical: 16,
     alignItems: 'center',
     marginTop: 24,
+    ...theme.shadows.sm,
   },
   submitButtonDisabled: {
-    backgroundColor: theme.colors.disabled,
+    backgroundColor: theme.colors.paper.deep,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   submitButtonText: {
-    color: '#fff',
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.bold,
+    fontFamily: theme.typography.fontFamily.uiSemibold,
+    color: theme.colors.paper.cream,
+    fontSize: 17,
+    fontWeight: '600',
   },
   helpText: {
-    color: theme.colors.textSecondary,
-    fontSize: theme.typography.fontSize.sm,
+    fontFamily: theme.typography.fontFamily.uiRegular,
+    color: theme.colors.ink.faint,
+    fontSize: 13,
     textAlign: 'center',
-    marginTop: 16,
-    lineHeight: 20,
+    marginTop: 18,
+    lineHeight: 19,
+    paddingHorizontal: 8,
   },
   backButton: {
     alignItems: 'center',
@@ -298,8 +319,9 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   backButtonText: {
-    color: theme.colors.textSecondary,
-    fontSize: theme.typography.fontSize.base,
+    fontFamily: theme.typography.fontFamily.uiMedium,
+    color: theme.colors.accents.foxglove,
+    fontSize: 14,
   },
 });
 

@@ -10,11 +10,14 @@ import {
   StatusBar,
   Alert,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useHeaderHeight } from '@react-navigation/elements';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { FilePickerUtils } from '../utils/filePicker';
+import { PaperBackground, Watercolor } from '../components/common/storybook';
+import { theme } from '../constants/theme';
 
 // Navigation types (will need to be updated when navigation is integrated)
 type ImportOptionsNavigationProp = NativeStackNavigationProp<any>;
@@ -25,6 +28,58 @@ export interface ImportOptionsScreenProps {
   onStoryLibraryImport?: () => void;
   onBack?: () => void;
 }
+
+interface ImportCardProps {
+  icon: string;
+  hue: number;
+  title: string;
+  desc: string;
+  bullets: string[];
+  onPress: () => void;
+  loading?: boolean;
+  disabled?: boolean;
+}
+
+const ImportCard: React.FC<ImportCardProps> = ({
+  icon,
+  hue,
+  title,
+  desc,
+  bullets,
+  onPress,
+  loading,
+  disabled,
+}) => (
+  <TouchableOpacity
+    style={[styles.importCard, disabled && styles.importCardDisabled]}
+    onPress={onPress}
+    activeOpacity={disabled ? 1 : 0.85}
+    disabled={disabled}
+  >
+    <View style={styles.importCardWatercolor}>
+      {loading ? (
+        <ActivityIndicator size="small" color={theme.colors.accents.foxglove} />
+      ) : (
+        <Watercolor hue={hue} size={64}>
+          {icon}
+        </Watercolor>
+      )}
+    </View>
+    <View style={styles.importCardBody}>
+      <Text style={styles.importCardTitle}>{title}</Text>
+      <Text style={styles.importCardDesc}>{desc}</Text>
+      <View style={styles.bulletList}>
+        {bullets.map(bullet => (
+          <View key={bullet} style={styles.bulletRow}>
+            <Text style={styles.bulletDiamond}>◆</Text>
+            <Text style={styles.bulletText}>{bullet}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+    <Text style={styles.importCardArrow}>→</Text>
+  </TouchableOpacity>
+);
 
 export const ImportOptionsScreen: React.FC<ImportOptionsScreenProps> = ({
   navigation,
@@ -110,94 +165,58 @@ export const ImportOptionsScreen: React.FC<ImportOptionsScreenProps> = ({
     }
   };
 
-  // Removed handleBack function - back button was removed from the header
-
   return (
     <View style={[styles.container, { paddingTop: headerHeight }]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
+      <PaperBackground style={StyleSheet.absoluteFillObject} />
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor={theme.colors.paper.base}
+      />
 
-      {/* Main Content */}
-      <View style={styles.content}>
-        <View style={styles.introSection}>
-          <Text style={styles.introTitle}>Choose how to continue</Text>
-          <Text style={styles.introDescription}>
-            Select an option below to import a story and continue writing with
-            AI assistance.
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Hero Header */}
+        <View style={styles.heroHeader}>
+          <Text style={styles.heroTitle}>Continue where you left off</Text>
+          <Text style={styles.heroSubtitle}>
+            Bring your old story back to life
           </Text>
         </View>
 
-        {/* Import Options */}
-        <View style={styles.optionsContainer}>
-          {/* File Import Option */}
-          <TouchableOpacity
-            style={[
-              styles.optionCard,
-              isImporting && styles.optionCardDisabled,
+        {/* Import Cards */}
+        <View style={styles.cardsList}>
+          <ImportCard
+            icon="📄"
+            hue={200}
+            title={isImporting ? 'Importing…' : 'Import from file'}
+            desc="Choose a .txt file from your device to continue writing."
+            bullets={[
+              'Upload .txt files',
+              'Maintains original formatting',
+              'Quick and easy import',
             ]}
             onPress={handleFileImport}
-            activeOpacity={isImporting ? 1 : 0.7}
+            loading={isImporting}
             disabled={isImporting}
-          >
-            <View style={styles.optionIconContainer}>
-              {isImporting ? (
-                <ActivityIndicator size="small" color="#007AFF" />
-              ) : (
-                <Text style={styles.optionIcon}>📄</Text>
-              )}
-            </View>
-            <View style={styles.optionContent}>
-              <Text style={styles.optionTitle}>
-                {isImporting ? 'Importing...' : 'Import from File'}
-              </Text>
-              <Text style={styles.optionDescription}>
-                Choose a .txt file from your device to continue writing. Perfect
-                for stories you've written elsewhere.
-              </Text>
-              <View style={styles.optionFeatures}>
-                <Text style={styles.featureText}>• Upload .txt files</Text>
-                <Text style={styles.featureText}>
-                  • Maintains original formatting
-                </Text>
-                <Text style={styles.featureText}>• Quick and easy import</Text>
-              </View>
-            </View>
-            <View style={styles.optionArrow}>
-              {!isImporting && <Text style={styles.arrowText}>→</Text>}
-            </View>
-          </TouchableOpacity>
+          />
 
-          {/* Story Library Option */}
-          <TouchableOpacity
-            style={styles.optionCard}
+          <ImportCard
+            icon="📚"
+            hue={20}
+            title="My library"
+            desc="Continue from your previously created stories in CreativeBridge."
+            bullets={[
+              'Access your story library',
+              'Search and filter stories',
+              'Pick up where you left off',
+            ]}
             onPress={handleStoryLibraryImport}
-            activeOpacity={0.7}
-          >
-            <View style={styles.optionIconContainer}>
-              <Text style={styles.optionIcon}>📚</Text>
-            </View>
-            <View style={styles.optionContent}>
-              <Text style={styles.optionTitle}>My Stories</Text>
-              <Text style={styles.optionDescription}>
-                Continue from your previously created stories in CreativeBridge.
-              </Text>
-              <View style={styles.optionFeatures}>
-                <Text style={styles.featureText}>
-                  • Access your story library
-                </Text>
-                <Text style={styles.featureText}>
-                  • Search and filter stories
-                </Text>
-                <Text style={styles.featureText}>
-                  • Pick up where you left off
-                </Text>
-              </View>
-            </View>
-            <View style={styles.optionArrow}>
-              <Text style={styles.arrowText}>→</Text>
-            </View>
-          </TouchableOpacity>
+          />
         </View>
-      </View>
+      </ScrollView>
     </View>
   );
 };
@@ -205,132 +224,107 @@ export const ImportOptionsScreen: React.FC<ImportOptionsScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.colors.paper.base,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  backButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: '#f0f0f0',
-  },
-  backButtonText: {
-    fontSize: 22,
-    color: '#333',
-    fontWeight: '600',
-  },
-  headerTitle: {
+  scrollView: {
     flex: 1,
-    textAlign: 'center',
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#333',
   },
-  headerSpacer: {
-    width: 36, // Match back button width
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 80,
   },
-  content: {
-    flex: 1,
-    padding: 20,
-  },
-  introSection: {
-    marginBottom: 32,
+
+  // Hero header
+  heroHeader: {
     alignItems: 'center',
+    marginBottom: 28,
+    paddingHorizontal: 12,
   },
-  introTitle: {
-    fontSize: 26,
+  heroTitle: {
+    fontFamily: theme.typography.fontFamily.serifBold,
+    fontSize: 32,
     fontWeight: '700',
-    color: '#333',
-    marginBottom: 8,
+    color: theme.colors.ink.base,
+    letterSpacing: -0.5,
     textAlign: 'center',
   },
-  introDescription: {
-    fontSize: 18,
-    color: '#666',
+  heroSubtitle: {
+    fontFamily: theme.typography.fontFamily.hand,
+    fontSize: 20,
+    color: theme.colors.ink.soft,
+    marginTop: 6,
     textAlign: 'center',
-    lineHeight: 24,
-    paddingHorizontal: 16,
   },
-  optionsContainer: {
-    flex: 1,
-    gap: 20,
+
+  // Cards list
+  cardsList: {
+    gap: 16,
   },
-  optionCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
+  importCard: {
     flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: '#f0f0f0',
+    alignItems: 'flex-start',
+    gap: 18,
+    padding: 20,
+    borderRadius: 20,
+    backgroundColor: theme.colors.paper.card,
+    borderWidth: 1.5,
+    borderColor: theme.colors.paper.edge,
+    ...theme.shadows.paper,
   },
-  optionCardDisabled: {
+  importCardDisabled: {
     opacity: 0.6,
-    backgroundColor: '#f8f8f8',
+    backgroundColor: theme.colors.paper.deep,
   },
-  optionIconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#f8f9fa',
-    justifyContent: 'center',
+  importCardWatercolor: {
+    width: 64,
+    height: 64,
     alignItems: 'center',
-    marginRight: 16,
+    justifyContent: 'center',
   },
-  optionIcon: {
-    fontSize: 30,
-  },
-  optionContent: {
+  importCardBody: {
     flex: 1,
   },
-  optionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
+  importCardTitle: {
+    fontFamily: theme.typography.fontFamily.serifBold,
+    fontSize: 22,
+    fontWeight: '700',
+    color: theme.colors.ink.base,
+    letterSpacing: -0.3,
   },
-  optionDescription: {
-    fontSize: 16,
-    color: '#666',
-    lineHeight: 20,
-    marginBottom: 8,
-  },
-  optionFeatures: {
-    gap: 2,
-  },
-  featureText: {
+  importCardDesc: {
+    fontFamily: theme.typography.fontFamily.uiRegular,
     fontSize: 14,
-    color: '#888',
-    lineHeight: 16,
+    color: theme.colors.ink.soft,
+    marginTop: 4,
+    lineHeight: 20,
   },
-  optionArrow: {
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 8,
+  bulletList: {
+    marginTop: 10,
+    gap: 4,
   },
-  arrowText: {
-    fontSize: 20,
-    color: '#007AFF',
-    fontWeight: '600',
+  bulletRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  bulletDiamond: {
+    fontSize: 11,
+    color: theme.colors.accents.moss,
+    marginTop: 2,
+  },
+  bulletText: {
+    fontFamily: theme.typography.fontFamily.uiRegular,
+    fontSize: 13,
+    color: theme.colors.ink.faint,
+    lineHeight: 18,
+    flex: 1,
+  },
+  importCardArrow: {
+    fontFamily: theme.typography.fontFamily.serifBold,
+    fontSize: 22,
+    color: theme.colors.accents.foxglove,
+    alignSelf: 'center',
   },
 });
 
