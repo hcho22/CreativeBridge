@@ -889,6 +889,12 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
               style={[
                 styles.primaryButton,
                 isSpeakActive && styles.activePrimaryButton,
+                // US-006 fix: solid foxglove + 30% opacity from
+                // `disabledButton` was reading as a peachy-tan, easy to
+                // mistake for "still active." Swap in a desaturated
+                // ink-faint surface during the listening+transcribing
+                // window so the disabled state is unambiguous.
+                isSpeakActive && isTranscribing && styles.transcribingButton,
                 speakDisabled && styles.disabledButton,
               ]}
               onPress={handleSpeakPress}
@@ -935,6 +941,15 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
                   size={40}
                   color={theme.colors.paper.cream}
                 />
+              ) : centerShowsStop && isTranscribing ? (
+                // US-006 fix: spinner instead of stop glyph during the
+                // Whisper round-trip so the user sees clear "processing"
+                // feedback. Mirrors the isGenerating spinner pattern.
+                <ActivityIndicator
+                  size="large"
+                  color={theme.colors.paper.cream}
+                  accessibilityLabel="Transcribing your speech"
+                />
               ) : centerShowsStop ? (
                 <MaterialIcons
                   name="stop"
@@ -978,7 +993,13 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
             )}
           </View>
           <Text style={styles.primaryLabel}>
-            {centerShowsArrow ? 'Upload' : centerShowsStop ? 'Stop' : 'Speak'}
+            {centerShowsArrow
+              ? 'Upload'
+              : centerShowsStop
+              ? isTranscribing
+                ? 'Transcribing…'
+                : 'Stop'
+              : 'Speak'}
           </Text>
         </View>
 
@@ -1133,6 +1154,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#9A2F08', // Foxglove pressed — 10% darker
     transform: [{ scale: 1.05 }],
     ...shadowFor(activeElevation),
+  },
+  // US-006 fix: distinct surface during the listening+transcribing window.
+  // Desaturated ink-faint background communicates "processing, please wait"
+  // unambiguously — the previous foxglove-at-30%-opacity composition
+  // composited as a peachy tan that read as "still tappable."
+  transcribingButton: {
+    backgroundColor: theme.colors.ink.faint,
+    transform: [{ scale: 1.0 }],
+    ...shadowFor(idleElevation),
   },
   // --- Disabled state (matches floatingIconButtonDisabled convention) ---
   disabledButton: {
