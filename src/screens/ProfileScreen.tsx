@@ -21,6 +21,16 @@ import {
   pickAvatarImage,
   uploadAvatarToConvex,
 } from '../services/avatarUploadService';
+import {
+  PaperBackground,
+  Watercolor,
+  WaxSeal,
+  StarIcon,
+  FlameIcon,
+  QuillIcon,
+  OrnamentRule,
+} from '../components/common/storybook';
+import { theme } from '../constants/theme';
 
 type ProfileScreenNavigationProp = BottomTabNavigationProp<
   TabParamList,
@@ -30,6 +40,57 @@ type ProfileScreenNavigationProp = BottomTabNavigationProp<
 interface ProfileScreenProps {
   navigation: ProfileScreenNavigationProp;
 }
+
+const BADGES: Array<{
+  emoji: string;
+  title: string;
+  desc: string;
+  earned: boolean;
+  hue: number;
+}> = [
+  {
+    emoji: '🥇',
+    title: 'First tale',
+    desc: 'Finish 1 story',
+    earned: true,
+    hue: 50,
+  },
+  {
+    emoji: '🔥',
+    title: 'On fire',
+    desc: '3-day streak',
+    earned: true,
+    hue: 20,
+  },
+  {
+    emoji: '📚',
+    title: 'Bookwright',
+    desc: '10 stories',
+    earned: false,
+    hue: 140,
+  },
+  {
+    emoji: '🌙',
+    title: 'Midnight muse',
+    desc: 'Write after 10pm',
+    earned: false,
+    hue: 260,
+  },
+  {
+    emoji: '🧭',
+    title: 'Wayfinder',
+    desc: 'Try all 6 genres',
+    earned: false,
+    hue: 200,
+  },
+  {
+    emoji: '👑',
+    title: 'Laureate',
+    desc: 'Reach level 100',
+    earned: false,
+    hue: 340,
+  },
+];
 
 const ProfileScreen: React.FC<ProfileScreenProps> = ({
   navigation: _navigation,
@@ -156,259 +217,353 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   }, [userProfile?.total_xp]);
 
   const { level, progress, nextLevelXP } = levelData;
+  const totalXp = userProfile?.total_xp || 0;
+  const xpRemaining = Math.max(0, nextLevelXP - totalXp);
+
+  const displayName = userProfile?.display_name || 'Writer';
+  const username = userProfile?.username || 'username';
+  const avatarInitial = displayName.charAt(0).toUpperCase() || '?';
+
+  const renderSectionTitle = (icon: string, title: string) => (
+    <View style={styles.sectionTitleRow}>
+      <Text style={styles.sectionTitleIcon}>{icon}</Text>
+      <Text style={styles.sectionTitleText}>{title}</Text>
+      <View style={styles.sectionTitleRule} />
+    </View>
+  );
 
   return (
     <View style={styles.container}>
+      <PaperBackground style={StyleSheet.absoluteFillObject} />
       <ScrollView
-        style={styles.container}
+        style={styles.scrollView}
         contentContainerStyle={{
-          paddingTop: insets.top,
-          paddingBottom: insets.bottom + 80,
+          paddingTop: insets.top + 20,
+          paddingBottom: insets.bottom + 100,
+          paddingHorizontal: 20,
         }}
+        showsVerticalScrollIndicator={false}
       >
-        <View style={styles.content}>
-          {/* Profile Header */}
-          <View style={styles.profileHeader}>
-            <TouchableOpacity
-              style={styles.avatarContainer}
-              activeOpacity={userProfile?.avatar_url ? 0.7 : 1}
-              disabled={!userProfile?.avatar_url}
-              onPress={() => setAvatarPreviewModalVisible(true)}
-            >
-              {userProfile?.avatar_url ? (
-                <Image
-                  source={{ uri: userProfile.avatar_url }}
-                  style={styles.avatarImage}
-                />
-              ) : (
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>
-                    {userProfile?.display_name?.charAt(0)?.toUpperCase() || '?'}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-
-            <Text style={styles.displayName}>
-              {userProfile?.display_name || 'Writer'}
-            </Text>
-            <Text style={styles.username}>
-              @{userProfile?.username || 'username'}
-            </Text>
-
-            <TouchableOpacity
-              style={styles.editButton}
-              onPress={handleEditProfile}
-            >
-              <Text style={styles.editButtonText}>✏️ Edit Profile</Text>
-            </TouchableOpacity>
+        {/* Author Card */}
+        <View style={styles.authorCard}>
+          <View style={styles.cornerWatercolor} pointerEvents="none">
+            <Watercolor hue={30} size={140} soft />
           </View>
-
-          {/* Level Progress */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🏆 Level Progress</Text>
-            <View style={styles.levelContainer}>
-              <Text style={styles.levelText}>Level {level}</Text>
-              <View style={styles.progressBarContainer}>
-                <View style={[styles.progressBar, { width: `${progress}%` }]} />
+          <TouchableOpacity
+            style={styles.authorAvatarTouch}
+            activeOpacity={userProfile?.avatar_url ? 0.7 : 1}
+            disabled={!userProfile?.avatar_url}
+            onPress={() => setAvatarPreviewModalVisible(true)}
+          >
+            {userProfile?.avatar_url ? (
+              <Image
+                source={{ uri: userProfile.avatar_url }}
+                style={styles.authorAvatarImage}
+              />
+            ) : (
+              <View style={styles.authorAvatarFallback}>
+                <Watercolor hue={30} size={88}>
+                  {avatarInitial}
+                </Watercolor>
               </View>
-              <Text style={styles.progressText}>
-                {userProfile?.total_xp || 0} / {nextLevelXP} XP
+            )}
+          </TouchableOpacity>
+
+          <Text style={styles.authorName}>{displayName}</Text>
+          <Text style={styles.authorHandle}>@{username}</Text>
+
+          <TouchableOpacity
+            style={styles.editPill}
+            onPress={handleEditProfile}
+            accessibilityLabel="Edit author profile"
+          >
+            <QuillIcon size={14} color={theme.colors.paper.cream} />
+            <Text style={styles.editPillText}>Edit author profile</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Level Progress */}
+        <View style={styles.levelCard}>
+          <View style={styles.levelHeaderRow}>
+            <View style={styles.levelHeaderLeft}>
+              <WaxSeal letter={String(level)} size={44} />
+              <View style={styles.levelHeaderInfo}>
+                <Text style={styles.scribeEyebrow}>Scribe level</Text>
+                <Text style={styles.scribeName}>Level {level}</Text>
+              </View>
+            </View>
+            <View style={styles.levelHeaderRight}>
+              <Text style={styles.xpTotalText}>
+                {totalXp.toLocaleString()} / {nextLevelXP.toLocaleString()} XP
+              </Text>
+              <Text style={styles.xpRemainingText}>
+                {xpRemaining} XP to level {level + 1}
               </Text>
             </View>
           </View>
+          <View style={styles.progressBarTrack}>
+            <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
+          </View>
+        </View>
 
-          {/* Statistics */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>📊 Statistics</Text>
-            <View style={styles.statsGrid}>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>
-                  {userProfile?.total_xp || 0}
-                </Text>
-                <Text style={styles.statLabel}>⭐ Total XP</Text>
+        {/* Statistics */}
+        <View style={styles.section}>
+          {renderSectionTitle('📊', 'Your chronicle')}
+          <View style={styles.statsGrid}>
+            <View style={styles.statCard}>
+              <View style={styles.statIconRow}>
+                <StarIcon size={18} color={theme.colors.accents.gold} />
               </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>
-                  {userProfile?.current_streak || 0}
-                </Text>
-                <Text style={styles.statLabel}>🔥 Current Streak</Text>
+              <Text
+                style={[styles.statValue, { color: theme.colors.accents.gold }]}
+              >
+                {totalXp.toLocaleString()}
+              </Text>
+              <Text style={styles.statLabel}>Total XP</Text>
+            </View>
+            <View style={styles.statCard}>
+              <View style={styles.statIconRow}>
+                <FlameIcon size={18} />
               </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>
-                  {userProfile?.longest_streak || 0}
-                </Text>
-                <Text style={styles.statLabel}>🏆 Longest Streak</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>
-                  {userProfile?.total_games_played || 0}
-                </Text>
-                <Text style={styles.statLabel}>🎮 Games Played</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>
-                  {userProfile?.total_words_written || 0}
-                </Text>
-                <Text style={styles.statLabel}>📝 Words Written</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>
-                  {userProfile?.best_score || 0}
-                </Text>
-                <Text style={styles.statLabel}>🎯 Best Score</Text>
-              </View>
+              <Text
+                style={[
+                  styles.statValue,
+                  { color: theme.colors.accents.amber },
+                ]}
+              >
+                {userProfile?.current_streak || 0}
+              </Text>
+              <Text style={styles.statLabel}>Day streak</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statIconText}>🏆</Text>
+              <Text
+                style={[
+                  styles.statValue,
+                  { color: theme.colors.accents.foxglove },
+                ]}
+              >
+                {userProfile?.longest_streak || 0}
+              </Text>
+              <Text style={styles.statLabel}>Longest streak</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statIconText}>🎮</Text>
+              <Text
+                style={[
+                  styles.statValue,
+                  { color: theme.colors.accents.inkwell },
+                ]}
+              >
+                {userProfile?.total_games_played || 0}
+              </Text>
+              <Text style={styles.statLabel}>Stories begun</Text>
+            </View>
+            <View style={[styles.statCard, styles.statCardHighlight]}>
+              <Text style={styles.statIconText}>✒️</Text>
+              <Text
+                style={[styles.statValue, { color: theme.colors.accents.moss }]}
+              >
+                {(userProfile?.total_words_written || 0).toLocaleString()}
+              </Text>
+              <Text style={styles.statLabel}>Words penned</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statIconText}>🎯</Text>
+              <Text
+                style={[styles.statValue, { color: theme.colors.accents.plum }]}
+              >
+                {(userProfile?.best_score || 0).toLocaleString()}
+              </Text>
+              <Text style={styles.statLabel}>Best score</Text>
             </View>
           </View>
+        </View>
 
-          {/* Preferences */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>⚙️ Preferences</Text>
+        {/* Badges */}
+        <View style={styles.section}>
+          {renderSectionTitle('🏅', 'Badges earned')}
+          <View style={styles.badgesGrid}>
+            {BADGES.map(badge => (
+              <View
+                key={badge.title}
+                style={[
+                  styles.badge,
+                  badge.earned ? styles.badgeEarned : styles.badgeLocked,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.badgeEmojiCircle,
+                    badge.earned
+                      ? styles.badgeEmojiEarned
+                      : styles.badgeEmojiLocked,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.badgeEmoji,
+                      !badge.earned && styles.badgeEmojiGrayed,
+                    ]}
+                  >
+                    {badge.emoji}
+                  </Text>
+                </View>
+                <View style={styles.badgeTextWrap}>
+                  <Text style={styles.badgeTitle} numberOfLines={1}>
+                    {badge.title}
+                  </Text>
+                  <Text style={styles.badgeDesc} numberOfLines={1}>
+                    {badge.desc}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
 
-            <View style={styles.preferenceItem}>
-              <Text style={styles.preferenceLabel}>Grade Level</Text>
+        {/* Preferences */}
+        <View style={styles.section}>
+          {renderSectionTitle('🎛️', 'Preferences')}
+          <View style={styles.preferencesCard}>
+            <View style={styles.preferenceRow}>
+              <Text style={styles.preferenceLabel}>Reading level</Text>
               <Text style={styles.preferenceValue}>
                 {getGradeDescription(
                   userProfile?.preferred_grade_level || 'K-2',
                 )}
               </Text>
             </View>
-
-            <View style={styles.preferenceItem}>
-              <Text style={styles.preferenceLabel}>Speech Features</Text>
+            <View style={[styles.preferenceRow, styles.preferenceRowLast]}>
+              <Text style={styles.preferenceLabel}>Speech features</Text>
               <Text
                 style={[
                   styles.preferenceValue,
-                  userProfile?.speech_enabled
-                    ? styles.enabledText
-                    : styles.disabledText,
+                  {
+                    color: userProfile?.speech_enabled
+                      ? theme.colors.accents.moss
+                      : theme.colors.accents.foxglove,
+                  },
                 ]}
               >
                 {userProfile?.speech_enabled ? 'Enabled' : 'Disabled'}
               </Text>
             </View>
           </View>
-
-          {/* Achievements (Future Feature) */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🏅 Achievements</Text>
-            <View style={styles.achievementsContainer}>
-              <Text style={styles.achievementsPlaceholder}>
-                Achievement system coming soon!
-                {'\n\n'}
-                Start writing stories to unlock badges and rewards.
-              </Text>
-            </View>
-          </View>
         </View>
 
-        {/* Edit Profile Modal */}
-        <Modal
-          visible={editModalVisible}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={handleCancelEdit}
-        >
-          <View style={styles.modalOverlay}>
-            <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              style={styles.modalContainer}
-            >
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Edit Profile</Text>
+        <View style={styles.ornamentWrap}>
+          <OrnamentRule width={180} />
+        </View>
+      </ScrollView>
 
-                {/* Avatar Picker */}
-                <TouchableOpacity
-                  style={styles.modalAvatarContainer}
-                  onPress={handlePickAvatar}
-                  disabled={avatarUploading}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.modalAvatarWrapper}>
-                    {userProfile?.avatar_url ? (
-                      <Image
-                        source={{ uri: userProfile.avatar_url }}
-                        style={styles.modalAvatarImage}
-                      />
-                    ) : (
-                      <View style={styles.modalAvatar}>
-                        <Text style={styles.modalAvatarText}>
-                          {userProfile?.display_name
-                            ?.charAt(0)
-                            ?.toUpperCase() || '?'}
-                        </Text>
-                      </View>
-                    )}
-                    <View style={styles.cameraOverlay}>
-                      <Text style={styles.cameraOverlayText}>📷</Text>
+      {/* Edit Profile Modal */}
+      <Modal
+        visible={editModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={handleCancelEdit}
+      >
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalContainer}
+          >
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Edit profile</Text>
+
+              <TouchableOpacity
+                style={styles.modalAvatarContainer}
+                onPress={handlePickAvatar}
+                disabled={avatarUploading}
+                activeOpacity={0.7}
+              >
+                <View style={styles.modalAvatarWrapper}>
+                  {userProfile?.avatar_url ? (
+                    <Image
+                      source={{ uri: userProfile.avatar_url }}
+                      style={styles.modalAvatarImage}
+                    />
+                  ) : (
+                    <View style={styles.modalAvatar}>
+                      <Watercolor hue={30} size={100}>
+                        {avatarInitial}
+                      </Watercolor>
                     </View>
-                    {avatarUploading && (
-                      <View style={styles.avatarLoadingOverlay}>
-                        <ActivityIndicator size="large" color="#ffffff" />
-                      </View>
-                    )}
+                  )}
+                  <View style={styles.cameraOverlay}>
+                    <Text style={styles.cameraOverlayText}>📷</Text>
                   </View>
-                  <Text style={styles.changePhotoText}>Change Photo</Text>
+                  {avatarUploading && (
+                    <View style={styles.avatarLoadingOverlay}>
+                      <ActivityIndicator
+                        size="large"
+                        color={theme.colors.paper.cream}
+                      />
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.changePhotoText}>Change photo</Text>
+              </TouchableOpacity>
+
+              {userProfile?.avatar_url ? (
+                <TouchableOpacity onPress={handleRemoveAvatar}>
+                  <Text style={styles.removePhotoText}>Remove photo</Text>
+                </TouchableOpacity>
+              ) : null}
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Display name</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editedDisplayName}
+                  onChangeText={setEditedDisplayName}
+                  placeholder="Enter your display name"
+                  placeholderTextColor={theme.colors.ink.faint}
+                  maxLength={50}
+                />
+              </View>
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.cancelButton]}
+                  onPress={handleCancelEdit}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
 
-                {userProfile?.avatar_url ? (
-                  <TouchableOpacity onPress={handleRemoveAvatar}>
-                    <Text style={styles.removePhotoText}>Remove Photo</Text>
-                  </TouchableOpacity>
-                ) : null}
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Display Name</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={editedDisplayName}
-                    onChangeText={setEditedDisplayName}
-                    placeholder="Enter your display name"
-                    maxLength={50}
-                  />
-                </View>
-
-                <View style={styles.modalButtons}>
-                  <TouchableOpacity
-                    style={[styles.modalButton, styles.cancelButton]}
-                    onPress={handleCancelEdit}
-                  >
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.modalButton, styles.saveButton]}
-                    onPress={handleSaveProfile}
-                  >
-                    <Text style={styles.saveButtonText}>Save</Text>
-                  </TouchableOpacity>
-                </View>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.saveButton]}
+                  onPress={handleSaveProfile}
+                >
+                  <Text style={styles.saveButtonText}>Save</Text>
+                </TouchableOpacity>
               </View>
-            </KeyboardAvoidingView>
-          </View>
-        </Modal>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
 
-        {/* Avatar Preview Modal */}
-        <Modal
-          visible={avatarPreviewModalVisible}
-          animationType="fade"
-          transparent={true}
-          onRequestClose={() => setAvatarPreviewModalVisible(false)}
+      {/* Avatar Preview Modal */}
+      <Modal
+        visible={avatarPreviewModalVisible}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setAvatarPreviewModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.avatarPreviewOverlay}
+          activeOpacity={1}
+          onPress={() => setAvatarPreviewModalVisible(false)}
         >
-          <TouchableOpacity
-            style={styles.avatarPreviewOverlay}
-            activeOpacity={1}
-            onPress={() => setAvatarPreviewModalVisible(false)}
-          >
-            {userProfile?.avatar_url && (
-              <Image
-                source={{ uri: userProfile.avatar_url }}
-                style={styles.avatarPreviewImage}
-              />
-            )}
-          </TouchableOpacity>
-        </Modal>
-      </ScrollView>
+          {userProfile?.avatar_url && (
+            <Image
+              source={{ uri: userProfile.avatar_url }}
+              style={styles.avatarPreviewImage}
+            />
+          )}
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
@@ -416,247 +571,408 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fcfcfc',
+    backgroundColor: theme.colors.paper.base,
   },
-  content: {
-    padding: 20,
+  scrollView: {
+    flex: 1,
   },
-  profileHeader: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 30,
+
+  // Author card
+  authorCard: {
+    backgroundColor: theme.colors.paper.card,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: theme.colors.paper.edge,
+    padding: 22,
     alignItems: 'center',
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    overflow: 'hidden',
+    position: 'relative',
+    marginBottom: 18,
+    ...theme.shadows.card,
   },
-  avatarContainer: {
-    marginBottom: 15,
+  cornerWatercolor: {
+    position: 'absolute',
+    top: -30,
+    right: -30,
+    opacity: 0.15,
   },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#4CAF50',
+  authorAvatarTouch: {
+    marginBottom: 12,
+  },
+  authorAvatarImage: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    borderWidth: 2,
+    borderColor: theme.colors.paper.edge,
+  },
+  authorAvatarFallback: {
+    alignItems: 'center',
     justifyContent: 'center',
+  },
+  authorAvatarInitial: {
+    fontFamily: theme.typography.fontFamily.serifBold,
+    fontSize: 36,
+    color: theme.colors.paper.cream,
+    textAlign: 'center',
+  },
+  authorName: {
+    fontFamily: theme.typography.fontFamily.serifItalic,
+    fontSize: 28,
+    fontStyle: 'italic',
+    color: theme.colors.ink.base,
+    letterSpacing: -0.5,
+    marginBottom: 4,
+  },
+  authorHandle: {
+    fontFamily: theme.typography.fontFamily.uiRegular,
+    fontSize: 13,
+    color: theme.colors.ink.faint,
+    marginBottom: 14,
+  },
+  editPill: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
+    backgroundColor: theme.colors.accents.foxglove,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 999,
+    ...theme.shadows.sm,
   },
-  avatarImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-  },
-  avatarText: {
-    fontSize: 38,
-    fontWeight: 'bold',
-    color: '#ffffff',
-  },
-  displayName: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 5,
-  },
-  username: {
-    fontSize: 18,
-    color: '#666',
-    marginBottom: 20,
-  },
-  editButton: {
-    backgroundColor: '#4CAF50',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-  },
-  editButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
+  editPillText: {
+    fontFamily: theme.typography.fontFamily.uiSemibold,
+    fontSize: 13,
+    color: theme.colors.paper.cream,
     fontWeight: '600',
   },
-  section: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
+
+  // Level card
+  levelCard: {
+    backgroundColor: theme.colors.paper.card,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: theme.colors.paper.edge,
     padding: 20,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    marginBottom: 18,
+    ...theme.shadows.paper,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 15,
-  },
-  levelContainer: {
+  levelHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 12,
   },
-  levelText: {
+  levelHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  levelHeaderInfo: {
+    flexShrink: 1,
+  },
+  scribeEyebrow: {
+    fontFamily: theme.typography.fontFamily.uiBold,
+    fontSize: 11,
+    letterSpacing: 1.5,
+    color: theme.colors.ink.faint,
+    textTransform: 'uppercase',
+  },
+  scribeName: {
+    fontFamily: theme.typography.fontFamily.serifBold,
     fontSize: 22,
-    fontWeight: 'bold',
-    color: '#4CAF50',
-    marginBottom: 10,
+    color: theme.colors.ink.base,
+    letterSpacing: -0.3,
   },
-  progressBarContainer: {
-    width: '100%',
-    height: 8,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 4,
-    marginBottom: 8,
+  levelHeaderRight: {
+    alignItems: 'flex-end',
   },
-  progressBar: {
+  xpTotalText: {
+    fontFamily: theme.typography.fontFamily.serifBold,
+    fontSize: 18,
+    color: theme.colors.accents.moss,
+  },
+  xpRemainingText: {
+    fontFamily: theme.typography.fontFamily.uiRegular,
+    fontSize: 11,
+    color: theme.colors.ink.faint,
+    marginTop: 2,
+  },
+  progressBarTrack: {
+    height: 14,
+    borderRadius: 10,
+    backgroundColor: theme.colors.paper.deep,
+    borderWidth: 1,
+    borderColor: theme.colors.paper.edge,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
     height: '100%',
-    backgroundColor: '#4CAF50',
-    borderRadius: 4,
+    backgroundColor: theme.colors.accents.moss,
   },
-  progressText: {
+
+  // Section primitive
+  section: {
+    marginBottom: 18,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+    paddingLeft: 4,
+  },
+  sectionTitleIcon: {
     fontSize: 16,
-    color: '#666',
   },
+  sectionTitleText: {
+    fontFamily: theme.typography.fontFamily.serifItalic,
+    fontSize: 18,
+    fontStyle: 'italic',
+    color: theme.colors.ink.base,
+  },
+  sectionTitleRule: {
+    flex: 1,
+    height: 1,
+    backgroundColor: theme.colors.paper.edge,
+    marginLeft: 6,
+  },
+
+  // Stats grid
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    gap: 10,
   },
   statCard: {
-    width: '48%',
-    backgroundColor: '#f8f9fa',
-    padding: 15,
-    borderRadius: 8,
+    width: '31.5%',
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: theme.colors.paper.card,
+    borderWidth: 1,
+    borderColor: theme.colors.paper.edge,
+  },
+  statCardHighlight: {
+    backgroundColor: theme.colors.paper.cardWarm,
+  },
+  statIconRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 4,
+  },
+  statIconText: {
+    fontSize: 14,
+    marginBottom: 4,
   },
   statValue: {
+    fontFamily: theme.typography.fontFamily.serifBold,
     fontSize: 22,
-    fontWeight: 'bold',
-    color: '#4CAF50',
-    marginBottom: 5,
+    letterSpacing: -0.3,
   },
   statLabel: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
+    fontFamily: theme.typography.fontFamily.uiMedium,
+    fontSize: 11,
+    color: theme.colors.ink.faint,
+    marginTop: 2,
   },
-  preferenceItem: {
+
+  // Badges grid
+  badgesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  badge: {
+    width: '47.5%',
+    padding: 12,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  badgeEarned: {
+    backgroundColor: theme.colors.paper.card,
+    borderWidth: 1,
+    borderColor: theme.colors.paper.edge,
+  },
+  badgeLocked: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: theme.colors.paper.edge,
+    opacity: 0.7,
+  },
+  badgeEmojiCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeEmojiEarned: {
+    backgroundColor: theme.colors.paper.deep,
+    ...theme.shadows.sm,
+  },
+  badgeEmojiLocked: {
+    backgroundColor: theme.colors.paper.deep,
+    opacity: 0.6,
+  },
+  badgeEmoji: {
+    fontSize: 20,
+  },
+  badgeEmojiGrayed: {
+    opacity: 0.5,
+  },
+  badgeTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  badgeTitle: {
+    fontFamily: theme.typography.fontFamily.uiBold,
+    fontSize: 13,
+    color: theme.colors.ink.base,
+    fontWeight: '700',
+  },
+  badgeDesc: {
+    fontFamily: theme.typography.fontFamily.uiRegular,
+    fontSize: 10,
+    color: theme.colors.ink.faint,
+    marginTop: 1,
+  },
+
+  // Preferences card
+  preferencesCard: {
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: theme.colors.paper.card,
+    borderWidth: 1,
+    borderColor: theme.colors.paper.edge,
+  },
+  preferenceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: theme.colors.paper.edge,
+  },
+  preferenceRowLast: {
+    borderBottomWidth: 0,
   },
   preferenceLabel: {
-    fontSize: 18,
-    color: '#333',
+    fontFamily: theme.typography.fontFamily.uiMedium,
+    fontSize: 14,
+    color: theme.colors.ink.soft,
     fontWeight: '500',
   },
   preferenceValue: {
-    fontSize: 18,
-    color: '#666',
+    fontFamily: theme.typography.fontFamily.uiSemibold,
+    fontSize: 14,
+    color: theme.colors.ink.base,
+    fontWeight: '600',
   },
-  enabledText: {
-    color: '#4CAF50',
-  },
-  disabledText: {
-    color: '#f44336',
-  },
-  achievementsContainer: {
+
+  ornamentWrap: {
     alignItems: 'center',
-    paddingVertical: 20,
+    marginTop: 8,
+    marginBottom: 12,
   },
-  achievementsPlaceholder: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-  // Modal styles
+
+  // Edit modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(43, 29, 20, 0.55)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalContainer: {
     width: '90%',
-    maxWidth: 400,
+    maxWidth: 420,
   },
   modalContent: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 25,
+    backgroundColor: theme.colors.paper.card,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: theme.colors.paper.edge,
+    padding: 24,
+    ...theme.shadows.lift,
   },
   modalTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 20,
+    fontFamily: theme.typography.fontFamily.serifItalic,
+    fontSize: 24,
+    fontStyle: 'italic',
+    color: theme.colors.ink.base,
+    marginBottom: 18,
     textAlign: 'center',
   },
   inputGroup: {
-    marginBottom: 20,
+    marginBottom: 18,
   },
   inputLabel: {
-    fontSize: 18,
+    fontFamily: theme.typography.fontFamily.uiSemibold,
+    fontSize: 14,
+    color: theme.colors.ink.soft,
+    marginBottom: 6,
     fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
   },
   textInput: {
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    fontSize: 18,
-    backgroundColor: '#f8f9fa',
+    fontFamily: theme.typography.fontFamily.uiRegular,
+    borderWidth: 1.5,
+    borderColor: theme.colors.paper.edge,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    backgroundColor: theme.colors.paper.cream,
+    color: theme.colors.ink.base,
   },
   modalButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 10,
+    gap: 10,
+    marginTop: 6,
   },
   modalButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
     alignItems: 'center',
-    marginHorizontal: 5,
   },
   cancelButton: {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: theme.colors.paper.cream,
+    borderWidth: 1,
+    borderColor: theme.colors.paper.edge,
   },
   saveButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: theme.colors.accents.foxglove,
+    ...theme.shadows.sm,
   },
   cancelButtonText: {
-    color: '#666',
-    fontSize: 18,
+    fontFamily: theme.typography.fontFamily.uiSemibold,
+    color: theme.colors.ink.soft,
+    fontSize: 16,
     fontWeight: '600',
   },
   saveButtonText: {
-    color: '#ffffff',
-    fontSize: 18,
+    fontFamily: theme.typography.fontFamily.uiSemibold,
+    color: theme.colors.paper.cream,
+    fontSize: 16,
     fontWeight: '600',
   },
-  // Modal avatar styles (Edit Profile modal)
+
+  // Modal avatar
   modalAvatarContainer: {
-    alignSelf: 'center' as const,
-    marginBottom: 20,
-    position: 'relative' as const,
-    alignItems: 'center' as const,
+    alignSelf: 'center',
+    marginBottom: 12,
+    alignItems: 'center',
   },
   modalAvatarWrapper: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    overflow: 'hidden' as const,
-    position: 'relative' as const,
+    overflow: 'hidden',
+    position: 'relative',
   },
   modalAvatarImage: {
     width: 100,
@@ -667,24 +983,24 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#4CAF50',
-    justifyContent: 'center' as const,
-    alignItems: 'center' as const,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalAvatarText: {
-    fontSize: 46,
-    fontWeight: 'bold' as const,
-    color: '#ffffff',
+    fontFamily: theme.typography.fontFamily.serifBold,
+    fontSize: 42,
+    color: theme.colors.paper.cream,
+    textAlign: 'center',
   },
   cameraOverlay: {
-    position: 'absolute' as const,
+    position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     height: 30,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center' as const,
-    alignItems: 'center' as const,
+    backgroundColor: 'rgba(43, 29, 20, 0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
     borderBottomLeftRadius: 50,
     borderBottomRightRadius: 50,
   },
@@ -692,28 +1008,32 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   changePhotoText: {
-    fontSize: 14,
-    color: '#4CAF50',
-    textAlign: 'center' as const,
-    marginTop: 5,
+    fontFamily: theme.typography.fontFamily.uiMedium,
+    fontSize: 13,
+    color: theme.colors.accents.foxglove,
+    textAlign: 'center',
+    marginTop: 6,
   },
   removePhotoText: {
-    fontSize: 14,
-    color: '#ff4444',
-    textAlign: 'center' as const,
-    marginTop: 5,
+    fontFamily: theme.typography.fontFamily.uiMedium,
+    fontSize: 13,
+    color: theme.colors.error,
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 6,
   },
   avatarLoadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 50,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    justifyContent: 'center' as const,
-    alignItems: 'center' as const,
+    backgroundColor: 'rgba(43, 29, 20, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  // Avatar Preview styles
+
+  // Avatar preview modal
   avatarPreviewOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    backgroundColor: 'rgba(43, 29, 20, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
   },

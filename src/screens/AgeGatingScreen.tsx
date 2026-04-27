@@ -6,30 +6,49 @@ import {
   StyleSheet,
   ActivityIndicator,
   SafeAreaView,
+  ScrollView,
 } from 'react-native';
 import { useMutation } from 'convex/react';
 import { api } from '../services/convex';
 import type { AgeGroup } from '../types/database';
+import {
+  PaperBackground,
+  Watercolor,
+  OrnamentRule,
+} from '../components/common/storybook';
+import { theme } from '../constants/theme';
 
 interface AgeGatingScreenProps {
   onComplete: () => void;
 }
 
-const AGE_OPTIONS: { value: AgeGroup; label: string; description: string }[] = [
+const AGE_OPTIONS: {
+  value: AgeGroup;
+  label: string;
+  description: string;
+  hue: number;
+  emoji: string;
+}[] = [
   {
     value: 'under_13',
     label: 'Under 13',
     description: 'A parent or guardian will need to give permission',
+    hue: 200,
+    emoji: '🌱',
   },
   {
     value: '13_to_17',
     label: '13 to 17',
     description: 'You can use CreativeBridge on your own',
+    hue: 140,
+    emoji: '🌿',
   },
   {
     value: '18_plus',
     label: '18 or older',
     description: 'Full access to all features',
+    hue: 30,
+    emoji: '🌻',
   },
 ];
 
@@ -59,46 +78,59 @@ const AgeGatingScreen: React.FC<AgeGatingScreenProps> = ({ onComplete }) => {
 
   return (
     <SafeAreaView style={styles.container} testID="age-gating-screen">
-      <View style={styles.content}>
+      <PaperBackground style={StyleSheet.absoluteFillObject} />
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.headerSection}>
+          <Text style={styles.eyebrow}>Welcome, young scribe</Text>
           <Text style={styles.title}>How old are you?</Text>
+          <View style={styles.ornamentWrap}>
+            <OrnamentRule width={160} />
+          </View>
           <Text style={styles.subtitle}>
             This helps us keep CreativeBridge safe and fun for everyone
           </Text>
         </View>
 
         <View style={styles.optionsSection}>
-          {AGE_OPTIONS.map(option => (
-            <TouchableOpacity
-              key={option.value}
-              testID={`age-option-${option.value}`}
-              style={[
-                styles.ageOption,
-                selectedAge === option.value && styles.ageOptionSelected,
-              ]}
-              onPress={() => setSelectedAge(option.value)}
-              disabled={saving}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  styles.ageOptionLabel,
-                  selectedAge === option.value && styles.ageOptionLabelSelected,
-                ]}
+          {AGE_OPTIONS.map(option => {
+            const selected = selectedAge === option.value;
+            return (
+              <TouchableOpacity
+                key={option.value}
+                testID={`age-option-${option.value}`}
+                style={[styles.ageOption, selected && styles.ageOptionSelected]}
+                onPress={() => setSelectedAge(option.value)}
+                disabled={saving}
+                activeOpacity={0.85}
               >
-                {option.label}
-              </Text>
-              <Text
-                style={[
-                  styles.ageOptionDescription,
-                  selectedAge === option.value &&
-                    styles.ageOptionDescriptionSelected,
-                ]}
-              >
-                {option.description}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Watercolor hue={option.hue} size={48}>
+                  {option.emoji}
+                </Watercolor>
+                <View style={styles.ageOptionBody}>
+                  <Text
+                    style={[
+                      styles.ageOptionLabel,
+                      selected && styles.ageOptionLabelSelected,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.ageOptionDescription,
+                      selected && styles.ageOptionDescriptionSelected,
+                    ]}
+                  >
+                    {option.description}
+                  </Text>
+                </View>
+                {selected ? <Text style={styles.checkmark}>✓</Text> : null}
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         {error && <Text style={styles.errorText}>{error}</Text>}
@@ -113,7 +145,7 @@ const AgeGatingScreen: React.FC<AgeGatingScreenProps> = ({ onComplete }) => {
           disabled={!selectedAge || saving}
         >
           {saving ? (
-            <ActivityIndicator size="small" color="#fff" />
+            <ActivityIndicator size="small" color={theme.colors.paper.cream} />
           ) : (
             <Text style={styles.continueButtonText}>Continue</Text>
           )}
@@ -123,7 +155,7 @@ const AgeGatingScreen: React.FC<AgeGatingScreenProps> = ({ onComplete }) => {
           We ask this to comply with children's privacy laws (COPPA).{'\n'}
           Your age information is stored securely and never shared.
         </Text>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -131,85 +163,115 @@ const AgeGatingScreen: React.FC<AgeGatingScreenProps> = ({ onComplete }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fcfcfc',
+    backgroundColor: theme.colors.paper.base,
   },
-  content: {
-    flex: 1,
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 24,
+    paddingVertical: 24,
   },
   headerSection: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 28,
   },
-  title: {
-    fontSize: 30,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 18,
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  optionsSection: {
-    marginBottom: 24,
-  },
-  ageOption: {
-    borderWidth: 2,
-    borderColor: '#E0E0E0',
-    borderRadius: 12,
-    padding: 18,
-    marginBottom: 12,
-    backgroundColor: '#fff',
-  },
-  ageOptionSelected: {
-    borderColor: '#4CAF50',
-    backgroundColor: '#F1F8E9',
-  },
-  ageOptionLabel: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#333',
+  eyebrow: {
+    fontFamily: theme.typography.fontFamily.hand,
+    fontSize: 22,
+    color: theme.colors.accents.foxglove,
     marginBottom: 4,
   },
+  title: {
+    fontFamily: theme.typography.fontFamily.serifItalic,
+    fontSize: 32,
+    fontStyle: 'italic',
+    color: theme.colors.ink.base,
+    letterSpacing: -0.5,
+    textAlign: 'center',
+  },
+  ornamentWrap: {
+    marginVertical: 12,
+  },
+  subtitle: {
+    fontFamily: theme.typography.fontFamily.uiRegular,
+    fontSize: 15,
+    color: theme.colors.ink.soft,
+    textAlign: 'center',
+    lineHeight: 22,
+    paddingHorizontal: 20,
+  },
+  optionsSection: {
+    marginBottom: 20,
+    gap: 12,
+  },
+  ageOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    borderWidth: 1.5,
+    borderColor: theme.colors.paper.edge,
+    borderRadius: 16,
+    padding: 16,
+    backgroundColor: theme.colors.paper.card,
+  },
+  ageOptionSelected: {
+    borderColor: theme.colors.accents.foxglove,
+    backgroundColor: theme.colors.paper.cardWarm,
+    ...theme.shadows.paper,
+  },
+  ageOptionBody: {
+    flex: 1,
+  },
+  ageOptionLabel: {
+    fontFamily: theme.typography.fontFamily.serifBold,
+    fontSize: 20,
+    color: theme.colors.ink.base,
+  },
   ageOptionLabelSelected: {
-    color: '#2E7D32',
+    color: theme.colors.accents.foxglove,
   },
   ageOptionDescription: {
-    fontSize: 14,
-    color: '#888',
+    fontFamily: theme.typography.fontFamily.uiRegular,
+    fontSize: 13,
+    color: theme.colors.ink.faint,
+    marginTop: 2,
   },
   ageOptionDescriptionSelected: {
-    color: '#558B2F',
+    color: theme.colors.ink.soft,
+  },
+  checkmark: {
+    fontFamily: theme.typography.fontFamily.serifBold,
+    fontSize: 24,
+    color: theme.colors.accents.foxglove,
   },
   errorText: {
-    color: '#D32F2F',
+    fontFamily: theme.typography.fontFamily.uiMedium,
+    color: theme.colors.error,
     textAlign: 'center',
     marginBottom: 12,
     fontSize: 14,
   },
   continueButton: {
-    backgroundColor: '#4CAF50',
-    borderRadius: 12,
+    backgroundColor: theme.colors.accents.foxglove,
+    borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
     marginBottom: 16,
+    ...theme.shadows.sm,
   },
   continueButtonDisabled: {
-    backgroundColor: '#C8E6C9',
+    backgroundColor: theme.colors.paper.deep,
   },
   continueButtonText: {
-    color: '#fff',
-    fontSize: 18,
+    fontFamily: theme.typography.fontFamily.uiSemibold,
+    color: theme.colors.paper.cream,
+    fontSize: 17,
     fontWeight: '600',
   },
   privacyNote: {
+    fontFamily: theme.typography.fontFamily.uiRegular,
     fontSize: 12,
-    color: '#999',
+    color: theme.colors.ink.faint,
     textAlign: 'center',
     lineHeight: 18,
   },
