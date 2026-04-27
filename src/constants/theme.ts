@@ -303,12 +303,14 @@ export const theme = {
   // theme.colors.disabled directly at the style callsite to avoid duplication.
   voiceFirst: {
     primaryButtonSize: 96,
-    secondaryButtonSize: 64,
+    // US-006: bumped 64 → 78 per /tmp/cb_design/components/screens-app.jsx:319
+    // (DockButton secondary size). Speak-vs-rest hierarchy preserved (96 > 78).
+    secondaryButtonSize: 78,
     primaryButtonRadius: 48,
-    secondaryButtonRadius: 32,
+    secondaryButtonRadius: 39,
     idleElevation: 4,
     activeElevation: 8,
-    labelFontSize: 12,
+    labelFontSize: 14,
     primaryLabelFontSize: 14,
     labelMarginTop: 6,
   },
