@@ -20,17 +20,17 @@ import { AdaptiveGlassBackground } from './AdaptiveGlassBackground';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// Confetti particle configuration
+// Confetti particle configuration — storybook accent palette
 const CONFETTI_COUNT = 50;
 const CONFETTI_COLORS = [
-  '#FF6B6B', // Red
-  '#4ECDC4', // Teal
-  '#FFE66D', // Yellow
-  '#95E1D3', // Mint
-  '#F38181', // Coral
-  '#AA96DA', // Purple
-  '#4CAF50', // Green (primary)
-  '#2196F3', // Blue (secondary)
+  '#C2410C', // foxglove
+  '#3F6A3A', // moss
+  '#1E3A5F', // inkwell
+  '#B8860B', // gold
+  '#7A3B5C', // plum
+  '#D97706', // amber
+  '#FBF5E6', // paper-cream
+  '#5C4432', // ink-soft
 ];
 
 interface ConfettiPiece {
@@ -306,13 +306,15 @@ const styles = StyleSheet.create({
     padding: theme.spacing.xl,
   },
   modalContainer: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.lg,
+    backgroundColor: theme.colors.paper.card,
+    borderRadius: 22,
     padding: theme.spacing.xxl,
     width: '100%',
-    maxWidth: 340,
+    maxWidth: 360,
     alignItems: 'center',
-    ...theme.shadows.lg,
+    borderWidth: 1.5,
+    borderColor: theme.colors.paper.edge,
+    ...theme.shadows.lift,
   },
   closeButton: {
     position: 'absolute',
@@ -321,20 +323,25 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: theme.colors.inputBackground,
+    backgroundColor: theme.colors.paper.cream,
+    borderWidth: 1,
+    borderColor: theme.colors.paper.edge,
     justifyContent: 'center',
     alignItems: 'center',
   },
   closeButtonText: {
-    fontSize: theme.typography.fontSize.md,
-    color: theme.colors.textSecondary,
-    fontWeight: theme.typography.fontWeight.medium,
+    fontFamily: theme.typography.fontFamily.uiMedium,
+    fontSize: 16,
+    color: theme.colors.ink.soft,
+    fontWeight: '500',
   },
   iconContainer: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#FFF9E6',
+    backgroundColor: theme.colors.paper.cardWarm,
+    borderWidth: 1.5,
+    borderColor: theme.colors.accents.gold,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: theme.spacing.lg,
@@ -344,45 +351,52 @@ const styles = StyleSheet.create({
     fontSize: 42,
   },
   title: {
-    fontSize: theme.typography.fontSize.xxl,
-    fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.text,
+    fontFamily: theme.typography.fontFamily.serifItalic,
+    fontSize: 26,
+    fontStyle: 'italic',
+    color: theme.colors.ink.base,
     textAlign: 'center',
     marginBottom: theme.spacing.md,
+    letterSpacing: -0.4,
   },
   message: {
-    fontSize: theme.typography.fontSize.md,
-    fontWeight: theme.typography.fontWeight.normal,
-    color: theme.colors.textSecondary,
+    fontFamily: theme.typography.fontFamily.uiRegular,
+    fontSize: 15,
+    color: theme.colors.ink.soft,
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 22,
     marginBottom: theme.spacing.lg,
   },
   secondaryMessageContainer: {
-    backgroundColor: theme.colors.inputBackground,
+    backgroundColor: theme.colors.paper.cardWarm,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: theme.colors.accents.gold,
     paddingHorizontal: theme.spacing.base,
     paddingVertical: theme.spacing.sm,
-    borderRadius: theme.borderRadius.base,
+    borderRadius: 12,
     marginBottom: theme.spacing.lg,
   },
   secondaryMessage: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.primary,
+    fontFamily: theme.typography.fontFamily.serifBold,
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.colors.accents.foxglove,
     textAlign: 'center',
   },
   ctaButton: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.accents.foxglove,
     paddingHorizontal: theme.spacing.xxl,
-    paddingVertical: theme.spacing.base,
-    borderRadius: theme.borderRadius.button,
-    minWidth: 160,
+    paddingVertical: 14,
+    borderRadius: 14,
+    minWidth: 180,
     ...theme.shadows.sm,
   },
   ctaButtonText: {
-    fontSize: theme.typography.fontSize.md,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: '#ffffff',
+    fontFamily: theme.typography.fontFamily.uiSemibold,
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.paper.cream,
     textAlign: 'center',
   },
 });

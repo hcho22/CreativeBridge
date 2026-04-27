@@ -461,11 +461,11 @@ export const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.card,
+    backgroundColor: theme.colors.paper.card,
+    borderRadius: 18,
     marginHorizontal: theme.spacing.base,
     marginVertical: theme.spacing.sm,
-    ...theme.shadows.base,
+    ...theme.shadows.paper,
     overflow: 'hidden',
   },
 
@@ -482,14 +482,17 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: theme.typography.fontSize.lg,
+    fontFamily: theme.typography.fontFamily.serifItalic,
+    fontStyle: 'italic',
     fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text,
+    color: theme.colors.ink.base,
     marginBottom: theme.spacing.xs,
   },
   headerSubtitle: {
     fontSize: theme.typography.fontSize.sm,
+    fontFamily: theme.typography.fontFamily.uiRegular,
     fontWeight: theme.typography.fontWeight.normal,
-    color: theme.colors.textSecondary,
+    color: theme.colors.ink.soft,
   },
   headerRight: {
     flexDirection: 'row',
@@ -499,14 +502,15 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: theme.colors.inputBackground,
+    backgroundColor: theme.colors.paper.cream,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: theme.spacing.sm,
   },
   dismissButtonText: {
     fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.textSecondary,
+    color: theme.colors.ink.soft,
+    fontFamily: theme.typography.fontFamily.uiSemibold,
     fontWeight: theme.typography.fontWeight.medium,
   },
   chevronContainer: {
@@ -517,7 +521,7 @@ const styles = StyleSheet.create({
   },
   chevron: {
     fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.textSecondary,
+    color: theme.colors.ink.soft,
   },
 
   // Progress bar styles
@@ -530,19 +534,20 @@ const styles = StyleSheet.create({
   progressBarBackground: {
     flex: 1,
     height: 8,
-    backgroundColor: theme.colors.inputBackground,
-    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.paper.deep,
+    borderRadius: 999,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.accents.moss,
+    borderRadius: 999,
   },
   progressPercentage: {
     fontSize: theme.typography.fontSize.sm,
+    fontFamily: theme.typography.fontFamily.serifBold,
     fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.primary,
+    color: theme.colors.accents.moss,
     minWidth: 40,
     textAlign: 'right',
     marginLeft: theme.spacing.sm,
@@ -551,7 +556,7 @@ const styles = StyleSheet.create({
   // Checklist items styles
   checklistContainer: {
     borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    borderTopColor: theme.colors.paper.edge,
   },
   checklistItem: {
     flexDirection: 'row',
@@ -559,8 +564,8 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.md,
     paddingHorizontal: theme.spacing.base,
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
+    borderBottomColor: theme.colors.paper.edge,
+    backgroundColor: theme.colors.paper.card,
   },
   checklistItemFirst: {
     // First item has no special styling needed
@@ -569,14 +574,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
   },
   checklistItemCompleted: {
-    backgroundColor: theme.colors.inputBackground,
-    opacity: 0.8,
+    backgroundColor: theme.colors.paper.cardWarm,
+    opacity: 0.95,
   },
   emojiContainer: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: theme.colors.inputBackground,
+    backgroundColor: theme.colors.paper.cream,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: theme.spacing.md,
@@ -587,30 +592,32 @@ const styles = StyleSheet.create({
   itemTitle: {
     flex: 1,
     fontSize: theme.typography.fontSize.base,
+    fontFamily: theme.typography.fontFamily.uiRegular,
     fontWeight: theme.typography.fontWeight.normal,
-    color: theme.colors.text,
+    color: theme.colors.ink.base,
   },
   itemTitleCompleted: {
     textDecorationLine: 'line-through',
-    color: theme.colors.textSecondary,
+    color: theme.colors.ink.soft,
   },
   xpBadge: {
-    backgroundColor: theme.colors.primary + '20', // 20% opacity
+    backgroundColor: theme.colors.accents.moss + '22',
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.xs,
-    borderRadius: theme.borderRadius.full,
+    borderRadius: 999,
     marginLeft: theme.spacing.sm,
   },
   xpBadgeCompleted: {
-    backgroundColor: theme.colors.textSecondary + '20',
+    backgroundColor: theme.colors.accents.moss + '33',
   },
   xpBadgeText: {
     fontSize: theme.typography.fontSize.xs,
+    fontFamily: theme.typography.fontFamily.serifBold,
     fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.primary,
+    color: theme.colors.accents.moss,
   },
   xpBadgeTextCompleted: {
-    color: theme.colors.textSecondary,
+    color: theme.colors.accents.moss,
   },
 });
 
