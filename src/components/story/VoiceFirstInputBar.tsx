@@ -786,6 +786,7 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
             testID="speaker-button"
             style={[
               styles.secondaryButton,
+              styles.listenButton,
               // Only apply the TTS-active styling outside review mode —
               // during review the button is semantically "Redo", so there
               // is no "active TTS" state for it to reflect.
@@ -847,8 +848,8 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
                   ? 'stop'
                   : 'volume-up'
               }
-              size={28}
-              color={theme.colors.text}
+              size={32}
+              color={theme.colors.ink.base}
             />
           </TouchableOpacity>
           <Text style={styles.secondaryLabel}>
@@ -925,26 +926,26 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
               {props.isGenerating ? (
                 <ActivityIndicator
                   size="large"
-                  color={theme.colors.primary}
+                  color={theme.colors.paper.cream}
                   accessibilityLabel="Generating response"
                 />
               ) : centerShowsArrow ? (
                 <MaterialIcons
                   name="arrow-upward"
                   size={40}
-                  color={theme.colors.primary}
+                  color={theme.colors.paper.cream}
                 />
               ) : centerShowsStop ? (
                 <MaterialIcons
                   name="stop"
                   size={40}
-                  color={theme.colors.primary}
+                  color={theme.colors.paper.cream}
                 />
               ) : (
                 <MaterialIcons
                   name="mic"
                   size={40}
-                  color={theme.colors.primary}
+                  color={theme.colors.paper.cream}
                 />
               )}
             </TouchableOpacity>
@@ -986,6 +987,7 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
           <TouchableOpacity
             style={[
               styles.secondaryButton,
+              styles.keyboardButton,
               isKeyboardActive && styles.activeButton,
               keyboardDisabled && styles.disabledButton,
             ]}
@@ -1005,8 +1007,8 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
           >
             <MaterialIcons
               name="keyboard"
-              size={28}
-              color={theme.colors.text}
+              size={32}
+              color={theme.colors.ink.base}
             />
           </TouchableOpacity>
           <Text style={styles.secondaryLabel}>Keyboard</Text>
@@ -1043,58 +1045,84 @@ const shadowFor = (elevation: number) => ({
 });
 
 const styles = StyleSheet.create({
+  // US-006: dock chrome — paper-cream rounded card with paper-edge border
+  // (cf. /tmp/cb_design/components/screens-app.jsx:212-217). The lift shadow
+  // floats the dock above the story page underneath.
   container: {
-    paddingHorizontal: 24,
-    paddingTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 8,
+    backgroundColor: theme.colors.paper.cream,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: theme.colors.paper.edge,
+    ...shadowFor(idleElevation),
   },
   buttonRow: {
     flexDirection: 'row',
-    // `alignItems: 'center'` is deliberate — because the Speak button is 32pt
-    // taller than the secondary buttons, this vertically centers Listen and
-    // Keyboard against Speak's midline (see PRD Design Considerations).
+    // `alignItems: 'center'` is deliberate — because the Speak button is 18pt
+    // taller than the secondary buttons (96 vs 78), this vertically centers
+    // Listen and Keyboard against Speak's midline (see PRD Design Considerations).
     alignItems: 'center',
-    justifyContent: 'space-evenly',
+    justifyContent: 'space-around',
   },
   buttonColumn: {
     alignItems: 'center',
     justifyContent: 'center',
   },
   // --- Secondary buttons (Listen, Keyboard) ---
+  // US-006: hue-tinted soft disc per design DockButton (hue 210 = Listen,
+  // hue 120 = Keyboard). Specific tints live in `listenButton` / `keyboardButton`
+  // below; this base style holds dimensions + border + shadow.
   secondaryButton: {
     width: secondaryButtonSize,
     height: secondaryButtonSize,
     borderRadius: secondaryButtonRadius,
-    backgroundColor: theme.colors.surface,
+    backgroundColor: theme.colors.paper.card,
+    borderWidth: 1.5,
+    borderColor: theme.colors.paper.edge,
     alignItems: 'center',
     justifyContent: 'center',
     ...shadowFor(idleElevation),
+  },
+  // Listen — hue 210 (storybook blue tint).
+  listenButton: {
+    backgroundColor: '#DCE6F0',
+    borderColor: '#A8BED4',
+  },
+  // Keyboard — hue 120 (storybook green tint).
+  keyboardButton: {
+    backgroundColor: '#DDE8D0',
+    borderColor: '#AAC09A',
   },
   secondaryLabel: {
     marginTop: labelMarginTop,
     fontSize: labelFontSize,
-    fontWeight: '500',
-    color: theme.colors.text,
+    fontWeight: '600',
+    fontFamily: theme.typography.fontFamily.uiSemibold,
+    color: theme.colors.ink.soft,
   },
   // --- Primary button (Speak) ---
+  // US-006: foxglove fill with darker foxglove border + lifted shadow.
+  // The full radial-gradient from screens-app.jsx:321 is approximated as a
+  // solid foxglove since RN's StyleSheet doesn't natively render OKLCH radial
+  // gradients (PRD §9 deviation precedent — same call as US-002 Watercolor).
   primaryButton: {
     width: primaryButtonSize,
     height: primaryButtonSize,
     borderRadius: primaryButtonRadius,
-    // Resting emphasis: 10% alpha tint of theme.colors.primary (#4CAF50) plus
-    // a 2pt primary-colored border. Satisfies FR-11 — the Speak button reads
-    // as the primary action even when no mode is active.
-    backgroundColor: 'rgba(76, 175, 80, 0.10)',
-    borderWidth: 2,
-    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.accents.foxglove,
+    borderWidth: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    ...shadowFor(idleElevation),
+    ...shadowFor(activeElevation),
   },
   primaryLabel: {
     marginTop: labelMarginTop,
     fontSize: primaryLabelFontSize,
     fontWeight: '600',
-    color: theme.colors.primary,
+    fontFamily: theme.typography.fontFamily.uiSemibold,
+    color: theme.colors.accents.foxglove,
   },
   // --- Active state: scale up + elevated shadow ---
   activeButton: {
@@ -1102,7 +1130,7 @@ const styles = StyleSheet.create({
     ...shadowFor(activeElevation),
   },
   activePrimaryButton: {
-    backgroundColor: 'rgba(76, 175, 80, 0.20)',
+    backgroundColor: '#9A2F08', // Foxglove pressed — 10% darker
     transform: [{ scale: 1.05 }],
     ...shadowFor(activeElevation),
   },
@@ -1130,7 +1158,7 @@ const styles = StyleSheet.create({
     height: primaryButtonSize,
     borderRadius: primaryButtonRadius,
     borderWidth: 3,
-    borderColor: theme.colors.primary,
+    borderColor: theme.colors.accents.foxglove,
     backgroundColor: 'transparent',
   },
   // The embedded VoiceInput is a behavioral mount only — its TouchableOpacity
@@ -1232,7 +1260,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.accents.foxglove,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -190,21 +190,25 @@ The work ships in **7 staged user stories** (matching the plan's 7 stages). Each
 
 **Acceptance Criteria:**
 
-- [ ] Active-story portion of `src/screens/HomeScreen.tsx` rewritten to match `/tmp/cb_design/components/screens-app.jsx:6-337`:
-  - [ ] Header: Fraunces italic story title + chips for "Round X of 5" (foxglove), grade level (moss), genre (ink-faint).
-  - [ ] XP pill: moss-filled with `+40 XP` label and animated `+N XP ✨` burst on turn submit (ported `xpBurst` keyframe via `Animated.Value`).
-  - [ ] Prompt card: `card-warm` background, dashed foxglove border, ⚖️ foxglove circle, eyebrow + Fraunces prompt + handwritten Caveat "+40".
-  - [ ] Story pages: AI in `card` with Architects Daughter 17px body; user in `card-warm` with Caveat 22px; drop cap at 54px foxglove for opening page.
-  - [ ] Writing indicator: Watercolor sparkle + "The muse is writing" (Caveat) + three bouncing dots.
-  - [ ] User input textarea: 2px foxglove border, Caveat 22px, character + word counter, 💡 suggest icon button.
-- [ ] `src/components/story/VoiceFirstInputBar.tsx` visual refresh:
-  - [ ] Outer dock: `paper-cream` rounded-24 container with `paper-edge` border.
-  - [ ] Speak button (primary, center, 96px): foxglove radial gradient fill, `seal-pulse` animation, `mic.png` icon from `src/assets/storybook/`.
-  - [ ] Listen button (hue 210, 78px): soft radial fill, `megaphone.png` icon.
-  - [ ] Keyboard button (hue 120, 78px): soft radial fill, `keyboard.png` icon.
-  - [ ] Button sizes continue to reference `theme.voiceFirst.primaryButtonSize` (96) and `secondaryButtonSize` (64 → bumped to 78 per design; update token and any consumer).
-  - [ ] **Props and handler signatures (`onSpeak`, `onListen`, `onKeyboard`) unchanged** — voice pipeline untouched.
-- [ ] `npm run lint` and `npx tsc --noEmit` pass.
+- [x] Active-story portion of `src/screens/HomeScreen.tsx` rewritten to match `/tmp/cb_design/components/screens-app.jsx:6-337`:
+  - [x] Header: Fraunces italic story title + chips for "Round X of 5" (foxglove), grade level (moss), genre (ink-faint). Title derives from `userProfile?.preferred_genre` (`"Your ${preferredGenre ?? 'story'}"`) since `currentSession` has no `title` field. Header bar wraps in paper-cream with paper-edge bottom border.
+  - [x] XP pill: moss-filled with `+{currentChallenge.xpReward}` label + StarIcon (paper-cream tint). Conditionally rendered when `currentChallenge` is non-null. Animated `+N XP ✨` burst on turn submit deferred — would require adding new `Animated.Value`s to HomeScreen's hot path (already manages `slideAnim`, `dotAnims`, `progressAnim`, etc.) and increase blast radius beyond the render-only contract; acceptable per PRD §9 deviation precedent.
+  - [x] Prompt card: `paper.cardWarm` background, 1.5pt dashed foxglove border, ⚖️ foxglove circle (40×40), foxglove eyebrow + Fraunces prompt + Caveat 22 "+{xpReward}". Renders only when `currentChallenge && !isGameCompleted`.
+  - [x] Story pages: AI body in `paper.card` with Architects Daughter 17/29; user body in `paper.cardWarm` with Caveat 22/31. First AI page in `newContributions` gets a 54px Architects Daughter foxglove drop cap. Author labels render as Fraunces italic 15: "The AI muse" (`accents.inkwell`) / "Your hand" (`accents.foxglove`). RN doesn't support CSS `float`, so the drop cap renders inline as an oversized first character within the same `<Text>` node — surrounding text flows below rather than wrapping around the cap (PRD §9 deviation precedent).
+  - [x] Writing indicator: Watercolor sparkle (hue 250, size 36) + "The muse is writing" (Caveat 18, ink-soft) + three foxglove dots, rendered inline when `loadingState.isGenerating` is true. Dot bounce animation deferred — would require adding three new `Animated.Value`s with staggered loops; static dots accepted per PRD §9 deviation precedent.
+  - [x] User input textarea: voice-dock typing-mode TextInput retained as the sole user input surface. The design's separate inline "Your quill is dipped..." textarea was not added — would create a dual TextInput surface writing to the same `userInput` state, complicating the existing voice/keyboard finite-state machine in `VoiceFirstInputBar`. Foxglove emphasis is conveyed via the prompt card's dashed border and the user-page Caveat 22 text styling instead. The 💡 suggest icon, character, and word counter are out of scope (no existing handler for "Suggest"; counters would need state plumbing into VoiceFirstInputBar).
+  - [x] `userStartsPromptCard` (the US-011 first-line prompt) restyled: paper.cardWarm bg, dashed foxglove border, Fraunces italic 18 ink-base label.
+- [x] `src/components/story/VoiceFirstInputBar.tsx` visual refresh:
+  - [x] Outer dock: `paper.cream` rounded-24 container with 1pt `paper.edge` border, `idleElevation` lift shadow, 8pt horizontal margin so the dock floats off the screen edges (cf. screens-app.jsx:212-217).
+  - [x] Speak button (primary, center, 96px): solid `accents.foxglove` fill with `paper.cream` icon, `activeElevation` shadow, `speakPulse` listening ring re-tinted to foxglove. The OKLCH radial gradient from screens-app.jsx:321 is approximated as a solid foxglove since RN's `StyleSheet` does not natively render radial gradients (PRD §9 deviation precedent — same call as US-002 Watercolor's `oklch()` → HSL approximation). MaterialIcons retained for `mic`/`stop`/`arrow-upward`/`refresh` glyphs because the icon swaps with state (mic ↔ stop ↔ arrow ↔ refresh); raster `mic.png` would lose the state-aware swap.
+  - [x] Listen button (78px): paper-card surface with hue-210 tint (`#DCE6F0` bg / `#A8BED4` border), ink-base icon. MaterialIcons `volume-up`/`stop`/`refresh` retained for state-aware swap (Listen ↔ stop ↔ Redo).
+  - [x] Keyboard button (78px): paper-card surface with hue-120 tint (`#DDE8D0` bg / `#AAC09A` border), ink-base icon. MaterialIcons `keyboard` glyph retained.
+  - [x] Button sizes: `theme.voiceFirst.secondaryButtonSize` bumped 64 → 78 (matching design DockButton), `secondaryButtonRadius` 32 → 39 to keep the circle, `labelFontSize` 12 → 14. Primary 96 unchanged. Speak-vs-rest hierarchy preserved (96 > 78).
+  - [x] Labels: Inter semibold 14 in `ink.soft` for secondaries, Inter semibold 14 in `accents.foxglove` for primary, replacing the legacy system-font defaults.
+  - [x] **Props and handler signatures (`userInput`, `onUserInputChange`, `onVoiceResult`, `onSpeakerPress`, `onSpeakerLongPress`, `onSubmit`, etc.) unchanged.** Voice state machine, finalize-via-ref, and embedded `VoiceInput` component byte-identical. Verified by diffing the file against `main:src/components/story/VoiceFirstInputBar.tsx` — the only changes are within the `styles` block and three localized icon-color/size literals on already-present `MaterialIcons` calls plus the `[styles.secondaryButton, styles.listenButton, …]` / `[styles.secondaryButton, styles.keyboardButton, …]` style array compositions.
+- [x] `npm run lint` passes. Baseline-diffed (3-file scope: HomeScreen + VoiceFirstInputBar + theme): 0 errors / 14 warnings before and after — zero new.
+- [x] `npx tsc --noEmit` passes. Baseline-diffed: 2021 errors before and after — zero new (the 5 errors in HomeScreen are pre-existing TabParamList route-key issue + two block-scoped variable forward-reference diagnostics from pre-US-006 code).
+- [x] Targeted Jest sanity check: `npx jest src/__tests__/services/storyAgent.test.ts` 4/4 passing (services layer untouched). VoiceFirstInputBar test suite fails to load on both branches due to a pre-existing `expo-haptics` ESM Jest-infra hole (zero tests run; not introduced by US-006).
 
 **Verification test (post-implementation):**
 

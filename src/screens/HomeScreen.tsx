@@ -2921,14 +2921,37 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <View style={styles.gameContainer}>
               {/* Story Display - Book Format */}
               <View style={styles.storyBookContainer}>
+                {/* US-006: storybook header — Fraunces italic title + chip
+                    row (Round / Grade / Genre) on the left, XP pill +
+                    Copy + Exit on the right. Mirrors
+                    /tmp/cb_design/components/screens-app.jsx:63-125.
+                    Handlers byte-identical to the pre-refresh header. */}
                 <View style={styles.storyBookHeader}>
-                  <View style={styles.storyTitleRow}>
-                    <Text style={styles.roundCounter}>
-                      Round {currentRound}/{MAX_ROUNDS}
+                  <View style={styles.storyTitleBlock}>
+                    <Text style={styles.storyTitle} numberOfLines={1}>
+                      {`Your ${preferredGenre ?? 'story'}`}
                     </Text>
-                    <Text style={styles.gradeLevel}>{gradeLevel}</Text>
+                    <View style={styles.chipRow}>
+                      <Text style={styles.roundChip}>
+                        Round {currentRound} of {MAX_ROUNDS}
+                      </Text>
+                      <Text style={styles.gradeChip}>{gradeLevel}</Text>
+                      {preferredGenre ? (
+                        <Text style={styles.genreChip} numberOfLines={1}>
+                          {preferredGenre}
+                        </Text>
+                      ) : null}
+                    </View>
                   </View>
                   <View style={styles.headerButtonRow}>
+                    {currentChallenge ? (
+                      <View style={styles.xpPill}>
+                        <StarIcon size={12} color={theme.colors.paper.cream} />
+                        <Text style={styles.xpPillText}>
+                          +{currentChallenge.xpReward}
+                        </Text>
+                      </View>
+                    ) : null}
                     <TouchableOpacity
                       style={styles.copyButton}
                       onPress={() => {
@@ -2959,7 +2982,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                           currentSession.contributions.length === 0)
                       }
                     >
-                      <Text style={styles.copyButtonText}>📋 Copy</Text>
+                      <Text style={styles.copyButtonText}>📋</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.exitButtonHeader}
@@ -2969,6 +2992,31 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                     </TouchableOpacity>
                   </View>
                 </View>
+                {/* US-006: Round-challenge prompt card. Foxglove dashed
+                    border + foxglove circle + Caveat XP value. Rendered only
+                    when an active challenge exists and the story isn't
+                    finished — same gating as the existing ChallengeDisplay
+                    flow (the design reused this surface as the user's
+                    "your turn" cue). Mirrors
+                    /tmp/cb_design/components/screens-app.jsx:128-151. */}
+                {currentChallenge && !isGameCompleted ? (
+                  <View style={styles.promptCard}>
+                    <View style={styles.promptCardIcon}>
+                      <Text style={styles.promptCardIconText}>⚖️</Text>
+                    </View>
+                    <View style={styles.promptCardBody}>
+                      <Text style={styles.promptCardEyebrow}>
+                        Your turn — Round {currentRound} challenge
+                      </Text>
+                      <Text style={styles.promptCardTitle} numberOfLines={2}>
+                        {currentChallenge.title}
+                      </Text>
+                    </View>
+                    <Text style={styles.promptCardXp}>
+                      +{currentChallenge.xpReward}
+                    </Text>
+                  </View>
+                ) : null}
                 <ScrollView
                   style={styles.storyBook}
                   contentContainerStyle={styles.storyBookContent}
@@ -3162,43 +3210,119 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                                   </>
                                 );
                               })()}
-                            {newContributions.map((contribution, index) => (
-                              <View
-                                key={`${contribution.timestamp}-${index}`}
-                                style={styles.compactContributionContainer}
-                              >
-                                <View style={styles.compactContributionHeader}>
-                                  <Text
+                            {newContributions.map((contribution, index) => {
+                              // US-006: storybook page rendering. AI pages
+                              // use Architects Daughter on paper.card; user
+                              // pages use Caveat on paper.cardWarm. The
+                              // first AI page in the new contributions
+                              // stream gets the foxglove drop cap (cf.
+                              // /tmp/cb_design/components/screens-app.jsx:261-269).
+                              // RN doesn't support CSS `float`, so the drop
+                              // cap renders as a nested Text with larger
+                              // glyph; surrounding text flows below rather
+                              // than wrapping around. Acceptable per the
+                              // PRD §9 deviations precedent.
+                              const isUser = contribution.type === 'user';
+                              const firstAiIndex = newContributions.findIndex(
+                                c => c.type === 'ai',
+                              );
+                              const isFirstAiPage =
+                                !isUser &&
+                                firstAiIndex !== -1 &&
+                                firstAiIndex === index;
+                              const text = contribution.content ?? '';
+                              return (
+                                <View
+                                  key={`${contribution.timestamp}-${index}`}
+                                  style={styles.storyPageContainer}
+                                >
+                                  <View style={styles.storyPageHeader}>
+                                    <Text
+                                      style={
+                                        isUser
+                                          ? styles.userAuthorLabel
+                                          : styles.aiAuthorLabel
+                                      }
+                                    >
+                                      {isUser ? 'Your hand' : 'The AI muse'}
+                                    </Text>
+                                    <Text style={styles.storyPageRound}>
+                                      Round {Math.floor(index / 2) + 1}
+                                    </Text>
+                                    <Text style={styles.storyPageWordCount}>
+                                      {contribution.wordCount}w
+                                    </Text>
+                                  </View>
+                                  <View
                                     style={[
-                                      styles.compactContributionLabel,
-                                      contribution.type === 'ai'
-                                        ? styles.aiLabel
-                                        : styles.userLabel,
+                                      styles.storyPageBody,
+                                      isUser
+                                        ? styles.storyPageBodyUser
+                                        : styles.storyPageBodyAi,
                                     ]}
                                   >
-                                    {contribution.type === 'ai' ? '🤖' : '✍️'}
-                                  </Text>
-                                  <Text style={styles.compactWordCount}>
-                                    {contribution.wordCount}w
-                                  </Text>
+                                    {isFirstAiPage && text.length > 0 ? (
+                                      <Text
+                                        style={[
+                                          styles.storyPageText,
+                                          styles.storyPageTextAi,
+                                          styles.selectableText,
+                                        ]}
+                                        selectable={true}
+                                      >
+                                        <Text style={styles.dropCap}>
+                                          {text.charAt(0)}
+                                        </Text>
+                                        {text.slice(1)}
+                                      </Text>
+                                    ) : (
+                                      <Text
+                                        style={[
+                                          styles.storyPageText,
+                                          isUser
+                                            ? styles.storyPageTextUser
+                                            : styles.storyPageTextAi,
+                                          styles.selectableText,
+                                        ]}
+                                        selectable={true}
+                                      >
+                                        {text}
+                                      </Text>
+                                    )}
+                                  </View>
                                 </View>
-                                <Text
-                                  style={[
-                                    styles.storyText,
-                                    styles.selectableText,
-                                  ]}
-                                  selectable={true}
-                                >
-                                  {contribution.content}
-                                </Text>
+                              );
+                            })}
+                            {loadingState.isGenerating ? (
+                              /* US-006: writing indicator. Watercolor
+                                 sparkle + Caveat label + three foxglove
+                                 dots — bounce animation deferred to a
+                                 follow-up so we don't add new
+                                 Animated.Values to this hot path. */
+                              <View style={styles.writingIndicator}>
+                                <Watercolor hue={250} size={36}>
+                                  ✨
+                                </Watercolor>
+                                <View style={styles.writingIndicatorBubble}>
+                                  <Text style={styles.writingIndicatorText}>
+                                    The muse is writing
+                                  </Text>
+                                  <View style={styles.writingDots}>
+                                    <View style={styles.writingDot} />
+                                    <View style={styles.writingDot} />
+                                    <View style={styles.writingDot} />
+                                  </View>
+                                </View>
                               </View>
-                            ))}
+                            ) : null}
                           </>
                         );
                       })()}
                     </>
                   ) : isUserStarting ? (
-                    /* US-011: "User starts first" prompt card */
+                    /* US-006: "User starts first" prompt card —
+                       restyled with storybook palette while preserving
+                       the existing US-011 emoji + label structure. */
                     <View style={styles.userStartsPromptCard}>
                       <Text style={styles.userStartsPromptEmoji}>✍️</Text>
                       <Text style={styles.userStartsPromptText}>
@@ -4099,6 +4223,7 @@ const styles = StyleSheet.create({
   storyContentSection: {
     flex: 1,
     paddingHorizontal: 0,
+    backgroundColor: 'transparent',
   },
   storyScrollContainer: {
     flex: 1,
@@ -4272,7 +4397,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
   },
-  // Game Screen Styles
+  // US-006: Active-story header — Fraunces title + chip row + XP pill +
+  // Copy/Exit paper buttons. Tokens align with storybook palette.
+  // The legacy `gradeLevel` and `roundCounter` style entries are retained
+  // (now unused) only so any not-yet-found callsite outside this file
+  // continues to resolve; they're scheduled for tidy in US-007.
   gradeLevel: {
     fontSize: 13,
     fontWeight: 'bold',
@@ -4295,13 +4424,18 @@ const styles = StyleSheet.create({
   },
   storyBookContainer: {
     marginBottom: 8,
+    backgroundColor: 'transparent',
   },
   storyBookHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
-    paddingHorizontal: 4,
+    marginBottom: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: theme.colors.paper.cream,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.paper.edge,
   },
   storyTitleRow: {
     flexDirection: 'row',
@@ -4309,47 +4443,177 @@ const styles = StyleSheet.create({
     gap: 8,
     flex: 1,
   },
+  storyTitleBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
+  storyTitle: {
+    fontFamily: theme.typography.fontFamily.serifItalic,
+    fontSize: 17,
+    fontWeight: '700',
+    color: theme.colors.ink.base,
+    letterSpacing: -0.2,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+    flexWrap: 'wrap',
+  },
+  roundChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: theme.colors.paper.cardWarm,
+    borderWidth: 1,
+    borderColor: theme.colors.paper.edge,
+    fontFamily: theme.typography.fontFamily.uiBold,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    color: theme.colors.accents.foxglove,
+    textTransform: 'uppercase',
+  },
+  gradeChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: theme.colors.paper.card,
+    borderWidth: 1,
+    borderColor: theme.colors.paper.edge,
+    fontFamily: theme.typography.fontFamily.uiBold,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    color: theme.colors.accents.moss,
+  },
+  genreChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    fontFamily: theme.typography.fontFamily.uiBold,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    color: theme.colors.ink.faint,
+    textTransform: 'capitalize',
+  },
   headerButtonRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
+  xpPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: theme.colors.accents.moss,
+  },
+  xpPillText: {
+    fontFamily: theme.typography.fontFamily.uiBold,
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.colors.paper.cream,
+  },
   copyButton: {
-    backgroundColor: '#6B7280',
     paddingVertical: 6,
     paddingHorizontal: 12,
-    borderRadius: 6,
+    borderRadius: 999,
+    backgroundColor: theme.colors.paper.card,
+    borderWidth: 1,
+    borderColor: theme.colors.paper.edge,
   },
   copyButtonText: {
-    color: '#ffffff',
+    color: theme.colors.ink.soft,
     fontSize: 14,
     fontWeight: '600',
   },
   exitButtonHeader: {
-    backgroundColor: '#6B7280',
     paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: theme.colors.paper.card,
+    borderWidth: 1,
+    borderColor: theme.colors.paper.edge,
   },
   exitButtonHeaderText: {
-    color: '#ffffff',
-    fontSize: 14,
+    color: theme.colors.ink.soft,
+    fontSize: 12,
     fontWeight: '600',
+    fontFamily: theme.typography.fontFamily.uiSemibold,
   },
   storyBook: {
-    backgroundColor: '#fcfcfc',
+    backgroundColor: 'transparent',
     borderRadius: 0,
     width: '100%',
     borderWidth: 0,
   },
   storyBookContent: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
     flexGrow: 1,
   },
-  storyText: {
+  // US-006: Round-challenge prompt card.
+  promptCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginHorizontal: 16,
+    marginTop: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    backgroundColor: theme.colors.paper.cardWarm,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: theme.colors.accents.foxglove,
+  },
+  promptCardIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.accents.foxglove,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  promptCardIconText: {
     fontSize: 20,
-    lineHeight: 26,
-    color: '#333',
+    color: theme.colors.paper.cream,
+  },
+  promptCardBody: {
+    flex: 1,
+  },
+  promptCardEyebrow: {
+    fontFamily: theme.typography.fontFamily.uiBold,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    color: theme.colors.accents.foxglove,
+    textTransform: 'uppercase',
+  },
+  promptCardTitle: {
+    fontFamily: theme.typography.fontFamily.serifBold,
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.colors.ink.base,
+    marginTop: 2,
+    lineHeight: 20,
+  },
+  promptCardXp: {
+    fontFamily: theme.typography.fontFamily.hand,
+    fontSize: 22,
+    color: theme.colors.accents.foxglove,
+    marginRight: 6,
+  },
+  storyText: {
+    fontSize: 17,
+    lineHeight: 29,
+    color: theme.colors.ink.base,
     fontFamily: 'ArchitectsDaughter_400Regular',
     textAlign: 'left',
   },
@@ -4404,6 +4668,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#e5e7eb',
     marginVertical: 12,
   },
+  // Legacy compact-contribution styles kept for any not-yet-found callsite;
+  // active rendering uses the storyPage* styles below.
   compactContributionContainer: {
     marginBottom: 4,
   },
@@ -4423,23 +4689,141 @@ const styles = StyleSheet.create({
     color: '#888',
     fontWeight: '500',
   },
-  // US-011: "User starts first" prompt card styles
+  // US-006: storybook story-page styles.
+  storyPageContainer: {
+    marginBottom: 22,
+  },
+  storyPageHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 10,
+    marginBottom: 4,
+  },
+  aiAuthorLabel: {
+    fontFamily: theme.typography.fontFamily.serifItalic,
+    fontSize: 15,
+    fontWeight: '700',
+    fontStyle: 'italic',
+    color: theme.colors.accents.inkwell,
+  },
+  userAuthorLabel: {
+    fontFamily: theme.typography.fontFamily.serifItalic,
+    fontSize: 15,
+    fontWeight: '700',
+    fontStyle: 'italic',
+    color: theme.colors.accents.foxglove,
+  },
+  storyPageRound: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: theme.colors.ink.faint,
+  },
+  storyPageWordCount: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: theme.colors.ink.faint,
+    marginLeft: 'auto',
+  },
+  storyPageBody: {
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.paper.edge,
+  },
+  storyPageBodyAi: {
+    backgroundColor: theme.colors.paper.card,
+  },
+  storyPageBodyUser: {
+    backgroundColor: theme.colors.paper.cardWarm,
+  },
+  storyPageText: {
+    color: theme.colors.ink.base,
+    textAlign: 'left',
+  },
+  storyPageTextAi: {
+    fontFamily: theme.typography.fontFamily.architectsDaughter,
+    fontSize: 17,
+    lineHeight: 29,
+  },
+  storyPageTextUser: {
+    fontFamily: theme.typography.fontFamily.hand,
+    fontSize: 22,
+    lineHeight: 31,
+  },
+  // RN doesn't support CSS `float` so the drop cap renders inline as the
+  // first character of the AI-page text. The 54px glyph still gives the
+  // foxglove emphasis the design calls for; surrounding text flows in the
+  // same Text node rather than wrapping around the cap.
+  dropCap: {
+    fontFamily: theme.typography.fontFamily.architectsDaughter,
+    fontSize: 54,
+    lineHeight: 50,
+    fontWeight: '700',
+    color: theme.colors.accents.foxglove,
+  },
+  // US-006: "User starts first" prompt card — paper-card surface with
+  // dashed foxglove border and Fraunces label, mirrors the design's
+  // dipped-quill cue (screens-app.jsx:161-171).
   userStartsPromptCard: {
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     paddingVertical: 32,
     paddingHorizontal: 20,
+    backgroundColor: theme.colors.paper.cardWarm,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderStyle: 'dashed' as const,
+    borderColor: theme.colors.accents.foxglove,
+    marginHorizontal: 4,
+    marginVertical: 12,
   },
   userStartsPromptEmoji: {
     fontSize: 40,
     marginBottom: 12,
   },
   userStartsPromptText: {
+    fontFamily: theme.typography.fontFamily.serifItalic,
     fontSize: 18,
-    fontWeight: '500' as const,
-    color: '#666666',
+    fontWeight: '700' as const,
+    color: theme.colors.ink.base,
     textAlign: 'center' as const,
-    lineHeight: 28,
+    lineHeight: 26,
+  },
+  // US-006: inline writing indicator shown while AI is generating the
+  // next contribution.
+  writingIndicator: {
+    flexDirection: 'row' as const,
+    alignItems: 'flex-start' as const,
+    gap: 14,
+    marginTop: 8,
+    marginBottom: 22,
+  },
+  writingIndicatorBubble: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 14,
+    backgroundColor: theme.colors.paper.card,
+    borderWidth: 1,
+    borderColor: theme.colors.paper.edge,
+  },
+  writingIndicatorText: {
+    fontFamily: theme.typography.fontFamily.hand,
+    fontSize: 18,
+    color: theme.colors.ink.soft,
+  },
+  writingDots: {
+    flexDirection: 'row' as const,
+    gap: 4,
+  },
+  writingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: theme.colors.accents.foxglove,
   },
   disabledButton: {
     backgroundColor: '#cccccc',
