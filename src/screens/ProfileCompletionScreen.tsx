@@ -18,6 +18,12 @@ import {
   UsernameValidationResult,
 } from '../utils/usernameValidation';
 import { GradeLevel } from '../types/database';
+import {
+  PaperBackground,
+  Watercolor,
+  OrnamentRule,
+} from '../components/common/storybook';
+import { theme } from '../constants/theme';
 
 interface ProfileCompletionScreenProps {
   onComplete?: () => void;
@@ -345,10 +351,17 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <PaperBackground style={StyleSheet.absoluteFillObject} />
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.content}>
           <View style={styles.headerSection}>
-            <Text style={styles.title}>Complete Your Profile</Text>
+            <Watercolor hue={30} size={72}>
+              ✒️
+            </Watercolor>
+            <Text style={styles.title}>Tell us about yourself</Text>
+            <View style={styles.ornamentWrap}>
+              <OrnamentRule width={140} />
+            </View>
             <Text style={styles.subtitle}>
               Help us personalize your CreativeBridge experience
             </Text>
@@ -518,7 +531,7 @@ const ProfileCompletionScreen: React.FC<ProfileCompletionScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fcfcfc',
+    backgroundColor: theme.colors.paper.base,
   },
   scrollContainer: {
     flexGrow: 1,
@@ -527,52 +540,63 @@ const styles = StyleSheet.create({
   },
   content: {
     width: '100%',
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
   },
   headerSection: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 28,
+  },
+  ornamentWrap: {
+    marginVertical: 12,
   },
   title: {
-    fontSize: 30,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
+    fontFamily: theme.typography.fontFamily.serifItalic,
+    fontSize: 28,
+    fontStyle: 'italic',
+    color: theme.colors.ink.base,
+    letterSpacing: -0.5,
+    marginTop: 14,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 18,
-    color: '#666',
+    fontFamily: theme.typography.fontFamily.uiRegular,
+    fontSize: 15,
+    color: theme.colors.ink.soft,
     textAlign: 'center',
+    lineHeight: 22,
+    paddingHorizontal: 12,
   },
   formSection: {
     width: '100%',
   },
   inputContainer: {
-    marginBottom: 20,
+    marginBottom: 18,
   },
   inputLabel: {
-    fontSize: 17,
+    fontFamily: theme.typography.fontFamily.uiSemibold,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#333',
+    color: theme.colors.ink.soft,
     marginBottom: 6,
   },
   textInput: {
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    fontSize: 18,
-    backgroundColor: '#ffffff',
+    fontFamily: theme.typography.fontFamily.uiRegular,
+    borderWidth: 1.5,
+    borderColor: theme.colors.paper.edge,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    backgroundColor: theme.colors.paper.cream,
+    color: theme.colors.ink.base,
   },
   emailInputWrapper: {
     position: 'relative',
   },
   validationSpinner: {
     position: 'absolute',
-    right: 12,
-    top: 12,
+    right: 14,
+    top: 14,
     height: 20,
     width: 20,
     justifyContent: 'center',
@@ -580,91 +604,103 @@ const styles = StyleSheet.create({
   },
   validationFeedback: {
     marginTop: 8,
-    padding: 8,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 4,
+    padding: 10,
+    backgroundColor: theme.colors.paper.cream,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.paper.edge,
   },
   errorText: {
-    fontSize: 14,
-    color: '#dc3545',
+    fontFamily: theme.typography.fontFamily.uiMedium,
+    fontSize: 13,
+    color: theme.colors.error,
     marginBottom: 4,
   },
   warningText: {
-    fontSize: 14,
-    color: '#fd7e14',
+    fontFamily: theme.typography.fontFamily.uiMedium,
+    fontSize: 13,
+    color: theme.colors.accents.amber,
     marginBottom: 4,
   },
   suggestionText: {
-    fontSize: 14,
-    color: '#6c757d',
+    fontFamily: theme.typography.fontFamily.hand,
+    fontSize: 15,
+    color: theme.colors.ink.faint,
     marginBottom: 4,
-    fontStyle: 'italic',
   },
   successText: {
-    fontSize: 14,
-    color: '#198754',
+    fontFamily: theme.typography.fontFamily.uiMedium,
+    fontSize: 13,
+    color: theme.colors.accents.moss,
     marginBottom: 4,
   },
   textInputError: {
-    borderColor: '#ff4444',
-    borderWidth: 2,
-    backgroundColor: '#fff5f5',
+    borderColor: theme.colors.error,
+    borderWidth: 1.5,
+    backgroundColor: theme.colors.inputBackgroundError,
   },
   textInputWarning: {
-    borderColor: '#ffaa00',
-    borderWidth: 2,
-    backgroundColor: '#fffaf0',
+    borderColor: theme.colors.accents.amber,
+    borderWidth: 1.5,
+    backgroundColor: theme.colors.inputBackgroundWarning,
   },
   textInputValid: {
-    borderColor: '#44aa44',
-    borderWidth: 2,
-    backgroundColor: '#f0fff0',
+    borderColor: theme.colors.accents.moss,
+    borderWidth: 1.5,
+    backgroundColor: theme.colors.paper.card,
   },
   hintText: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 5,
+    fontFamily: theme.typography.fontFamily.uiRegular,
+    fontSize: 12,
+    color: theme.colors.ink.faint,
+    marginTop: 6,
+    lineHeight: 17,
   },
   gradeLevelContainer: {
     gap: 8,
   },
   gradeLevelOption: {
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    paddingVertical: 12,
+    borderWidth: 1.5,
+    borderColor: theme.colors.paper.edge,
+    borderRadius: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.colors.paper.card,
   },
   gradeLevelOptionSelected: {
-    borderColor: '#4CAF50',
-    backgroundColor: '#f0fff0',
+    borderColor: theme.colors.accents.foxglove,
+    backgroundColor: theme.colors.paper.cardWarm,
   },
   gradeLevelOptionText: {
+    fontFamily: theme.typography.fontFamily.serifBold,
     fontSize: 16,
-    color: '#333',
+    color: theme.colors.ink.base,
     textAlign: 'center',
     fontWeight: '500',
   },
   gradeLevelOptionTextSelected: {
-    color: '#4CAF50',
+    color: theme.colors.accents.foxglove,
     fontWeight: '600',
   },
   submitButton: {
-    backgroundColor: '#4CAF50',
-    paddingVertical: 14,
-    borderRadius: 8,
+    backgroundColor: theme.colors.accents.foxglove,
+    paddingVertical: 16,
+    borderRadius: 14,
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 12,
     marginBottom: 12,
+    ...theme.shadows.sm,
   },
   disabledButton: {
-    backgroundColor: '#cccccc',
+    backgroundColor: theme.colors.paper.deep,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   submitButtonText: {
-    color: '#ffffff',
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontFamily: theme.typography.fontFamily.uiSemibold,
+    color: theme.colors.paper.cream,
+    fontSize: 17,
+    fontWeight: '600',
   },
   skipButton: {
     paddingVertical: 12,
@@ -683,20 +719,22 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   skipButtonText: {
-    color: '#666',
-    fontSize: 18,
+    fontFamily: theme.typography.fontFamily.uiMedium,
+    color: theme.colors.ink.soft,
+    fontSize: 15,
     fontWeight: '500',
   },
   helpSection: {
-    backgroundColor: '#fff3cd',
-    padding: 15,
-    borderRadius: 8,
+    backgroundColor: theme.colors.paper.cardWarm,
+    padding: 14,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#ffeaa7',
+    borderColor: theme.colors.paper.edge,
   },
   helpText: {
-    fontSize: 16,
-    color: '#856404',
+    fontFamily: theme.typography.fontFamily.hand,
+    fontSize: 17,
+    color: theme.colors.ink.soft,
     textAlign: 'center',
   },
 });

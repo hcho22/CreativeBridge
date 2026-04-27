@@ -14,6 +14,8 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { StoryPreviewEdit } from '../components/story/StoryPreviewEdit';
 import type { HomeStackParamList } from '../navigation/AppNavigator';
 import type { GameSession } from '../types/database';
+import { PaperBackground } from '../components/common/storybook';
+import { theme } from '../constants/theme';
 
 type StoryPreviewEditNavigationProp = NativeStackNavigationProp<
   HomeStackParamList,
@@ -160,7 +162,11 @@ export const StoryPreviewEditScreen: React.FC<StoryPreviewEditScreenProps> = ({
 
     return (
       <View style={[styles.container, { paddingTop: headerHeight }]}>
-        <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
+        <PaperBackground style={StyleSheet.absoluteFillObject} />
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor={theme.colors.paper.base}
+        />
         <View style={styles.errorContainer}>
           {/* Alert is shown above, this is just a fallback view */}
         </View>
@@ -175,7 +181,11 @@ export const StoryPreviewEditScreen: React.FC<StoryPreviewEditScreenProps> = ({
         { paddingTop: headerHeight, paddingBottom: tabBarHeight },
       ]}
     >
-      <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
+      <PaperBackground style={StyleSheet.absoluteFillObject} />
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor={theme.colors.paper.base}
+      />
 
       <StoryPreviewEdit
         story={story}
@@ -195,13 +205,13 @@ export const StoryPreviewEditScreen: React.FC<StoryPreviewEditScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.colors.paper.base,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 24,
   },
 });
 
