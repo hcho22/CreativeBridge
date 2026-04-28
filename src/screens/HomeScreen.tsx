@@ -3892,21 +3892,39 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                   QuickCard stats strip — all wired to the same pre-refresh
                   handlers. */}
               <View style={styles.idleTopBar}>
-                <View style={styles.idleGreetingRow}>
+                <View
+                  style={[
+                    styles.idleGreetingRow,
+                    isCompactWidth && styles.idleGreetingRowCompact,
+                  ]}
+                >
                   {userProfile?.avatar_url ? (
                     <Image
                       source={{ uri: userProfile.avatar_url }}
-                      style={styles.idleAvatarImage}
+                      style={[
+                        styles.idleAvatarImage,
+                        isCompactWidth && styles.idleAvatarImageCompact,
+                      ]}
                     />
                   ) : (
-                    <Watercolor hue={30} size={48}>
+                    <Watercolor hue={30} size={isCompactWidth ? 40 : 48}>
                       {userProfile?.display_name?.charAt(0).toUpperCase() ||
                         '🦊'}
                     </Watercolor>
                   )}
                   <View style={styles.idleGreetingText}>
-                    <Text style={styles.idleEyebrow}>Welcome back</Text>
-                    <Text style={styles.idleName}>{heroGreeting}</Text>
+                    {!isCompactWidth && (
+                      <Text style={styles.idleEyebrow}>Welcome back</Text>
+                    )}
+                    <Text
+                      style={[
+                        styles.idleName,
+                        isCompactWidth && styles.idleNameCompact,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {heroGreeting}
+                    </Text>
                   </View>
                 </View>
                 <View
@@ -3915,29 +3933,58 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                     isCompactWidth && styles.idleChipRowCompact,
                   ]}
                 >
-                  <View style={styles.statChip}>
-                    <FlameIcon size={16} />
+                  <View
+                    style={[
+                      styles.statChip,
+                      isCompactWidth && styles.statChipCompact,
+                    ]}
+                  >
+                    <FlameIcon size={isCompactWidth ? 14 : 16} />
                     <Text
                       style={[
                         styles.statChipValue,
+                        isCompactWidth && styles.statChipValueCompact,
                         { color: theme.colors.accents.amber },
                       ]}
                     >
                       {streakCount}
                     </Text>
-                    <Text style={styles.statChipLabel}>day streak</Text>
+                    <Text
+                      style={[
+                        styles.statChipLabel,
+                        isCompactWidth && styles.statChipLabelCompact,
+                      ]}
+                    >
+                      day streak
+                    </Text>
                   </View>
-                  <View style={styles.statChip}>
-                    <StarIcon size={14} color={theme.colors.accents.gold} />
+                  <View
+                    style={[
+                      styles.statChip,
+                      isCompactWidth && styles.statChipCompact,
+                    ]}
+                  >
+                    <StarIcon
+                      size={isCompactWidth ? 12 : 14}
+                      color={theme.colors.accents.gold}
+                    />
                     <Text
                       style={[
                         styles.statChipValue,
+                        isCompactWidth && styles.statChipValueCompact,
                         { color: theme.colors.accents.gold },
                       ]}
                     >
                       {totalXp.toLocaleString()}
                     </Text>
-                    <Text style={styles.statChipLabel}>XP</Text>
+                    <Text
+                      style={[
+                        styles.statChipLabel,
+                        isCompactWidth && styles.statChipLabelCompact,
+                      ]}
+                    >
+                      XP
+                    </Text>
                   </View>
                 </View>
               </View>
@@ -4046,14 +4093,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    flexShrink: 1,
+  },
+  idleGreetingRowCompact: {
+    gap: 8,
   },
   idleAvatarImage: {
     width: 48,
     height: 48,
     borderRadius: 24,
   },
+  idleAvatarImageCompact: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
   idleGreetingText: {
     gap: 2,
+    flexShrink: 1,
   },
   idleEyebrow: {
     fontSize: 13,
@@ -4067,15 +4124,20 @@ const styles = StyleSheet.create({
     color: theme.colors.ink.base,
     letterSpacing: -0.3,
   },
+  idleNameCompact: {
+    fontSize: 18,
+  },
   idleChipRow: {
     flexDirection: 'row',
     gap: 10,
+    flexShrink: 0,
   },
-  // Applied on iPhone widths only — fills the wrapped row and centers the
-  // chips so they don't sit left-pinned beneath the avatar.
+  // iPhone-only chip-row tweaks: tighter inter-chip gap to claw back the
+  // horizontal room needed to keep the chips on the same line as the
+  // greeting. The flexWrap on idleTopBar is the safety net for very long
+  // display names.
   idleChipRowCompact: {
-    width: '100%',
-    justifyContent: 'center',
+    gap: 6,
   },
   statChip: {
     flexDirection: 'row',
@@ -4088,14 +4150,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.paper.edge,
   },
+  statChipCompact: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    gap: 4,
+  },
   statChipValue: {
     fontFamily: theme.typography.fontFamily.serifBold,
     fontSize: 18,
+  },
+  statChipValueCompact: {
+    fontSize: 14,
   },
   statChipLabel: {
     fontSize: 11,
     color: theme.colors.ink.faint,
     fontWeight: '500',
+  },
+  statChipLabelCompact: {
+    fontSize: 10,
   },
   // US-005: Idle hero headline + ornament.
   idleHero: {
