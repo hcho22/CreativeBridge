@@ -4677,7 +4677,7 @@ const styles = StyleSheet.create({
   storyPageTextAi: {
     fontFamily: theme.typography.fontFamily.architectsDaughter,
     fontSize: 17,
-    lineHeight: 29,
+    lineHeight: 22,
   },
   storyPageTextUser: {
     fontFamily: theme.typography.fontFamily.hand,

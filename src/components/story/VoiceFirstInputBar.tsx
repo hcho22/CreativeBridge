@@ -44,6 +44,7 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  Image,
   Keyboard,
   ScrollView,
   View,
@@ -832,25 +833,39 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
                   }
             }
           >
-            <MaterialIcons
-              // US-006: mirror HomeScreen.tsx:3373-3377 emoji swap — show a
-              // Stop glyph while TTS is actually running, else the speaker
-              // icon. Keys off `speakerState` (not `mode`) so the swap tracks
-              // the real engine even during the 'starting' → 'speaking'
-              // handshake window.
-              // US-016: in review mode, swap to `refresh` to match the Redo
-              // semantics (re-record the transcript from scratch).
-              name={
-                mode === 'reviewing-transcript'
-                  ? 'refresh'
-                  : props.speakerState === 'speaking' ||
-                    props.speakerState === 'starting'
-                  ? 'stop'
-                  : 'volume-up'
-              }
-              size={32}
-              color={theme.colors.ink.base}
-            />
+            {/*
+              US-006: mirror HomeScreen.tsx:3373-3377 emoji swap — show a
+              Stop glyph while TTS is actually running, else the speaker
+              icon. Keys off `speakerState` (not `mode`) so the swap tracks
+              the real engine even during the 'starting' → 'speaking'
+              handshake window.
+              US-016: in review mode, swap to `refresh` to match the Redo
+              semantics (re-record the transcript from scratch).
+              US-002 (polish round 2): idle leg renders the watercolor
+              speaker raster from src/assets/storybook/. Action states
+              (review → refresh, speaking → stop) keep MaterialIcons so the
+              state-aware glyphs stay legible.
+            */}
+            {mode === 'reviewing-transcript' ? (
+              <MaterialIcons
+                name="refresh"
+                size={32}
+                color={theme.colors.ink.base}
+              />
+            ) : props.speakerState === 'speaking' ||
+              props.speakerState === 'starting' ? (
+              <MaterialIcons
+                name="stop"
+                size={32}
+                color={theme.colors.ink.base}
+              />
+            ) : (
+              <Image
+                source={require('../../assets/storybook/speaker.png')}
+                style={styles.voiceDockGlyphSecondary}
+                resizeMode="contain"
+              />
+            )}
           </TouchableOpacity>
           <Text style={styles.secondaryLabel}>
             {mode === 'reviewing-transcript' ? 'Redo' : 'Listen'}
@@ -957,10 +972,15 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
                   color={theme.colors.paper.cream}
                 />
               ) : (
-                <MaterialIcons
-                  name="mic"
-                  size={40}
-                  color={theme.colors.paper.cream}
+                // US-002 (polish round 2): idle Speak leg renders the
+                // watercolor mic raster from src/assets/storybook/. The
+                // pulsing ring, stop, arrow-upward, and ActivityIndicator
+                // states are state-aware action verbs and stay as
+                // MaterialIcons / spinners above this branch.
+                <Image
+                  source={require('../../assets/storybook/mic.png')}
+                  style={styles.voiceDockGlyphPrimary}
+                  resizeMode="contain"
                 />
               )}
             </TouchableOpacity>
@@ -1026,10 +1046,16 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
               selected: isKeyboardActive,
             }}
           >
-            <MaterialIcons
-              name="keyboard"
-              size={32}
-              color={theme.colors.ink.base}
+            {/*
+              US-002 (polish round 2): the keyboard glyph is mode-agnostic
+              (toggling typing mode in either direction), so this is an
+              unconditional swap to the watercolor raster — no state
+              variants needed.
+            */}
+            <Image
+              source={require('../../assets/storybook/keyboard.png')}
+              style={styles.voiceDockGlyphSecondary}
+              resizeMode="contain"
             />
           </TouchableOpacity>
           <Text style={styles.secondaryLabel}>Keyboard</Text>
@@ -1144,6 +1170,19 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontFamily: theme.typography.fontFamily.uiSemibold,
     color: theme.colors.accents.foxglove,
+  },
+  // US-002 (polish round 2): voice-dock idle raster glyph footprints. The
+  // 44x44 secondary glyph sits inside the 78x78 Listen/Keyboard buttons
+  // (matches the 32px MaterialIcons inscribed circle plus texture weight);
+  // the 56x56 primary glyph sits inside the 96x96 Speak button (matches the
+  // 40px → 56px expansion called out in PRD §6 — Design Considerations).
+  voiceDockGlyphSecondary: {
+    width: 44,
+    height: 44,
+  },
+  voiceDockGlyphPrimary: {
+    width: 56,
+    height: 56,
   },
   // --- Active state: scale up + elevated shadow ---
   activeButton: {
