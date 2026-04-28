@@ -23,6 +23,7 @@ import {
   Keyboard,
   KeyboardEvent,
   Pressable,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Clipboard from '@react-native-clipboard/clipboard';
@@ -110,6 +111,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const route = useRoute<RouteProp<HomeStackParamList, 'Home'>>();
   const tabBarHeight = useBottomTabBarHeight();
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
 
   // All users authenticate via Clerk — use Clerk user ID for all operations
   const effectiveUserId = clerkAuth?.userId || userProfile?.clerk_user_id;
@@ -3837,6 +3839,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   const heroGreeting = userProfile?.display_name || 'Writer';
 
+  // BookSpread sizing. The SVG is authored at 520×340; on iPhone widths the
+  // raw 520pt overflows past homeContainer's 24pt padding (RN doesn't clip
+  // by default), so we cap to whatever fits with a 16pt breathing margin on
+  // each side. iPad keeps the original size.
+  const bookSpreadMaxWidth = Math.min(520, screenWidth - 24 * 2 - 16 * 2);
+  const bookSpreadHeight = bookSpreadMaxWidth * (340 / 520);
+  // On iPhone widths the topbar chips wrap to a second row (see
+  // idleTopBar.flexWrap). Center them in that wrapped row so they don't sit
+  // pinned to the left edge under the avatar.
+  const isCompactWidth = screenWidth < 600;
+
   const handleNavigateToStorySelection = () => {
     if (!isAuthenticated) {
       Alert.alert('Error', 'Please log in to continue a story');
@@ -3896,7 +3909,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                     <Text style={styles.idleName}>{heroGreeting}</Text>
                   </View>
                 </View>
-                <View style={styles.idleChipRow}>
+                <View
+                  style={[
+                    styles.idleChipRow,
+                    isCompactWidth && styles.idleChipRowCompact,
+                  ]}
+                >
                   <View style={styles.statChip}>
                     <FlameIcon size={16} />
                     <Text
@@ -3944,7 +3962,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 accessibilityRole="button"
                 accessibilityLabel="Begin a new story"
               >
-                <BookSpread width={520} height={340} />
+                <BookSpread
+                  width={bookSpreadMaxWidth}
+                  height={bookSpreadHeight}
+                />
                 <View style={styles.bookSpreadOverlay} pointerEvents="none">
                   <Text style={styles.bookSpreadCaveat}>
                     {loadingState.isGenerating
@@ -4009,10 +4030,15 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
   },
   // US-005: Idle hero top bar (avatar + greeting + stat chips).
+  // flexWrap + rowGap let the chip row drop below the greeting on iPhone
+  // widths (where the two stat chips don't fit alongside the greeting); iPad
+  // still renders both on a single row.
   idleTopBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    rowGap: 12,
     paddingHorizontal: 8,
     marginBottom: 24,
   },
@@ -4044,6 +4070,12 @@ const styles = StyleSheet.create({
   idleChipRow: {
     flexDirection: 'row',
     gap: 10,
+  },
+  // Applied on iPhone widths only — fills the wrapped row and centers the
+  // chips so they don't sit left-pinned beneath the avatar.
+  idleChipRowCompact: {
+    width: '100%',
+    justifyContent: 'center',
   },
   statChip: {
     flexDirection: 'row',
