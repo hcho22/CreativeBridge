@@ -1107,10 +1107,13 @@ const styles = StyleSheet.create({
   },
   buttonRow: {
     flexDirection: 'row',
-    // `alignItems: 'center'` is deliberate — because the Speak button is 18pt
-    // taller than the secondary buttons (96 vs 78), this vertically centers
-    // Listen and Keyboard against Speak's midline (see PRD Design Considerations).
-    alignItems: 'center',
+    // `alignItems: 'flex-end'` bottom-aligns the three columns so the
+    // Listen / Speak / Keyboard labels share a single baseline. With
+    // `'center'`, Speak's taller (96 vs 78) button pushed its label ~9pt
+    // lower than Listen/Keyboard because each column was centered on the
+    // row midline independently. Bottom-aligning keeps labels co-linear
+    // and lets the larger Speak circle extend upward as the visual anchor.
+    alignItems: 'flex-end',
     justifyContent: 'space-around',
   },
   buttonColumn: {
