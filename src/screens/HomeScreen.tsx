@@ -50,7 +50,6 @@ import { StoryInputDebouncer } from '../utils/debounceUtils';
 import { extractLatestContinuation } from '../utils/storyUtils';
 import { challengeService } from '../services/challengeService';
 import { Challenge, ChallengeProgress } from '../types/challenges';
-import ChallengeDisplay from '../components/common/ChallengeDisplay';
 import ImageGeneration from '../components/common/ImageGeneration';
 import { storyDownloadService } from '../services/storyDownloadService';
 import { imageStorageService } from '../services/imageStorageService';
@@ -399,6 +398,26 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       headerShown: false,
     });
   }, [navigation, isGameActive]);
+
+  // Hide the parent tab bar (Library / Workshop / Author) while a story
+  // session is active so the story body can use the reclaimed ~83pt. The Exit
+  // button in the "Your story" header is the only escape hatch the player
+  // needs in-session. `getParent()` returns the bottom-tab navigator that
+  // hosts HomeStack; setOptions on the *parent* mutates the tab bar style.
+  // Cleanup + the !isGameActive branch both restore the default — covers
+  // normal exit, mid-session unmount, and tab switches.
+  useEffect(() => {
+    const parent = navigation.getParent();
+    if (!parent) return;
+    if (isGameActive) {
+      parent.setOptions({ tabBarStyle: { display: 'none' } });
+    } else {
+      parent.setOptions({ tabBarStyle: undefined });
+    }
+    return () => {
+      parent.setOptions({ tabBarStyle: undefined });
+    };
+  }, [isGameActive, navigation]);
 
   // Animation functions
   const startSpinAnimation = useCallback(() => {
@@ -2995,31 +3014,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                     </TouchableOpacity>
                   </View>
                 </View>
-                {/* US-006: Round-challenge prompt card. Foxglove dashed
-                    border + foxglove circle + Caveat XP value. Rendered only
-                    when an active challenge exists and the story isn't
-                    finished — same gating as the existing ChallengeDisplay
-                    flow (the design reused this surface as the user's
-                    "your turn" cue). Mirrors
-                    /tmp/cb_design/components/screens-app.jsx:128-151. */}
-                {currentChallenge && !isGameCompleted ? (
-                  <View style={styles.promptCard}>
-                    <View style={styles.promptCardIcon}>
-                      <Text style={styles.promptCardIconText}>⚖️</Text>
-                    </View>
-                    <View style={styles.promptCardBody}>
-                      <Text style={styles.promptCardEyebrow}>
-                        Your turn — Round {currentRound} challenge
-                      </Text>
-                      <Text style={styles.promptCardTitle} numberOfLines={2}>
-                        {currentChallenge.title}
-                      </Text>
-                    </View>
-                    <Text style={styles.promptCardXp}>
-                      +{currentChallenge.xpReward}
-                    </Text>
-                  </View>
-                ) : null}
                 <ScrollView
                   style={styles.storyBook}
                   contentContainerStyle={styles.storyBookContent}
@@ -3777,18 +3771,48 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           }}
         />
 
-        {/* Absolute-positioned Challenge Display — story content scrolls behind it */}
-        {currentChallenge && !showCompletionOptions && (
-          <View style={[styles.challengeHeaderSection, { top: insets.top }]}>
-            <ChallengeDisplay
-              challenge={currentChallenge}
-              progress={challengeProgress.find(
-                p => p.challengeId === currentChallenge.id,
-              )}
-              compact={true}
-            />
+        {/* Fixed challenge banner — absolute-positioned overlay at the top of
+            the in-session view. The outer ScrollView (line ~2933) reserves
+            `paddingTop: insets.top + 80` for this banner so initial content
+            (the "Your story" header + story body) sits just below it; as the
+            user scrolls, both flow under the clear-glass card. `box-none`
+            lets taps in the empty horizontal margin pass through to the
+            scroll view so swipe-to-scroll keeps working at the screen edges. */}
+        {currentChallenge && !isGameCompleted ? (
+          <View
+            style={[styles.fixedChallengeWrapper, { top: insets.top }]}
+            pointerEvents="box-none"
+          >
+            <AdaptiveGlassBackground
+              glassStyle="clear"
+              fallbackBlurIntensity={
+                theme.glass.surfaces.challengeBox.fallbackBlurIntensity
+              }
+              fallbackBlurTint={
+                theme.glass.surfaces.challengeBox.fallbackBlurTint
+              }
+              androidFallbackColor={
+                theme.glass.surfaces.challengeBox.androidFallbackColor
+              }
+              style={styles.promptCard}
+            >
+              <View style={styles.promptCardIcon}>
+                <Text style={styles.promptCardIconText}>⚖️</Text>
+              </View>
+              <View style={styles.promptCardBody}>
+                <Text style={styles.promptCardEyebrow}>
+                  Your turn — Round {currentRound} challenge
+                </Text>
+                <Text style={styles.promptCardTitle} numberOfLines={2}>
+                  {currentChallenge.title}
+                </Text>
+              </View>
+              <Text style={styles.promptCardXp}>
+                +{currentChallenge.xpReward}
+              </Text>
+            </AdaptiveGlassBackground>
           </View>
-        )}
+        ) : null}
       </View>
     );
   }
@@ -4219,15 +4243,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.paper.base,
   },
-  challengeHeaderSection: {
+  // Wrapper for the fixed challenge banner. Absolute-positioned at top of
+  // safeContainer; `top` is set inline using the safe-area inset. zIndex
+  // floats it above the scroll view so story content scrolls underneath.
+  fixedChallengeWrapper: {
     position: 'absolute' as const,
-    top: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: 8,
-    paddingTop: 4,
-    paddingBottom: 4,
-    zIndex: 10,
+    zIndex: 100,
   },
   storyContentSection: {
     flex: 1,
@@ -4567,17 +4590,25 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     flexGrow: 1,
   },
-  // US-006: Round-challenge prompt card.
+  // US-006: Round-challenge prompt card. Wrapped with AdaptiveGlassBackground
+  // and lifted to a fixed top overlay (see `fixedChallengeWrapper` above).
+  // `position: 'relative'` overrides the glass wrapper's absoluteFill default
+  // so the card sizes to its content; `overflow: 'hidden'` is required for
+  // BlurView to clip to the rounded corners (cf. AdaptiveGlassBackground.tsx
+  // blurOverflow rule). No `backgroundColor` — it would paint over the iOS
+  // blur material; the wrapper's `androidFallbackColor` covers the non-iOS
+  // case. `marginTop` was dropped because the card is no longer in inline
+  // flow; vertical position now comes from the wrapper's `top` inset.
   promptCard: {
+    position: 'relative' as const,
+    overflow: 'hidden' as const,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     marginHorizontal: 16,
-    marginTop: 4,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 14,
-    backgroundColor: theme.colors.paper.cardWarm,
     borderWidth: 1.5,
     borderStyle: 'dashed',
     borderColor: theme.colors.accents.foxglove,
