@@ -17,6 +17,7 @@ import {
   Alert,
   Animated,
   Easing,
+  Image,
   LayoutAnimation,
   Platform,
   Keyboard,
@@ -3825,14 +3826,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     console.log('📚 [US-017] Opening guidance modal from enhanced empty state');
   };
 
-  // US-005: Derived stats for the idle-hero QuickCard strip. Real data where
-  // available, honest "—" placeholders where no source exists yet — the strip
-  // is decorative and must not misrepresent progress. Level is derived from
-  // total_xp with a simple floor-division so existing users see a coherent
-  // number without a new backend contract.
   const totalXp = userProfile?.total_xp ?? 0;
-  const storiesCount = userProfile?.total_stories_completed ?? 0;
-  const derivedLevel = Math.max(1, Math.floor(totalXp / 100));
   const streakCount = userProfile?.current_streak ?? 0;
 
   const heroGreeting = userProfile?.display_name || 'Writer';
@@ -3880,9 +3874,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                   handlers. */}
               <View style={styles.idleTopBar}>
                 <View style={styles.idleGreetingRow}>
-                  <Watercolor hue={30} size={48}>
-                    🦊
-                  </Watercolor>
+                  {userProfile?.avatar_url ? (
+                    <Image
+                      source={{ uri: userProfile.avatar_url }}
+                      style={styles.idleAvatarImage}
+                    />
+                  ) : (
+                    <Watercolor hue={30} size={48}>
+                      {userProfile?.display_name?.charAt(0).toUpperCase() ||
+                        '🦊'}
+                    </Watercolor>
+                  )}
                   <View style={styles.idleGreetingText}>
                     <Text style={styles.idleEyebrow}>Welcome back</Text>
                     <Text style={styles.idleName}>{heroGreeting}</Text>
@@ -3970,21 +3972,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                   Import a manuscript
                 </InkButton>
               </View>
-
-              <View style={styles.quickCardStrip}>
-                <QuickStatCard
-                  icon="📖"
-                  label="Stories"
-                  value={String(storiesCount)}
-                />
-                <QuickStatCard icon="✒️" label="Words" value="—" accent />
-                <QuickStatCard
-                  icon="🏆"
-                  label="Level"
-                  value={String(derivedLevel)}
-                />
-                <QuickStatCard icon="⚡" label="Best" value="—" />
-              </View>
             </>
           )}
         </View>
@@ -4000,58 +3987,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     </View>
   );
 };
-
-// US-005: QuickCard mirrors /tmp/cb_design/components/screens-core.jsx:290-305.
-// Extracted as a local helper to keep the hero return block readable. No props
-// typed interface exported because this is not a reusable primitive — it is a
-// layout fragment specific to the idle hero strip.
-const QuickStatCard: React.FC<{
-  icon: string;
-  label: string;
-  value: string;
-  accent?: boolean;
-}> = ({ icon, label, value, accent }) => (
-  <View style={[quickCardStyles.card, accent && quickCardStyles.cardAccent]}>
-    <View style={quickCardStyles.row}>
-      <Text style={quickCardStyles.icon}>{icon}</Text>
-      <Text style={quickCardStyles.value}>{value}</Text>
-    </View>
-    <Text style={quickCardStyles.label}>{label}</Text>
-  </View>
-);
-
-const quickCardStyles = StyleSheet.create({
-  card: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: theme.colors.paper.card,
-    borderWidth: 1,
-    borderColor: theme.colors.paper.edge,
-    gap: 2,
-  },
-  cardAccent: {
-    backgroundColor: theme.colors.paper.cardWarm,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  icon: {
-    fontSize: 20,
-  },
-  value: {
-    fontFamily: theme.typography.fontFamily.serifBold,
-    fontSize: 22,
-    color: theme.colors.ink.base,
-  },
-  label: {
-    fontSize: 12,
-    color: theme.colors.ink.faint,
-    fontWeight: '500',
-  },
-});
 
 const styles = StyleSheet.create({
   container: {
@@ -4079,6 +4014,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+  },
+  idleAvatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
   },
   idleGreetingText: {
     gap: 2,
@@ -4197,13 +4137,6 @@ const styles = StyleSheet.create({
   },
   idleSecondaryEmoji: {
     fontSize: 18,
-  },
-  // US-005: QuickCard strip.
-  quickCardStrip: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 8,
-    paddingBottom: 16,
   },
   // New three-section layout styles
   safeContainer: {
