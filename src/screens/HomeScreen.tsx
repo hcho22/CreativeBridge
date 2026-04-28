@@ -17,11 +17,13 @@ import {
   Alert,
   Animated,
   Easing,
+  Image,
   LayoutAnimation,
   Platform,
   Keyboard,
   KeyboardEvent,
   Pressable,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Clipboard from '@react-native-clipboard/clipboard';
@@ -48,7 +50,6 @@ import { StoryInputDebouncer } from '../utils/debounceUtils';
 import { extractLatestContinuation } from '../utils/storyUtils';
 import { challengeService } from '../services/challengeService';
 import { Challenge, ChallengeProgress } from '../types/challenges';
-import ChallengeDisplay from '../components/common/ChallengeDisplay';
 import ImageGeneration from '../components/common/ImageGeneration';
 import { storyDownloadService } from '../services/storyDownloadService';
 import { imageStorageService } from '../services/imageStorageService';
@@ -109,6 +110,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const route = useRoute<RouteProp<HomeStackParamList, 'Home'>>();
   const tabBarHeight = useBottomTabBarHeight();
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
 
   // All users authenticate via Clerk — use Clerk user ID for all operations
   const effectiveUserId = clerkAuth?.userId || userProfile?.clerk_user_id;
@@ -396,6 +398,26 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       headerShown: false,
     });
   }, [navigation, isGameActive]);
+
+  // Hide the parent tab bar (Library / Workshop / Author) while a story
+  // session is active so the story body can use the reclaimed ~83pt. The Exit
+  // button in the "Your story" header is the only escape hatch the player
+  // needs in-session. `getParent()` returns the bottom-tab navigator that
+  // hosts HomeStack; setOptions on the *parent* mutates the tab bar style.
+  // Cleanup + the !isGameActive branch both restore the default — covers
+  // normal exit, mid-session unmount, and tab switches.
+  useEffect(() => {
+    const parent = navigation.getParent();
+    if (!parent) return;
+    if (isGameActive) {
+      parent.setOptions({ tabBarStyle: { display: 'none' } });
+    } else {
+      parent.setOptions({ tabBarStyle: undefined });
+    }
+    return () => {
+      parent.setOptions({ tabBarStyle: undefined });
+    };
+  }, [isGameActive, navigation]);
 
   // Animation functions
   const startSpinAnimation = useCallback(() => {
@@ -2992,31 +3014,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                     </TouchableOpacity>
                   </View>
                 </View>
-                {/* US-006: Round-challenge prompt card. Foxglove dashed
-                    border + foxglove circle + Caveat XP value. Rendered only
-                    when an active challenge exists and the story isn't
-                    finished — same gating as the existing ChallengeDisplay
-                    flow (the design reused this surface as the user's
-                    "your turn" cue). Mirrors
-                    /tmp/cb_design/components/screens-app.jsx:128-151. */}
-                {currentChallenge && !isGameCompleted ? (
-                  <View style={styles.promptCard}>
-                    <View style={styles.promptCardIcon}>
-                      <Text style={styles.promptCardIconText}>⚖️</Text>
-                    </View>
-                    <View style={styles.promptCardBody}>
-                      <Text style={styles.promptCardEyebrow}>
-                        Your turn — Round {currentRound} challenge
-                      </Text>
-                      <Text style={styles.promptCardTitle} numberOfLines={2}>
-                        {currentChallenge.title}
-                      </Text>
-                    </View>
-                    <Text style={styles.promptCardXp}>
-                      +{currentChallenge.xpReward}
-                    </Text>
-                  </View>
-                ) : null}
                 <ScrollView
                   style={styles.storyBook}
                   contentContainerStyle={styles.storyBookContent}
@@ -3211,25 +3208,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                                 );
                               })()}
                             {newContributions.map((contribution, index) => {
-                              // US-006: storybook page rendering. AI pages
-                              // use Architects Daughter on paper.card; user
-                              // pages use Caveat on paper.cardWarm. The
-                              // first AI page in the new contributions
-                              // stream gets the foxglove drop cap (cf.
-                              // /tmp/cb_design/components/screens-app.jsx:261-269).
-                              // RN doesn't support CSS `float`, so the drop
-                              // cap renders as a nested Text with larger
-                              // glyph; surrounding text flows below rather
-                              // than wrapping around. Acceptable per the
-                              // PRD §9 deviations precedent.
+                              // US-006: storybook page rendering. AI and user
+                              // pages now share the same Architects Daughter
+                              // body at fontSize 17 / lineHeight 22; speaker
+                              // identity is conveyed by the Fraunces-italic
+                              // byline above each page (inkwell vs. foxglove).
                               const isUser = contribution.type === 'user';
-                              const firstAiIndex = newContributions.findIndex(
-                                c => c.type === 'ai',
-                              );
-                              const isFirstAiPage =
-                                !isUser &&
-                                firstAiIndex !== -1 &&
-                                firstAiIndex === index;
                               const text = contribution.content ?? '';
                               return (
                                 <View
@@ -3261,34 +3245,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                                         : styles.storyPageBodyAi,
                                     ]}
                                   >
-                                    {isFirstAiPage && text.length > 0 ? (
-                                      <Text
-                                        style={[
-                                          styles.storyPageText,
-                                          styles.storyPageTextAi,
-                                          styles.selectableText,
-                                        ]}
-                                        selectable={true}
-                                      >
-                                        <Text style={styles.dropCap}>
-                                          {text.charAt(0)}
-                                        </Text>
-                                        {text.slice(1)}
-                                      </Text>
-                                    ) : (
-                                      <Text
-                                        style={[
-                                          styles.storyPageText,
-                                          isUser
-                                            ? styles.storyPageTextUser
-                                            : styles.storyPageTextAi,
-                                          styles.selectableText,
-                                        ]}
-                                        selectable={true}
-                                      >
-                                        {text}
-                                      </Text>
-                                    )}
+                                    <Text
+                                      style={[
+                                        styles.storyPageText,
+                                        isUser
+                                          ? styles.storyPageTextUser
+                                          : styles.storyPageTextAi,
+                                        styles.selectableText,
+                                      ]}
+                                      selectable={true}
+                                    >
+                                      {text}
+                                    </Text>
                                   </View>
                                 </View>
                               );
@@ -3803,18 +3771,48 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           }}
         />
 
-        {/* Absolute-positioned Challenge Display — story content scrolls behind it */}
-        {currentChallenge && !showCompletionOptions && (
-          <View style={[styles.challengeHeaderSection, { top: insets.top }]}>
-            <ChallengeDisplay
-              challenge={currentChallenge}
-              progress={challengeProgress.find(
-                p => p.challengeId === currentChallenge.id,
-              )}
-              compact={true}
-            />
+        {/* Fixed challenge banner — absolute-positioned overlay at the top of
+            the in-session view. The outer ScrollView (line ~2933) reserves
+            `paddingTop: insets.top + 80` for this banner so initial content
+            (the "Your story" header + story body) sits just below it; as the
+            user scrolls, both flow under the clear-glass card. `box-none`
+            lets taps in the empty horizontal margin pass through to the
+            scroll view so swipe-to-scroll keeps working at the screen edges. */}
+        {currentChallenge && !isGameCompleted ? (
+          <View
+            style={[styles.fixedChallengeWrapper, { top: insets.top }]}
+            pointerEvents="box-none"
+          >
+            <AdaptiveGlassBackground
+              glassStyle="clear"
+              fallbackBlurIntensity={
+                theme.glass.surfaces.challengeBox.fallbackBlurIntensity
+              }
+              fallbackBlurTint={
+                theme.glass.surfaces.challengeBox.fallbackBlurTint
+              }
+              androidFallbackColor={
+                theme.glass.surfaces.challengeBox.androidFallbackColor
+              }
+              style={styles.promptCard}
+            >
+              <View style={styles.promptCardIcon}>
+                <Text style={styles.promptCardIconText}>⚖️</Text>
+              </View>
+              <View style={styles.promptCardBody}>
+                <Text style={styles.promptCardEyebrow}>
+                  Your turn — Round {currentRound} challenge
+                </Text>
+                <Text style={styles.promptCardTitle} numberOfLines={2}>
+                  {currentChallenge.title}
+                </Text>
+              </View>
+              <Text style={styles.promptCardXp}>
+                +{currentChallenge.xpReward}
+              </Text>
+            </AdaptiveGlassBackground>
           </View>
-        )}
+        ) : null}
       </View>
     );
   }
@@ -3825,17 +3823,21 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     console.log('📚 [US-017] Opening guidance modal from enhanced empty state');
   };
 
-  // US-005: Derived stats for the idle-hero QuickCard strip. Real data where
-  // available, honest "—" placeholders where no source exists yet — the strip
-  // is decorative and must not misrepresent progress. Level is derived from
-  // total_xp with a simple floor-division so existing users see a coherent
-  // number without a new backend contract.
   const totalXp = userProfile?.total_xp ?? 0;
-  const storiesCount = userProfile?.total_stories_completed ?? 0;
-  const derivedLevel = Math.max(1, Math.floor(totalXp / 100));
   const streakCount = userProfile?.current_streak ?? 0;
 
   const heroGreeting = userProfile?.display_name || 'Writer';
+
+  // BookSpread sizing. The SVG is authored at 520×340; on iPhone widths the
+  // raw 520pt overflows past homeContainer's 24pt padding (RN doesn't clip
+  // by default), so we cap to whatever fits with a 16pt breathing margin on
+  // each side. iPad keeps the original size.
+  const bookSpreadMaxWidth = Math.min(520, screenWidth - 24 * 2 - 16 * 2);
+  const bookSpreadHeight = bookSpreadMaxWidth * (340 / 520);
+  // On iPhone widths the topbar chips wrap to a second row (see
+  // idleTopBar.flexWrap). Center them in that wrapped row so they don't sit
+  // pinned to the left edge under the avatar.
+  const isCompactWidth = screenWidth < 600;
 
   const handleNavigateToStorySelection = () => {
     if (!isAuthenticated) {
@@ -3879,39 +3881,99 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                   QuickCard stats strip — all wired to the same pre-refresh
                   handlers. */}
               <View style={styles.idleTopBar}>
-                <View style={styles.idleGreetingRow}>
-                  <Watercolor hue={30} size={48}>
-                    🦊
-                  </Watercolor>
+                <View
+                  style={[
+                    styles.idleGreetingRow,
+                    isCompactWidth && styles.idleGreetingRowCompact,
+                  ]}
+                >
+                  {userProfile?.avatar_url ? (
+                    <Image
+                      source={{ uri: userProfile.avatar_url }}
+                      style={[
+                        styles.idleAvatarImage,
+                        isCompactWidth && styles.idleAvatarImageCompact,
+                      ]}
+                    />
+                  ) : (
+                    <Watercolor hue={30} size={isCompactWidth ? 40 : 48}>
+                      {userProfile?.display_name?.charAt(0).toUpperCase() ||
+                        '🦊'}
+                    </Watercolor>
+                  )}
                   <View style={styles.idleGreetingText}>
-                    <Text style={styles.idleEyebrow}>Welcome back</Text>
-                    <Text style={styles.idleName}>{heroGreeting}</Text>
+                    {!isCompactWidth && (
+                      <Text style={styles.idleEyebrow}>Welcome back</Text>
+                    )}
+                    <Text
+                      style={[
+                        styles.idleName,
+                        isCompactWidth && styles.idleNameCompact,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {heroGreeting}
+                    </Text>
                   </View>
                 </View>
-                <View style={styles.idleChipRow}>
-                  <View style={styles.statChip}>
-                    <FlameIcon size={16} />
+                <View
+                  style={[
+                    styles.idleChipRow,
+                    isCompactWidth && styles.idleChipRowCompact,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.statChip,
+                      isCompactWidth && styles.statChipCompact,
+                    ]}
+                  >
+                    <FlameIcon size={isCompactWidth ? 14 : 16} />
                     <Text
                       style={[
                         styles.statChipValue,
+                        isCompactWidth && styles.statChipValueCompact,
                         { color: theme.colors.accents.amber },
                       ]}
                     >
                       {streakCount}
                     </Text>
-                    <Text style={styles.statChipLabel}>day streak</Text>
+                    <Text
+                      style={[
+                        styles.statChipLabel,
+                        isCompactWidth && styles.statChipLabelCompact,
+                      ]}
+                    >
+                      day streak
+                    </Text>
                   </View>
-                  <View style={styles.statChip}>
-                    <StarIcon size={14} color={theme.colors.accents.gold} />
+                  <View
+                    style={[
+                      styles.statChip,
+                      isCompactWidth && styles.statChipCompact,
+                    ]}
+                  >
+                    <StarIcon
+                      size={isCompactWidth ? 12 : 14}
+                      color={theme.colors.accents.gold}
+                    />
                     <Text
                       style={[
                         styles.statChipValue,
+                        isCompactWidth && styles.statChipValueCompact,
                         { color: theme.colors.accents.gold },
                       ]}
                     >
                       {totalXp.toLocaleString()}
                     </Text>
-                    <Text style={styles.statChipLabel}>XP</Text>
+                    <Text
+                      style={[
+                        styles.statChipLabel,
+                        isCompactWidth && styles.statChipLabelCompact,
+                      ]}
+                    >
+                      XP
+                    </Text>
                   </View>
                 </View>
               </View>
@@ -3936,7 +3998,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 accessibilityRole="button"
                 accessibilityLabel="Begin a new story"
               >
-                <BookSpread width={520} height={340} />
+                <BookSpread
+                  width={bookSpreadMaxWidth}
+                  height={bookSpreadHeight}
+                />
                 <View style={styles.bookSpreadOverlay} pointerEvents="none">
                   <Text style={styles.bookSpreadCaveat}>
                     {loadingState.isGenerating
@@ -3970,21 +4035,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                   Import a manuscript
                 </InkButton>
               </View>
-
-              <View style={styles.quickCardStrip}>
-                <QuickStatCard
-                  icon="📖"
-                  label="Stories"
-                  value={String(storiesCount)}
-                />
-                <QuickStatCard icon="✒️" label="Words" value="—" accent />
-                <QuickStatCard
-                  icon="🏆"
-                  label="Level"
-                  value={String(derivedLevel)}
-                />
-                <QuickStatCard icon="⚡" label="Best" value="—" />
-              </View>
             </>
           )}
         </View>
@@ -4001,58 +4051,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   );
 };
 
-// US-005: QuickCard mirrors /tmp/cb_design/components/screens-core.jsx:290-305.
-// Extracted as a local helper to keep the hero return block readable. No props
-// typed interface exported because this is not a reusable primitive — it is a
-// layout fragment specific to the idle hero strip.
-const QuickStatCard: React.FC<{
-  icon: string;
-  label: string;
-  value: string;
-  accent?: boolean;
-}> = ({ icon, label, value, accent }) => (
-  <View style={[quickCardStyles.card, accent && quickCardStyles.cardAccent]}>
-    <View style={quickCardStyles.row}>
-      <Text style={quickCardStyles.icon}>{icon}</Text>
-      <Text style={quickCardStyles.value}>{value}</Text>
-    </View>
-    <Text style={quickCardStyles.label}>{label}</Text>
-  </View>
-);
-
-const quickCardStyles = StyleSheet.create({
-  card: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: theme.colors.paper.card,
-    borderWidth: 1,
-    borderColor: theme.colors.paper.edge,
-    gap: 2,
-  },
-  cardAccent: {
-    backgroundColor: theme.colors.paper.cardWarm,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  icon: {
-    fontSize: 20,
-  },
-  value: {
-    fontFamily: theme.typography.fontFamily.serifBold,
-    fontSize: 22,
-    color: theme.colors.ink.base,
-  },
-  label: {
-    fontSize: 12,
-    color: theme.colors.ink.faint,
-    fontWeight: '500',
-  },
-});
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -4068,10 +4066,15 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
   },
   // US-005: Idle hero top bar (avatar + greeting + stat chips).
+  // flexWrap + rowGap let the chip row drop below the greeting on iPhone
+  // widths (where the two stat chips don't fit alongside the greeting); iPad
+  // still renders both on a single row.
   idleTopBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    rowGap: 12,
     paddingHorizontal: 8,
     marginBottom: 24,
   },
@@ -4079,9 +4082,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    flexShrink: 1,
+  },
+  idleGreetingRowCompact: {
+    gap: 8,
+  },
+  idleAvatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+  idleAvatarImageCompact: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
   idleGreetingText: {
     gap: 2,
+    flexShrink: 1,
   },
   idleEyebrow: {
     fontSize: 13,
@@ -4095,9 +4113,20 @@ const styles = StyleSheet.create({
     color: theme.colors.ink.base,
     letterSpacing: -0.3,
   },
+  idleNameCompact: {
+    fontSize: 18,
+  },
   idleChipRow: {
     flexDirection: 'row',
     gap: 10,
+    flexShrink: 0,
+  },
+  // iPhone-only chip-row tweaks: tighter inter-chip gap to claw back the
+  // horizontal room needed to keep the chips on the same line as the
+  // greeting. The flexWrap on idleTopBar is the safety net for very long
+  // display names.
+  idleChipRowCompact: {
+    gap: 6,
   },
   statChip: {
     flexDirection: 'row',
@@ -4110,14 +4139,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.paper.edge,
   },
+  statChipCompact: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    gap: 4,
+  },
   statChipValue: {
     fontFamily: theme.typography.fontFamily.serifBold,
     fontSize: 18,
+  },
+  statChipValueCompact: {
+    fontSize: 14,
   },
   statChipLabel: {
     fontSize: 11,
     color: theme.colors.ink.faint,
     fontWeight: '500',
+  },
+  statChipLabelCompact: {
+    fontSize: 10,
   },
   // US-005: Idle hero headline + ornament.
   idleHero: {
@@ -4198,27 +4238,19 @@ const styles = StyleSheet.create({
   idleSecondaryEmoji: {
     fontSize: 18,
   },
-  // US-005: QuickCard strip.
-  quickCardStrip: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 8,
-    paddingBottom: 16,
-  },
   // New three-section layout styles
   safeContainer: {
     flex: 1,
     backgroundColor: theme.colors.paper.base,
   },
-  challengeHeaderSection: {
+  // Wrapper for the fixed challenge banner. Absolute-positioned at top of
+  // safeContainer; `top` is set inline using the safe-area inset. zIndex
+  // floats it above the scroll view so story content scrolls underneath.
+  fixedChallengeWrapper: {
     position: 'absolute' as const,
-    top: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: 8,
-    paddingTop: 4,
-    paddingBottom: 4,
-    zIndex: 10,
+    zIndex: 100,
   },
   storyContentSection: {
     flex: 1,
@@ -4558,17 +4590,25 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     flexGrow: 1,
   },
-  // US-006: Round-challenge prompt card.
+  // US-006: Round-challenge prompt card. Wrapped with AdaptiveGlassBackground
+  // and lifted to a fixed top overlay (see `fixedChallengeWrapper` above).
+  // `position: 'relative'` overrides the glass wrapper's absoluteFill default
+  // so the card sizes to its content; `overflow: 'hidden'` is required for
+  // BlurView to clip to the rounded corners (cf. AdaptiveGlassBackground.tsx
+  // blurOverflow rule). No `backgroundColor` — it would paint over the iOS
+  // blur material; the wrapper's `androidFallbackColor` covers the non-iOS
+  // case. `marginTop` was dropped because the card is no longer in inline
+  // flow; vertical position now comes from the wrapper's `top` inset.
   promptCard: {
+    position: 'relative' as const,
+    overflow: 'hidden' as const,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     marginHorizontal: 16,
-    marginTop: 4,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 14,
-    backgroundColor: theme.colors.paper.cardWarm,
     borderWidth: 1.5,
     borderStyle: 'dashed',
     borderColor: theme.colors.accents.foxglove,
@@ -4744,23 +4784,12 @@ const styles = StyleSheet.create({
   storyPageTextAi: {
     fontFamily: theme.typography.fontFamily.architectsDaughter,
     fontSize: 17,
-    lineHeight: 29,
+    lineHeight: 22,
   },
   storyPageTextUser: {
-    fontFamily: theme.typography.fontFamily.hand,
-    fontSize: 22,
-    lineHeight: 31,
-  },
-  // RN doesn't support CSS `float` so the drop cap renders inline as the
-  // first character of the AI-page text. The 54px glyph still gives the
-  // foxglove emphasis the design calls for; surrounding text flows in the
-  // same Text node rather than wrapping around the cap.
-  dropCap: {
     fontFamily: theme.typography.fontFamily.architectsDaughter,
-    fontSize: 54,
-    lineHeight: 50,
-    fontWeight: '700',
-    color: theme.colors.accents.foxglove,
+    fontSize: 17,
+    lineHeight: 22,
   },
   // US-006: "User starts first" prompt card — paper-card surface with
   // dashed foxglove border and Fraunces label, mirrors the design's
