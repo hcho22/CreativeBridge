@@ -3214,25 +3214,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                                 );
                               })()}
                             {newContributions.map((contribution, index) => {
-                              // US-006: storybook page rendering. AI pages
-                              // use Architects Daughter on paper.card; user
-                              // pages use Caveat on paper.cardWarm. The
-                              // first AI page in the new contributions
-                              // stream gets the foxglove drop cap (cf.
-                              // /tmp/cb_design/components/screens-app.jsx:261-269).
-                              // RN doesn't support CSS `float`, so the drop
-                              // cap renders as a nested Text with larger
-                              // glyph; surrounding text flows below rather
-                              // than wrapping around. Acceptable per the
-                              // PRD §9 deviations precedent.
+                              // US-006: storybook page rendering. AI and user
+                              // pages now share the same Architects Daughter
+                              // body at fontSize 17 / lineHeight 22; speaker
+                              // identity is conveyed by the Fraunces-italic
+                              // byline above each page (inkwell vs. foxglove).
                               const isUser = contribution.type === 'user';
-                              const firstAiIndex = newContributions.findIndex(
-                                c => c.type === 'ai',
-                              );
-                              const isFirstAiPage =
-                                !isUser &&
-                                firstAiIndex !== -1 &&
-                                firstAiIndex === index;
                               const text = contribution.content ?? '';
                               return (
                                 <View
@@ -3264,40 +3251,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                                         : styles.storyPageBodyAi,
                                     ]}
                                   >
-                                    {isFirstAiPage && text.length > 0 ? (
-                                      <View style={styles.firstAiPageContainer}>
-                                        <Text
-                                          style={[
-                                            styles.storyPageText,
-                                            styles.storyPageTextAi,
-                                            styles.selectableText,
-                                            styles.firstAiPageBody,
-                                          ]}
-                                          selectable={true}
-                                        >
-                                          {text.slice(1)}
-                                        </Text>
-                                        <Text
-                                          style={styles.dropCap}
-                                          pointerEvents="none"
-                                        >
-                                          {text.charAt(0)}
-                                        </Text>
-                                      </View>
-                                    ) : (
-                                      <Text
-                                        style={[
-                                          styles.storyPageText,
-                                          isUser
-                                            ? styles.storyPageTextUser
-                                            : styles.storyPageTextAi,
-                                          styles.selectableText,
-                                        ]}
-                                        selectable={true}
-                                      >
-                                        {text}
-                                      </Text>
-                                    )}
+                                    <Text
+                                      style={[
+                                        styles.storyPageText,
+                                        isUser
+                                          ? styles.storyPageTextUser
+                                          : styles.storyPageTextAi,
+                                        styles.selectableText,
+                                      ]}
+                                      selectable={true}
+                                    >
+                                      {text}
+                                    </Text>
                                   </View>
                                 </View>
                               );
@@ -4794,27 +4759,6 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.fontFamily.architectsDaughter,
     fontSize: 17,
     lineHeight: 22,
-  },
-  // First-AI-page wrapper. iOS RN inflates a parent Text's per-line height
-  // when a nested Text has a larger lineHeight, which is what the previous
-  // inline-dropCap render did (54pt cap nested in a 22pt body bloated every
-  // line). The cap is now an absolute sibling instead, and the body reserves
-  // horizontal room via paddingLeft so its first characters clear the cap.
-  firstAiPageContainer: {
-    position: 'relative',
-  },
-  firstAiPageBody: {
-    paddingLeft: 36,
-  },
-  dropCap: {
-    position: 'absolute',
-    top: -4,
-    left: 0,
-    fontFamily: theme.typography.fontFamily.architectsDaughter,
-    fontSize: 54,
-    lineHeight: 50,
-    fontWeight: '700',
-    color: theme.colors.accents.foxglove,
   },
   // US-006: "User starts first" prompt card — paper-card surface with
   // dashed foxglove border and Fraunces label, mirrors the design's
