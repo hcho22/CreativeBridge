@@ -4680,9 +4680,9 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   storyPageTextUser: {
-    fontFamily: theme.typography.fontFamily.hand,
-    fontSize: 22,
-    lineHeight: 31,
+    fontFamily: theme.typography.fontFamily.architectsDaughter,
+    fontSize: 17,
+    lineHeight: 22,
   },
   // RN doesn't support CSS `float` so the drop cap renders inline as the
   // first character of the AI-page text. The 54px glyph still gives the
