@@ -3263,19 +3263,25 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                                     ]}
                                   >
                                     {isFirstAiPage && text.length > 0 ? (
-                                      <Text
-                                        style={[
-                                          styles.storyPageText,
-                                          styles.storyPageTextAi,
-                                          styles.selectableText,
-                                        ]}
-                                        selectable={true}
-                                      >
-                                        <Text style={styles.dropCap}>
+                                      <View style={styles.firstAiPageContainer}>
+                                        <Text
+                                          style={[
+                                            styles.storyPageText,
+                                            styles.storyPageTextAi,
+                                            styles.selectableText,
+                                            styles.firstAiPageBody,
+                                          ]}
+                                          selectable={true}
+                                        >
+                                          {text.slice(1)}
+                                        </Text>
+                                        <Text
+                                          style={styles.dropCap}
+                                          pointerEvents="none"
+                                        >
                                           {text.charAt(0)}
                                         </Text>
-                                        {text.slice(1)}
-                                      </Text>
+                                      </View>
                                     ) : (
                                       <Text
                                         style={[
@@ -4684,11 +4690,21 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 22,
   },
-  // RN doesn't support CSS `float` so the drop cap renders inline as the
-  // first character of the AI-page text. The 54px glyph still gives the
-  // foxglove emphasis the design calls for; surrounding text flows in the
-  // same Text node rather than wrapping around the cap.
+  // First-AI-page wrapper. iOS RN inflates a parent Text's per-line height
+  // when a nested Text has a larger lineHeight, which is what the previous
+  // inline-dropCap render did (54pt cap nested in a 22pt body bloated every
+  // line). The cap is now an absolute sibling instead, and the body reserves
+  // horizontal room via paddingLeft so its first characters clear the cap.
+  firstAiPageContainer: {
+    position: 'relative',
+  },
+  firstAiPageBody: {
+    paddingLeft: 36,
+  },
   dropCap: {
+    position: 'absolute',
+    top: -4,
+    left: 0,
     fontFamily: theme.typography.fontFamily.architectsDaughter,
     fontSize: 54,
     lineHeight: 50,
