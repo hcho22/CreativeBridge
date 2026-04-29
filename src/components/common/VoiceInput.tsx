@@ -379,7 +379,24 @@ const VoiceInput = React.memo(
             await whisperTranscriptionService.startRecording(
               handleMetering,
               onPartialResultRef.current
-                ? (text: string) => onPartialResultRef.current?.(text)
+                ? (text: string) => {
+                    onPartialResultRef.current?.(text);
+                    // Treat partial-transcript arrival as proof of speech.
+                    // SFSpeechRecognizer (live partials, via @react-native-
+                    // voice/voice) and expo-av (metering) are independent
+                    // audio pipelines; on iPad they can contend such that
+                    // partials stream in but metering never crosses
+                    // SILENCE_DB_THRESHOLD. Without this fallback,
+                    // `hasSpoken` stays false → the Stop button stays
+                    // disabled (see VoiceFirstInputBar's `speakDisabled`
+                    // gate) and the silence-detector won't fire either —
+                    // softlocking the user. If SFSpeechRecognizer
+                    // transcribed words, the user has by definition spoken.
+                    if (!hasSpokenRef.current && text?.trim()) {
+                      hasSpokenRef.current = true;
+                      onHasSpokenChangeRef.current?.(true);
+                    }
+                  }
                 : undefined,
             );
             startErr = null;
