@@ -109,6 +109,7 @@ export interface StorySession {
   metadata: {
     theme?: string;
     character?: string;
+    characterName?: string;
     setting?: string;
     difficulty?: number;
   };
