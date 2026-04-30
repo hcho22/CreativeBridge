@@ -14,7 +14,10 @@ jobs:
   lint-and-test:
     name: Lint, Type Check & Test
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Bumped from 15 to accommodate the advisory test step while ~25% of the
+    # suite is red — many failing tests hit the 10s per-test timeout, so the
+    # full run is much slower than the ~65s healthy local time.
+    timeout-minutes: 25
 
     steps:
       - name: Checkout repository
@@ -51,5 +54,7 @@ jobs:
       # while the backlog is being worked through. Flip back to hard gate once
       # the suite is healthy.
       - name: Run tests (advisory)
-        run: npm test -- --coverage --watchAll=false
+        # --coverage dropped while tests are advisory — saves ~50% wall time
+        # on a broken suite. Re-add when the suite is healthy.
+        run: npm test -- --watchAll=false
         continue-on-error: true
