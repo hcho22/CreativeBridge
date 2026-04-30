@@ -1,6 +1,6 @@
 /**
  * Content Prediction Integration Tests
- * 
+ *
  * Integration tests for Task 3.1: Content Prediction Skill Integration
  */
 
@@ -38,12 +38,16 @@ describe('Content Prediction Integration', () => {
       };
 
       // Analyze context
-      const analysis = await contentPredictionService.analyzeStoryContext(request);
+      const analysis = await contentPredictionService.analyzeStoryContext(
+        request,
+      );
       expect(analysis).toBeDefined();
 
       // Get predictions
-      const predictions = await contentPredictionService.predictContent(analysis);
-      
+      const predictions = await contentPredictionService.predictContent(
+        analysis,
+      );
+
       // Predictions should be available (or null if skill unavailable)
       // The story service should still work regardless
       expect(analysis.confidence).toBeGreaterThan(0);
@@ -68,7 +72,9 @@ describe('Content Prediction Integration', () => {
       ];
 
       for (const request of formats) {
-        const analysis = await contentPredictionService.analyzeStoryContext(request);
+        const analysis = await contentPredictionService.analyzeStoryContext(
+          request,
+        );
         expect(analysis).toBeDefined();
         expect(analysis.gradeLevel).toBe(request.gradeLevel);
       }
@@ -83,12 +89,16 @@ describe('Content Prediction Integration', () => {
       };
 
       // Should work even if predictions fail
-      const analysis = await contentPredictionService.analyzeStoryContext(request);
+      const analysis = await contentPredictionService.analyzeStoryContext(
+        request,
+      );
       expect(analysis).toBeDefined();
-      
+
       // Story generation should still work
       await enhancedStoryAgentService.initialize();
-      const storyResponse = await enhancedStoryAgentService.continueStory(request);
+      const storyResponse = await enhancedStoryAgentService.continueStory(
+        request,
+      );
       expect(storyResponse).toBeDefined();
       expect(storyResponse.success).toBe(true);
     });
@@ -101,7 +111,9 @@ describe('Content Prediction Integration', () => {
       };
 
       const startTime = performance.now();
-      const analysis = await contentPredictionService.analyzeStoryContext(request);
+      const analysis = await contentPredictionService.analyzeStoryContext(
+        request,
+      );
       const analysisTime = performance.now() - startTime;
 
       expect(analysis).toBeDefined();
@@ -114,11 +126,14 @@ describe('Content Prediction Integration', () => {
     test('Story patterns successfully analyzed and categorized', async () => {
       const request: StoryRequest = {
         gradeLevel: 'K-2',
-        storySoFar: 'Ruby and her friend Alice went on a magical adventure. They discovered a secret garden filled with talking flowers.',
+        storySoFar:
+          'Ruby and her friend Alice went on a magical adventure. They discovered a secret garden filled with talking flowers.',
         userInput: 'The flowers showed them a path',
       };
 
-      const analysis = await contentPredictionService.analyzeStoryContext(request);
+      const analysis = await contentPredictionService.analyzeStoryContext(
+        request,
+      );
 
       expect(analysis.patternMatch).toBeDefined();
       if (analysis.patternMatch) {
@@ -144,7 +159,9 @@ describe('Content Prediction Integration', () => {
       ];
 
       const analyses = await Promise.all(
-        similarStories.map(req => contentPredictionService.analyzeStoryContext(req))
+        similarStories.map(req =>
+          contentPredictionService.analyzeStoryContext(req),
+        ),
       );
 
       // Both should match similar patterns
@@ -157,18 +174,24 @@ describe('Content Prediction Integration', () => {
     test('Prediction confidence scores accurate and useful', async () => {
       const request: StoryRequest = {
         gradeLevel: '3-5',
-        storySoFar: 'Sarah and her friends discovered a hidden cave. Inside, they found ancient treasures and mysterious artifacts.',
+        storySoFar:
+          'Sarah and her friends discovered a hidden cave. Inside, they found ancient treasures and mysterious artifacts.',
         userInput: 'They explored deeper into the cave',
       };
 
-      const analysis = await contentPredictionService.analyzeStoryContext(request);
-      const predictions = await contentPredictionService.predictContent(analysis);
+      const analysis = await contentPredictionService.analyzeStoryContext(
+        request,
+      );
+      const predictions = await contentPredictionService.predictContent(
+        analysis,
+      );
 
       if (predictions) {
-        const confidence = contentPredictionService.calculatePredictionConfidence(
-          predictions.predictions,
-          analysis
-        );
+        const confidence =
+          contentPredictionService.calculatePredictionConfidence(
+            predictions.predictions,
+            analysis,
+          );
 
         expect(confidence.overall).toBeGreaterThan(0);
         expect(confidence.overall).toBeLessThanOrEqual(1);
@@ -179,4 +202,3 @@ describe('Content Prediction Integration', () => {
     });
   });
 });
-

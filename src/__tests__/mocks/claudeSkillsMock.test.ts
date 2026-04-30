@@ -1,6 +1,6 @@
 /**
  * Claude Skills Mock Infrastructure Tests
- * 
+ *
  * Tests for Task 2.2: Enhanced Testing Infrastructure
  * Validates mock consistency, determinism, and performance simulation
  */
@@ -32,7 +32,7 @@ describe('Claude Skills Mock Infrastructure', () => {
       });
 
       const input = SkillTestUtils.createTestInput.ContentPredictionSkill();
-      
+
       // Execute multiple times
       const results = await Promise.all([
         mockManager.executeSkill('ContentPredictionSkill_mock', input),
@@ -44,7 +44,9 @@ describe('Claude Skills Mock Infrastructure', () => {
       results.forEach(result => {
         expect(result.success).toBe(true);
         expect(result.data).toBeDefined();
-        expect(SkillTestUtils.validateResponse.ContentPredictionSkill(result.data)).toBe(true);
+        expect(
+          SkillTestUtils.validateResponse.ContentPredictionSkill(result.data),
+        ).toBe(true);
       });
 
       // Responses should be consistent (same confidence, similar structure)
@@ -84,12 +86,14 @@ describe('Claude Skills Mock Infrastructure', () => {
         const input = SkillTestUtils.createTestInput[skillType]();
         const result = await mockManager.executeSkill(
           `${skillType}_mock`,
-          input
+          input,
         );
 
         expect(result.success).toBe(true);
         expect(result.data).toBeDefined();
-        expect(SkillTestUtils.validateResponse[skillType](result.data)).toBe(true);
+        expect(SkillTestUtils.validateResponse[skillType](result.data)).toBe(
+          true,
+        );
         expect(result.skillType).toBe(skillType);
         expect(result.executionTimeMs).toBeGreaterThan(0);
       }
@@ -105,9 +109,9 @@ describe('Claude Skills Mock Infrastructure', () => {
 
       const input = SkillTestUtils.createTestInput.ContentPredictionSkill();
       const startTime = Date.now();
-      
+
       await mockManager.executeSkill('ContentPredictionSkill_mock', input);
-      
+
       const actualTime = Date.now() - startTime;
       const expectedTime = MOCK_EXECUTION_TIMES.ContentPredictionSkill;
 
@@ -122,17 +126,14 @@ describe('Claude Skills Mock Infrastructure', () => {
       await mockManager.initialize({
         apiKey: 'test_key',
         environment: 'development',
-        enabledSkills: [
-          'ContentPredictionSkill',
-          'QualityAssessmentSkill',
-        ],
+        enabledSkills: ['ContentPredictionSkill', 'QualityAssessmentSkill'],
         performanceMode: 'balanced',
       });
 
       // Test success scenario
       const successResult = await mockManager.executeSkill(
         'ContentPredictionSkill_mock',
-        SkillTestUtils.createTestInput.ContentPredictionSkill()
+        SkillTestUtils.createTestInput.ContentPredictionSkill(),
       );
       expect(successResult.success).toBe(true);
 
@@ -140,7 +141,7 @@ describe('Claude Skills Mock Infrastructure', () => {
       mockManager.setErrorSimulation(true, 'networkError');
       const errorResult = await mockManager.executeSkill(
         'ContentPredictionSkill_mock',
-        SkillTestUtils.createTestInput.ContentPredictionSkill()
+        SkillTestUtils.createTestInput.ContentPredictionSkill(),
       );
       expect(errorResult.success).toBe(false);
       expect(errorResult.error?.code).toBe(SkillErrorCode.NETWORK_ERROR);
@@ -149,7 +150,7 @@ describe('Claude Skills Mock Infrastructure', () => {
       mockManager.setErrorSimulation(true, 'timeoutError');
       const timeoutResult = await mockManager.executeSkill(
         'ContentPredictionSkill_mock',
-        SkillTestUtils.createTestInput.ContentPredictionSkill()
+        SkillTestUtils.createTestInput.ContentPredictionSkill(),
       );
       expect(timeoutResult.success).toBe(false);
       expect(timeoutResult.error?.code).toBe(SkillErrorCode.SKILL_TIMEOUT);
@@ -174,7 +175,7 @@ describe('Claude Skills Mock Infrastructure', () => {
         mockManager.setErrorSimulation(true, failureMode);
         const result = await mockManager.executeSkill(
           'ContentPredictionSkill_mock',
-          SkillTestUtils.createTestInput.ContentPredictionSkill()
+          SkillTestUtils.createTestInput.ContentPredictionSkill(),
         );
 
         expect(result.success).toBe(false);
@@ -195,14 +196,14 @@ describe('Claude Skills Mock Infrastructure', () => {
       const emptyInput = {};
       const emptyResult = await mockManager.executeSkill(
         'ContentPredictionSkill_mock',
-        emptyInput
+        emptyInput,
       );
       expect(emptyResult).toBeDefined();
 
       // Test with invalid skill ID
       const invalidResult = await mockManager.executeSkill(
         'invalid_skill_id',
-        {}
+        {},
       );
       expect(invalidResult.success).toBe(false);
       expect(invalidResult.error?.code).toBe(SkillErrorCode.SKILL_UNAVAILABLE);
@@ -210,7 +211,7 @@ describe('Claude Skills Mock Infrastructure', () => {
       // Test before initialization
       const uninitializedManager = createMockSkillManager();
       await expect(
-        uninitializedManager.executeSkill('test_skill', {})
+        uninitializedManager.executeSkill('test_skill', {}),
       ).rejects.toThrow();
     });
   });
@@ -312,4 +313,3 @@ describe('Claude Skills Mock Infrastructure', () => {
     });
   });
 });
-

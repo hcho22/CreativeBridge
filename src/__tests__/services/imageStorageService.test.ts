@@ -3,7 +3,10 @@
  * Tests for Supabase Storage upload with retry logic and error handling
  */
 
-import { imageStorageService, ImageStorageService } from '../../services/imageStorageService';
+import {
+  imageStorageService,
+  ImageStorageService,
+} from '../../services/imageStorageService';
 import { supabase } from '../../services/supabase';
 
 // Mock dependencies
@@ -77,7 +80,7 @@ describe('ImageStorageService', () => {
       const result = await service.uploadImageToSupabase(
         'https://replicate.delivery/test.png',
         'session-456',
-        'user-123'
+        'user-123',
       );
 
       expect(result.success).toBe(true);
@@ -114,7 +117,7 @@ describe('ImageStorageService', () => {
       const result = await service.uploadImageToSupabase(
         'https://replicate.delivery/test.png',
         'session-456',
-        'user-123'
+        'user-123',
       );
 
       expect(result.success).toBe(true);
@@ -130,7 +133,7 @@ describe('ImageStorageService', () => {
       const result = await service.uploadImageToSupabase(
         'https://replicate.delivery/test.png',
         'session-456',
-        'user-123'
+        'user-123',
       );
 
       expect(result.success).toBe(false);
@@ -141,7 +144,9 @@ describe('ImageStorageService', () => {
 
     it('should reject files larger than 10MB', async () => {
       // Create 11MB blob
-      const largeBlob = new Blob(['x'.repeat(11 * 1024 * 1024)], { type: 'image/png' });
+      const largeBlob = new Blob(['x'.repeat(11 * 1024 * 1024)], {
+        type: 'image/png',
+      });
       (global.fetch as jest.Mock).mockResolvedValue({
         ok: true,
         blob: () => Promise.resolve(largeBlob),
@@ -152,7 +157,7 @@ describe('ImageStorageService', () => {
       const result = await service.uploadImageToSupabase(
         'https://replicate.delivery/large.png',
         'session-456',
-        'user-123'
+        'user-123',
       );
 
       expect(result.success).toBe(false);
@@ -172,7 +177,7 @@ describe('ImageStorageService', () => {
       const result = await service.uploadImageToSupabase(
         'https://replicate.delivery/test.pdf',
         'session-456',
-        'user-123'
+        'user-123',
       );
 
       expect(result.success).toBe(false);
@@ -197,7 +202,7 @@ describe('ImageStorageService', () => {
       const result = await service.uploadImageToSupabase(
         'https://replicate.delivery/test.png',
         'session-456',
-        'user-123'
+        'user-123',
       );
 
       expect(result.success).toBe(false);
@@ -225,14 +230,14 @@ describe('ImageStorageService', () => {
       await service.uploadImageToSupabase(
         'https://replicate.delivery/test.png',
         '../../../session-456',
-        '../../user-123'
+        '../../user-123',
       );
 
       // Verify upload was called with sanitized path
       expect(mockStorage.upload).toHaveBeenCalledWith(
         expect.stringMatching(/^[a-zA-Z0-9-]+\/[a-zA-Z0-9-]+\.png$/),
         expect.any(Blob),
-        expect.any(Object)
+        expect.any(Object),
       );
     });
   });
@@ -346,13 +351,17 @@ describe('ImageStorageService', () => {
   describe('getPublicUrl', () => {
     it('should generate correct public URL', () => {
       mockStorage.getPublicUrl.mockReturnValue({
-        data: { publicUrl: 'https://supabase.co/storage/user-123/session-456.png' },
+        data: {
+          publicUrl: 'https://supabase.co/storage/user-123/session-456.png',
+        },
       });
 
       const url = service.getPublicUrl('user-123', 'session-456');
 
       expect(url).toBe('https://supabase.co/storage/user-123/session-456.png');
-      expect(mockStorage.getPublicUrl).toHaveBeenCalledWith('user-123/session-456.png');
+      expect(mockStorage.getPublicUrl).toHaveBeenCalledWith(
+        'user-123/session-456.png',
+      );
     });
   });
 
@@ -366,7 +375,9 @@ describe('ImageStorageService', () => {
       const result = await service.deleteImage('user-123', 'session-456');
 
       expect(result.success).toBe(true);
-      expect(mockStorage.remove).toHaveBeenCalledWith(['user-123/session-456.png']);
+      expect(mockStorage.remove).toHaveBeenCalledWith([
+        'user-123/session-456.png',
+      ]);
     });
 
     it('should handle deletion errors', async () => {
@@ -402,7 +413,7 @@ describe('ImageStorageService', () => {
       await service.uploadImageToSupabase(
         'https://replicate.delivery/test.png',
         'session-456',
-        'user-123'
+        'user-123',
       );
       const elapsed = Date.now() - startTime;
 

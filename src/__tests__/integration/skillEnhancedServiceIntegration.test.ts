@@ -1,6 +1,6 @@
 /**
  * Skill Enhanced Service Integration Tests
- * 
+ *
  * Integration tests for Task 2.1: Skill-Enhanced Service Architecture
  */
 
@@ -43,7 +43,7 @@ describe('Skill Enhanced Service Integration', () => {
         skillManager,
         config,
         {
-          buildSkillExecutionPlan: async (request) => {
+          buildSkillExecutionPlan: async request => {
             // Use skills to enhance story generation
             return {
               skills: [
@@ -67,10 +67,12 @@ describe('Skill Enhanced Service Integration', () => {
               skillResults: Array.from(orchestrationResult.results.values()),
             };
           },
-        }
+        },
       );
 
-      const result = await enhancedService.execute({ prompt: 'A magical adventure' });
+      const result = await enhancedService.execute({
+        prompt: 'A magical adventure',
+      });
 
       expect(result).toBeDefined();
       expect(result.success).toBe(true);
@@ -79,11 +81,15 @@ describe('Skill Enhanced Service Integration', () => {
     test('Multiple enhanced services work together', async () => {
       // Create multiple services
       const service1 = {
-        execute: async (req: { input: string }) => ({ result: `Service1: ${req.input}` }),
+        execute: async (req: { input: string }) => ({
+          result: `Service1: ${req.input}`,
+        }),
       };
 
       const service2 = {
-        execute: async (req: { input: string }) => ({ result: `Service2: ${req.input}` }),
+        execute: async (req: { input: string }) => ({
+          result: `Service2: ${req.input}`,
+        }),
       };
 
       const config: SkillEnhancedServiceConfig = {
@@ -99,7 +105,7 @@ describe('Skill Enhanced Service Integration', () => {
         {
           buildSkillExecutionPlan: async () => null,
           processSkillResults: async (req, _) => service1.execute(req),
-        }
+        },
       );
 
       const enhanced2 = SkillEnhancedServiceFactory.wrapService(
@@ -109,7 +115,7 @@ describe('Skill Enhanced Service Integration', () => {
         {
           buildSkillExecutionPlan: async () => null,
           processSkillResults: async (req, _) => service2.execute(req),
-        }
+        },
       );
 
       // Use both services together
@@ -157,12 +163,12 @@ describe('Skill Enhanced Service Integration', () => {
           processSkillResults: async () => {
             throw new Error('Processing error');
           },
-        }
+        },
       );
 
       // Should handle errors gracefully
       await expect(
-        enhancedService.execute({ input: 'test' })
+        enhancedService.execute({ input: 'test' }),
       ).rejects.toThrow();
     });
   });
@@ -189,7 +195,7 @@ describe('Skill Enhanced Service Integration', () => {
         skillManager,
         config,
         {
-          buildSkillExecutionPlan: async (request) => {
+          buildSkillExecutionPlan: async request => {
             // Skills can provide dependencies
             return {
               skills: [
@@ -206,16 +212,17 @@ describe('Skill Enhanced Service Integration', () => {
           },
           processSkillResults: async (request, orchestrationResult) => {
             // Extract dependency from skill results
-            const dependency = orchestrationResult.results.size > 0
-              ? { provided: true }
-              : undefined;
+            const dependency =
+              orchestrationResult.results.size > 0
+                ? { provided: true }
+                : undefined;
 
             return dependentService.execute({
               ...request,
               dependency,
             });
           },
-        }
+        },
       );
 
       const result = await enhancedService.execute({ input: 'test' });
@@ -223,4 +230,3 @@ describe('Skill Enhanced Service Integration', () => {
     });
   });
 });
-

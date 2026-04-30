@@ -60,7 +60,7 @@ describe('Security Testing - Image Storage & Persistence', () => {
       expect(data?.path).toBe(filePath);
     });
 
-    it('should prevent users from uploading to another user\'s folder', async () => {
+    it("should prevent users from uploading to another user's folder", async () => {
       mockSupabase.__testUtils.setUser(testUser1);
 
       const testBlob = new Blob(['test image data'], { type: 'image/png' });
@@ -71,7 +71,8 @@ describe('Security Testing - Image Storage & Persistence', () => {
       mockSupabase.storage.from().upload.mockResolvedValueOnce({
         data: null,
         error: {
-          message: 'RLS policy violation: You can only upload to your own folder',
+          message:
+            'RLS policy violation: You can only upload to your own folder',
           statusCode: '42501',
         },
       });
@@ -105,7 +106,7 @@ describe('Security Testing - Image Storage & Persistence', () => {
       expect(data).toBeInstanceOf(Blob);
     });
 
-    it('should prevent users from reading other users\' images', async () => {
+    it("should prevent users from reading other users' images", async () => {
       mockSupabase.__testUtils.setUser(testUser1);
 
       // User 1 trying to read User 2's image - SHOULD FAIL
@@ -148,7 +149,7 @@ describe('Security Testing - Image Storage & Persistence', () => {
       expect(data).toBeTruthy();
     });
 
-    it('should prevent users from deleting other users\' images', async () => {
+    it("should prevent users from deleting other users' images", async () => {
       mockSupabase.__testUtils.setUser(testUser1);
 
       // User 1 trying to delete User 2's image - SHOULD FAIL
@@ -237,7 +238,8 @@ describe('Security Testing - Image Storage & Persistence', () => {
     it('should sanitize session ID in image upload status update', async () => {
       mockSupabase.__testUtils.setUser(testUser1);
 
-      const maliciousSessionId = "session-123'; DELETE FROM game_sessions WHERE '1'='1";
+      const maliciousSessionId =
+        "session-123'; DELETE FROM game_sessions WHERE '1'='1";
 
       // Mock the update - should be parameterized
       mockSupabase.from().update.mockReturnThis();
@@ -263,10 +265,13 @@ describe('Security Testing - Image Storage & Persistence', () => {
       const sessionId = 'safe-session-id';
 
       mockSupabase.from().update.mockReturnThis();
-      mockSupabase.from().update().eq.mockResolvedValueOnce({
-        data: { id: sessionId, image_upload_error: maliciousError },
-        error: null,
-      });
+      mockSupabase
+        .from()
+        .update()
+        .eq.mockResolvedValueOnce({
+          data: { id: sessionId, image_upload_error: maliciousError },
+          error: null,
+        });
 
       const { data, error } = await mockSupabase
         .from('game_sessions')
@@ -282,7 +287,9 @@ describe('Security Testing - Image Storage & Persistence', () => {
   describe('File Upload Validation', () => {
     it('should reject files larger than 10MB', async () => {
       // Create a mock blob larger than 10MB
-      const largeBlob = new Blob(['x'.repeat(11 * 1024 * 1024)], { type: 'image/png' });
+      const largeBlob = new Blob(['x'.repeat(11 * 1024 * 1024)], {
+        type: 'image/png',
+      });
 
       // Mock fetch to return large blob
       global.fetch = jest.fn().mockResolvedValueOnce({
@@ -293,7 +300,7 @@ describe('Security Testing - Image Storage & Persistence', () => {
       const result = await imageStorageService.uploadImageToSupabase(
         'https://test.com/large-image.png',
         'session-123',
-        testUser1.id
+        testUser1.id,
       );
 
       expect(result.success).toBe(false);
@@ -304,7 +311,7 @@ describe('Security Testing - Image Storage & Persistence', () => {
     it('should reject invalid MIME types', async () => {
       // Create a blob with invalid MIME type
       const invalidBlob = new Blob(['<?php system($_GET["cmd"]); ?>'], {
-        type: 'application/x-php'
+        type: 'application/x-php',
       });
 
       global.fetch = jest.fn().mockResolvedValueOnce({
@@ -315,7 +322,7 @@ describe('Security Testing - Image Storage & Persistence', () => {
       const result = await imageStorageService.uploadImageToSupabase(
         'https://test.com/malicious.php',
         'session-123',
-        testUser1.id
+        testUser1.id,
       );
 
       expect(result.success).toBe(false);
@@ -323,7 +330,12 @@ describe('Security Testing - Image Storage & Persistence', () => {
     });
 
     it('should only accept allowed image MIME types', async () => {
-      const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+      const allowedTypes = [
+        'image/png',
+        'image/jpeg',
+        'image/jpg',
+        'image/webp',
+      ];
 
       for (const mimeType of allowedTypes) {
         const validBlob = new Blob(['valid image data'], { type: mimeType });
@@ -346,7 +358,7 @@ describe('Security Testing - Image Storage & Persistence', () => {
         const result = await imageStorageService.uploadImageToSupabase(
           'https://test.com/valid-image.png',
           'session-123',
-          testUser1.id
+          testUser1.id,
         );
 
         // Should succeed for valid MIME types
@@ -358,7 +370,7 @@ describe('Security Testing - Image Storage & Persistence', () => {
       // Malicious blob with executable content but image MIME type
       const maliciousBlob = new Blob(
         ['#!/bin/bash\nrm -rf /\n'],
-        { type: 'image/png' } // Fake MIME type
+        { type: 'image/png' }, // Fake MIME type
       );
 
       global.fetch = jest.fn().mockResolvedValueOnce({
@@ -372,7 +384,7 @@ describe('Security Testing - Image Storage & Persistence', () => {
       const result = await imageStorageService.uploadImageToSupabase(
         'https://test.com/malicious.png',
         'session-123',
-        testUser1.id
+        testUser1.id,
       );
 
       // Note: Currently only checks MIME type from blob
@@ -385,15 +397,14 @@ describe('Security Testing - Image Storage & Persistence', () => {
       // Mock fetch response with non-image content type
       global.fetch = jest.fn().mockResolvedValueOnce({
         ok: true,
-        blob: () => Promise.resolve(
-          new Blob(['text content'], { type: 'text/html' })
-        ),
+        blob: () =>
+          Promise.resolve(new Blob(['text content'], { type: 'text/html' })),
       } as any);
 
       const result = await imageStorageService.uploadImageToSupabase(
         'https://test.com/not-an-image.html',
         'session-123',
-        testUser1.id
+        testUser1.id,
       );
 
       expect(result.success).toBe(false);
@@ -414,7 +425,7 @@ describe('Security Testing - Image Storage & Persistence', () => {
       const resultPromise = imageStorageService.uploadImageToSupabase(
         'https://test.com/slow-image.png',
         'session-123',
-        testUser1.id
+        testUser1.id,
       );
 
       // Fast-forward past the 30s timeout
@@ -435,7 +446,10 @@ describe('Security Testing - Image Storage & Persistence', () => {
       const sessionId = 'session-123';
 
       // The generateFilePath method should sanitize this
-      const publicUrl = imageStorageService.getPublicUrl(maliciousUserId, sessionId);
+      const publicUrl = imageStorageService.getPublicUrl(
+        maliciousUserId,
+        sessionId,
+      );
 
       // Should not contain path traversal sequences
       expect(publicUrl).not.toContain('..');
@@ -449,7 +463,10 @@ describe('Security Testing - Image Storage & Persistence', () => {
       const userId = 'user-123';
       const maliciousSessionId = '../../../var/www/html/shell.php';
 
-      const publicUrl = imageStorageService.getPublicUrl(userId, maliciousSessionId);
+      const publicUrl = imageStorageService.getPublicUrl(
+        userId,
+        maliciousSessionId,
+      );
 
       expect(publicUrl).not.toContain('..');
       expect(publicUrl).not.toContain('/var/www');
@@ -460,7 +477,10 @@ describe('Security Testing - Image Storage & Persistence', () => {
       const maliciousUserId = 'user-123\x00admin';
       const sessionId = 'session\x00.php';
 
-      const publicUrl = imageStorageService.getPublicUrl(maliciousUserId, sessionId);
+      const publicUrl = imageStorageService.getPublicUrl(
+        maliciousUserId,
+        sessionId,
+      );
 
       // Should strip null bytes
       expect(publicUrl).not.toContain('\x00');
@@ -579,26 +599,29 @@ describe('Security Testing - Image Storage & Persistence', () => {
   });
 
   describe('Database Security - Image Upload Tracking', () => {
-    it('should prevent users from modifying other users\' upload status', async () => {
+    it("should prevent users from modifying other users' upload status", async () => {
       mockSupabase.__testUtils.setUser(testUser1);
 
       // User 1 trying to update User 2's session
       const user2SessionId = 'user2-session-123';
 
       mockSupabase.from().update.mockReturnThis();
-      mockSupabase.from().update().eq.mockResolvedValueOnce({
-        data: null,
-        error: {
-          message: 'RLS policy violation',
-          code: '42501',
-        },
-      });
+      mockSupabase
+        .from()
+        .update()
+        .eq.mockResolvedValueOnce({
+          data: null,
+          error: {
+            message: 'RLS policy violation',
+            code: '42501',
+          },
+        });
 
       const { data, error } = await mockSupabase
         .from('game_sessions')
         .update({
           image_upload_status: 'uploaded',
-          supabase_image_url: 'https://malicious.com/image.png'
+          supabase_image_url: 'https://malicious.com/image.png',
         })
         .eq('id', user2SessionId);
 
@@ -613,21 +636,24 @@ describe('Security Testing - Image Storage & Persistence', () => {
       const ownSessionId = 'user1-session-123';
 
       mockSupabase.from().update.mockReturnThis();
-      mockSupabase.from().update().eq.mockResolvedValueOnce({
-        data: {
-          id: ownSessionId,
-          user_id: testUser1.id,
-          image_upload_status: 'uploaded',
-          supabase_image_url: 'https://supabase.co/image.png',
-        },
-        error: null,
-      });
+      mockSupabase
+        .from()
+        .update()
+        .eq.mockResolvedValueOnce({
+          data: {
+            id: ownSessionId,
+            user_id: testUser1.id,
+            image_upload_status: 'uploaded',
+            supabase_image_url: 'https://supabase.co/image.png',
+          },
+          error: null,
+        });
 
       const { data, error } = await mockSupabase
         .from('game_sessions')
         .update({
           image_upload_status: 'uploaded',
-          supabase_image_url: 'https://supabase.co/image.png'
+          supabase_image_url: 'https://supabase.co/image.png',
         })
         .eq('id', ownSessionId);
 
@@ -643,13 +669,16 @@ describe('Security Testing - Image Storage & Persistence', () => {
       const invalidStatus = 'hacked' as any;
 
       mockSupabase.from().update.mockReturnThis();
-      mockSupabase.from().update().eq.mockResolvedValueOnce({
-        data: null,
-        error: {
-          message: 'Invalid input value for enum image_upload_status',
-          code: '22P02',
-        },
-      });
+      mockSupabase
+        .from()
+        .update()
+        .eq.mockResolvedValueOnce({
+          data: null,
+          error: {
+            message: 'Invalid input value for enum image_upload_status',
+            code: '22P02',
+          },
+        });
 
       const { data, error } = await mockSupabase
         .from('game_sessions')
@@ -681,9 +710,17 @@ describe('Security Testing - Image Storage & Persistence', () => {
 
       // Both should succeed independently (optimistic concurrency)
       mockSupabase.from().update.mockReturnThis();
-      mockSupabase.from().update().eq
-        .mockResolvedValueOnce({ data: { image_upload_attempts: 1 }, error: null })
-        .mockResolvedValueOnce({ data: { image_upload_attempts: 2 }, error: null });
+      mockSupabase
+        .from()
+        .update()
+        .eq.mockResolvedValueOnce({
+          data: { image_upload_attempts: 1 },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: { image_upload_attempts: 2 },
+          error: null,
+        });
 
       const [result1, result2] = await Promise.all([update1, update2]);
 
@@ -712,11 +749,17 @@ describe('Security Testing - Image Storage & Persistence', () => {
       // Both uploads should succeed (second one replaces first due to upsert: true)
       const upload1 = await mockSupabase.storage
         .from('story-images')
-        .upload(`${userId}/${sessionId}.png`, new Blob(['v1'], { type: 'image/png' }));
+        .upload(
+          `${userId}/${sessionId}.png`,
+          new Blob(['v1'], { type: 'image/png' }),
+        );
 
       const upload2 = await mockSupabase.storage
         .from('story-images')
-        .upload(`${userId}/${sessionId}.png`, new Blob(['v2'], { type: 'image/png' }));
+        .upload(
+          `${userId}/${sessionId}.png`,
+          new Blob(['v2'], { type: 'image/png' }),
+        );
 
       expect(upload1.error).toBeNull();
       expect(upload2.error).toBeNull();

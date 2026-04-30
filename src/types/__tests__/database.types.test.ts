@@ -27,19 +27,27 @@ describe('Task 1.4: TypeScript Type Updates', () => {
     };
 
     expect(validSession.current_round).toBe(3);
-    expect(validSession.supabase_image_url).toBe('https://example.com/image.png');
+    expect(validSession.supabase_image_url).toBe(
+      'https://example.com/image.png',
+    );
     expect(validSession.image_upload_status).toBe('uploaded');
   });
 
   // Test 2: Invalid status should fail type check
   it('should enforce ImageUploadStatus type', () => {
-    const validStatuses: ImageUploadStatus[] = ['pending', 'uploaded', 'failed'];
+    const validStatuses: ImageUploadStatus[] = [
+      'pending',
+      'uploaded',
+      'failed',
+    ];
 
     validStatuses.forEach(status => {
       const session: Partial<GameSession> = {
         image_upload_status: status,
       };
-      expect(['pending', 'uploaded', 'failed']).toContain(session.image_upload_status);
+      expect(['pending', 'uploaded', 'failed']).toContain(
+        session.image_upload_status,
+      );
     });
 
     // This would fail at compile time (not runtime):
@@ -80,7 +88,9 @@ describe('Task 1.4: TypeScript Type Updates', () => {
     };
 
     expect(storySession.current_round).toBe(2);
-    expect(storySession.supabase_image_url).toBe('https://supabase.co/image.png');
+    expect(storySession.supabase_image_url).toBe(
+      'https://supabase.co/image.png',
+    );
     expect(storySession.image_upload_status).toBe('pending');
     expect(storySession.image_upload_attempts).toBe(2);
     expect(storySession.image_upload_error).toBe('Network timeout');
@@ -124,7 +134,9 @@ describe('Task 1.4: TypeScript Type Updates', () => {
       const session: Partial<GameSession> = {
         image_upload_status: status,
       };
-      expect(['pending', 'uploaded', 'failed']).toContain(session.image_upload_status);
+      expect(['pending', 'uploaded', 'failed']).toContain(
+        session.image_upload_status,
+      );
     });
   });
 });

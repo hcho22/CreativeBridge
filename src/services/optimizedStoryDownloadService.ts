@@ -14,7 +14,14 @@ import pako from 'pako'; // For compression
 
 export interface DownloadProgress {
   operationId: string;
-  stage: 'validating' | 'generating' | 'compressing' | 'saving' | 'sharing' | 'completed' | 'error';
+  stage:
+    | 'validating'
+    | 'generating'
+    | 'compressing'
+    | 'saving'
+    | 'sharing'
+    | 'completed'
+    | 'error';
   progress: number; // 0-100
   message: string;
   estimatedTimeRemaining?: number;
@@ -31,18 +38,27 @@ export class OptimizedStoryDownloadService {
   private static readonly DEFAULT_CHUNK_SIZE = 64 * 1024; // 64KB chunks
   private static readonly COMPRESSION_THRESHOLD = 50 * 1024; // Compress files > 50KB
   private static readonly LARGE_FILE_THRESHOLD = 100 * 1024; // 100KB
-  
-  private activeDownloads: Map<string, {
-    controller: AbortController;
-    progress: DownloadProgress;
-  }> = new Map();
+
+  private activeDownloads: Map<
+    string,
+    {
+      controller: AbortController;
+      progress: DownloadProgress;
+    }
+  > = new Map();
 
   /**
    * Optimized story file generation with memory-efficient processing
    */
-  async generateStoryFileAsync(options: OptimizedDownloadOptions): Promise<string> {
-    const { content, title, chunkSize = OptimizedStoryDownloadService.DEFAULT_CHUNK_SIZE } = options;
-    
+  async generateStoryFileAsync(
+    options: OptimizedDownloadOptions,
+  ): Promise<string> {
+    const {
+      content,
+      title,
+      chunkSize = OptimizedStoryDownloadService.DEFAULT_CHUNK_SIZE,
+    } = options;
+
     if (!content) {
       throw new Error('Story content is required for file generation');
     }
@@ -61,7 +77,7 @@ export class OptimizedStoryDownloadService {
    */
   generateStoryFileSync(options: StoryDownloadOptions): string {
     const { content, title } = options;
-    
+
     if (!content) {
       throw new Error('Story content is required for file generation');
     }
@@ -69,33 +85,37 @@ export class OptimizedStoryDownloadService {
     // Pre-allocate string buffer size for better memory management
     const estimatedSize = content.length + (title ? title.length + 4 : 0) + 100;
     const chunks: string[] = [];
-    
+
     // Add title if provided
     if (title) {
       chunks.push(title, '\n\n');
     }
-    
+
     // Clean and format content efficiently
     const cleanContent = this.optimizedContentCleaning(content);
     chunks.push(cleanContent);
-    
+
     // Ensure file ends with newline
     if (!cleanContent.endsWith('\n')) {
       chunks.push('\n');
     }
-    
+
     return chunks.join('');
   }
 
   /**
    * Enhanced download with background processing and progress tracking
    */
-  async downloadStoryWithOptimization(options: OptimizedDownloadOptions & {
-    userId: string;
-    sessionId: string;
-    maxRetries?: number;
-  }): Promise<DownloadResult> {
-    const operationId = `download_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  async downloadStoryWithOptimization(
+    options: OptimizedDownloadOptions & {
+      userId: string;
+      sessionId: string;
+      maxRetries?: number;
+    },
+  ): Promise<DownloadResult> {
+    const operationId = `download_${Date.now()}_${Math.random()
+      .toString(36)
+      .substr(2, 9)}`;
     const {
       content: storyContent,
       fileName,
@@ -104,7 +124,7 @@ export class OptimizedStoryDownloadService {
       maxRetries = 3,
       enableCompression = false,
       enableBackgroundProcessing = true,
-      onProgress
+      onProgress,
     } = options;
 
     // Start performance tracking
@@ -118,37 +138,55 @@ export class OptimizedStoryDownloadService {
 
     try {
       // Initialize progress tracking
-      const progressTracker = this.createProgressTracker(operationId, onProgress);
-      
+      const progressTracker = this.createProgressTracker(
+        operationId,
+        onProgress,
+      );
+
       progressTracker.update('validating', 10, 'Validating story content...');
 
       // Validate content
       const validation = this.validateStoryContent(storyContent);
       if (!validation.isValid) {
-        throw new Error(`Invalid story content: ${validation.errors.join(', ')}`);
+        throw new Error(
+          `Invalid story content: ${validation.errors.join(', ')}`,
+        );
       }
 
       // Check if we should use background processing
-      const shouldUseBackground = enableBackgroundProcessing && 
-        fileSize > this.LARGE_FILE_THRESHOLD;
+      const shouldUseBackground =
+        enableBackgroundProcessing && fileSize > this.LARGE_FILE_THRESHOLD;
 
       let result: DownloadResult;
 
       if (shouldUseBackground) {
-        result = await this.processInBackground(operationId, options, progressTracker);
+        result = await this.processInBackground(
+          operationId,
+          options,
+          progressTracker,
+        );
       } else {
-        result = await this.processImmediately(operationId, options, progressTracker);
+        result = await this.processImmediately(
+          operationId,
+          options,
+          progressTracker,
+        );
       }
 
       // Complete performance tracking
-      await downloadPerformanceMonitor.stopTracking(operationId, { success: result.success });
+      await downloadPerformanceMonitor.stopTracking(operationId, {
+        success: result.success,
+      });
 
-      progressTracker.update('completed', 100, 'Download completed successfully!');
+      progressTracker.update(
+        'completed',
+        100,
+        'Download completed successfully!',
+      );
       return result;
-
     } catch (error) {
       console.error('❌ Optimized download failed:', error);
-      
+
       // Track failed operation
       await downloadPerformanceMonitor.stopTracking(operationId, {
         success: false,
@@ -179,25 +217,30 @@ export class OptimizedStoryDownloadService {
   private async processImmediately(
     operationId: string,
     options: OptimizedDownloadOptions & { userId: string; sessionId: string },
-    progressTracker: ReturnType<typeof this.createProgressTracker>
+    progressTracker: ReturnType<typeof this.createProgressTracker>,
   ): Promise<DownloadResult> {
     progressTracker.update('generating', 30, 'Generating file content...');
 
     // Generate file content
     const fileContent = await this.generateStoryFileAsync(options);
-    
+
     progressTracker.update('compressing', 60, 'Optimizing file...');
 
     // Apply compression if enabled
-    const finalContent = options.enableCompression && 
+    const finalContent =
+      options.enableCompression &&
       fileContent.length > this.COMPRESSION_THRESHOLD
-      ? await this.compressContent(fileContent)
-      : fileContent;
+        ? await this.compressContent(fileContent)
+        : fileContent;
 
     progressTracker.update('saving', 80, 'Saving file...');
 
     // Save file
-    return this.saveOptimizedStoryFile(finalContent, options.fileName, progressTracker);
+    return this.saveOptimizedStoryFile(
+      finalContent,
+      options.fileName,
+      progressTracker,
+    );
   }
 
   /**
@@ -206,13 +249,17 @@ export class OptimizedStoryDownloadService {
   private async processInBackground(
     operationId: string,
     options: OptimizedDownloadOptions & { userId: string; sessionId: string },
-    progressTracker: ReturnType<typeof this.createProgressTracker>
+    progressTracker: ReturnType<typeof this.createProgressTracker>,
   ): Promise<DownloadResult> {
     return new Promise((resolve, reject) => {
       // Use setTimeout to move processing off the main thread
       setTimeout(async () => {
         try {
-          progressTracker.update('generating', 20, 'Processing large file in background...');
+          progressTracker.update(
+            'generating',
+            20,
+            'Processing large file in background...',
+          );
 
           // Generate content in chunks
           const fileContent = await this.generateStoryFileAsync(options);
@@ -220,17 +267,21 @@ export class OptimizedStoryDownloadService {
           progressTracker.update('compressing', 50, 'Compressing content...');
 
           // Apply compression for large files
-          const finalContent = options.enableCompression !== false && 
+          const finalContent =
+            options.enableCompression !== false &&
             fileContent.length > this.COMPRESSION_THRESHOLD
-            ? await this.compressContent(fileContent)
-            : fileContent;
+              ? await this.compressContent(fileContent)
+              : fileContent;
 
           progressTracker.update('saving', 80, 'Finalizing download...');
 
           // Save file
-          const result = await this.saveOptimizedStoryFile(finalContent, options.fileName, progressTracker);
+          const result = await this.saveOptimizedStoryFile(
+            finalContent,
+            options.fileName,
+            progressTracker,
+          );
           resolve(result);
-
         } catch (error) {
           reject(error);
         }
@@ -244,10 +295,10 @@ export class OptimizedStoryDownloadService {
   private async generateLargeFileInChunks(
     content: string,
     title: string,
-    chunkSize: number
+    chunkSize: number,
   ): Promise<string> {
     const chunks: string[] = [];
-    
+
     // Add title first
     if (title) {
       chunks.push(title, '\n\n');
@@ -258,7 +309,7 @@ export class OptimizedStoryDownloadService {
       const chunk = content.substring(i, i + chunkSize);
       const cleanedChunk = this.optimizedContentCleaning(chunk);
       chunks.push(cleanedChunk);
-      
+
       // Yield control to prevent UI blocking
       if (i % (chunkSize * 4) === 0) {
         await new Promise(resolve => setTimeout(resolve, 0));
@@ -290,12 +341,14 @@ export class OptimizedStoryDownloadService {
       // Convert string to Uint8Array
       const encoder = new TextEncoder();
       const data = encoder.encode(content);
-      
+
       // Compress using pako (gzip)
       const compressed = pako.gzip(data);
-      
+
       // Convert back to base64 string for storage
-      const binary = Array.from(compressed, byte => String.fromCharCode(byte)).join('');
+      const binary = Array.from(compressed, byte =>
+        String.fromCharCode(byte),
+      ).join('');
       return btoa(binary);
     } catch (error) {
       console.warn('⚠️ Compression failed, using original content:', error);
@@ -314,15 +367,18 @@ export class OptimizedStoryDownloadService {
       for (let i = 0; i < binary.length; i++) {
         compressed[i] = binary.charCodeAt(i);
       }
-      
+
       // Decompress
       const decompressed = pako.ungzip(compressed);
-      
+
       // Convert back to string
       const decoder = new TextDecoder();
       return decoder.decode(decompressed);
     } catch (error) {
-      console.warn('⚠️ Decompression failed, treating as regular content:', error);
+      console.warn(
+        '⚠️ Decompression failed, treating as regular content:',
+        error,
+      );
       return compressedContent;
     }
   }
@@ -333,11 +389,11 @@ export class OptimizedStoryDownloadService {
   private async saveOptimizedStoryFile(
     content: string,
     fileName?: string,
-    progressTracker?: ReturnType<typeof this.createProgressTracker>
+    progressTracker?: ReturnType<typeof this.createProgressTracker>,
   ): Promise<DownloadResult> {
     try {
       const finalFileName = fileName || this.generateOptimizedFileName();
-      
+
       progressTracker?.update('saving', 85, 'Creating file...');
 
       // Create temporary file
@@ -361,7 +417,7 @@ export class OptimizedStoryDownloadService {
 
       try {
         await Share.open(shareOptions);
-        
+
         return {
           success: true,
           fileName: finalFileName,
@@ -369,7 +425,8 @@ export class OptimizedStoryDownloadService {
         };
       } catch (shareError) {
         // Handle user cancellation
-        const errorMessage = shareError instanceof Error ? shareError.message : String(shareError);
+        const errorMessage =
+          shareError instanceof Error ? shareError.message : String(shareError);
         if (errorMessage && errorMessage.includes('User did not share')) {
           return {
             success: true,
@@ -380,12 +437,12 @@ export class OptimizedStoryDownloadService {
         }
         throw shareError;
       }
-
     } catch (error) {
       console.error('❌ Optimized file save failed:', error);
-      
+
       const errorMsg = error instanceof Error ? error.message : String(error);
-      let errorMessage = 'An unexpected error occurred while saving your story.';
+      let errorMessage =
+        'An unexpected error occurred while saving your story.';
 
       if (errorMsg?.includes('ENOSPC')) {
         errorMessage = 'Not enough storage space available.';
@@ -407,7 +464,7 @@ export class OptimizedStoryDownloadService {
    */
   private generateOptimizedFileName(): string {
     const now = new Date();
-    
+
     // Use more efficient string concatenation
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
@@ -415,7 +472,7 @@ export class OptimizedStoryDownloadService {
     const hours = String(now.getHours()).padStart(2, '0');
     const minutes = String(now.getMinutes()).padStart(2, '0');
     const seconds = String(now.getSeconds()).padStart(2, '0');
-    
+
     return `Story_${month}${day}${year}_${hours}${minutes}${seconds}.txt`;
   }
 
@@ -424,14 +481,14 @@ export class OptimizedStoryDownloadService {
    */
   private createProgressTracker(
     operationId: string,
-    onProgress?: (progress: DownloadProgress) => void
+    onProgress?: (progress: DownloadProgress) => void,
   ) {
     return {
       update: (
         stage: DownloadProgress['stage'],
         progress: number,
         message: string,
-        estimatedTimeRemaining?: number
+        estimatedTimeRemaining?: number,
       ) => {
         const progressData: DownloadProgress = {
           operationId,
@@ -453,7 +510,7 @@ export class OptimizedStoryDownloadService {
         }
 
         console.log(`📊 ${operationId}: ${stage} (${progress}%) - ${message}`);
-      }
+      },
     };
   }
 
@@ -462,7 +519,7 @@ export class OptimizedStoryDownloadService {
    */
   private async handleDownloadError(
     error: any,
-    options: OptimizedDownloadOptions & { userId: string; sessionId: string }
+    options: OptimizedDownloadOptions & { userId: string; sessionId: string },
   ): Promise<DownloadResult> {
     // Try to queue the download for later retry
     try {
@@ -479,12 +536,15 @@ export class OptimizedStoryDownloadService {
         success: false,
         queued: true,
         queueId,
-        error: error instanceof Error ? error.message : 'Download failed - queued for retry'
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Download failed - queued for retry',
       };
     } catch (queueError) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Download failed'
+        error: error instanceof Error ? error.message : 'Download failed',
       };
     }
   }
@@ -513,7 +573,10 @@ export class OptimizedStoryDownloadService {
   /**
    * Validate story content (inherited from base service)
    */
-  validateStoryContent(content: string): { isValid: boolean; errors: string[] } {
+  validateStoryContent(content: string): {
+    isValid: boolean;
+    errors: string[];
+  } {
     const errors: string[] = [];
 
     if (typeof content !== 'string') {
@@ -522,40 +585,45 @@ export class OptimizedStoryDownloadService {
     }
 
     const trimmedContent = content.trim();
-    
+
     if (trimmedContent.length === 0) {
       errors.push('Story content cannot be empty');
     }
-    
+
     if (trimmedContent.length > 0 && trimmedContent.length < 10) {
       errors.push('Story content is too short (minimum 10 characters)');
     }
-    
-    if (trimmedContent.length > 1000000) { // Increased limit for optimized version
+
+    if (trimmedContent.length > 1000000) {
+      // Increased limit for optimized version
       errors.push('Story content is too long (maximum 1,000,000 characters)');
     }
 
     return {
       isValid: errors.length === 0,
-      errors
+      errors,
     };
   }
 
   /**
    * Estimate file size with compression consideration
    */
-  estimateOptimizedFileSize(content: string, enableCompression: boolean = false): number {
+  estimateOptimizedFileSize(
+    content: string,
+    enableCompression: boolean = false,
+  ): number {
     const baseSize = new Blob([content], { type: 'text/plain' }).size;
-    
+
     if (enableCompression && baseSize > this.COMPRESSION_THRESHOLD) {
       // Estimate compression ratio (typically 60-80% reduction for text)
       return Math.round(baseSize * 0.3);
     }
-    
+
     return baseSize;
   }
 }
 
 // Export singleton instance
-export const optimizedStoryDownloadService = new OptimizedStoryDownloadService();
+export const optimizedStoryDownloadService =
+  new OptimizedStoryDownloadService();
 export default optimizedStoryDownloadService;

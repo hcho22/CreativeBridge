@@ -1,7 +1,7 @@
 /**
  * Folder picker utility using available React Native APIs
  * Provides true folder selection for saving files
- * 
+ *
  * Uses iOS Share Sheet API which includes "Save to Files" option
  * This allows users to save images to any folder they have access to
  */
@@ -31,35 +31,39 @@ export interface SaveToFolderResult {
 }
 
 export class FolderPickerUtil {
-  
   /**
    * Save file with native Files app integration - uses Share Sheet on iOS
    */
-  static async saveToUserSelectedFolder(options: SaveToFolderOptions): Promise<SaveToFolderResult> {
+  static async saveToUserSelectedFolder(
+    options: SaveToFolderOptions,
+  ): Promise<SaveToFolderResult> {
     try {
       console.log('📁 Starting Files app integration save process');
       console.log('📁 Source file path:', options.sourceFilePath);
-      
+
       // Check if we're in RNFS simulation mode and force native initialization
       if (RNFS.isSimulationMode) {
-        console.log('📁 RNFS in simulation mode, attempting to initialize native module...');
+        console.log(
+          '📁 RNFS in simulation mode, attempting to initialize native module...',
+        );
         RNFS.retryNativeModuleInitialization();
-        
+
         // Wait a moment for initialization
         await new Promise(resolve => setTimeout(resolve, 100));
-        
+
         if (RNFS.isSimulationMode) {
           return {
             success: false,
-            error: 'File system not available. Please ensure the app is running on a physical device with proper native module linking.',
+            error:
+              'File system not available. Please ensure the app is running on a physical device with proper native module linking.',
           };
         }
       }
-      
+
       // Verify source file exists
       const sourceExists = await RNFS.exists(options.sourceFilePath);
       console.log('📁 Source file exists check:', sourceExists);
-      
+
       if (!sourceExists) {
         return {
           success: false,
@@ -70,19 +74,21 @@ export class FolderPickerUtil {
       if (Platform.OS === 'ios') {
         // iOS: Use Share Sheet which includes "Save to Files" option
         console.log('📁 Opening iOS Share Sheet for file save...');
-        
+
         try {
           // Prepare file URL for sharing - iOS needs proper file:// URL format
           let fileUrl = options.sourceFilePath;
-          
+
           // Ensure file URL is properly formatted
           if (!fileUrl.startsWith('file://')) {
             fileUrl = `file://${fileUrl}`;
           }
-          
+
           // Validate that the path doesn't contain invalid paths
           if (fileUrl.includes('/dev/null')) {
-            throw new Error('Invalid file path - native file system not initialized properly. Please restart the app.');
+            throw new Error(
+              'Invalid file path - native file system not initialized properly. Please restart the app.',
+            );
           }
 
           const shareOptions = {
@@ -99,14 +105,14 @@ export class FolderPickerUtil {
             ...shareOptions,
             url: fileUrl.substring(0, 50) + '...',
           });
-          
+
           const shareResult = await Share.open(shareOptions);
           console.log('📁 Share result:', shareResult);
 
           // Check if user completed the action
           if (shareResult.success) {
             console.log('📁 File saved successfully via Share Sheet');
-            
+
             return {
               success: true,
               finalPath: options.sourceFilePath, // iOS doesn't give us the final path from Share
@@ -115,28 +121,26 @@ export class FolderPickerUtil {
             // User dismissed without saving
             return { success: false, cancelled: true };
           }
-
         } catch (shareError: any) {
           // Handle user cancellation
-          if (shareError.message && (
-            shareError.message.includes('User did not share') ||
-            shareError.message.includes('cancelled')
-          )) {
+          if (
+            shareError.message &&
+            (shareError.message.includes('User did not share') ||
+              shareError.message.includes('cancelled'))
+          ) {
             console.log('📁 User cancelled share sheet');
             return { success: false, cancelled: true };
           }
-          
+
           // Handle other errors
           console.error('📁 Share sheet error:', shareError);
           throw shareError;
         }
-
       } else {
         // Android: Use fallback method (can be enhanced with Android-specific APIs later)
         console.log('📁 Using fallback method for Android');
         return await this.fallbackDirectorySelection(options);
       }
-
     } catch (error: any) {
       console.error('Files app save failed:', error);
       return {
@@ -153,7 +157,9 @@ export class FolderPickerUtil {
   /**
    * Handle file name conflicts by appending numbers
    */
-  private static async handleFileNameConflicts(filePath: string): Promise<string> {
+  private static async handleFileNameConflicts(
+    filePath: string,
+  ): Promise<string> {
     let finalPath = filePath;
     let counter = 1;
 
@@ -171,27 +177,33 @@ export class FolderPickerUtil {
   /**
    * Fallback directory selection for development mode when DocumentPicker is not available
    */
-  private static async fallbackDirectorySelection(options: SaveToFolderOptions): Promise<SaveToFolderResult> {
+  private static async fallbackDirectorySelection(
+    options: SaveToFolderOptions,
+  ): Promise<SaveToFolderResult> {
     try {
       console.log('📁 Using fallback directory selection for development');
-      
+
       // For development mode, we'll use a simple alert-based folder selection
-      const folderChoice = await new Promise<string>((resolve) => {
+      const folderChoice = await new Promise<string>(resolve => {
         Alert.alert(
           'Save Location (Development Mode)',
           'Choose where to save your image. Note: Files app not available in simulator.',
           [
-            { text: 'Cancel', style: 'cancel', onPress: () => resolve('cancelled') },
+            {
+              text: 'Cancel',
+              style: 'cancel',
+              onPress: () => resolve('cancelled'),
+            },
             { text: 'Documents Folder', onPress: () => resolve('documents') },
             { text: 'Downloads Folder', onPress: () => resolve('downloads') },
           ],
         );
       });
-      
+
       if (folderChoice === 'cancelled') {
         return { success: false, cancelled: true };
       }
-      
+
       // Use basic folder paths for development
       let targetFolder: string;
       if (folderChoice === 'downloads') {
@@ -199,7 +211,7 @@ export class FolderPickerUtil {
       } else {
         targetFolder = `${RNFS.DocumentDirectoryPath}/CreativeBridge`;
       }
-      
+
       // Ensure target folder exists
       try {
         const folderExists = await RNFS.exists(targetFolder);
@@ -211,30 +223,32 @@ export class FolderPickerUtil {
         console.log('📁 Could not create folder, using document directory');
         targetFolder = RNFS.DocumentDirectoryPath;
       }
-      
+
       // Handle file name conflicts
       const finalPath = await this.handleFileNameConflicts(
-        `${targetFolder}/${options.fileName}`
+        `${targetFolder}/${options.fileName}`,
       );
-      
+
       console.log('📁 Saving file to fallback location:', finalPath);
-      
+
       // Copy file to chosen location
       await RNFS.copyFile(options.sourceFilePath, finalPath);
-      
+
       // Verify the file was saved
       const savedFileExists = await RNFS.exists(finalPath);
       if (!savedFileExists) {
         throw new Error('File save verification failed');
       }
-      
-      console.log('📁 File saved successfully to fallback location:', finalPath);
-      
+
+      console.log(
+        '📁 File saved successfully to fallback location:',
+        finalPath,
+      );
+
       return {
         success: true,
         finalPath,
       };
-      
     } catch (error: any) {
       console.error('Fallback directory selection failed:', error);
       return {
@@ -289,7 +303,7 @@ export class FolderPickerUtil {
     if (filePath.includes('CreativeBridge')) {
       return 'CreativeBridge folder';
     }
-    
+
     // Extract parent folder name from user-selected path
     const pathParts = filePath.split('/');
     const parentFolder = pathParts[pathParts.length - 2];

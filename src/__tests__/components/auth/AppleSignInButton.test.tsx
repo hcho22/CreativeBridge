@@ -12,7 +12,10 @@ import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 import { AppleSignInButton } from '../../../components/auth/AppleSignInButton';
 import { useAuth } from '../../../context/AuthContext';
-import { checkNetworkBeforeOAuth, getNetworkErrorMessage } from '../../../utils/oauthNetworkCheck';
+import {
+  checkNetworkBeforeOAuth,
+  getNetworkErrorMessage,
+} from '../../../utils/oauthNetworkCheck';
 import { handleOAuthError } from '../../../utils/oauthErrorHandler';
 
 // Mock dependencies
@@ -30,13 +33,15 @@ jest.mock('react-native', () => {
 });
 
 const mockUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;
-const mockCheckNetworkBeforeOAuth = checkNetworkBeforeOAuth as jest.MockedFunction<
-  typeof checkNetworkBeforeOAuth
+const mockCheckNetworkBeforeOAuth =
+  checkNetworkBeforeOAuth as jest.MockedFunction<
+    typeof checkNetworkBeforeOAuth
+  >;
+const mockGetNetworkErrorMessage =
+  getNetworkErrorMessage as jest.MockedFunction<typeof getNetworkErrorMessage>;
+const mockHandleOAuthError = handleOAuthError as jest.MockedFunction<
+  typeof handleOAuthError
 >;
-const mockGetNetworkErrorMessage = getNetworkErrorMessage as jest.MockedFunction<
-  typeof getNetworkErrorMessage
->;
-const mockHandleOAuthError = handleOAuthError as jest.MockedFunction<typeof handleOAuthError>;
 
 describe('AppleSignInButton', () => {
   let mockSignInWithApple: jest.Mock;
@@ -310,4 +315,3 @@ describe('AppleSignInButton', () => {
     });
   });
 });
-

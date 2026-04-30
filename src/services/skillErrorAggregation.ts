@@ -1,6 +1,6 @@
 /**
  * Claude Skills Error Aggregation and Alerting
- * 
+ *
  * Aggregates errors, tracks error rates, and triggers alerts
  * when thresholds are exceeded.
  */
@@ -76,7 +76,7 @@ class SkillErrorAggregationService {
   recordError(
     skillType: SkillType,
     error: SkillError,
-    totalExecutions: number
+    totalExecutions: number,
   ): void {
     const aggregation = this.aggregations.get(skillType);
     if (!aggregation) {
@@ -108,7 +108,7 @@ class SkillErrorAggregationService {
    */
   private async checkAlertThresholds(
     skillType: SkillType,
-    aggregation: ErrorAggregation
+    aggregation: ErrorAggregation,
   ): Promise<void> {
     const config = this.alertConfigs.get(skillType);
     if (!config) {
@@ -133,7 +133,10 @@ class SkillErrorAggregationService {
     }
 
     // Check error count threshold (within time window)
-    const recentErrorCount = this.getRecentErrorCount(skillType, config.timeWindow);
+    const recentErrorCount = this.getRecentErrorCount(
+      skillType,
+      config.timeWindow,
+    );
     if (recentErrorCount >= config.errorCountThreshold) {
       await this.triggerAlert(skillType, aggregation, 'error_count');
       aggregation.isAlerting = true;
@@ -153,22 +156,20 @@ class SkillErrorAggregationService {
   private async triggerAlert(
     skillType: SkillType,
     aggregation: ErrorAggregation,
-    reason: 'error_rate' | 'error_count'
+    reason: 'error_rate' | 'error_count',
   ): Promise<void> {
-    const severity = aggregation.errorRate >= 20 ? Severity.CRITICAL : Severity.HIGH;
+    const severity =
+      aggregation.errorRate >= 20 ? Severity.CRITICAL : Severity.HIGH;
 
-    structuredLogger.critical(
-      `Alert triggered for ${skillType}: ${reason}`,
-      {
-        skillType,
-        metadata: {
-          errorRate: aggregation.errorRate,
-          totalErrors: aggregation.totalErrors,
-          reason,
-          errorsByCode: Object.fromEntries(aggregation.errorsByCode),
-        },
-      }
-    );
+    structuredLogger.critical(`Alert triggered for ${skillType}: ${reason}`, {
+      skillType,
+      metadata: {
+        errorRate: aggregation.errorRate,
+        totalErrors: aggregation.totalErrors,
+        reason,
+        errorsByCode: Object.fromEntries(aggregation.errorsByCode),
+      },
+    });
 
     await auditLogger.logEvent({
       eventType: EventType.ALERT_TRIGGERED,
@@ -189,7 +190,10 @@ class SkillErrorAggregationService {
   /**
    * Get recent error count within time window
    */
-  private getRecentErrorCount(skillType: SkillType, timeWindow: number): number {
+  private getRecentErrorCount(
+    skillType: SkillType,
+    timeWindow: number,
+  ): number {
     const aggregation = this.aggregations.get(skillType);
     if (!aggregation) {
       return 0;
@@ -197,7 +201,9 @@ class SkillErrorAggregationService {
 
     const cutoffTime = Date.now() - timeWindow;
     return aggregation.recentErrors.filter(
-      error => aggregation.lastErrorTime && aggregation.lastErrorTime.getTime() >= cutoffTime
+      error =>
+        aggregation.lastErrorTime &&
+        aggregation.lastErrorTime.getTime() >= cutoffTime,
     ).length;
   }
 
@@ -222,7 +228,7 @@ class SkillErrorAggregationService {
     const currentConfig = this.alertConfigs.get(skillType);
     if (currentConfig) {
       this.alertConfigs.set(skillType, { ...currentConfig, ...config });
-      
+
       const aggregation = this.aggregations.get(skillType);
       if (aggregation && config.errorRateThreshold) {
         aggregation.alertThreshold = config.errorRateThreshold;
@@ -264,4 +270,3 @@ class SkillErrorAggregationService {
 
 // Export singleton instance
 export const skillErrorAggregation = new SkillErrorAggregationService();
-

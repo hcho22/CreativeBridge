@@ -1,13 +1,13 @@
 /**
  * Fallback Strategy System
- * 
+ *
  * Provides fallback mechanisms when Claude Skills fail or are unavailable.
  * Ensures service continuity and graceful degradation.
  */
 
 import { SkillError, SkillErrorCode } from '../../types/claudeSkills';
 
-export type FallbackReason = 
+export type FallbackReason =
   | 'skill_error'
   | 'skill_timeout'
   | 'skill_unavailable'
@@ -44,7 +44,7 @@ export interface FallbackStrategy<TRequest, TResponse> {
    */
   execute(
     request: TRequest,
-    context: FallbackContext
+    context: FallbackContext,
   ): Promise<FallbackResult<TResponse>>;
 
   /**
@@ -69,7 +69,7 @@ export abstract class BaseFallbackStrategy<TRequest, TResponse>
   abstract canHandle(error: SkillError, context: FallbackContext): boolean;
   abstract execute(
     request: TRequest,
-    context: FallbackContext
+    context: FallbackContext,
   ): Promise<FallbackResult<TResponse>>;
 
   getPriority(): number {
@@ -82,9 +82,10 @@ export abstract class BaseFallbackStrategy<TRequest, TResponse>
 /**
  * Retry fallback strategy - retries the original operation
  */
-export class RetryFallbackStrategy<TRequest, TResponse>
-  extends BaseFallbackStrategy<TRequest, TResponse>
-{
+export class RetryFallbackStrategy<
+  TRequest,
+  TResponse,
+> extends BaseFallbackStrategy<TRequest, TResponse> {
   private maxRetries: number = 2;
   private retryDelay: number = 1000; // 1 second
 
@@ -98,15 +99,16 @@ export class RetryFallbackStrategy<TRequest, TResponse>
   canHandle(error: SkillError, context: FallbackContext): boolean {
     // Can retry on network errors, timeouts, or rate limits
     return (
-      error.code === SkillErrorCode.NETWORK_ERROR ||
-      error.code === SkillErrorCode.SKILL_TIMEOUT ||
-      error.code === SkillErrorCode.RATE_LIMIT_EXCEEDED
-    ) && context.attemptNumber < this.maxRetries;
+      (error.code === SkillErrorCode.NETWORK_ERROR ||
+        error.code === SkillErrorCode.SKILL_TIMEOUT ||
+        error.code === SkillErrorCode.RATE_LIMIT_EXCEEDED) &&
+      context.attemptNumber < this.maxRetries
+    );
   }
 
   async execute(
     request: TRequest,
-    context: FallbackContext
+    context: FallbackContext,
   ): Promise<FallbackResult<TResponse>> {
     // Wait before retry
     await new Promise(resolve => setTimeout(resolve, this.retryDelay));
@@ -131,14 +133,17 @@ export class RetryFallbackStrategy<TRequest, TResponse>
 /**
  * Original service fallback - uses the original service without skills
  */
-export class OriginalServiceFallbackStrategy<TRequest, TResponse>
-  extends BaseFallbackStrategy<TRequest, TResponse>
-{
+export class OriginalServiceFallbackStrategy<
+  TRequest,
+  TResponse,
+> extends BaseFallbackStrategy<TRequest, TResponse> {
   private originalService: {
     execute(request: TRequest): Promise<TResponse>;
   };
 
-  constructor(originalService: { execute(request: TRequest): Promise<TResponse> }) {
+  constructor(originalService: {
+    execute(request: TRequest): Promise<TResponse>;
+  }) {
     super();
     this.priority = 5; // Medium priority
     this.originalService = originalService;
@@ -151,7 +156,7 @@ export class OriginalServiceFallbackStrategy<TRequest, TResponse>
 
   async execute(
     request: TRequest,
-    context: FallbackContext
+    context: FallbackContext,
   ): Promise<FallbackResult<TResponse>> {
     try {
       const result = await this.originalService.execute(request);
@@ -187,10 +192,12 @@ export class OriginalServiceFallbackStrategy<TRequest, TResponse>
 /**
  * Cached response fallback - uses cached data if available
  */
-export class CachedResponseFallbackStrategy<TRequest, TResponse>
-  extends BaseFallbackStrategy<TRequest, TResponse>
-{
-  private cache: Map<string, { data: TResponse; timestamp: number }> = new Map();
+export class CachedResponseFallbackStrategy<
+  TRequest,
+  TResponse,
+> extends BaseFallbackStrategy<TRequest, TResponse> {
+  private cache: Map<string, { data: TResponse; timestamp: number }> =
+    new Map();
   private cacheTTL: number = 5 * 60 * 1000; // 5 minutes
 
   constructor(cacheTTL: number = 5 * 60 * 1000) {
@@ -206,7 +213,7 @@ export class CachedResponseFallbackStrategy<TRequest, TResponse>
 
   async execute(
     request: TRequest,
-    context: FallbackContext
+    context: FallbackContext,
   ): Promise<FallbackResult<TResponse>> {
     const cacheKey = context.metadata?.cacheKey as string | undefined;
     if (!cacheKey) {
@@ -266,9 +273,10 @@ export class CachedResponseFallbackStrategy<TRequest, TResponse>
 /**
  * Default/static response fallback - returns a default response
  */
-export class DefaultResponseFallbackStrategy<TRequest, TResponse>
-  extends BaseFallbackStrategy<TRequest, TResponse>
-{
+export class DefaultResponseFallbackStrategy<
+  TRequest,
+  TResponse,
+> extends BaseFallbackStrategy<TRequest, TResponse> {
   private defaultResponse: TResponse | (() => TResponse);
 
   constructor(defaultResponse: TResponse | (() => TResponse)) {
@@ -284,7 +292,7 @@ export class DefaultResponseFallbackStrategy<TRequest, TResponse>
 
   async execute(
     request: TRequest,
-    context: FallbackContext
+    context: FallbackContext,
   ): Promise<FallbackResult<TResponse>> {
     const response =
       typeof this.defaultResponse === 'function'
@@ -328,7 +336,7 @@ export class FallbackStrategyManager<TRequest, TResponse> {
    */
   async executeFallback(
     request: TRequest,
-    context: FallbackContext
+    context: FallbackContext,
   ): Promise<FallbackResult<TResponse>> {
     for (const strategy of this.strategies) {
       if (context.error && strategy.canHandle(context.error, context)) {
@@ -336,14 +344,14 @@ export class FallbackStrategyManager<TRequest, TResponse> {
           const result = await strategy.execute(request, context);
           if (result.success) {
             console.log(
-              `✅ Fallback strategy '${strategy.getName()}' succeeded`
+              `✅ Fallback strategy '${strategy.getName()}' succeeded`,
             );
             return result;
           }
         } catch (error) {
           console.warn(
             `⚠️ Fallback strategy '${strategy.getName()}' failed:`,
-            error
+            error,
           );
           // Continue to next strategy
         }
@@ -376,4 +384,3 @@ export class FallbackStrategyManager<TRequest, TResponse> {
     this.strategies = [];
   }
 }
-

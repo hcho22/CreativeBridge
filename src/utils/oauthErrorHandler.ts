@@ -212,7 +212,10 @@ export function handleOAuthError(
   if (matchesErrorPattern(error, OAUTH_ERROR_CODES.NETWORK_ERROR)) {
     // Calculate exponential backoff for retries
     const baseDelay = 2000;
-    const retryDelay = attemptNumber > 1 ? baseDelay * Math.pow(2, attemptNumber - 1) : baseDelay;
+    const retryDelay =
+      attemptNumber > 1
+        ? baseDelay * Math.pow(2, attemptNumber - 1)
+        : baseDelay;
     const maxDelay = 10000; // Cap at 10 seconds
     const finalDelay = Math.min(retryDelay, maxDelay);
 
@@ -318,16 +321,24 @@ export function handleOAuthError(
   if (matchesErrorPattern(error, OAUTH_ERROR_CODES.PROVIDER_ERROR)) {
     // Calculate exponential backoff for retries
     const baseDelay = 3000;
-    const retryDelay = attemptNumber > 1 ? baseDelay * Math.pow(2, attemptNumber - 1) : baseDelay;
+    const retryDelay =
+      attemptNumber > 1
+        ? baseDelay * Math.pow(2, attemptNumber - 1)
+        : baseDelay;
     const maxDelay = 15000; // Cap at 15 seconds
     const finalDelay = Math.min(retryDelay, maxDelay);
 
     // Provide more specific messages for Clerk errors
     let userMessage = 'Authentication failed. Please try again.';
     if (errorString.includes('clerk')) {
-      userMessage = 'Authentication service temporarily unavailable. Please try again in a moment.';
-    } else if (errorString.includes('server') || errorString.includes('gateway')) {
-      userMessage = 'The authentication service is experiencing issues. Please try again in a moment.';
+      userMessage =
+        'Authentication service temporarily unavailable. Please try again in a moment.';
+    } else if (
+      errorString.includes('server') ||
+      errorString.includes('gateway')
+    ) {
+      userMessage =
+        'The authentication service is experiencing issues. Please try again in a moment.';
     }
 
     return {
@@ -370,7 +381,11 @@ export function handleOAuthError(
   }
 
   // Clerk-specific errors
-  if (errorString.includes('clerk') || errorString.includes('jwt') || errorString.includes('jwks')) {
+  if (
+    errorString.includes('clerk') ||
+    errorString.includes('jwt') ||
+    errorString.includes('jwks')
+  ) {
     return {
       shouldShowError: true,
       userMessage:
@@ -384,7 +399,8 @@ export function handleOAuthError(
   // Default error - generic message, retryable
   // Calculate exponential backoff for retries
   const baseDelay = 2000;
-  const retryDelay = attemptNumber > 1 ? baseDelay * Math.pow(2, attemptNumber - 1) : baseDelay;
+  const retryDelay =
+    attemptNumber > 1 ? baseDelay * Math.pow(2, attemptNumber - 1) : baseDelay;
   const maxDelay = 8000; // Cap at 8 seconds
   const finalDelay = Math.min(retryDelay, maxDelay);
 

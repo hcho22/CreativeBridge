@@ -1,6 +1,6 @@
 /**
  * Statistical Analysis Service
- * 
+ *
  * Advanced statistical analysis for A/B testing and performance validation
  * Task 8.1: Comprehensive Performance Validation - Subtask 3
  */
@@ -116,13 +116,23 @@ class StatisticalAnalysisService {
   async initialize(): Promise<void> {
     try {
       this.isInitialized = true;
-      
+
       structuredLogger.info('Statistical Analysis Service initialized', {
-        supportedTests: ['t-test', 'Mann-Whitney U', 'Chi-square', 'Proportion Z-test', 'ANOVA'],
+        supportedTests: [
+          't-test',
+          'Mann-Whitney U',
+          'Chi-square',
+          'Proportion Z-test',
+          'ANOVA',
+        ],
         correctionMethods: ['Bonferroni', 'Holm', 'FDR'],
       });
     } catch (error) {
-      structuredLogger.error('Failed to initialize Statistical Analysis Service', {}, error as Error);
+      structuredLogger.error(
+        'Failed to initialize Statistical Analysis Service',
+        {},
+        error as Error,
+      );
       throw error;
     }
   }
@@ -136,17 +146,17 @@ class StatisticalAnalysisService {
     }
 
     const experimentId = 'claude_skills_integration_2024';
-    
+
     // Collect experiment data
     const experimentData = await this.collectExperimentData(experimentId);
-    
+
     // Define metrics to analyze
     const primaryMetrics = [
       'story_generation_latency',
       'user_engagement_score',
       'session_completion_rate',
     ];
-    
+
     const secondaryMetrics = [
       'content_quality_score',
       'error_recovery_success',
@@ -158,21 +168,29 @@ class StatisticalAnalysisService {
     // Perform statistical analysis on primary metrics
     const primaryResults: StatisticalResult[] = [];
     for (const metric of primaryMetrics) {
-      const result = await this.analyzeMetric(metric, experimentData, 'primary');
+      const result = await this.analyzeMetric(
+        metric,
+        experimentData,
+        'primary',
+      );
       primaryResults.push(result);
     }
 
     // Perform statistical analysis on secondary metrics
     const secondaryResults: StatisticalResult[] = [];
     for (const metric of secondaryMetrics) {
-      const result = await this.analyzeMetric(metric, experimentData, 'secondary');
+      const result = await this.analyzeMetric(
+        metric,
+        experimentData,
+        'secondary',
+      );
       secondaryResults.push(result);
     }
 
     // Apply multiple testing correction
     const multipleTestingCorrection = this.applyMultipleTestingCorrection(
       [...primaryResults, ...secondaryResults],
-      'fdr' // False Discovery Rate
+      'fdr', // False Discovery Rate
     );
 
     // Perform Bayesian analysis on primary metrics
@@ -182,7 +200,7 @@ class StatisticalAnalysisService {
     const recommendations = this.generateExperimentRecommendations(
       primaryResults,
       secondaryResults,
-      multipleTestingCorrection
+      multipleTestingCorrection,
     );
 
     const result: ExperimentResult = {
@@ -205,8 +223,10 @@ class StatisticalAnalysisService {
 
     structuredLogger.info('Claude Skills A/B test analysis completed', {
       experimentId,
-      primaryMetricsSignificant: primaryResults.filter(r => r.pValue < 0.05).length,
-      secondaryMetricsSignificant: secondaryResults.filter(r => r.pValue < 0.05).length,
+      primaryMetricsSignificant: primaryResults.filter(r => r.pValue < 0.05)
+        .length,
+      secondaryMetricsSignificant: secondaryResults.filter(r => r.pValue < 0.05)
+        .length,
       overallSignificance: result.overallSignificance,
     });
 
@@ -220,7 +240,6 @@ class StatisticalAnalysisService {
     participants: { control: number; treatment: number; total: number };
     metrics: Record<string, MetricComparison>;
   }> {
-    
     // Simulate comprehensive experiment data collection
     const participants = {
       control: 2547,
@@ -237,14 +256,22 @@ class StatisticalAnalysisService {
           standardDeviation: 420,
           median: 1780,
           count: participants.control,
-          distribution: this.generateNormalDistribution(1850, 420, participants.control),
+          distribution: this.generateNormalDistribution(
+            1850,
+            420,
+            participants.control,
+          ),
         },
         treatment: {
           mean: 1285,
           standardDeviation: 380,
           median: 1240,
           count: participants.treatment,
-          distribution: this.generateNormalDistribution(1285, 380, participants.treatment),
+          distribution: this.generateNormalDistribution(
+            1285,
+            380,
+            participants.treatment,
+          ),
         },
         difference: {
           absolute: -565,
@@ -259,14 +286,22 @@ class StatisticalAnalysisService {
           standardDeviation: 0.145,
           median: 0.695,
           count: participants.control,
-          distribution: this.generateBetaDistribution(0.682, 0.145, participants.control),
+          distribution: this.generateBetaDistribution(
+            0.682,
+            0.145,
+            participants.control,
+          ),
         },
         treatment: {
           mean: 0.847,
           standardDeviation: 0.128,
           median: 0.861,
           count: participants.treatment,
-          distribution: this.generateBetaDistribution(0.847, 0.128, participants.treatment),
+          distribution: this.generateBetaDistribution(
+            0.847,
+            0.128,
+            participants.treatment,
+          ),
         },
         difference: {
           absolute: 0.165,
@@ -281,14 +316,22 @@ class StatisticalAnalysisService {
           standardDeviation: 0.178,
           median: 0.628,
           count: participants.control,
-          distribution: this.generateBetaDistribution(0.614, 0.178, participants.control),
+          distribution: this.generateBetaDistribution(
+            0.614,
+            0.178,
+            participants.control,
+          ),
         },
         treatment: {
           mean: 0.891,
           standardDeviation: 0.142,
           count: participants.treatment,
           median: 0.903,
-          distribution: this.generateBetaDistribution(0.891, 0.142, participants.treatment),
+          distribution: this.generateBetaDistribution(
+            0.891,
+            0.142,
+            participants.treatment,
+          ),
         },
         difference: {
           absolute: 0.277,
@@ -303,14 +346,22 @@ class StatisticalAnalysisService {
           standardDeviation: 0.156,
           median: 0.841,
           count: participants.control,
-          distribution: this.generateBetaDistribution(0.823, 0.156, participants.control),
+          distribution: this.generateBetaDistribution(
+            0.823,
+            0.156,
+            participants.control,
+          ),
         },
         treatment: {
           mean: 0.967,
           standardDeviation: 0.089,
           median: 0.974,
           count: participants.treatment,
-          distribution: this.generateBetaDistribution(0.967, 0.089, participants.treatment),
+          distribution: this.generateBetaDistribution(
+            0.967,
+            0.089,
+            participants.treatment,
+          ),
         },
         difference: {
           absolute: 0.144,
@@ -325,14 +376,22 @@ class StatisticalAnalysisService {
           standardDeviation: 0.198,
           median: 0.768,
           count: participants.control,
-          distribution: this.generateBetaDistribution(0.751, 0.198, participants.control),
+          distribution: this.generateBetaDistribution(
+            0.751,
+            0.198,
+            participants.control,
+          ),
         },
         treatment: {
           mean: 0.923,
           standardDeviation: 0.134,
           median: 0.936,
           count: participants.treatment,
-          distribution: this.generateBetaDistribution(0.923, 0.134, participants.treatment),
+          distribution: this.generateBetaDistribution(
+            0.923,
+            0.134,
+            participants.treatment,
+          ),
         },
         difference: {
           absolute: 0.172,
@@ -351,9 +410,8 @@ class StatisticalAnalysisService {
   private async analyzeMetric(
     metricName: string,
     experimentData: any,
-    metricType: 'primary' | 'secondary'
+    metricType: 'primary' | 'secondary',
   ): Promise<StatisticalResult> {
-    
     const metricData = experimentData.metrics[metricName];
     if (!metricData) {
       throw new Error(`Metric data not found: ${metricName}`);
@@ -361,24 +419,36 @@ class StatisticalAnalysisService {
 
     // Choose appropriate statistical test
     const test = this.selectStatisticalTest(metricData);
-    
+
     // Calculate test statistic and p-value
-    const { pValue, testStatistic } = this.calculateTestStatistic(metricData, test);
-    
+    const { pValue, testStatistic } = this.calculateTestStatistic(
+      metricData,
+      test,
+    );
+
     // Calculate effect size
     const effectSize = this.calculateEffectSize(metricData, test.type);
-    
+
     // Calculate confidence interval
-    const confidenceInterval = this.calculateConfidenceInterval(metricData, 0.95);
-    
+    const confidenceInterval = this.calculateConfidenceInterval(
+      metricData,
+      0.95,
+    );
+
     // Calculate statistical power
-    const statisticalPower = this.calculateStatisticalPower(metricData, effectSize.value);
-    
+    const statisticalPower = this.calculateStatisticalPower(
+      metricData,
+      effectSize.value,
+    );
+
     // Assess assumptions
     const assumptions = this.assessAssumptions(metricData, test);
-    
+
     // Determine practical significance
-    const practicalSignificance = this.assessPracticalSignificance(metricData, effectSize.value);
+    const practicalSignificance = this.assessPracticalSignificance(
+      metricData,
+      effectSize.value,
+    );
 
     return {
       testName: test.name,
@@ -403,9 +473,10 @@ class StatisticalAnalysisService {
    */
   private selectStatisticalTest(metricData: MetricComparison): StatisticalTest {
     // For continuous metrics, use t-test if assumptions are met, otherwise Mann-Whitney U
-    const isNormal = this.testNormality(metricData.control.distribution) && 
-                     this.testNormality(metricData.treatment.distribution);
-    
+    const isNormal =
+      this.testNormality(metricData.control.distribution) &&
+      this.testNormality(metricData.treatment.distribution);
+
     if (isNormal && this.testHomogeneity(metricData)) {
       return {
         name: 'Independent Samples T-Test',
@@ -414,7 +485,11 @@ class StatisticalAnalysisService {
           null: 'No difference between groups',
           alternative: 'Treatment group differs from control group',
         },
-        assumptions: ['Normal distribution', 'Homogeneity of variance', 'Independent observations'],
+        assumptions: [
+          'Normal distribution',
+          'Homogeneity of variance',
+          'Independent observations',
+        ],
       };
     } else {
       return {
@@ -422,7 +497,8 @@ class StatisticalAnalysisService {
         type: 'mannwhitney',
         hypothesis: {
           null: 'No difference in distribution between groups',
-          alternative: 'Treatment group distribution differs from control group',
+          alternative:
+            'Treatment group distribution differs from control group',
         },
         assumptions: ['Independent observations', 'Ordinal or continuous data'],
       };
@@ -434,22 +510,24 @@ class StatisticalAnalysisService {
    */
   private calculateTestStatistic(
     metricData: MetricComparison,
-    test: StatisticalTest
+    test: StatisticalTest,
   ): { pValue: number; testStatistic: number } {
-    
     if (test.type === 'ttest') {
       return this.calculateTTest(metricData);
     } else if (test.type === 'mannwhitney') {
       return this.calculateMannWhitneyU(metricData);
     }
-    
+
     throw new Error(`Unsupported test type: ${test.type}`);
   }
 
   /**
    * Calculate t-test
    */
-  private calculateTTest(metricData: MetricComparison): { pValue: number; testStatistic: number } {
+  private calculateTTest(metricData: MetricComparison): {
+    pValue: number;
+    testStatistic: number;
+  } {
     const n1 = metricData.control.count;
     const n2 = metricData.treatment.count;
     const mean1 = metricData.control.mean;
@@ -458,15 +536,17 @@ class StatisticalAnalysisService {
     const std2 = metricData.treatment.standardDeviation;
 
     // Pooled standard error
-    const pooledSE = Math.sqrt(((std1 * std1) / n1) + ((std2 * std2) / n2));
-    
+    const pooledSE = Math.sqrt((std1 * std1) / n1 + (std2 * std2) / n2);
+
     // T-statistic
     const tStat = Math.abs(mean1 - mean2) / pooledSE;
-    
+
     // Degrees of freedom (Welch's t-test)
-    const df = Math.pow(pooledSE, 4) / 
-               (Math.pow(std1 * std1 / n1, 2) / (n1 - 1) + Math.pow(std2 * std2 / n2, 2) / (n2 - 1));
-    
+    const df =
+      Math.pow(pooledSE, 4) /
+      (Math.pow((std1 * std1) / n1, 2) / (n1 - 1) +
+        Math.pow((std2 * std2) / n2, 2) / (n2 - 1));
+
     // Calculate p-value (two-tailed)
     const pValue = 2 * (1 - this.studentTCDF(tStat, df));
 
@@ -476,22 +556,33 @@ class StatisticalAnalysisService {
   /**
    * Calculate Mann-Whitney U test
    */
-  private calculateMannWhitneyU(metricData: MetricComparison): { pValue: number; testStatistic: number } {
+  private calculateMannWhitneyU(metricData: MetricComparison): {
+    pValue: number;
+    testStatistic: number;
+  } {
     // Simplified Mann-Whitney U calculation
     const n1 = metricData.control.count;
     const n2 = metricData.treatment.count;
-    
+
     // Estimate U statistic based on mean differences (simplified for demonstration)
-    const meanDiff = Math.abs(metricData.treatment.mean - metricData.control.mean);
-    const pooledStd = Math.sqrt((metricData.control.standardDeviation ** 2 + metricData.treatment.standardDeviation ** 2) / 2);
-    
-    const U = (n1 * n2) / 2 + (meanDiff / pooledStd) * Math.sqrt((n1 * n2 * (n1 + n2 + 1)) / 12);
-    
+    const meanDiff = Math.abs(
+      metricData.treatment.mean - metricData.control.mean,
+    );
+    const pooledStd = Math.sqrt(
+      (metricData.control.standardDeviation ** 2 +
+        metricData.treatment.standardDeviation ** 2) /
+        2,
+    );
+
+    const U =
+      (n1 * n2) / 2 +
+      (meanDiff / pooledStd) * Math.sqrt((n1 * n2 * (n1 + n2 + 1)) / 12);
+
     // Normal approximation for large samples
     const muU = (n1 * n2) / 2;
     const sigmaU = Math.sqrt((n1 * n2 * (n1 + n2 + 1)) / 12);
     const zScore = Math.abs(U - muU) / sigmaU;
-    
+
     // Two-tailed p-value
     const pValue = 2 * (1 - this.normalCDF(zScore));
 
@@ -501,27 +592,35 @@ class StatisticalAnalysisService {
   /**
    * Calculate effect size
    */
-  private calculateEffectSize(metricData: MetricComparison, testType: string): {
+  private calculateEffectSize(
+    metricData: MetricComparison,
+    testType: string,
+  ): {
     value: number;
     type: 'cohens_d' | 'eta_squared' | 'cramers_v' | 'odds_ratio';
   } {
-    
     if (testType === 'ttest') {
       // Cohen's d
-      const pooledStd = Math.sqrt((
-        metricData.control.standardDeviation ** 2 + 
-        metricData.treatment.standardDeviation ** 2
-      ) / 2);
-      
-      const cohensD = Math.abs(metricData.treatment.mean - metricData.control.mean) / pooledStd;
-      
+      const pooledStd = Math.sqrt(
+        (metricData.control.standardDeviation ** 2 +
+          metricData.treatment.standardDeviation ** 2) /
+          2,
+      );
+
+      const cohensD =
+        Math.abs(metricData.treatment.mean - metricData.control.mean) /
+        pooledStd;
+
       return { value: cohensD, type: 'cohens_d' };
     } else {
       // For non-parametric tests, use eta-squared equivalent
-      const totalVariation = metricData.control.standardDeviation ** 2 + metricData.treatment.standardDeviation ** 2;
-      const betweenVariation = (metricData.treatment.mean - metricData.control.mean) ** 2;
+      const totalVariation =
+        metricData.control.standardDeviation ** 2 +
+        metricData.treatment.standardDeviation ** 2;
+      const betweenVariation =
+        (metricData.treatment.mean - metricData.control.mean) ** 2;
       const etaSquared = betweenVariation / (betweenVariation + totalVariation);
-      
+
       return { value: etaSquared, type: 'eta_squared' };
     }
   }
@@ -531,17 +630,16 @@ class StatisticalAnalysisService {
    */
   private calculateConfidenceInterval(
     metricData: MetricComparison,
-    level: number
+    level: number,
   ): { lower: number; upper: number; level: number } {
-    
     const alpha = 1 - level;
     const zScore = this.normalInverseCDF(1 - alpha / 2);
-    
+
     const meanDiff = metricData.treatment.mean - metricData.control.mean;
     const standardError = metricData.difference.standardError;
-    
+
     const margin = zScore * standardError;
-    
+
     return {
       lower: meanDiff - margin,
       upper: meanDiff + margin,
@@ -552,61 +650,70 @@ class StatisticalAnalysisService {
   /**
    * Calculate statistical power
    */
-  private calculateStatisticalPower(metricData: MetricComparison, effectSize: number): number {
+  private calculateStatisticalPower(
+    metricData: MetricComparison,
+    effectSize: number,
+  ): number {
     const n1 = metricData.control.count;
     const n2 = metricData.treatment.count;
     const alpha = 0.05;
-    
+
     // Simplified power calculation for t-test
     const df = n1 + n2 - 2;
     const criticalT = this.studentTInverseCDF(1 - alpha / 2, df);
-    
+
     // Non-centrality parameter
     const ncp = effectSize * Math.sqrt((n1 * n2) / (n1 + n2));
-    
+
     // Power (simplified approximation)
     const power = 1 - this.studentTCDF(criticalT, df, ncp);
-    
+
     return Math.min(power, 0.999); // Cap at 99.9%
   }
 
   /**
    * Assess statistical assumptions
    */
-  private assessAssumptions(metricData: MetricComparison, test: StatisticalTest): {
+  private assessAssumptions(
+    metricData: MetricComparison,
+    test: StatisticalTest,
+  ): {
     normality: boolean;
     homogeneity: boolean;
     independence: boolean;
     adequateSampleSize: boolean;
   } {
-    
     return {
-      normality: this.testNormality(metricData.control.distribution) && 
-                 this.testNormality(metricData.treatment.distribution),
+      normality:
+        this.testNormality(metricData.control.distribution) &&
+        this.testNormality(metricData.treatment.distribution),
       homogeneity: this.testHomogeneity(metricData),
       independence: true, // Assumed for A/B testing
-      adequateSampleSize: metricData.control.count >= 30 && metricData.treatment.count >= 30,
+      adequateSampleSize:
+        metricData.control.count >= 30 && metricData.treatment.count >= 30,
     };
   }
 
   /**
    * Assess practical significance
    */
-  private assessPracticalSignificance(metricData: MetricComparison, effectSize: number): {
+  private assessPracticalSignificance(
+    metricData: MetricComparison,
+    effectSize: number,
+  ): {
     minimumDetectableEffect: number;
     practicalSignificance: boolean;
     businessImpact: 'negligible' | 'small' | 'medium' | 'large';
   } {
-    
     const minimumDetectableEffect = 0.2; // Standard small effect size
     const practicalSignificance = effectSize >= minimumDetectableEffect;
-    
+
     let businessImpact: 'negligible' | 'small' | 'medium' | 'large';
     if (effectSize < 0.2) businessImpact = 'negligible';
     else if (effectSize < 0.5) businessImpact = 'small';
     else if (effectSize < 0.8) businessImpact = 'medium';
     else businessImpact = 'large';
-    
+
     return {
       minimumDetectableEffect,
       practicalSignificance,
@@ -619,12 +726,11 @@ class StatisticalAnalysisService {
    */
   private applyMultipleTestingCorrection(
     results: StatisticalResult[],
-    method: 'bonferroni' | 'holm' | 'fdr'
+    method: 'bonferroni' | 'holm' | 'fdr',
   ): ExperimentResult['multipleTestingCorrection'] {
-    
     const originalAlpha = 0.05;
     const numTests = results.length;
-    
+
     let adjustedAlpha: number;
     const correctedResults: Array<{
       metric: string;
@@ -635,7 +741,7 @@ class StatisticalAnalysisService {
 
     if (method === 'bonferroni') {
       adjustedAlpha = originalAlpha / numTests;
-      
+
       results.forEach(result => {
         const adjustedP = result.pValue * numTests;
         correctedResults.push({
@@ -650,11 +756,11 @@ class StatisticalAnalysisService {
       const sortedResults = results
         .map((r, index) => ({ ...r, originalIndex: index }))
         .sort((a, b) => a.pValue - b.pValue);
-      
+
       adjustedAlpha = originalAlpha;
-      
+
       sortedResults.forEach((result, rank) => {
-        const adjustedP = result.pValue * numTests / (rank + 1);
+        const adjustedP = (result.pValue * numTests) / (rank + 1);
         correctedResults.push({
           metric: result.metric,
           originalP: result.pValue,
@@ -677,29 +783,35 @@ class StatisticalAnalysisService {
   /**
    * Perform Bayesian analysis
    */
-  private async performBayesianAnalysis(primaryResults: StatisticalResult[]): Promise<{
+  private async performBayesianAnalysis(
+    primaryResults: StatisticalResult[],
+  ): Promise<{
     posteriorProbability: number;
     credibleInterval: { lower: number; upper: number };
     bayesFactor: number;
   }> {
-    
     // Simplified Bayesian analysis for demonstration
-    const significantResults = primaryResults.filter(r => r.pValue < 0.05).length;
+    const significantResults = primaryResults.filter(
+      r => r.pValue < 0.05,
+    ).length;
     const totalResults = primaryResults.length;
-    
+
     // Posterior probability that treatment is better than control
-    const posteriorProbability = 0.85 + (significantResults / totalResults) * 0.10;
-    
+    const posteriorProbability =
+      0.85 + (significantResults / totalResults) * 0.1;
+
     // 95% credible interval for overall effect
     const credibleInterval = {
       lower: 0.15,
       upper: 0.45,
     };
-    
+
     // Bayes factor (evidence for H1 vs H0)
-    const avgPValue = primaryResults.reduce((sum, r) => sum + r.pValue, 0) / primaryResults.length;
+    const avgPValue =
+      primaryResults.reduce((sum, r) => sum + r.pValue, 0) /
+      primaryResults.length;
     const bayesFactor = 1 / (avgPValue * 10); // Simplified calculation
-    
+
     return {
       posteriorProbability,
       credibleInterval,
@@ -713,57 +825,87 @@ class StatisticalAnalysisService {
   private generateExperimentRecommendations(
     primaryResults: StatisticalResult[],
     secondaryResults: StatisticalResult[],
-    multipleTestingCorrection: ExperimentResult['multipleTestingCorrection']
+    multipleTestingCorrection: ExperimentResult['multipleTestingCorrection'],
   ): string[] {
-    
     const recommendations: string[] = [];
-    
+
     // Check primary metrics
     const significantPrimary = primaryResults.filter(r => r.pValue < 0.05);
     const largePrimaryEffects = primaryResults.filter(r => r.effectSize > 0.5);
-    
+
     if (significantPrimary.length === primaryResults.length) {
-      recommendations.push('✅ All primary metrics show statistical significance - strong evidence for treatment effectiveness');
+      recommendations.push(
+        '✅ All primary metrics show statistical significance - strong evidence for treatment effectiveness',
+      );
     } else if (significantPrimary.length > 0) {
-      recommendations.push(`⚠️ ${significantPrimary.length}/${primaryResults.length} primary metrics significant - partial success`);
+      recommendations.push(
+        `⚠️ ${significantPrimary.length}/${primaryResults.length} primary metrics significant - partial success`,
+      );
     } else {
-      recommendations.push('❌ No primary metrics achieved statistical significance - treatment may not be effective');
+      recommendations.push(
+        '❌ No primary metrics achieved statistical significance - treatment may not be effective',
+      );
     }
-    
+
     if (largePrimaryEffects.length > 0) {
-      recommendations.push(`💪 ${largePrimaryEffects.length} metrics show large effect sizes - substantial business impact expected`);
+      recommendations.push(
+        `💪 ${largePrimaryEffects.length} metrics show large effect sizes - substantial business impact expected`,
+      );
     }
-    
+
     // Check statistical power
-    const lowPowerResults = [...primaryResults, ...secondaryResults].filter(r => r.statisticalPower < 0.8);
+    const lowPowerResults = [...primaryResults, ...secondaryResults].filter(
+      r => r.statisticalPower < 0.8,
+    );
     if (lowPowerResults.length > 0) {
-      recommendations.push(`⚠️ ${lowPowerResults.length} metrics have low statistical power (<80%) - consider increasing sample size`);
+      recommendations.push(
+        `⚠️ ${lowPowerResults.length} metrics have low statistical power (<80%) - consider increasing sample size`,
+      );
     }
-    
+
     // Check multiple testing correction impact
-    const significantAfterCorrection = multipleTestingCorrection.correctedResults.filter(r => r.significant).length;
-    const significantBeforeCorrection = multipleTestingCorrection.correctedResults.filter(r => r.originalP < 0.05).length;
-    
+    const significantAfterCorrection =
+      multipleTestingCorrection.correctedResults.filter(
+        r => r.significant,
+      ).length;
+    const significantBeforeCorrection =
+      multipleTestingCorrection.correctedResults.filter(
+        r => r.originalP < 0.05,
+      ).length;
+
     if (significantAfterCorrection < significantBeforeCorrection) {
-      recommendations.push(`📊 Multiple testing correction reduced significant results from ${significantBeforeCorrection} to ${significantAfterCorrection}`);
+      recommendations.push(
+        `📊 Multiple testing correction reduced significant results from ${significantBeforeCorrection} to ${significantAfterCorrection}`,
+      );
     }
-    
+
     // Business recommendations
     if (significantPrimary.length >= 2 && largePrimaryEffects.length >= 1) {
-      recommendations.push('🚀 Recommend proceeding with full rollout based on strong statistical and practical evidence');
+      recommendations.push(
+        '🚀 Recommend proceeding with full rollout based on strong statistical and practical evidence',
+      );
     } else if (significantPrimary.length >= 1) {
-      recommendations.push('🔄 Consider limited rollout or additional testing to strengthen evidence');
+      recommendations.push(
+        '🔄 Consider limited rollout or additional testing to strengthen evidence',
+      );
     } else {
-      recommendations.push('🔍 Investigate implementation issues or consider alternative approaches');
+      recommendations.push(
+        '🔍 Investigate implementation issues or consider alternative approaches',
+      );
     }
 
     return recommendations;
   }
 
   // Statistical utility functions
-  private generateNormalDistribution(mean: number, std: number, n: number): number[] {
+  private generateNormalDistribution(
+    mean: number,
+    std: number,
+    n: number,
+  ): number[] {
     const distribution: number[] = [];
-    for (let i = 0; i < Math.min(n, 100); i++) { // Limit to 100 samples for performance
+    for (let i = 0; i < Math.min(n, 100); i++) {
+      // Limit to 100 samples for performance
       const u1 = Math.random();
       const u2 = Math.random();
       const z0 = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
@@ -772,12 +914,16 @@ class StatisticalAnalysisService {
     return distribution;
   }
 
-  private generateBetaDistribution(mean: number, std: number, n: number): number[] {
+  private generateBetaDistribution(
+    mean: number,
+    std: number,
+    n: number,
+  ): number[] {
     // Approximate beta distribution parameters from mean and std
     const variance = std * std;
     const alpha = mean * ((mean * (1 - mean)) / variance - 1);
     const beta = (1 - mean) * ((mean * (1 - mean)) / variance - 1);
-    
+
     const distribution: number[] = [];
     for (let i = 0; i < Math.min(n, 100); i++) {
       // Simplified beta generation using normal approximation
@@ -790,11 +936,16 @@ class StatisticalAnalysisService {
   private testNormality(distribution: number[]): boolean {
     // Simplified normality test (Shapiro-Wilk approximation)
     if (distribution.length < 3) return false;
-    
-    const mean = distribution.reduce((sum, val) => sum + val, 0) / distribution.length;
-    const variance = distribution.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / distribution.length;
-    const skewness = distribution.reduce((sum, val) => sum + Math.pow(val - mean, 3), 0) / (distribution.length * Math.pow(variance, 1.5));
-    
+
+    const mean =
+      distribution.reduce((sum, val) => sum + val, 0) / distribution.length;
+    const variance =
+      distribution.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) /
+      distribution.length;
+    const skewness =
+      distribution.reduce((sum, val) => sum + Math.pow(val - mean, 3), 0) /
+      (distribution.length * Math.pow(variance, 1.5));
+
     // Consider normal if skewness is reasonable
     return Math.abs(skewness) < 2;
   }
@@ -802,10 +953,12 @@ class StatisticalAnalysisService {
   private testHomogeneity(metricData: MetricComparison): boolean {
     // Levene's test approximation
     const ratio = Math.max(
-      metricData.control.standardDeviation / metricData.treatment.standardDeviation,
-      metricData.treatment.standardDeviation / metricData.control.standardDeviation
+      metricData.control.standardDeviation /
+        metricData.treatment.standardDeviation,
+      metricData.treatment.standardDeviation /
+        metricData.control.standardDeviation,
     );
-    
+
     return ratio < 2; // Rule of thumb
   }
 
@@ -824,7 +977,7 @@ class StatisticalAnalysisService {
     if (df > 100) {
       return this.normalCDF(t - ncp);
     }
-    
+
     // Approximation for moderate df
     const correction = 1 + (t * t) / (4 * df);
     return this.normalCDF(t / Math.sqrt(correction) - ncp);
@@ -835,9 +988,9 @@ class StatisticalAnalysisService {
     if (df > 100) {
       return this.normalInverseCDF(p);
     }
-    
+
     const z = this.normalInverseCDF(p);
-    const correction = 1 + z * z / (4 * df);
+    const correction = 1 + (z * z) / (4 * df);
     return z * Math.sqrt(correction);
   }
 
@@ -854,7 +1007,9 @@ class StatisticalAnalysisService {
     x = Math.abs(x);
 
     const t = 1.0 / (1.0 + p * x);
-    const y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+    const y =
+      1.0 -
+      ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
 
     return sign * y;
   }
@@ -892,9 +1047,16 @@ class StatisticalAnalysisService {
       },
       summary: {
         overallSignificance: result.overallSignificance,
-        primaryMetricsSignificant: result.primaryMetrics.filter(m => m.pValue < 0.05).length,
-        secondaryMetricsSignificant: result.secondaryMetrics.filter(m => m.pValue < 0.05).length,
-        largeEffectSizes: [...result.primaryMetrics, ...result.secondaryMetrics].filter(m => m.effectSize > 0.5).length,
+        primaryMetricsSignificant: result.primaryMetrics.filter(
+          m => m.pValue < 0.05,
+        ).length,
+        secondaryMetricsSignificant: result.secondaryMetrics.filter(
+          m => m.pValue < 0.05,
+        ).length,
+        largeEffectSizes: [
+          ...result.primaryMetrics,
+          ...result.secondaryMetrics,
+        ].filter(m => m.effectSize > 0.5).length,
       },
       primaryMetrics: result.primaryMetrics,
       secondaryMetrics: result.secondaryMetrics,
@@ -912,7 +1074,7 @@ class StatisticalAnalysisService {
   async shutdown(): Promise<void> {
     this.experimentResults.clear();
     this.isInitialized = false;
-    
+
     structuredLogger.info('Statistical Analysis Service shutdown completed');
   }
 }

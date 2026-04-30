@@ -335,4 +335,3 @@ describe('Profile Completion Flow', () => {
     });
   });
 });
-

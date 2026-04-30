@@ -1,6 +1,6 @@
 /**
  * Content Prediction Integration Tests
- * 
+ *
  * Tests for Task 3.1: Content Prediction Skill Integration
  */
 
@@ -23,11 +23,14 @@ describe('Content Prediction Integration', () => {
     test('Story pattern analysis produces valid categories', async () => {
       const request: StoryRequest = {
         gradeLevel: 'K-2',
-        storySoFar: 'Once upon a time, Ruby found a magical stone in the forest.',
+        storySoFar:
+          'Once upon a time, Ruby found a magical stone in the forest.',
         userInput: 'Ruby discovered something amazing',
       };
 
-      const analysis = await contentPredictionService.analyzeStoryContext(request);
+      const analysis = await contentPredictionService.analyzeStoryContext(
+        request,
+      );
 
       expect(analysis).toBeDefined();
       expect(analysis.gradeLevel).toBe('K-2');
@@ -40,11 +43,14 @@ describe('Content Prediction Integration', () => {
     test('Pattern recognition identifies correct category', async () => {
       const request: StoryRequest = {
         gradeLevel: 'K-2',
-        storySoFar: 'Ruby and her friend went on a magical adventure. They discovered a secret garden.',
+        storySoFar:
+          'Ruby and her friend went on a magical adventure. They discovered a secret garden.',
         userInput: 'They found magical flowers',
       };
 
-      const analysis = await contentPredictionService.analyzeStoryContext(request);
+      const analysis = await contentPredictionService.analyzeStoryContext(
+        request,
+      );
 
       expect(analysis.patternMatch).toBeDefined();
       if (analysis.patternMatch) {
@@ -68,7 +74,7 @@ describe('Content Prediction Integration', () => {
       ];
 
       const analyses = await Promise.all(
-        requests.map(req => contentPredictionService.analyzeStoryContext(req))
+        requests.map(req => contentPredictionService.analyzeStoryContext(req)),
       );
 
       // Both should match similar patterns
@@ -81,18 +87,24 @@ describe('Content Prediction Integration', () => {
     test('Confidence scoring correlates with accuracy', async () => {
       const request: StoryRequest = {
         gradeLevel: '3-5',
-        storySoFar: 'Sarah and her friends discovered a hidden cave. Inside, they found ancient treasures.',
+        storySoFar:
+          'Sarah and her friends discovered a hidden cave. Inside, they found ancient treasures.',
         userInput: 'They explored deeper',
       };
 
-      const analysis = await contentPredictionService.analyzeStoryContext(request);
-      const predictions = await contentPredictionService.predictContent(analysis);
+      const analysis = await contentPredictionService.analyzeStoryContext(
+        request,
+      );
+      const predictions = await contentPredictionService.predictContent(
+        analysis,
+      );
 
       if (predictions) {
-        const confidence = contentPredictionService.calculatePredictionConfidence(
-          predictions.predictions,
-          analysis
-        );
+        const confidence =
+          contentPredictionService.calculatePredictionConfidence(
+            predictions.predictions,
+            analysis,
+          );
 
         expect(confidence.overall).toBeGreaterThan(0);
         expect(confidence.overall).toBeLessThanOrEqual(1);
@@ -109,8 +121,10 @@ describe('Content Prediction Integration', () => {
         userInput: 'The stone showed her a path',
       };
 
-      const analysis = await contentPredictionService.analyzeStoryContext(request);
-      
+      const analysis = await contentPredictionService.analyzeStoryContext(
+        request,
+      );
+
       // High confidence should indicate good pattern match
       if (analysis.patternMatch) {
         expect(analysis.confidence).toBeGreaterThan(0.5);
@@ -124,13 +138,17 @@ describe('Content Prediction Integration', () => {
         userInput: 'They investigated further',
       };
 
-      const analysis = await contentPredictionService.analyzeStoryContext(request);
-      const predictions = await contentPredictionService.predictContent(analysis);
+      const analysis = await contentPredictionService.analyzeStoryContext(
+        request,
+      );
+      const predictions = await contentPredictionService.predictContent(
+        analysis,
+      );
 
       if (predictions) {
         // Predictions should meet confidence threshold
         const highConfidencePredictions = predictions.predictions.filter(
-          p => p.confidence >= 0.7
+          p => p.confidence >= 0.7,
         );
         expect(highConfidencePredictions.length).toBeGreaterThan(0);
       }
@@ -146,13 +164,17 @@ describe('Content Prediction Integration', () => {
       };
 
       // Analyze context
-      const analysis = await contentPredictionService.analyzeStoryContext(request);
+      const analysis = await contentPredictionService.analyzeStoryContext(
+        request,
+      );
       expect(analysis).toBeDefined();
       expect(analysis.gradeLevel).toBe('K-2');
 
       // Get predictions
-      const predictions = await contentPredictionService.predictContent(analysis);
-      
+      const predictions = await contentPredictionService.predictContent(
+        analysis,
+      );
+
       // Predictions should not interfere with story generation
       // (Story generation happens separately)
       expect(predictions).toBeDefined();
@@ -164,8 +186,10 @@ describe('Content Prediction Integration', () => {
         userInput: 'Create a story about adventure',
       };
 
-      const analysis = await contentPredictionService.analyzeStoryContext(request);
-      
+      const analysis = await contentPredictionService.analyzeStoryContext(
+        request,
+      );
+
       // Should still work even without storySoFar
       expect(analysis).toBeDefined();
       expect(analysis.gradeLevel).toBe('3-5');
@@ -198,7 +222,8 @@ describe('Content Prediction Integration', () => {
         },
         {
           gradeLevel: '9-12',
-          storySoFar: 'A long and complex story with multiple characters and settings that explores deep themes',
+          storySoFar:
+            'A long and complex story with multiple characters and settings that explores deep themes',
           userInput: 'The protagonist faced a moral dilemma',
         },
         {
@@ -208,7 +233,9 @@ describe('Content Prediction Integration', () => {
       ];
 
       for (const request of formats) {
-        const analysis = await contentPredictionService.analyzeStoryContext(request);
+        const analysis = await contentPredictionService.analyzeStoryContext(
+          request,
+        );
         expect(analysis).toBeDefined();
         expect(analysis.gradeLevel).toBe(request.gradeLevel);
       }
@@ -217,11 +244,14 @@ describe('Content Prediction Integration', () => {
     test('Element extraction works correctly', async () => {
       const request: StoryRequest = {
         gradeLevel: 'K-2',
-        storySoFar: 'Ruby went to the forest with her friend Alice. They found a magical garden.',
+        storySoFar:
+          'Ruby went to the forest with her friend Alice. They found a magical garden.',
         userInput: 'They explored the garden together',
       };
 
-      const analysis = await contentPredictionService.analyzeStoryContext(request);
+      const analysis = await contentPredictionService.analyzeStoryContext(
+        request,
+      );
 
       expect(analysis.extractedElements.characters.length).toBeGreaterThan(0);
       expect(analysis.extractedElements.settings.length).toBeGreaterThan(0);
@@ -230,4 +260,3 @@ describe('Content Prediction Integration', () => {
     });
   });
 });
-

@@ -1,6 +1,6 @@
 /**
  * Skill-Enhanced Service Architecture
- * 
+ *
  * Base classes and interfaces for wrapping existing services with Claude Skills.
  * Provides reusable enhancement pattern with automatic fallback.
  */
@@ -12,7 +12,11 @@ import {
   SkillResult,
   SkillError,
 } from '../../types/claudeSkills';
-import { SkillOrchestrator, SkillExecutionPlan, SkillAggregator } from './SkillOrchestrator';
+import {
+  SkillOrchestrator,
+  SkillExecutionPlan,
+  SkillAggregator,
+} from './SkillOrchestrator';
 import {
   FallbackStrategyManager,
   FallbackContext,
@@ -71,7 +75,7 @@ export abstract class SkillEnhancedService<TRequest, TResponse>
   constructor(
     skillManager: SkillManager,
     originalService: { execute(request: TRequest): Promise<TResponse> },
-    config: SkillEnhancedServiceConfig
+    config: SkillEnhancedServiceConfig,
   ) {
     this.skillManager = skillManager;
     this.originalService = originalService;
@@ -90,7 +94,7 @@ export abstract class SkillEnhancedService<TRequest, TResponse>
     // Register original service fallback (always available)
     if (this.config.fallbackEnabled) {
       const originalFallback = new OriginalServiceFallbackStrategy(
-        this.originalService
+        this.originalService,
       );
       this.fallbackManager.registerStrategy(originalFallback);
     }
@@ -117,7 +121,7 @@ export abstract class SkillEnhancedService<TRequest, TResponse>
       // Execute skills
       const orchestrationResult = await this.orchestrator.executePlan(
         plan,
-        this.getAggregator()
+        this.getAggregator(),
       );
 
       // Process skill results
@@ -163,7 +167,7 @@ export abstract class SkillEnhancedService<TRequest, TResponse>
     if (this.config.experimentId && this.config.userId) {
       const enabled = await abTestingService.shouldEnableClaudeSkills(
         this.config.userId,
-        this.config.experimentId
+        this.config.experimentId,
       );
       return enabled;
     }
@@ -176,7 +180,7 @@ export abstract class SkillEnhancedService<TRequest, TResponse>
    * Override in subclasses to define skill usage
    */
   protected abstract buildSkillExecutionPlan(
-    request: TRequest
+    request: TRequest,
   ): Promise<SkillExecutionPlan | null>;
 
   /**
@@ -185,7 +189,7 @@ export abstract class SkillEnhancedService<TRequest, TResponse>
    */
   protected abstract processSkillResults(
     request: TRequest,
-    orchestrationResult: any
+    orchestrationResult: any,
   ): Promise<TResponse>;
 
   /**
@@ -200,7 +204,7 @@ export abstract class SkillEnhancedService<TRequest, TResponse>
    */
   protected async handleSkillFailure(
     request: TRequest,
-    orchestrationResult: any
+    orchestrationResult: any,
   ): Promise<TResponse> {
     // Build fallback context
     const firstError = Array.from(orchestrationResult.errors.values())[0];
@@ -215,7 +219,7 @@ export abstract class SkillEnhancedService<TRequest, TResponse>
     // Try fallback strategies
     const fallbackResult = await this.fallbackManager.executeFallback(
       request,
-      context
+      context,
     );
 
     if (fallbackResult.success && fallbackResult.data) {
@@ -225,7 +229,7 @@ export abstract class SkillEnhancedService<TRequest, TResponse>
     // All fallbacks failed, throw error
     throw new Error(
       fallbackResult.error ||
-        'Service execution failed and all fallback strategies failed'
+        'Service execution failed and all fallback strategies failed',
     );
   }
 
@@ -281,24 +285,24 @@ export class SkillEnhancedServiceFactory {
     config: SkillEnhancedServiceConfig,
     implementation: {
       buildSkillExecutionPlan(
-        request: TRequest
+        request: TRequest,
       ): Promise<SkillExecutionPlan | null>;
       processSkillResults(
         request: TRequest,
-        orchestrationResult: any
+        orchestrationResult: any,
       ): Promise<TResponse>;
-    }
+    },
   ): SkillEnhancedService<TRequest, TResponse> {
     return new (class extends SkillEnhancedService<TRequest, TResponse> {
       protected async buildSkillExecutionPlan(
-        request: TRequest
+        request: TRequest,
       ): Promise<SkillExecutionPlan | null> {
         return implementation.buildSkillExecutionPlan(request);
       }
 
       protected async processSkillResults(
         request: TRequest,
-        orchestrationResult: any
+        orchestrationResult: any,
       ): Promise<TResponse> {
         return implementation.processSkillResults(request, orchestrationResult);
       }
@@ -311,7 +315,7 @@ export class SkillEnhancedServiceFactory {
  */
 export function createSkillInput(
   request: any,
-  additionalData?: Record<string, any>
+  additionalData?: Record<string, any>,
 ): SkillInput {
   return {
     ...request,
@@ -329,4 +333,3 @@ export function extractSkillData<T>(result: SkillResult<T>): T | null {
   }
   return null;
 }
-

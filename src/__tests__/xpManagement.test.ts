@@ -12,10 +12,12 @@ jest.mock('../services/supabase', () => ({
   supabase: {
     from: jest.fn(),
     auth: {
-      getUser: jest.fn(() => Promise.resolve({
-        data: { user: { id: 'test-user-123' } },
-        error: null,
-      })),
+      getUser: jest.fn(() =>
+        Promise.resolve({
+          data: { user: { id: 'test-user-123' } },
+          error: null,
+        }),
+      ),
     },
   },
 }));
@@ -97,14 +99,14 @@ describe('XP Management - Deduction & Refund Logic (Task 5.1)', () => {
         'user-123',
         'session-complete',
         1000,
-        { storyCompleted: true }
+        { storyCompleted: true },
       );
 
       expect(xpEventTracker.createImageGenerationEvent).toHaveBeenCalledWith(
         'user-123',
         'session-complete',
         1000,
-        expect.objectContaining({ storyCompleted: true })
+        expect.objectContaining({ storyCompleted: true }),
       );
     });
 
@@ -132,7 +134,7 @@ describe('XP Management - Deduction & Refund Logic (Task 5.1)', () => {
 
       // Mock failed Replicate generation
       (imageGenerationService.generateImage as jest.Mock).mockRejectedValue(
-        new Error('Replicate API error')
+        new Error('Replicate API error'),
       );
 
       // Simulate refund after failure
@@ -141,7 +143,7 @@ describe('XP Management - Deduction & Refund Logic (Task 5.1)', () => {
       expect(xpEventTracker.refundImageGeneration).toHaveBeenCalledWith(
         eventId,
         'user-123',
-        xpCost
+        xpCost,
       );
     });
 
@@ -187,7 +189,7 @@ describe('XP Management - Deduction & Refund Logic (Task 5.1)', () => {
       expect(xpEventTracker.refundImageGeneration).toHaveBeenCalledWith(
         eventId,
         userId,
-        xpCost
+        xpCost,
       );
     });
   });
@@ -198,14 +200,14 @@ describe('XP Management - Deduction & Refund Logic (Task 5.1)', () => {
         'user-123',
         'session-123',
         1000,
-        { storyCompleted: true }
+        { storyCompleted: true },
       );
 
       expect(xpEventTracker.createImageGenerationEvent).toHaveBeenCalledWith(
         'user-123',
         'session-123',
         1000,
-        expect.objectContaining({ storyCompleted: true })
+        expect.objectContaining({ storyCompleted: true }),
       );
     });
 
@@ -217,7 +219,7 @@ describe('XP Management - Deduction & Refund Logic (Task 5.1)', () => {
 
       expect(xpEventTracker.updateImageGenerationEvent).toHaveBeenCalledWith(
         'event-123',
-        expect.objectContaining({ generation_status: 'success' })
+        expect.objectContaining({ generation_status: 'success' }),
       );
     });
 
@@ -229,7 +231,7 @@ describe('XP Management - Deduction & Refund Logic (Task 5.1)', () => {
 
       expect(xpEventTracker.updateImageGenerationEvent).toHaveBeenCalledWith(
         'event-123',
-        expect.objectContaining({ generation_status: 'failed' })
+        expect.objectContaining({ generation_status: 'failed' }),
       );
     });
   });
@@ -269,7 +271,8 @@ async function checkStoryCompletion(sessionId: string) {
     .eq('id', sessionId)
     .single();
 
-  const isComplete = session.current_round >= 5 && session.completed_at !== null;
+  const isComplete =
+    session.current_round >= 5 && session.completed_at !== null;
 
   return {
     isComplete,

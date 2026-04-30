@@ -21,7 +21,7 @@ export interface NetworkCheckResult {
 export async function checkNetworkBeforeOAuth(): Promise<NetworkCheckResult> {
   try {
     const state = await NetInfo.fetch();
-    
+
     return {
       isConnected: state.isConnected ?? false,
       isInternetReachable: state.isInternetReachable ?? null,
@@ -61,4 +61,3 @@ export function getNetworkErrorMessage(
 
   return 'Network connection is unstable. Please try again.';
 }
-

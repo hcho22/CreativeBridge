@@ -53,22 +53,38 @@ describe('Claude Skills Security Validation', () => {
         },
       };
 
-      const validation = ClaudeSkillsConfigValidator.validateConfig(invalidConfig);
+      const validation =
+        ClaudeSkillsConfigValidator.validateConfig(invalidConfig);
 
       expect(validation.isValid).toBe(false);
-      expect(validation.errors).toContain('Invalid encryption level: must be standard or enhanced');
-      expect(validation.errors).toContain('Invalid session timeout: must be between 5 and 120 minutes');
-      expect(validation.errors).toContain('Invalid max failed attempts: must be between 1 and 20');
-      expect(validation.errors).toContain('Invalid rotation interval: must be between 1 and 365 days');
-      expect(validation.errors).toContain('Invalid expiry warning days: must be between 1 and 30 days');
-      expect(validation.errors).toContain('Invalid backup key count: must be between 1 and 10');
+      expect(validation.errors).toContain(
+        'Invalid encryption level: must be standard or enhanced',
+      );
+      expect(validation.errors).toContain(
+        'Invalid session timeout: must be between 5 and 120 minutes',
+      );
+      expect(validation.errors).toContain(
+        'Invalid max failed attempts: must be between 1 and 20',
+      );
+      expect(validation.errors).toContain(
+        'Invalid rotation interval: must be between 1 and 365 days',
+      );
+      expect(validation.errors).toContain(
+        'Invalid expiry warning days: must be between 1 and 30 days',
+      );
+      expect(validation.errors).toContain(
+        'Invalid backup key count: must be between 1 and 10',
+      );
     });
 
     test('Valid security configuration passes validation', () => {
       const validConfig = {
         apiKey: 'valid_test_key_12345',
         environment: 'development' as const,
-        enabledSkills: ['ResourceOptimizationSkill', 'ErrorRecoverySkill'] as SkillType[],
+        enabledSkills: [
+          'ResourceOptimizationSkill',
+          'ErrorRecoverySkill',
+        ] as SkillType[],
         performanceMode: 'balanced' as const,
         cacheConfig: {
           maxCacheSize: 50,
@@ -104,7 +120,8 @@ describe('Claude Skills Security Validation', () => {
         },
       };
 
-      const validation = ClaudeSkillsConfigValidator.validateConfig(validConfig);
+      const validation =
+        ClaudeSkillsConfigValidator.validateConfig(validConfig);
 
       expect(validation.isValid).toBe(true);
       expect(validation.errors).toHaveLength(0);
@@ -150,12 +167,21 @@ describe('Claude Skills Security Validation', () => {
         },
       };
 
-      const validation = ClaudeSkillsConfigValidator.validateForEnvironment(productionConfig, 'production');
+      const validation = ClaudeSkillsConfigValidator.validateForEnvironment(
+        productionConfig,
+        'production',
+      );
 
       expect(validation.isValid).toBe(false);
-      expect(validation.errors).toContain('Production environment requires enhanced encryption');
-      expect(validation.warnings).toContain('Consider enabling biometric authentication for production');
-      expect(validation.warnings).toContain('Debug logging should be disabled in production');
+      expect(validation.errors).toContain(
+        'Production environment requires enhanced encryption',
+      );
+      expect(validation.warnings).toContain(
+        'Consider enabling biometric authentication for production',
+      );
+      expect(validation.warnings).toContain(
+        'Debug logging should be disabled in production',
+      );
     });
 
     test('API key format validation', () => {
@@ -165,32 +191,90 @@ describe('Claude Skills Security Validation', () => {
           environment: 'development' as const,
           enabledSkills: ['ErrorRecoverySkill'] as SkillType[],
           performanceMode: 'balanced' as const,
-          cacheConfig: { maxCacheSize: 50, cacheTTL: 3600, enablePredictivePreloading: true, deviceAwareSizing: true },
-          fallbackConfig: { enableGracefulDegradation: true, maxRetryAttempts: 3, retryBackoffMs: 1000, circuitBreakerThreshold: 5 },
-          monitoringConfig: { enablePerformanceTracking: true, enableErrorReporting: true, metricsCollectionInterval: 5000, enableDebugLogs: true },
-          securityConfig: { encryptionLevel: 'standard' as const, requireBiometricAuth: false, sessionTimeout: 30, maxFailedAttempts: 5, enableAuditLogging: true },
-          rotationConfig: { enableAutoRotation: false, rotationIntervalDays: 90, notifyBeforeExpiry: true, expiryWarningDays: 7, backupKeyCount: 3 },
+          cacheConfig: {
+            maxCacheSize: 50,
+            cacheTTL: 3600,
+            enablePredictivePreloading: true,
+            deviceAwareSizing: true,
+          },
+          fallbackConfig: {
+            enableGracefulDegradation: true,
+            maxRetryAttempts: 3,
+            retryBackoffMs: 1000,
+            circuitBreakerThreshold: 5,
+          },
+          monitoringConfig: {
+            enablePerformanceTracking: true,
+            enableErrorReporting: true,
+            metricsCollectionInterval: 5000,
+            enableDebugLogs: true,
+          },
+          securityConfig: {
+            encryptionLevel: 'standard' as const,
+            requireBiometricAuth: false,
+            sessionTimeout: 30,
+            maxFailedAttempts: 5,
+            enableAuditLogging: true,
+          },
+          rotationConfig: {
+            enableAutoRotation: false,
+            rotationIntervalDays: 90,
+            notifyBeforeExpiry: true,
+            expiryWarningDays: 7,
+            backupKeyCount: 3,
+          },
         },
         {
           apiKey: 'valid_length_key_12345', // Valid length
           environment: 'development' as const,
           enabledSkills: ['ErrorRecoverySkill'] as SkillType[],
           performanceMode: 'balanced' as const,
-          cacheConfig: { maxCacheSize: 50, cacheTTL: 3600, enablePredictivePreloading: true, deviceAwareSizing: true },
-          fallbackConfig: { enableGracefulDegradation: true, maxRetryAttempts: 3, retryBackoffMs: 1000, circuitBreakerThreshold: 5 },
-          monitoringConfig: { enablePerformanceTracking: true, enableErrorReporting: true, metricsCollectionInterval: 5000, enableDebugLogs: true },
-          securityConfig: { encryptionLevel: 'standard' as const, requireBiometricAuth: false, sessionTimeout: 30, maxFailedAttempts: 5, enableAuditLogging: true },
-          rotationConfig: { enableAutoRotation: false, rotationIntervalDays: 90, notifyBeforeExpiry: true, expiryWarningDays: 7, backupKeyCount: 3 },
-        }
+          cacheConfig: {
+            maxCacheSize: 50,
+            cacheTTL: 3600,
+            enablePredictivePreloading: true,
+            deviceAwareSizing: true,
+          },
+          fallbackConfig: {
+            enableGracefulDegradation: true,
+            maxRetryAttempts: 3,
+            retryBackoffMs: 1000,
+            circuitBreakerThreshold: 5,
+          },
+          monitoringConfig: {
+            enablePerformanceTracking: true,
+            enableErrorReporting: true,
+            metricsCollectionInterval: 5000,
+            enableDebugLogs: true,
+          },
+          securityConfig: {
+            encryptionLevel: 'standard' as const,
+            requireBiometricAuth: false,
+            sessionTimeout: 30,
+            maxFailedAttempts: 5,
+            enableAuditLogging: true,
+          },
+          rotationConfig: {
+            enableAutoRotation: false,
+            rotationIntervalDays: 90,
+            notifyBeforeExpiry: true,
+            expiryWarningDays: 7,
+            backupKeyCount: 3,
+          },
+        },
       ];
 
       const [shortKeyConfig, validKeyConfig] = configs;
 
-      const shortKeyValidation = ClaudeSkillsConfigValidator.validateConfig(shortKeyConfig);
+      const shortKeyValidation =
+        ClaudeSkillsConfigValidator.validateConfig(shortKeyConfig);
       expect(shortKeyValidation.isValid).toBe(false);
-      expect(shortKeyValidation.errors).toContain('Invalid API key: must be at least 10 characters');
+      expect(shortKeyValidation.errors).toContain(
+        'Invalid API key: must be at least 10 characters',
+      );
 
-      const validKeyValidation = ClaudeSkillsConfigValidator.validateConfig(validKeyConfig);
+      const validKeyValidation =
+        ClaudeSkillsConfigValidator.validateConfig(validKeyConfig);
       expect(validKeyValidation.isValid).toBe(true);
     });
 
@@ -200,16 +284,46 @@ describe('Claude Skills Security Validation', () => {
         environment: 'development' as const,
         enabledSkills: [] as SkillType[], // No skills enabled
         performanceMode: 'balanced' as const,
-        cacheConfig: { maxCacheSize: 50, cacheTTL: 3600, enablePredictivePreloading: true, deviceAwareSizing: true },
-        fallbackConfig: { enableGracefulDegradation: true, maxRetryAttempts: 3, retryBackoffMs: 1000, circuitBreakerThreshold: 5 },
-        monitoringConfig: { enablePerformanceTracking: true, enableErrorReporting: true, metricsCollectionInterval: 5000, enableDebugLogs: true },
-        securityConfig: { encryptionLevel: 'standard' as const, requireBiometricAuth: false, sessionTimeout: 30, maxFailedAttempts: 5, enableAuditLogging: true },
-        rotationConfig: { enableAutoRotation: false, rotationIntervalDays: 90, notifyBeforeExpiry: true, expiryWarningDays: 7, backupKeyCount: 3 },
+        cacheConfig: {
+          maxCacheSize: 50,
+          cacheTTL: 3600,
+          enablePredictivePreloading: true,
+          deviceAwareSizing: true,
+        },
+        fallbackConfig: {
+          enableGracefulDegradation: true,
+          maxRetryAttempts: 3,
+          retryBackoffMs: 1000,
+          circuitBreakerThreshold: 5,
+        },
+        monitoringConfig: {
+          enablePerformanceTracking: true,
+          enableErrorReporting: true,
+          metricsCollectionInterval: 5000,
+          enableDebugLogs: true,
+        },
+        securityConfig: {
+          encryptionLevel: 'standard' as const,
+          requireBiometricAuth: false,
+          sessionTimeout: 30,
+          maxFailedAttempts: 5,
+          enableAuditLogging: true,
+        },
+        rotationConfig: {
+          enableAutoRotation: false,
+          rotationIntervalDays: 90,
+          notifyBeforeExpiry: true,
+          expiryWarningDays: 7,
+          backupKeyCount: 3,
+        },
       };
 
-      const validation = ClaudeSkillsConfigValidator.validateConfig(noSkillsConfig);
+      const validation =
+        ClaudeSkillsConfigValidator.validateConfig(noSkillsConfig);
       expect(validation.isValid).toBe(false);
-      expect(validation.errors).toContain('No skills enabled: at least one skill must be enabled');
+      expect(validation.errors).toContain(
+        'No skills enabled: at least one skill must be enabled',
+      );
     });
   });
 
@@ -218,7 +332,7 @@ describe('Claude Skills Security Validation', () => {
       const validUpdate = {
         skillsToEnable: ['ContentPredictionSkill'] as SkillType[],
         reason: 'Enable content prediction for testing',
-        requestedBy: 'test_user'
+        requestedBy: 'test_user',
       };
 
       // This should not throw
@@ -232,11 +346,13 @@ describe('Claude Skills Security Validation', () => {
         requireBiometricAuth: true,
         sessionTimeout: 15,
         maxFailedAttempts: 3,
-        enableAuditLogging: true
+        enableAuditLogging: true,
       };
 
       // Validate individual security settings
-      expect(['standard', 'enhanced']).toContain(securityUpdate.encryptionLevel);
+      expect(['standard', 'enhanced']).toContain(
+        securityUpdate.encryptionLevel,
+      );
       expect(securityUpdate.sessionTimeout).toBeGreaterThan(5);
       expect(securityUpdate.sessionTimeout).toBeLessThanOrEqual(120);
       expect(securityUpdate.maxFailedAttempts).toBeGreaterThan(0);
@@ -252,13 +368,13 @@ describe('Claude Skills Security Validation', () => {
           securityConfig: {
             encryptionLevel: 'enhanced' as const,
             requireBiometricAuth: true,
-          }
+          },
         },
         metadata: {
           exportedAt: new Date().toISOString(),
           version: 1,
-          environment: 'development'
-        }
+          environment: 'development',
+        },
       };
 
       // Verify sensitive data is redacted
@@ -270,7 +386,8 @@ describe('Claude Skills Security Validation', () => {
 
   describe('Credential Rotation Security', () => {
     test('Rotation schedule calculation', async () => {
-      const schedule = await ClaudeSkillsCredentialRotationService.getRotationSchedule();
+      const schedule =
+        await ClaudeSkillsCredentialRotationService.getRotationSchedule();
 
       expect(schedule).toBeDefined();
       expect(schedule.nextRotationDue).toBeInstanceOf(Date);
@@ -279,7 +396,8 @@ describe('Claude Skills Security Validation', () => {
     });
 
     test('Rotation system health validation', async () => {
-      const health = await ClaudeSkillsCredentialRotationService.validateRotationSystem();
+      const health =
+        await ClaudeSkillsCredentialRotationService.validateRotationSystem();
 
       expect(health).toBeDefined();
       expect(typeof health.isHealthy).toBe('boolean');
@@ -288,11 +406,14 @@ describe('Claude Skills Security Validation', () => {
     });
 
     test('Rotation notification system', async () => {
-      const warning = await ClaudeSkillsCredentialRotationService.shouldShowRotationWarning();
+      const warning =
+        await ClaudeSkillsCredentialRotationService.shouldShowRotationWarning();
 
       // Should return null or a valid notification object
       if (warning) {
-        expect(['warning', 'due', 'overdue', 'completed', 'failed']).toContain(warning.type);
+        expect(['warning', 'due', 'overdue', 'completed', 'failed']).toContain(
+          warning.type,
+        );
         expect(warning.message).toBeDefined();
         expect(typeof warning.message).toBe('string');
       }
@@ -300,14 +421,15 @@ describe('Claude Skills Security Validation', () => {
 
     test('Emergency rotation capability', async () => {
       const emergencyKey = 'emergency_test_key_12345';
-      const result = await ClaudeSkillsCredentialRotationService.performEmergencyRotation(
-        emergencyKey,
-        'Security test scenario'
-      );
+      const result =
+        await ClaudeSkillsCredentialRotationService.performEmergencyRotation(
+          emergencyKey,
+          'Security test scenario',
+        );
 
       expect(result).toBeDefined();
       expect(typeof result.success).toBe('boolean');
-      
+
       if (!result.success && result.error) {
         // Emergency rotation might fail in test environment - that's acceptable
         expect(typeof result.error).toBe('string');
@@ -318,25 +440,37 @@ describe('Claude Skills Security Validation', () => {
   describe('Environment Security Isolation', () => {
     test('Environment-specific security configurations', () => {
       const environments = ['development', 'staging', 'production'];
-      
+
       environments.forEach(env => {
         const mockConfigByEnv = {
           development: {
-            securityConfig: { encryptionLevel: 'standard', requireBiometricAuth: false, sessionTimeout: 60 },
-            monitoringConfig: { enableDebugLogs: true }
+            securityConfig: {
+              encryptionLevel: 'standard',
+              requireBiometricAuth: false,
+              sessionTimeout: 60,
+            },
+            monitoringConfig: { enableDebugLogs: true },
           },
           staging: {
-            securityConfig: { encryptionLevel: 'enhanced', requireBiometricAuth: true, sessionTimeout: 30 },
-            monitoringConfig: { enableDebugLogs: true }
+            securityConfig: {
+              encryptionLevel: 'enhanced',
+              requireBiometricAuth: true,
+              sessionTimeout: 30,
+            },
+            monitoringConfig: { enableDebugLogs: true },
           },
           production: {
-            securityConfig: { encryptionLevel: 'enhanced', requireBiometricAuth: true, sessionTimeout: 15 },
-            monitoringConfig: { enableDebugLogs: false }
-          }
+            securityConfig: {
+              encryptionLevel: 'enhanced',
+              requireBiometricAuth: true,
+              sessionTimeout: 15,
+            },
+            monitoringConfig: { enableDebugLogs: false },
+          },
         };
 
         const envConfig = mockConfigByEnv[env];
-        
+
         if (env === 'production') {
           expect(envConfig.securityConfig.encryptionLevel).toBe('enhanced');
           expect(envConfig.securityConfig.requireBiometricAuth).toBe(true);
@@ -356,19 +490,25 @@ describe('Claude Skills Security Validation', () => {
       const devSettings = {
         enableDebugLogs: true,
         sessionTimeout: 60,
-        encryptionLevel: 'standard'
+        encryptionLevel: 'standard',
       };
 
       const prodSettings = {
         enableDebugLogs: false,
         sessionTimeout: 15,
-        encryptionLevel: 'enhanced'
+        encryptionLevel: 'enhanced',
       };
 
       // Verify settings are appropriately different
-      expect(devSettings.enableDebugLogs).not.toBe(prodSettings.enableDebugLogs);
-      expect(devSettings.sessionTimeout).toBeGreaterThan(prodSettings.sessionTimeout);
-      expect(devSettings.encryptionLevel).not.toBe(prodSettings.encryptionLevel);
+      expect(devSettings.enableDebugLogs).not.toBe(
+        prodSettings.enableDebugLogs,
+      );
+      expect(devSettings.sessionTimeout).toBeGreaterThan(
+        prodSettings.sessionTimeout,
+      );
+      expect(devSettings.encryptionLevel).not.toBe(
+        prodSettings.encryptionLevel,
+      );
     });
   });
 
@@ -377,7 +517,7 @@ describe('Claude Skills Security Validation', () => {
       const auditConfig = {
         enableAuditLogging: true,
         enableErrorReporting: true,
-        enablePerformanceTracking: true
+        enablePerformanceTracking: true,
       };
 
       expect(auditConfig.enableAuditLogging).toBe(true);
@@ -390,7 +530,7 @@ describe('Claude Skills Security Validation', () => {
         maxHistoryEntries: 10,
         maxNotificationAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
         maxRotationHistory: 50,
-        sessionTimeout: 30 * 60 * 1000 // 30 minutes in milliseconds
+        sessionTimeout: 30 * 60 * 1000, // 30 minutes in milliseconds
       };
 
       expect(retentionPolicies.maxHistoryEntries).toBeGreaterThan(0);
@@ -405,14 +545,16 @@ describe('Claude Skills Security Validation', () => {
         event: 'API_KEY_STORED',
         details: { requireBiometric: true },
         deviceId: 'test_device_12345',
-        environment: 'development'
+        environment: 'development',
       };
 
       expect(mockSecurityEvent.timestamp).toBeDefined();
       expect(mockSecurityEvent.event).toBeDefined();
       expect(typeof mockSecurityEvent.details).toBe('object');
       expect(mockSecurityEvent.deviceId).toBeDefined();
-      expect(['development', 'staging', 'production']).toContain(mockSecurityEvent.environment);
+      expect(['development', 'staging', 'production']).toContain(
+        mockSecurityEvent.environment,
+      );
     });
 
     test('Privacy compliance validation', () => {
@@ -422,7 +564,7 @@ describe('Claude Skills Security Validation', () => {
         deviceOnlyAccess: true,
         biometricProtection: true,
         auditTrail: true,
-        dataMinimization: true
+        dataMinimization: true,
       };
 
       // All privacy requirements should be met
@@ -437,23 +579,50 @@ describe('Claude Skills Security Validation', () => {
 describe('Claude Skills Security Performance Tests', () => {
   test('Configuration validation performance', () => {
     const startTime = Date.now();
-    
+
     const testConfig = {
       apiKey: 'performance_test_key_12345',
       environment: 'development' as const,
       enabledSkills: ['ResourceOptimizationSkill'] as SkillType[],
       performanceMode: 'balanced' as const,
-      cacheConfig: { maxCacheSize: 50, cacheTTL: 3600, enablePredictivePreloading: true, deviceAwareSizing: true },
-      fallbackConfig: { enableGracefulDegradation: true, maxRetryAttempts: 3, retryBackoffMs: 1000, circuitBreakerThreshold: 5 },
-      monitoringConfig: { enablePerformanceTracking: true, enableErrorReporting: true, metricsCollectionInterval: 5000, enableDebugLogs: true },
-      securityConfig: { encryptionLevel: 'standard' as const, requireBiometricAuth: false, sessionTimeout: 30, maxFailedAttempts: 5, enableAuditLogging: true },
-      rotationConfig: { enableAutoRotation: false, rotationIntervalDays: 90, notifyBeforeExpiry: true, expiryWarningDays: 7, backupKeyCount: 3 },
+      cacheConfig: {
+        maxCacheSize: 50,
+        cacheTTL: 3600,
+        enablePredictivePreloading: true,
+        deviceAwareSizing: true,
+      },
+      fallbackConfig: {
+        enableGracefulDegradation: true,
+        maxRetryAttempts: 3,
+        retryBackoffMs: 1000,
+        circuitBreakerThreshold: 5,
+      },
+      monitoringConfig: {
+        enablePerformanceTracking: true,
+        enableErrorReporting: true,
+        metricsCollectionInterval: 5000,
+        enableDebugLogs: true,
+      },
+      securityConfig: {
+        encryptionLevel: 'standard' as const,
+        requireBiometricAuth: false,
+        sessionTimeout: 30,
+        maxFailedAttempts: 5,
+        enableAuditLogging: true,
+      },
+      rotationConfig: {
+        enableAutoRotation: false,
+        rotationIntervalDays: 90,
+        notifyBeforeExpiry: true,
+        expiryWarningDays: 7,
+        backupKeyCount: 3,
+      },
     };
 
     const validation = ClaudeSkillsConfigValidator.validateConfig(testConfig);
-    
+
     const executionTime = Date.now() - startTime;
-    
+
     // Validation should be fast (under 100ms)
     expect(executionTime).toBeLessThan(100);
     expect(validation.isValid).toBe(true);
@@ -462,53 +631,80 @@ describe('Claude Skills Security Performance Tests', () => {
   test('Batch configuration validation performance', () => {
     const startTime = Date.now();
     const validationCount = 10;
-    
+
     for (let i = 0; i < validationCount; i++) {
       const testConfig = {
         apiKey: `test_key_${i}_12345`,
         environment: 'development' as const,
         enabledSkills: ['ResourceOptimizationSkill'] as SkillType[],
         performanceMode: 'balanced' as const,
-        cacheConfig: { maxCacheSize: 50, cacheTTL: 3600, enablePredictivePreloading: true, deviceAwareSizing: true },
-        fallbackConfig: { enableGracefulDegradation: true, maxRetryAttempts: 3, retryBackoffMs: 1000, circuitBreakerThreshold: 5 },
-        monitoringConfig: { enablePerformanceTracking: true, enableErrorReporting: true, metricsCollectionInterval: 5000, enableDebugLogs: true },
-        securityConfig: { encryptionLevel: 'enhanced' as const, requireBiometricAuth: true, sessionTimeout: 30, maxFailedAttempts: 5, enableAuditLogging: true },
-        rotationConfig: { enableAutoRotation: true, rotationIntervalDays: 30, notifyBeforeExpiry: true, expiryWarningDays: 7, backupKeyCount: 3 },
+        cacheConfig: {
+          maxCacheSize: 50,
+          cacheTTL: 3600,
+          enablePredictivePreloading: true,
+          deviceAwareSizing: true,
+        },
+        fallbackConfig: {
+          enableGracefulDegradation: true,
+          maxRetryAttempts: 3,
+          retryBackoffMs: 1000,
+          circuitBreakerThreshold: 5,
+        },
+        monitoringConfig: {
+          enablePerformanceTracking: true,
+          enableErrorReporting: true,
+          metricsCollectionInterval: 5000,
+          enableDebugLogs: true,
+        },
+        securityConfig: {
+          encryptionLevel: 'enhanced' as const,
+          requireBiometricAuth: true,
+          sessionTimeout: 30,
+          maxFailedAttempts: 5,
+          enableAuditLogging: true,
+        },
+        rotationConfig: {
+          enableAutoRotation: true,
+          rotationIntervalDays: 30,
+          notifyBeforeExpiry: true,
+          expiryWarningDays: 7,
+          backupKeyCount: 3,
+        },
       };
 
       const validation = ClaudeSkillsConfigValidator.validateConfig(testConfig);
       expect(validation.isValid).toBe(true);
     }
-    
+
     const totalTime = Date.now() - startTime;
     const averageTime = totalTime / validationCount;
-    
+
     // Each validation should average under 50ms
     expect(averageTime).toBeLessThan(50);
   });
 
   test('Security configuration memory usage', () => {
     const configurations = [];
-    
+
     // Create multiple configurations
     for (let i = 0; i < 100; i++) {
       configurations.push({
         apiKey: `memory_test_key_${i}`,
         environment: 'development' as const,
         enabledSkills: ['ResourceOptimizationSkill'] as SkillType[],
-        securityConfig: { 
-          encryptionLevel: 'enhanced' as const, 
-          requireBiometricAuth: true, 
-          sessionTimeout: 30, 
-          maxFailedAttempts: 5, 
-          enableAuditLogging: true 
-        }
+        securityConfig: {
+          encryptionLevel: 'enhanced' as const,
+          requireBiometricAuth: true,
+          sessionTimeout: 30,
+          maxFailedAttempts: 5,
+          enableAuditLogging: true,
+        },
       });
     }
-    
+
     // This test ensures configurations don't cause memory leaks
     expect(configurations.length).toBe(100);
-    
+
     // Cleanup
     configurations.length = 0;
     expect(configurations.length).toBe(0);

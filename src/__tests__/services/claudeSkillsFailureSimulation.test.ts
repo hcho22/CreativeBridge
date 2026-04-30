@@ -1,13 +1,16 @@
 /**
  * Claude Skills Failure Simulation Tests
- * 
+ *
  * Comprehensive failure scenario testing for Task 2.2
  * Tests all identified failure modes and recovery strategies
  */
 
 import { createMockSkillManager } from '../mocks/claudeSkillsMock';
 import { SkillManager, SkillErrorCode } from '../../types/claudeSkills';
-import { SkillTestUtils, MOCK_ERROR_SCENARIOS } from '../mocks/claudeSkillsMock';
+import {
+  SkillTestUtils,
+  MOCK_ERROR_SCENARIOS,
+} from '../mocks/claudeSkillsMock';
 import {
   SkillEnhancedServiceFactory,
   SkillEnhancedServiceConfig,
@@ -39,7 +42,7 @@ describe('Claude Skills Failure Simulation', () => {
 
       const result = await skillManager.executeSkill(
         'ContentPredictionSkill_mock',
-        SkillTestUtils.createTestInput.ContentPredictionSkill()
+        SkillTestUtils.createTestInput.ContentPredictionSkill(),
       );
 
       expect(result.success).toBe(false);
@@ -83,7 +86,7 @@ describe('Claude Skills Failure Simulation', () => {
           processSkillResults: async () => {
             throw new Error('Processing failed');
           },
-        }
+        },
       );
 
       const result = await enhancedService.execute({ input: 'test' });
@@ -105,7 +108,7 @@ describe('Claude Skills Failure Simulation', () => {
 
       const result = await skillManager.executeSkill(
         'ContentPredictionSkill_mock',
-        SkillTestUtils.createTestInput.ContentPredictionSkill()
+        SkillTestUtils.createTestInput.ContentPredictionSkill(),
       );
 
       expect(result.success).toBe(false);
@@ -127,7 +130,7 @@ describe('Claude Skills Failure Simulation', () => {
 
       const result = await skillManager.executeSkill(
         'ContentPredictionSkill_mock',
-        SkillTestUtils.createTestInput.ContentPredictionSkill()
+        SkillTestUtils.createTestInput.ContentPredictionSkill(),
       );
 
       expect(result.success).toBe(false);
@@ -149,7 +152,7 @@ describe('Claude Skills Failure Simulation', () => {
 
       const result = await skillManager.executeSkill(
         'ContentPredictionSkill_mock',
-        SkillTestUtils.createTestInput.ContentPredictionSkill()
+        SkillTestUtils.createTestInput.ContentPredictionSkill(),
       );
 
       expect(result.success).toBe(false);
@@ -179,7 +182,7 @@ describe('Claude Skills Failure Simulation', () => {
 
         const result = await skillManager.executeSkill(
           'ContentPredictionSkill_mock',
-          SkillTestUtils.createTestInput.ContentPredictionSkill()
+          SkillTestUtils.createTestInput.ContentPredictionSkill(),
         );
 
         expect(result.success).toBe(false);
@@ -231,7 +234,7 @@ describe('Claude Skills Failure Simulation', () => {
             processSkillResults: async () => {
               throw new Error('Processing failed');
             },
-          }
+          },
         );
 
         // Should fall back to original service
@@ -285,7 +288,7 @@ describe('Claude Skills Failure Simulation', () => {
           processSkillResults: async () => {
             throw new Error('All skills failed');
           },
-        }
+        },
       );
 
       const result = await enhancedService.execute({ input: 'test' });
@@ -306,7 +309,10 @@ describe('Claude Skills Failure Simulation', () => {
       // Simulate one skill failing, one succeeding
       let callCount = 0;
       const originalExecute = skillManager.executeSkill.bind(skillManager);
-      (skillManager as any).executeSkill = async function(skillId: string, input: any) {
+      (skillManager as any).executeSkill = async function (
+        skillId: string,
+        input: any,
+      ) {
         callCount++;
         if (skillId.includes('ContentPredictionSkill')) {
           // First skill fails
@@ -360,7 +366,7 @@ describe('Claude Skills Failure Simulation', () => {
             expect(orchestrationResult.errors.size).toBe(1);
             return { success: true, partial: true };
           },
-        }
+        },
       );
 
       const result = await enhancedService.execute({ input: 'test' });
@@ -368,4 +374,3 @@ describe('Claude Skills Failure Simulation', () => {
     });
   });
 });
-

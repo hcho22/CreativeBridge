@@ -3,7 +3,10 @@
  * Comprehensive test suite for retry mechanisms, offline queueing, and error recovery
  */
 
-import { enhancedErrorHandling, EnhancedErrorHandlingService } from '../../services/enhancedErrorHandling';
+import {
+  enhancedErrorHandling,
+  EnhancedErrorHandlingService,
+} from '../../services/enhancedErrorHandling';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as RNFS from 'react-native-fs';
 
@@ -32,11 +35,13 @@ jest.mock('react-native-fs', () => ({
 jest.mock('@react-native-community/netinfo', () => ({
   __esModule: true,
   default: {
-    fetch: jest.fn(() => Promise.resolve({
-      isConnected: true,
-      type: 'wifi',
-      isInternetReachable: true
-    })),
+    fetch: jest.fn(() =>
+      Promise.resolve({
+        isConnected: true,
+        type: 'wifi',
+        isInternetReachable: true,
+      }),
+    ),
     addEventListener: jest.fn(() => () => {}),
   },
 }));
@@ -54,10 +59,10 @@ jest.mock('../../services/networkMonitor', () => ({
       isConnected: true,
       connectionType: 'wifi',
       isInternetReachable: true,
-      strength: 'good'
+      strength: 'good',
     })),
     addListener: jest.fn(() => () => {}),
-  }
+  },
 }));
 
 describe('EnhancedErrorHandlingService', () => {
@@ -79,7 +84,7 @@ describe('EnhancedErrorHandlingService', () => {
           maxRetries: 3,
           baseDelay: 100,
           userId: 'test-user',
-        }
+        },
       );
 
       expect(result).toBe('success');
@@ -87,7 +92,8 @@ describe('EnhancedErrorHandlingService', () => {
     });
 
     it('should retry with exponential backoff on failure', async () => {
-      const mockOperation = jest.fn()
+      const mockOperation = jest
+        .fn()
         .mockRejectedValueOnce(new Error('First failure'))
         .mockRejectedValueOnce(new Error('Second failure'))
         .mockResolvedValueOnce('success');
@@ -100,11 +106,11 @@ describe('EnhancedErrorHandlingService', () => {
           maxRetries: 3,
           baseDelay: 50, // Reduced for faster tests
           userId: 'test-user',
-        }
+        },
       );
 
       const duration = Date.now() - startTime;
-      
+
       expect(result).toBe('success');
       expect(mockOperation).toHaveBeenCalledTimes(3);
       // Should have some delay between retries
@@ -116,16 +122,13 @@ describe('EnhancedErrorHandlingService', () => {
       const mockOperation = jest.fn().mockRejectedValue(originalError);
 
       await expect(
-        enhancedErrorHandling.retryWithBackoff(
-          mockOperation,
-          {
-            operationName: 'test_operation',
-            maxRetries: 2,
-            baseDelay: 10,
-            userId: 'test-user',
-            fileName: 'test.txt',
-          }
-        )
+        enhancedErrorHandling.retryWithBackoff(mockOperation, {
+          operationName: 'test_operation',
+          maxRetries: 2,
+          baseDelay: 10,
+          userId: 'test-user',
+          fileName: 'test.txt',
+        }),
       ).rejects.toThrow('Persistent failure');
 
       expect(mockOperation).toHaveBeenCalledTimes(2);
@@ -133,25 +136,23 @@ describe('EnhancedErrorHandlingService', () => {
 
     it('should log error recovery on successful retry', async () => {
       const logSpy = jest.spyOn(console, 'log').mockImplementation();
-      const mockOperation = jest.fn()
+      const mockOperation = jest
+        .fn()
         .mockRejectedValueOnce(new Error('First failure'))
         .mockResolvedValueOnce('success');
 
-      await enhancedErrorHandling.retryWithBackoff(
-        mockOperation,
-        {
-          operationName: 'test_operation',
-          maxRetries: 3,
-          baseDelay: 10,
-          userId: 'test-user',
-        }
-      );
+      await enhancedErrorHandling.retryWithBackoff(mockOperation, {
+        operationName: 'test_operation',
+        maxRetries: 3,
+        baseDelay: 10,
+        userId: 'test-user',
+      });
 
       expect(logSpy).toHaveBeenCalledWith(
-        expect.stringContaining('🔄 Attempting test_operation (attempt 1/3)')
+        expect.stringContaining('🔄 Attempting test_operation (attempt 1/3)'),
       );
       expect(logSpy).toHaveBeenCalledWith(
-        expect.stringContaining('🔄 Attempting test_operation (attempt 2/3)')
+        expect.stringContaining('🔄 Attempting test_operation (attempt 2/3)'),
       );
 
       logSpy.mockRestore();
@@ -180,7 +181,7 @@ describe('EnhancedErrorHandlingService', () => {
       expect(typeof queueId).toBe('string');
       expect(AsyncStorage.setItem).toHaveBeenCalledWith(
         'download_queue',
-        expect.stringContaining(queueId)
+        expect.stringContaining(queueId),
       );
     });
 
@@ -199,7 +200,9 @@ describe('EnhancedErrorHandlingService', () => {
         },
       ];
 
-      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(mockQueue));
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
+        JSON.stringify(mockQueue),
+      );
 
       const queue = await enhancedErrorHandling.getDownloadQueue();
 
@@ -233,7 +236,9 @@ describe('EnhancedErrorHandlingService', () => {
         },
       ];
 
-      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(mockQueue));
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
+        JSON.stringify(mockQueue),
+      );
       (RNFS.writeFile as jest.Mock).mockResolvedValue(undefined);
 
       const result = await enhancedErrorHandling.processDownloadQueue();
@@ -259,8 +264,12 @@ describe('EnhancedErrorHandlingService', () => {
         },
       ];
 
-      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(mockQueue));
-      (RNFS.writeFile as jest.Mock).mockRejectedValue(new Error('File write failed'));
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
+        JSON.stringify(mockQueue),
+      );
+      (RNFS.writeFile as jest.Mock).mockRejectedValue(
+        new Error('File write failed'),
+      );
 
       const result = await enhancedErrorHandling.processDownloadQueue();
 
@@ -271,13 +280,14 @@ describe('EnhancedErrorHandlingService', () => {
 
     it('should prioritize high priority downloads', async () => {
       const processOrder: string[] = [];
-      const mockProcessFunction = jest.fn().mockImplementation((download) => {
+      const mockProcessFunction = jest.fn().mockImplementation(download => {
         processOrder.push(download.fileName);
         return Promise.resolve({ success: true });
       });
 
       // Mock the internal processing function
-      (enhancedErrorHandling as any).processSingleDownload = mockProcessFunction;
+      (enhancedErrorHandling as any).processSingleDownload =
+        mockProcessFunction;
 
       const mockQueue = [
         {
@@ -300,7 +310,9 @@ describe('EnhancedErrorHandlingService', () => {
         },
       ];
 
-      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(mockQueue));
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
+        JSON.stringify(mockQueue),
+      );
 
       await enhancedErrorHandling.processDownloadQueue();
 
@@ -340,7 +352,9 @@ describe('EnhancedErrorHandlingService', () => {
     });
 
     it('should handle storage info errors gracefully', async () => {
-      (RNFS.getFSInfo as jest.Mock).mockRejectedValue(new Error('Storage access failed'));
+      (RNFS.getFSInfo as jest.Mock).mockRejectedValue(
+        new Error('Storage access failed'),
+      );
 
       const result = await enhancedErrorHandling.checkStorageSpace(500000);
 
@@ -405,7 +419,9 @@ describe('EnhancedErrorHandlingService', () => {
       const options = enhancedErrorHandling.generateRecoveryOptions(error);
 
       expect(options.length).toBeGreaterThan(0);
-      expect(options.some(option => option.action === 'open_settings')).toBe(true);
+      expect(options.some(option => option.action === 'open_settings')).toBe(
+        true,
+      );
       expect(options.some(option => option.action === 'retry')).toBe(true);
     });
 
@@ -424,8 +440,12 @@ describe('EnhancedErrorHandlingService', () => {
       const options = enhancedErrorHandling.generateRecoveryOptions(error);
 
       expect(options.length).toBeGreaterThan(0);
-      expect(options.some(option => option.action === 'check_storage')).toBe(true);
-      expect(options.some(option => option.action === 'queue_download')).toBe(true);
+      expect(options.some(option => option.action === 'check_storage')).toBe(
+        true,
+      );
+      expect(options.some(option => option.action === 'queue_download')).toBe(
+        true,
+      );
     });
 
     it('should generate recovery options for network errors', () => {
@@ -443,8 +463,12 @@ describe('EnhancedErrorHandlingService', () => {
       const options = enhancedErrorHandling.generateRecoveryOptions(error);
 
       expect(options.length).toBeGreaterThan(0);
-      expect(options.some(option => option.action === 'check_connection')).toBe(true);
-      expect(options.some(option => option.action === 'queue_download')).toBe(true);
+      expect(options.some(option => option.action === 'check_connection')).toBe(
+        true,
+      );
+      expect(options.some(option => option.action === 'queue_download')).toBe(
+        true,
+      );
     });
   });
 
@@ -470,7 +494,7 @@ describe('EnhancedErrorHandlingService', () => {
         expect.objectContaining({
           type: 'network_error',
           message: 'Test network error',
-        })
+        }),
       );
 
       consoleSpy.mockRestore();
@@ -491,7 +515,7 @@ describe('EnhancedErrorHandlingService', () => {
         expect.objectContaining({
           operation: 'test_operation',
           attemptsRequired: 3,
-        })
+        }),
       );
 
       consoleSpy.mockRestore();
@@ -508,7 +532,10 @@ describe('EnhancedErrorHandlingService', () => {
         maxRetries: 3,
       };
 
-      const enhancedError = enhancedErrorHandling.enhanceError(originalError, context);
+      const enhancedError = enhancedErrorHandling.enhanceError(
+        originalError,
+        context,
+      );
 
       expect(enhancedError.message).toContain('Original error message');
       expect(enhancedError.message).toContain('test_operation');
@@ -518,13 +545,16 @@ describe('EnhancedErrorHandlingService', () => {
     it('should preserve original error stack trace', () => {
       const originalError = new Error('Original error');
       const originalStack = originalError.stack;
-      
+
       const context = {
         operationName: 'test_operation',
         userId: 'test-user',
       };
 
-      const enhancedError = enhancedErrorHandling.enhanceError(originalError, context);
+      const enhancedError = enhancedErrorHandling.enhanceError(
+        originalError,
+        context,
+      );
 
       expect(enhancedError.stack).toBe(originalStack);
     });
@@ -553,7 +583,7 @@ describe('EnhancedErrorHandlingService', () => {
           baseDelay: 10,
           userId: 'test-user',
           fileName: 'story.txt',
-        }
+        },
       );
 
       expect(result).toEqual({ success: true, filePath: '/test/path' });

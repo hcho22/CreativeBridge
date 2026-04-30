@@ -12,7 +12,10 @@ import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 import { GoogleSignInButton } from '../../../components/auth/GoogleSignInButton';
 import { useAuth } from '../../../context/AuthContext';
-import { checkNetworkBeforeOAuth, getNetworkErrorMessage } from '../../../utils/oauthNetworkCheck';
+import {
+  checkNetworkBeforeOAuth,
+  getNetworkErrorMessage,
+} from '../../../utils/oauthNetworkCheck';
 import { handleOAuthError } from '../../../utils/oauthErrorHandler';
 
 // Mock dependencies
@@ -30,13 +33,15 @@ jest.mock('react-native', () => {
 });
 
 const mockUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;
-const mockCheckNetworkBeforeOAuth = checkNetworkBeforeOAuth as jest.MockedFunction<
-  typeof checkNetworkBeforeOAuth
+const mockCheckNetworkBeforeOAuth =
+  checkNetworkBeforeOAuth as jest.MockedFunction<
+    typeof checkNetworkBeforeOAuth
+  >;
+const mockGetNetworkErrorMessage =
+  getNetworkErrorMessage as jest.MockedFunction<typeof getNetworkErrorMessage>;
+const mockHandleOAuthError = handleOAuthError as jest.MockedFunction<
+  typeof handleOAuthError
 >;
-const mockGetNetworkErrorMessage = getNetworkErrorMessage as jest.MockedFunction<
-  typeof getNetworkErrorMessage
->;
-const mockHandleOAuthError = handleOAuthError as jest.MockedFunction<typeof handleOAuthError>;
 
 describe('GoogleSignInButton', () => {
   let mockSignInWithGoogle: jest.Mock;
@@ -193,7 +198,9 @@ describe('GoogleSignInButton', () => {
 
       // Simulate retry
       const alertCall = (Alert.alert as jest.Mock).mock.calls[0];
-      const retryButton = alertCall[2]?.find((btn: any) => btn.text === 'Retry');
+      const retryButton = alertCall[2]?.find(
+        (btn: any) => btn.text === 'Retry',
+      );
       if (retryButton) {
         retryButton.onPress();
         await waitFor(() => {
@@ -231,7 +238,8 @@ describe('GoogleSignInButton', () => {
 
       mockHandleOAuthError.mockReturnValue({
         shouldShowError: true,
-        userMessage: 'Connection error. Please check your internet connection and try again.',
+        userMessage:
+          'Connection error. Please check your internet connection and try again.',
         fallbackAvailable: true,
         canRetry: true,
         retryDelay: 2000,
@@ -373,4 +381,3 @@ describe('GoogleSignInButton', () => {
     });
   });
 });
-

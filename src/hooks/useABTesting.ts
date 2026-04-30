@@ -1,6 +1,6 @@
 /**
  * React Hook for A/B Testing
- * 
+ *
  * Provides A/B testing functionality integrated with user context
  */
 
@@ -28,11 +28,12 @@ export interface UseABTestingOptions {
  * Hook for A/B testing functionality
  */
 export function useABTesting(
-  options: UseABTestingOptions = {}
+  options: UseABTestingOptions = {},
 ): UseABTestingResult {
-  const { experimentId = 'claude_skills_performance', autoTrack = true } = options;
+  const { experimentId = 'claude_skills_performance', autoTrack = true } =
+    options;
   const { user, userProfile } = useAuth();
-  
+
   const [variantId, setVariantId] = useState<string | null>(null);
   const [isInExperiment, setIsInExperiment] = useState(false);
   const [claudeSkillsEnabled, setClaudeSkillsEnabled] = useState(false);
@@ -59,7 +60,7 @@ export function useABTesting(
       const assignment = await abTestingService.assignUserToExperiment(
         user.id,
         experimentId,
-        userContext
+        userContext,
       );
 
       if (assignment) {
@@ -70,7 +71,7 @@ export function useABTesting(
         const enabled = await abTestingService.shouldEnableClaudeSkills(
           user.id,
           experimentId,
-          userContext
+          userContext,
         );
         setClaudeSkillsEnabled(enabled);
 
@@ -80,7 +81,7 @@ export function useABTesting(
             user.id,
             experimentId,
             'experiment_assigned',
-            { variantId: assignment.variantId }
+            { variantId: assignment.variantId },
           );
         }
       } else {
@@ -110,13 +111,13 @@ export function useABTesting(
           user.id,
           experimentId,
           metricName,
-          metricValue
+          metricValue,
         );
       } catch (err) {
         console.error('Error tracking metric:', err);
       }
     },
-    [user, experimentId, isInExperiment]
+    [user, experimentId, isInExperiment],
   );
 
   const trackConversion = useCallback(
@@ -129,13 +130,13 @@ export function useABTesting(
         await abTestingService.trackConversion(
           user.id,
           experimentId,
-          conversionType
+          conversionType,
         );
       } catch (err) {
         console.error('Error tracking conversion:', err);
       }
     },
-    [user, experimentId, isInExperiment]
+    [user, experimentId, isInExperiment],
   );
 
   return {
@@ -161,7 +162,9 @@ export function useExperimentResults(experimentId: string) {
     try {
       setLoading(true);
       setError(null);
-      const experimentResults = await abTestingService.getExperimentResults(experimentId);
+      const experimentResults = await abTestingService.getExperimentResults(
+        experimentId,
+      );
       setResults(experimentResults);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Unknown error'));
@@ -181,4 +184,3 @@ export function useExperimentResults(experimentId: string) {
     refreshResults,
   };
 }
-

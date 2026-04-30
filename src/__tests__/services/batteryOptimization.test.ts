@@ -1,11 +1,18 @@
 /**
  * Battery Optimization Tests
- * 
+ *
  * Specialized tests for battery-conscious operation modes
  * Task 4.1.4: Battery-conscious operation modes
  */
 
-import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+import {
+  jest,
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+} from '@jest/globals';
 import DeviceInfo from 'react-native-device-info';
 
 import DynamicResourceManager from '../../services/resourceManager';
@@ -22,7 +29,9 @@ jest.mock('../../services/performanceOptimizer');
 jest.mock('../../utils/logger');
 
 const mockDeviceInfo = DeviceInfo as jest.Mocked<typeof DeviceInfo>;
-const mockPerformanceOptimizer = performanceOptimizer as jest.Mocked<typeof performanceOptimizer>;
+const mockPerformanceOptimizer = performanceOptimizer as jest.Mocked<
+  typeof performanceOptimizer
+>;
 const mockLogger = structuredLogger as jest.Mocked<typeof structuredLogger>;
 
 describe('Battery Optimization', () => {
@@ -31,9 +40,9 @@ describe('Battery Optimization', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     resourceManager = new DynamicResourceManager();
-    
+
     mockSkillManager = {
       initialize: jest.fn().mockResolvedValue(undefined),
       registerSkill: jest.fn(),
@@ -49,7 +58,9 @@ describe('Battery Optimization', () => {
     mockDeviceInfo.getAvailableMemory.mockResolvedValue(2 * 1024 * 1024 * 1024);
     mockDeviceInfo.getTotalMemory.mockResolvedValue(4 * 1024 * 1024 * 1024);
     mockDeviceInfo.getUsedMemory.mockResolvedValue(2 * 1024 * 1024 * 1024);
-    mockDeviceInfo.getFreeDiskStorage.mockResolvedValue(10 * 1024 * 1024 * 1024);
+    mockDeviceInfo.getFreeDiskStorage.mockResolvedValue(
+      10 * 1024 * 1024 * 1024,
+    );
 
     // Setup performance optimizer mocks
     mockPerformanceOptimizer.getPerformanceLevel.mockReturnValue('medium');
@@ -70,7 +81,7 @@ describe('Battery Optimization', () => {
 
     it('should initialize battery config with default thresholds', async () => {
       const batteryConfig = resourceManager.getBatteryConfig();
-      
+
       expect(batteryConfig).toMatchObject({
         lowBatteryThreshold: 0.2,
         criticalBatteryThreshold: 0.1,
@@ -97,17 +108,17 @@ describe('Battery Optimization', () => {
 
     it('should detect normal battery levels', async () => {
       mockDeviceInfo.getBatteryLevel.mockResolvedValue(0.8);
-      
+
       await resourceManager.applyBatteryOptimizations();
 
       // Should not log any battery optimization messages for normal levels
       expect(mockLogger.warn).not.toHaveBeenCalledWith(
         expect.stringContaining('battery mode'),
-        expect.any(Object)
+        expect.any(Object),
       );
       expect(mockLogger.info).not.toHaveBeenCalledWith(
         expect.stringContaining('battery optimizations'),
-        expect.any(Object)
+        expect.any(Object),
       );
     });
 
@@ -121,7 +132,7 @@ describe('Battery Optimization', () => {
         expect.objectContaining({
           batteryLevel: 0.15,
           reducedOperations: expect.any(Number),
-        })
+        }),
       );
     });
 
@@ -135,19 +146,21 @@ describe('Battery Optimization', () => {
         expect.objectContaining({
           batteryLevel: 0.05,
           strategy: 'Emergency Battery',
-        })
+        }),
       );
     });
 
     it('should handle battery info errors gracefully', async () => {
-      mockDeviceInfo.getBatteryLevel.mockRejectedValue(new Error('Battery info unavailable'));
+      mockDeviceInfo.getBatteryLevel.mockRejectedValue(
+        new Error('Battery info unavailable'),
+      );
 
       await resourceManager.applyBatteryOptimizations();
 
       expect(mockLogger.error).toHaveBeenCalledWith(
         'Battery optimization failed',
         {},
-        expect.any(Error)
+        expect.any(Error),
       );
     });
   });
@@ -166,10 +179,10 @@ describe('Battery Optimization', () => {
       await resourceManager.applyBatteryOptimizations();
 
       const newStrategy = resourceManager.getCurrentStrategy();
-      
+
       expect(newStrategy.enableBackgroundTasks).toBe(false);
       expect(newStrategy.maxConcurrentOperations).toBe(
-        Math.max(1, Math.floor(initialOperations * 0.7))
+        Math.max(1, Math.floor(initialOperations * 0.7)),
       );
       expect(newStrategy.animationComplexity).toBe('reduced');
     });
@@ -190,12 +203,14 @@ describe('Battery Optimization', () => {
         networkRequestPriority: 'high' as const,
       };
 
-      await resourceManager.applyResourceAllocationStrategy(highPerformanceStrategy);
+      await resourceManager.applyResourceAllocationStrategy(
+        highPerformanceStrategy,
+      );
       await resourceManager.applyBatteryOptimizations();
 
       const optimizedStrategy = resourceManager.getCurrentStrategy();
       expect(optimizedStrategy.maxConcurrentOperations).toBe(
-        Math.max(1, Math.floor(4 * 0.7)) // Should be 2
+        Math.max(1, Math.floor(4 * 0.7)), // Should be 2
       );
     });
 
@@ -229,7 +244,7 @@ describe('Battery Optimization', () => {
       await resourceManager.applyBatteryOptimizations();
 
       const strategy = resourceManager.getCurrentStrategy();
-      
+
       expect(strategy.name).toBe('Emergency Battery');
       expect(strategy.memoryLimitMB).toBe(30);
       expect(strategy.maxConcurrentOperations).toBe(1);
@@ -247,7 +262,7 @@ describe('Battery Optimization', () => {
       await resourceManager.applyBatteryOptimizations();
 
       const strategy = resourceManager.getCurrentStrategy();
-      
+
       // Verify all power-saving measures are enabled
       expect(strategy.enableBackgroundTasks).toBe(false);
       expect(strategy.enablePrefetching).toBe(false);
@@ -271,8 +286,10 @@ describe('Battery Optimization', () => {
         networkRequestPriority: 'high' as const,
       };
 
-      await resourceManager.applyResourceAllocationStrategy(highPerformanceStrategy);
-      
+      await resourceManager.applyResourceAllocationStrategy(
+        highPerformanceStrategy,
+      );
+
       // Then trigger emergency mode
       mockDeviceInfo.getBatteryLevel.mockResolvedValue(0.05);
       await resourceManager.applyBatteryOptimizations();
@@ -300,7 +317,10 @@ describe('Battery Optimization', () => {
         cpuUsage: 0.5,
       });
 
-      const applyBatteryOptimizationsSpy = jest.spyOn(resourceManager, 'applyBatteryOptimizations');
+      const applyBatteryOptimizationsSpy = jest.spyOn(
+        resourceManager,
+        'applyBatteryOptimizations',
+      );
 
       const strategy = {
         name: 'Test Strategy',
@@ -332,7 +352,10 @@ describe('Battery Optimization', () => {
         cpuUsage: 0.3,
       });
 
-      const applyBatteryOptimizationsSpy = jest.spyOn(resourceManager, 'applyBatteryOptimizations');
+      const applyBatteryOptimizationsSpy = jest.spyOn(
+        resourceManager,
+        'applyBatteryOptimizations',
+      );
 
       const strategy = {
         name: 'Normal Strategy',
@@ -363,7 +386,10 @@ describe('Battery Optimization', () => {
         cpuUsage: 0.3,
       });
 
-      const applyBatteryOptimizationsSpy = jest.spyOn(resourceManager, 'applyBatteryOptimizations');
+      const applyBatteryOptimizationsSpy = jest.spyOn(
+        resourceManager,
+        'applyBatteryOptimizations',
+      );
 
       const strategy = {
         name: 'Normal Strategy',
@@ -396,20 +422,20 @@ describe('Battery Optimization', () => {
       // Should not apply any battery optimizations
       expect(mockLogger.info).not.toHaveBeenCalledWith(
         expect.stringContaining('battery optimizations'),
-        expect.any(Object)
+        expect.any(Object),
       );
     });
 
     it('should apply low battery optimizations at threshold', async () => {
-      mockDeviceInfo.getBatteryLevel.mockResolvedValue(0.20); // Exactly 20%
+      mockDeviceInfo.getBatteryLevel.mockResolvedValue(0.2); // Exactly 20%
 
       await resourceManager.applyBatteryOptimizations();
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         'Low battery optimizations applied',
         expect.objectContaining({
-          batteryLevel: 0.20,
-        })
+          batteryLevel: 0.2,
+        }),
       );
     });
 
@@ -422,20 +448,20 @@ describe('Battery Optimization', () => {
         'Low battery optimizations applied',
         expect.objectContaining({
           batteryLevel: 0.11,
-        })
+        }),
       );
     });
 
     it('should apply emergency mode at critical threshold', async () => {
-      mockDeviceInfo.getBatteryLevel.mockResolvedValue(0.10); // Exactly 10%
+      mockDeviceInfo.getBatteryLevel.mockResolvedValue(0.1); // Exactly 10%
 
       await resourceManager.applyBatteryOptimizations();
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
         'Emergency battery mode activated',
         expect.objectContaining({
-          batteryLevel: 0.10,
-        })
+          batteryLevel: 0.1,
+        }),
       );
     });
   });
@@ -454,11 +480,11 @@ describe('Battery Optimization', () => {
 
       // Apply optimizations - should not trigger low battery mode
       await resourceManager.applyBatteryOptimizations();
-      
+
       // Should not log battery optimization messages when charging
       expect(mockLogger.info).not.toHaveBeenCalledWith(
         expect.stringContaining('battery optimizations'),
-        expect.any(Object)
+        expect.any(Object),
       );
     });
 
@@ -468,13 +494,13 @@ describe('Battery Optimization', () => {
       mockDeviceInfo.getBatteryState.mockResolvedValue('unplugged');
 
       await resourceManager.applyBatteryOptimizations();
-      
+
       const lowBatteryStrategy = resourceManager.getCurrentStrategy();
       expect(lowBatteryStrategy.enableBackgroundTasks).toBe(false);
 
       // Then simulate plugging in charger
       mockDeviceInfo.getBatteryState.mockResolvedValue('charging');
-      
+
       const conditions = await resourceManager.assessDeviceConditions();
       expect(conditions.batteryState).toBe('charging');
     });
@@ -497,27 +523,27 @@ describe('Battery Optimization', () => {
 
       // Should have reduced concurrent operations
       expect(optimizedConcurrentOps).toBeLessThan(initialConcurrentOps);
-      
+
       expect(mockLogger.info).toHaveBeenCalledWith(
         'Low battery optimizations applied',
         expect.objectContaining({
           reducedOperations: optimizedConcurrentOps,
-        })
+        }),
       );
     });
 
     it('should track multiple battery optimization cycles', async () => {
       // Apply optimizations multiple times
       mockDeviceInfo.getBatteryLevel.mockResolvedValue(0.16);
-      
+
       await resourceManager.applyBatteryOptimizations();
       await resourceManager.applyBatteryOptimizations();
       await resourceManager.applyBatteryOptimizations();
 
       const logCalls = (mockLogger.info as jest.Mock).mock.calls.filter(
-        call => call[0] === 'Low battery optimizations applied'
+        call => call[0] === 'Low battery optimizations applied',
       );
-      
+
       expect(logCalls.length).toBe(3);
     });
   });
@@ -532,7 +558,7 @@ describe('Battery Optimization', () => {
       mockDeviceInfo.getBatteryState.mockResolvedValue('unplugged');
 
       const conditions = await resourceManager.assessDeviceConditions();
-      
+
       expect(conditions.batteryState).toBe('critical');
     });
 
@@ -566,7 +592,7 @@ describe('Battery Optimization', () => {
       await resourceManager.applyResourceAllocationStrategy(strategy);
 
       const finalStrategy = resourceManager.getCurrentStrategy();
-      
+
       // Should have extremely conservative settings due to both constraints
       expect(finalStrategy.enableBackgroundTasks).toBe(false);
       expect(finalStrategy.maxConcurrentOperations).toBe(1);
@@ -580,19 +606,23 @@ describe('Battery Optimization', () => {
     });
 
     it('should handle DeviceInfo.getBatteryLevel failures', async () => {
-      mockDeviceInfo.getBatteryLevel.mockRejectedValue(new Error('Battery API unavailable'));
+      mockDeviceInfo.getBatteryLevel.mockRejectedValue(
+        new Error('Battery API unavailable'),
+      );
 
       await resourceManager.applyBatteryOptimizations();
 
       expect(mockLogger.error).toHaveBeenCalledWith(
         'Battery optimization failed',
         {},
-        expect.any(Error)
+        expect.any(Error),
       );
     });
 
     it('should continue functioning after battery optimization errors', async () => {
-      mockDeviceInfo.getBatteryLevel.mockRejectedValue(new Error('Battery service error'));
+      mockDeviceInfo.getBatteryLevel.mockRejectedValue(
+        new Error('Battery service error'),
+      );
 
       await resourceManager.applyBatteryOptimizations();
 
@@ -604,17 +634,22 @@ describe('Battery Optimization', () => {
 
     it('should handle strategy application failures during battery optimization', async () => {
       mockDeviceInfo.getBatteryLevel.mockResolvedValue(0.05);
-      
+
       // Mock strategy application to fail
-      const applyResourceAllocationStrategySpy = jest.spyOn(resourceManager, 'applyResourceAllocationStrategy');
-      applyResourceAllocationStrategySpy.mockRejectedValue(new Error('Strategy application failed'));
+      const applyResourceAllocationStrategySpy = jest.spyOn(
+        resourceManager,
+        'applyResourceAllocationStrategy',
+      );
+      applyResourceAllocationStrategySpy.mockRejectedValue(
+        new Error('Strategy application failed'),
+      );
 
       await resourceManager.applyBatteryOptimizations();
 
       expect(mockLogger.error).toHaveBeenCalledWith(
         'Battery optimization failed',
         {},
-        expect.any(Error)
+        expect.any(Error),
       );
     });
   });

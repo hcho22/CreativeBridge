@@ -21,26 +21,33 @@ interface Credentials {
 
 const storage: Record<string, Credentials> = {};
 
-export const setInternetCredentials = jest.fn().mockImplementation(
-  async (service: string, username: string, password: string, options?: any) => {
-    storage[service] = { username, password };
-    return Promise.resolve(true);
-  }
-);
+export const setInternetCredentials = jest
+  .fn()
+  .mockImplementation(
+    async (
+      service: string,
+      username: string,
+      password: string,
+      options?: any,
+    ) => {
+      storage[service] = { username, password };
+      return Promise.resolve(true);
+    },
+  );
 
-export const getInternetCredentials = jest.fn().mockImplementation(
-  async (service: string) => {
+export const getInternetCredentials = jest
+  .fn()
+  .mockImplementation(async (service: string) => {
     const credentials = storage[service];
     return credentials || false;
-  }
-);
+  });
 
-export const resetInternetCredentials = jest.fn().mockImplementation(
-  async (service: string) => {
+export const resetInternetCredentials = jest
+  .fn()
+  .mockImplementation(async (service: string) => {
     delete storage[service];
     return Promise.resolve(true);
-  }
-);
+  });
 
 export default {
   ACCESS_CONTROL,

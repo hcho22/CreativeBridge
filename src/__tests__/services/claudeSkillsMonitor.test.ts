@@ -1,11 +1,16 @@
 /**
  * Claude Skills Performance Monitoring Tests
- * 
+ *
  * Comprehensive tests for Task 1.3: Performance Monitoring Framework
  */
 
 import { claudeSkillsMonitor } from '../../services/claudeSkillsMonitor';
-import { SkillType, SkillResult, SkillError, SkillErrorCode } from '../../types/claudeSkills';
+import {
+  SkillType,
+  SkillResult,
+  SkillError,
+  SkillErrorCode,
+} from '../../types/claudeSkills';
 import { supabase } from '../../services/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -27,15 +32,15 @@ describe('Claude Skills Performance Monitoring', () => {
   beforeEach(async () => {
     // Reset monitor state
     await claudeSkillsMonitor.resetMetrics();
-    
+
     // Clear mocks
     jest.clearAllMocks();
-    
+
     // Mock AsyncStorage
     (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
     (AsyncStorage.setItem as jest.Mock).mockResolvedValue(undefined);
     (AsyncStorage.removeItem as jest.Mock).mockResolvedValue(undefined);
-    
+
     // Mock Supabase
     (supabase.from as jest.Mock).mockReturnValue({
       select: jest.fn().mockReturnThis(),
@@ -58,7 +63,7 @@ describe('Claude Skills Performance Monitoring', () => {
         skillType,
         skillId,
         'user_123',
-        'session_456'
+        'session_456',
       );
 
       // Create successful result
@@ -77,7 +82,7 @@ describe('Claude Skills Performance Monitoring', () => {
         result,
         skillId,
         'user_123',
-        'session_456'
+        'session_456',
       );
 
       // Get metrics
@@ -109,7 +114,11 @@ describe('Claude Skills Performance Monitoring', () => {
         skillType,
       };
 
-      await claudeSkillsMonitor.trackExecutionComplete(executionId, result, skillId);
+      await claudeSkillsMonitor.trackExecutionComplete(
+        executionId,
+        result,
+        skillId,
+      );
 
       const metrics = claudeSkillsMonitor.getCurrentMetrics();
       expect(metrics.averageResponseTime).toBeCloseTo(executionTime, 0);
@@ -129,7 +138,11 @@ describe('Claude Skills Performance Monitoring', () => {
         skillType,
       };
 
-      await claudeSkillsMonitor.trackExecutionComplete(executionId, result, skillId);
+      await claudeSkillsMonitor.trackExecutionComplete(
+        executionId,
+        result,
+        skillId,
+      );
 
       const metrics = claudeSkillsMonitor.getCurrentMetrics();
       // Memory usage should be tracked (may be 0 in test environment)
@@ -140,7 +153,7 @@ describe('Claude Skills Performance Monitoring', () => {
   describe('Analytics Integration', () => {
     test('Analytics integration works correctly', async () => {
       const { analyticsService } = require('../../services/analyticsService');
-      
+
       const executionId = 'test_exec_4';
       const skillType: SkillType = 'BehaviorAnalysisSkill';
       const skillId = 'test_skill_4';
@@ -158,7 +171,7 @@ describe('Claude Skills Performance Monitoring', () => {
         executionId,
         result,
         skillId,
-        'user_123'
+        'user_123',
       );
 
       // Verify analytics service was called
@@ -169,7 +182,7 @@ describe('Claude Skills Performance Monitoring', () => {
         expect.objectContaining({
           skillType,
           skillId,
-        })
+        }),
       );
     });
 
@@ -187,7 +200,11 @@ describe('Claude Skills Performance Monitoring', () => {
         skillType,
       };
 
-      await claudeSkillsMonitor.trackExecutionComplete(executionId, result, skillId);
+      await claudeSkillsMonitor.trackExecutionComplete(
+        executionId,
+        result,
+        skillId,
+      );
 
       // Verify AsyncStorage was called
       expect(AsyncStorage.setItem).toHaveBeenCalled();
@@ -207,7 +224,11 @@ describe('Claude Skills Performance Monitoring', () => {
         skillType,
       };
 
-      await claudeSkillsMonitor.trackExecutionComplete(executionId, result, skillId);
+      await claudeSkillsMonitor.trackExecutionComplete(
+        executionId,
+        result,
+        skillId,
+      );
 
       // Get real-time metrics
       const realTimeMetrics = claudeSkillsMonitor.getRealTimeMetrics();
@@ -231,7 +252,11 @@ describe('Claude Skills Performance Monitoring', () => {
         const skillType: SkillType = 'ContentPredictionSkill';
         const skillId = 'test_skill_slow';
 
-        claudeSkillsMonitor.trackExecutionStart(executionId, skillType, skillId);
+        claudeSkillsMonitor.trackExecutionStart(
+          executionId,
+          skillType,
+          skillId,
+        );
 
         // Simulate slow execution (>2 seconds)
         const result: SkillResult<any> = {
@@ -241,17 +266,21 @@ describe('Claude Skills Performance Monitoring', () => {
           skillType,
         };
 
-        await claudeSkillsMonitor.trackExecutionComplete(executionId, result, skillId);
+        await claudeSkillsMonitor.trackExecutionComplete(
+          executionId,
+          result,
+          skillId,
+        );
       }
 
       // Check for alerts
       const alerts = claudeSkillsMonitor.getActiveAlerts();
-      
+
       // Should have at least one alert for slow response time
       const responseTimeAlerts = alerts.filter(
-        a => a.metric === 'response_time' && a.severity === 'warning'
+        a => a.metric === 'response_time' && a.severity === 'warning',
       );
-      
+
       // Note: Alert generation depends on threshold evaluation
       // In a real scenario, this would trigger alerts
       expect(alerts).toBeDefined();
@@ -267,7 +296,11 @@ describe('Claude Skills Performance Monitoring', () => {
         const skillType: SkillType = 'QualityAssessmentSkill';
         const skillId = 'test_skill_failed';
 
-        claudeSkillsMonitor.trackExecutionStart(executionId, skillType, skillId);
+        claudeSkillsMonitor.trackExecutionStart(
+          executionId,
+          skillType,
+          skillId,
+        );
 
         const error: SkillError = {
           code: SkillErrorCode.NETWORK_ERROR,
@@ -282,7 +315,11 @@ describe('Claude Skills Performance Monitoring', () => {
           skillType,
         };
 
-        await claudeSkillsMonitor.trackExecutionComplete(executionId, result, skillId);
+        await claudeSkillsMonitor.trackExecutionComplete(
+          executionId,
+          result,
+          skillId,
+        );
       }
 
       const metrics = claudeSkillsMonitor.getCurrentMetrics();
@@ -291,7 +328,7 @@ describe('Claude Skills Performance Monitoring', () => {
 
     test('Alert notification delivery works', async () => {
       const { analyticsService } = require('../../services/analyticsService');
-      
+
       await claudeSkillsMonitor.resetMetrics();
 
       // Create critical execution (very slow)
@@ -308,12 +345,16 @@ describe('Claude Skills Performance Monitoring', () => {
         skillType,
       };
 
-      await claudeSkillsMonitor.trackExecutionComplete(executionId, result, skillId);
+      await claudeSkillsMonitor.trackExecutionComplete(
+        executionId,
+        result,
+        skillId,
+      );
 
       // Verify error tracking was called if alert was generated
       // (This depends on threshold evaluation)
       expect(analyticsService.trackError).toHaveBeenCalledTimes(
-        expect.any(Number)
+        expect.any(Number),
       );
     });
   });
@@ -328,7 +369,11 @@ describe('Claude Skills Performance Monitoring', () => {
         const skillType: SkillType = 'ContentPredictionSkill';
         const skillId = 'test_skill_perf';
 
-        claudeSkillsMonitor.trackExecutionStart(executionId, skillType, skillId);
+        claudeSkillsMonitor.trackExecutionStart(
+          executionId,
+          skillType,
+          skillId,
+        );
 
         const result: SkillResult<any> = {
           success: true,
@@ -337,7 +382,11 @@ describe('Claude Skills Performance Monitoring', () => {
           skillType,
         };
 
-        await claudeSkillsMonitor.trackExecutionComplete(executionId, result, skillId);
+        await claudeSkillsMonitor.trackExecutionComplete(
+          executionId,
+          result,
+          skillId,
+        );
       }
 
       const endTime = performance.now();
@@ -354,7 +403,11 @@ describe('Claude Skills Performance Monitoring', () => {
         const skillType: SkillType = 'ContentPredictionSkill';
         const skillId = 'test_skill_hist';
 
-        claudeSkillsMonitor.trackExecutionStart(executionId, skillType, skillId);
+        claudeSkillsMonitor.trackExecutionStart(
+          executionId,
+          skillType,
+          skillId,
+        );
 
         const result: SkillResult<any> = {
           success: true,
@@ -363,7 +416,11 @@ describe('Claude Skills Performance Monitoring', () => {
           skillType,
         };
 
-        await claudeSkillsMonitor.trackExecutionComplete(executionId, result, skillId);
+        await claudeSkillsMonitor.trackExecutionComplete(
+          executionId,
+          result,
+          skillId,
+        );
       }
 
       // Get metrics - should include historical data
@@ -386,7 +443,11 @@ describe('Claude Skills Performance Monitoring', () => {
         const executionId = `integration_exec_${skillType}`;
         const skillId = `test_skill_${skillType}`;
 
-        claudeSkillsMonitor.trackExecutionStart(executionId, skillType, skillId);
+        claudeSkillsMonitor.trackExecutionStart(
+          executionId,
+          skillType,
+          skillId,
+        );
 
         const result: SkillResult<any> = {
           success: true,
@@ -395,24 +456,42 @@ describe('Claude Skills Performance Monitoring', () => {
           skillType,
         };
 
-        await claudeSkillsMonitor.trackExecutionComplete(executionId, result, skillId);
+        await claudeSkillsMonitor.trackExecutionComplete(
+          executionId,
+          result,
+          skillId,
+        );
       }
 
       const metrics = claudeSkillsMonitor.getCurrentMetrics();
-      
+
       // Verify all skill types are tracked
       for (const skillType of skillTypes) {
         expect(metrics.skillMetrics[skillType]).toBeDefined();
-        expect(metrics.skillMetrics[skillType].executionCount).toBeGreaterThan(0);
+        expect(metrics.skillMetrics[skillType].executionCount).toBeGreaterThan(
+          0,
+        );
       }
     });
 
     test('Dashboard shows accurate test results', async () => {
       // Create various executions
       const executions = [
-        { skillType: 'ContentPredictionSkill' as SkillType, time: 200, success: true },
-        { skillType: 'QualityAssessmentSkill' as SkillType, time: 300, success: true },
-        { skillType: 'ContentPredictionSkill' as SkillType, time: 150, success: false },
+        {
+          skillType: 'ContentPredictionSkill' as SkillType,
+          time: 200,
+          success: true,
+        },
+        {
+          skillType: 'QualityAssessmentSkill' as SkillType,
+          time: 300,
+          success: true,
+        },
+        {
+          skillType: 'ContentPredictionSkill' as SkillType,
+          time: 150,
+          success: false,
+        },
       ];
 
       for (let i = 0; i < executions.length; i++) {
@@ -420,21 +499,31 @@ describe('Claude Skills Performance Monitoring', () => {
         const executionId = `dashboard_exec_${i}`;
         const skillId = `test_skill_${i}`;
 
-        claudeSkillsMonitor.trackExecutionStart(executionId, exec.skillType, skillId);
+        claudeSkillsMonitor.trackExecutionStart(
+          executionId,
+          exec.skillType,
+          skillId,
+        );
 
         const result: SkillResult<any> = {
           success: exec.success,
           data: {},
           executionTimeMs: exec.time,
           skillType: exec.skillType,
-          error: exec.success ? undefined : {
-            code: SkillErrorCode.NETWORK_ERROR,
-            message: 'Test error',
-            retryable: true,
-          },
+          error: exec.success
+            ? undefined
+            : {
+                code: SkillErrorCode.NETWORK_ERROR,
+                message: 'Test error',
+                retryable: true,
+              },
         };
 
-        await claudeSkillsMonitor.trackExecutionComplete(executionId, result, skillId);
+        await claudeSkillsMonitor.trackExecutionComplete(
+          executionId,
+          result,
+          skillId,
+        );
       }
 
       // Get real-time metrics for dashboard
@@ -464,7 +553,11 @@ describe('Claude Skills Performance Monitoring', () => {
         skillType,
       };
 
-      await claudeSkillsMonitor.trackExecutionComplete(executionId, result, skillId);
+      await claudeSkillsMonitor.trackExecutionComplete(
+        executionId,
+        result,
+        skillId,
+      );
 
       // Get metrics (export equivalent)
       const metrics = claudeSkillsMonitor.getCurrentMetrics();
@@ -487,8 +580,8 @@ describe('Claude Skills Performance Monitoring', () => {
         claudeSkillsMonitor.trackExecutionComplete(
           'non_existent_exec',
           result,
-          'test_skill'
-        )
+          'test_skill',
+        ),
       ).resolves.not.toThrow();
     });
 
@@ -516,9 +609,12 @@ describe('Claude Skills Performance Monitoring', () => {
 
       // Should not throw even if database fails
       await expect(
-        claudeSkillsMonitor.trackExecutionComplete(executionId, result, skillId)
+        claudeSkillsMonitor.trackExecutionComplete(
+          executionId,
+          result,
+          skillId,
+        ),
       ).resolves.not.toThrow();
     });
   });
 });
-

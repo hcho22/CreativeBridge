@@ -36,7 +36,7 @@ const ClaudeSkillsDemo: React.FC = () => {
 
   useEffect(() => {
     initializeSkillManager();
-    
+
     return () => {
       // Cleanup on component unmount
       if (skillManager) {
@@ -47,21 +47,21 @@ const ClaudeSkillsDemo: React.FC = () => {
 
   const initializeSkillManager = async () => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
-    
+
     try {
       const manager = await getClaudeSkillsManager();
       setSkillManager(manager);
-      setState(prev => ({ 
-        ...prev, 
-        isInitialized: true, 
+      setState(prev => ({
+        ...prev,
+        isInitialized: true,
         isLoading: false,
-        error: null 
+        error: null,
       }));
     } catch (error) {
-      setState(prev => ({ 
-        ...prev, 
+      setState(prev => ({
+        ...prev,
         isLoading: false,
-        error: error instanceof Error ? error.message : 'Failed to initialize'
+        error: error instanceof Error ? error.message : 'Failed to initialize',
       }));
     }
   };
@@ -77,11 +77,11 @@ const ClaudeSkillsDemo: React.FC = () => {
     try {
       // Find a skill of the requested type
       const skillId = `${skillType}_${Date.now()}`;
-      
+
       console.log(`Executing ${skillType} with input:`, input);
-      
+
       const result = await skillManager.executeSkill(skillId, input);
-      
+
       setState(prev => ({
         ...prev,
         isLoading: false,
@@ -89,35 +89,42 @@ const ClaudeSkillsDemo: React.FC = () => {
           {
             skillType,
             result,
-            timestamp: new Date()
+            timestamp: new Date(),
           },
-          ...prev.results.slice(0, 9) // Keep last 10 results
-        ]
+          ...prev.results.slice(0, 9), // Keep last 10 results
+        ],
       }));
 
       if (!result.success) {
-        Alert.alert('Skill Execution Failed', result.error?.message || 'Unknown error');
+        Alert.alert(
+          'Skill Execution Failed',
+          result.error?.message || 'Unknown error',
+        );
       }
     } catch (error) {
       setState(prev => ({ ...prev, isLoading: false }));
-      Alert.alert('Error', error instanceof Error ? error.message : 'Execution failed');
+      Alert.alert(
+        'Error',
+        error instanceof Error ? error.message : 'Execution failed',
+      );
     }
   };
 
   const testContentPrediction = () => {
     const input = {
       context: {
-        storyContext: "Once upon a time, in a magical forest, there lived a brave little rabbit named Ruby. She loved to explore and help her forest friends.",
-        userInput: "Ruby found a mysterious glowing stone",
-        gradeLevel: "K-2",
-        previousPredictions: []
+        storyContext:
+          'Once upon a time, in a magical forest, there lived a brave little rabbit named Ruby. She loved to explore and help her forest friends.',
+        userInput: 'Ruby found a mysterious glowing stone',
+        gradeLevel: 'K-2',
+        previousPredictions: [],
       },
       options: {
         maxPredictions: 3,
-        confidenceThreshold: 0.7
-      }
+        confidenceThreshold: 0.7,
+      },
     };
-    
+
     executeSkill('ContentPredictionSkill', input);
   };
 
@@ -128,33 +135,35 @@ const ClaudeSkillsDemo: React.FC = () => {
         availableMemory: 1 * 1024 * 1024 * 1024, // 1GB
         batteryLevel: 0.3, // 30%
         networkType: 'wifi',
-        deviceTier: 'medium' as const
+        deviceTier: 'medium' as const,
       },
       currentUsage: {
         memoryUsage: 150 * 1024 * 1024, // 150MB
         cpuUsage: 0.25, // 25%
-        activeBackgroundTasks: 3
-      }
+        activeBackgroundTasks: 3,
+      },
     };
-    
+
     executeSkill('ResourceOptimizationSkill', input);
   };
 
   const testQualityAssessment = () => {
     const input = {
       content: {
-        story: "Ruby picked up the glowing stone and felt its warm magic. The stone showed her a path through the forest that sparkled with golden light. She knew this was the beginning of a wonderful adventure.",
-        context: "Educational story for K-2 grade level focusing on adventure and friendship",
-        gradeLevel: "K-2"
+        story:
+          'Ruby picked up the glowing stone and felt its warm magic. The stone showed her a path through the forest that sparkled with golden light. She knew this was the beginning of a wonderful adventure.',
+        context:
+          'Educational story for K-2 grade level focusing on adventure and friendship',
+        gradeLevel: 'K-2',
       },
       criteria: {
         checkAppropriatenesss: true,
         checkCoherence: true,
         checkEngagement: true,
-        checkEducationalValue: true
-      }
+        checkEducationalValue: true,
+      },
     };
-    
+
     executeSkill('QualityAssessmentSkill', input);
   };
 
@@ -165,28 +174,28 @@ const ClaudeSkillsDemo: React.FC = () => {
           type: 'tap' as const,
           timestamp: new Date(Date.now() - 10000),
           element: 'continue_button',
-          duration: 100
+          duration: 100,
         },
         {
           type: 'scroll' as const,
           timestamp: new Date(Date.now() - 5000),
           element: 'story_content',
-          duration: 2000
-        }
+          duration: 2000,
+        },
       ],
       sessionContext: {
         sessionId: 'demo_session_123',
         sessionDuration: 300000, // 5 minutes
         gradeLevel: 'K-2',
-        deviceType: 'tablet'
+        deviceType: 'tablet',
       },
       analysisOptions: {
         includeEngagementPrediction: true,
         includePersonalizationSuggestions: true,
-        includeDifficultyAdjustment: false
-      }
+        includeDifficultyAdjustment: false,
+      },
     };
-    
+
     executeSkill('BehaviorAnalysisSkill', input);
   };
 
@@ -197,30 +206,30 @@ const ClaudeSkillsDemo: React.FC = () => {
         message: 'Failed to generate story content',
         context: {
           endpoint: '/api/story/generate',
-          attempts: 2
-        }
+          attempts: 2,
+        },
       },
       recoveryContext: {
         storyState: {
-          currentContent: "Ruby picked up the glowing stone...",
-          characterState: { name: 'Ruby', location: 'forest' }
+          currentContent: 'Ruby picked up the glowing stone...',
+          characterState: { name: 'Ruby', location: 'forest' },
         },
         userState: {
           gradeLevel: 'K-2',
-          preferences: { theme: 'adventure' }
+          preferences: { theme: 'adventure' },
         },
         sessionState: {
           sessionId: 'demo_session_123',
-          progress: 0.6
-        }
+          progress: 0.6,
+        },
       },
       options: {
         preserveContext: true,
         generateFallback: true,
-        userFriendlyMessage: true
-      }
+        userFriendlyMessage: true,
+      },
     };
-    
+
     executeSkill('ErrorRecoverySkill', input);
   };
 
@@ -234,7 +243,10 @@ const ClaudeSkillsDemo: React.FC = () => {
         <Text style={styles.title}>Claude Skills Demo</Text>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Error: {state.error}</Text>
-          <TouchableOpacity style={styles.button} onPress={initializeSkillManager}>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={initializeSkillManager}
+          >
             <Text style={styles.buttonText}>Retry Initialization</Text>
           </TouchableOpacity>
         </View>
@@ -245,46 +257,66 @@ const ClaudeSkillsDemo: React.FC = () => {
   return (
     <ScrollView style={styles.container}>
       <Text style={styles.title}>Claude Skills Demo</Text>
-      
+
       <View style={styles.statusContainer}>
         <Text style={styles.statusText}>
-          Status: {state.isInitialized ? '✅ Initialized' : '⏳ Initializing...'}
+          Status:{' '}
+          {state.isInitialized ? '✅ Initialized' : '⏳ Initializing...'}
         </Text>
-        {state.isLoading && <Text style={styles.loadingText}>⚡ Executing...</Text>}
+        {state.isLoading && (
+          <Text style={styles.loadingText}>⚡ Executing...</Text>
+        )}
       </View>
 
       {state.isInitialized && (
         <>
           <View style={styles.buttonContainer}>
-            <TouchableOpacity style={styles.button} onPress={testContentPrediction}>
+            <TouchableOpacity
+              style={styles.button}
+              onPress={testContentPrediction}
+            >
               <Text style={styles.buttonText}>Test Content Prediction</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.button} onPress={testResourceOptimization}>
+
+            <TouchableOpacity
+              style={styles.button}
+              onPress={testResourceOptimization}
+            >
               <Text style={styles.buttonText}>Test Resource Optimization</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.button} onPress={testQualityAssessment}>
+
+            <TouchableOpacity
+              style={styles.button}
+              onPress={testQualityAssessment}
+            >
               <Text style={styles.buttonText}>Test Quality Assessment</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.button} onPress={testBehaviorAnalysis}>
+
+            <TouchableOpacity
+              style={styles.button}
+              onPress={testBehaviorAnalysis}
+            >
               <Text style={styles.buttonText}>Test Behavior Analysis</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity style={styles.button} onPress={testErrorRecovery}>
               <Text style={styles.buttonText}>Test Error Recovery</Text>
             </TouchableOpacity>
-            
+
             {state.results.length > 0 && (
-              <TouchableOpacity style={[styles.button, styles.clearButton]} onPress={clearResults}>
+              <TouchableOpacity
+                style={[styles.button, styles.clearButton]}
+                onPress={clearResults}
+              >
                 <Text style={styles.buttonText}>Clear Results</Text>
               </TouchableOpacity>
             )}
           </View>
 
           <View style={styles.resultsContainer}>
-            <Text style={styles.resultsTitle}>Execution Results ({state.results.length})</Text>
+            <Text style={styles.resultsTitle}>
+              Execution Results ({state.results.length})
+            </Text>
             {state.results.map((item, index) => (
               <View key={index} style={styles.resultItem}>
                 <Text style={styles.resultHeader}>
@@ -307,7 +339,9 @@ const ClaudeSkillsDemo: React.FC = () => {
                   </Text>
                 )}
                 <Text style={styles.resultData}>
-                  Data: {JSON.stringify(item.result.data, null, 2).substring(0, 200)}...
+                  Data:{' '}
+                  {JSON.stringify(item.result.data, null, 2).substring(0, 200)}
+                  ...
                 </Text>
               </View>
             ))}

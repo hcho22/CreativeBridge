@@ -1,11 +1,15 @@
 /**
  * Skill Error Aggregation Tests
- * 
+ *
  * Tests for Task 2.3: Error Aggregation and Alerting
  */
 
 import { skillErrorAggregation } from '../../services/skillErrorAggregation';
-import { SkillError, SkillErrorCode, SkillType } from '../../types/claudeSkills';
+import {
+  SkillError,
+  SkillErrorCode,
+  SkillType,
+} from '../../types/claudeSkills';
 import { structuredLogger } from '../../utils/logger';
 import { auditLogger } from '../../services/auditLogger';
 
@@ -49,23 +53,42 @@ describe('Skill Error Aggregation', () => {
       // Record different error types
       skillErrorAggregation.recordError(
         skillType,
-        { code: SkillErrorCode.NETWORK_ERROR, message: 'Network', retryable: true, details: {} },
-        totalExecutions
+        {
+          code: SkillErrorCode.NETWORK_ERROR,
+          message: 'Network',
+          retryable: true,
+          details: {},
+        },
+        totalExecutions,
       );
       skillErrorAggregation.recordError(
         skillType,
-        { code: SkillErrorCode.NETWORK_ERROR, message: 'Network', retryable: true, details: {} },
-        totalExecutions
+        {
+          code: SkillErrorCode.NETWORK_ERROR,
+          message: 'Network',
+          retryable: true,
+          details: {},
+        },
+        totalExecutions,
       );
       skillErrorAggregation.recordError(
         skillType,
-        { code: SkillErrorCode.SKILL_TIMEOUT, message: 'Timeout', retryable: true, details: {} },
-        totalExecutions
+        {
+          code: SkillErrorCode.SKILL_TIMEOUT,
+          message: 'Timeout',
+          retryable: true,
+          details: {},
+        },
+        totalExecutions,
       );
 
       const aggregation = skillErrorAggregation.getAggregation(skillType);
-      expect(aggregation?.errorsByCode.get(SkillErrorCode.NETWORK_ERROR)).toBe(2);
-      expect(aggregation?.errorsByCode.get(SkillErrorCode.SKILL_TIMEOUT)).toBe(1);
+      expect(aggregation?.errorsByCode.get(SkillErrorCode.NETWORK_ERROR)).toBe(
+        2,
+      );
+      expect(aggregation?.errorsByCode.get(SkillErrorCode.SKILL_TIMEOUT)).toBe(
+        1,
+      );
     });
   });
 
@@ -93,7 +116,7 @@ describe('Skill Error Aggregation', () => {
         expect.objectContaining({
           eventType: expect.any(String),
           severity: expect.any(String),
-        })
+        }),
       );
     });
 
@@ -130,25 +153,37 @@ describe('Skill Error Aggregation', () => {
       for (let i = 0; i < 11; i++) {
         skillErrorAggregation.recordError(
           skillType,
-          { code: SkillErrorCode.NETWORK_ERROR, message: 'Error', retryable: true, details: {} },
-          totalExecutions
+          {
+            code: SkillErrorCode.NETWORK_ERROR,
+            message: 'Error',
+            retryable: true,
+            details: {},
+          },
+          totalExecutions,
         );
       }
 
       await new Promise(resolve => setTimeout(resolve, 100));
-      const firstCallCount = (structuredLogger.critical as jest.Mock).mock.calls.length;
+      const firstCallCount = (structuredLogger.critical as jest.Mock).mock.calls
+        .length;
 
       // Try to trigger another alert immediately
       for (let i = 0; i < 5; i++) {
         skillErrorAggregation.recordError(
           skillType,
-          { code: SkillErrorCode.NETWORK_ERROR, message: 'Error', retryable: true, details: {} },
-          totalExecutions
+          {
+            code: SkillErrorCode.NETWORK_ERROR,
+            message: 'Error',
+            retryable: true,
+            details: {},
+          },
+          totalExecutions,
         );
       }
 
       await new Promise(resolve => setTimeout(resolve, 100));
-      const secondCallCount = (structuredLogger.critical as jest.Mock).mock.calls.length;
+      const secondCallCount = (structuredLogger.critical as jest.Mock).mock
+        .calls.length;
 
       // Should not have triggered another alert due to cooldown
       expect(secondCallCount).toBe(firstCallCount);
@@ -172,7 +207,7 @@ describe('Skill Error Aggregation', () => {
         skillErrorAggregation.recordError(
           skillType,
           { code: errorCode, message: 'Error', retryable: true, details: {} },
-          totalExecutions
+          totalExecutions,
         );
       });
 
@@ -190,8 +225,13 @@ describe('Skill Error Aggregation', () => {
       for (let i = 0; i < 50; i++) {
         skillErrorAggregation.recordError(
           skillType,
-          { code: SkillErrorCode.NETWORK_ERROR, message: 'Error', retryable: true, details: {} },
-          totalExecutions
+          {
+            code: SkillErrorCode.NETWORK_ERROR,
+            message: 'Error',
+            retryable: true,
+            details: {},
+          },
+          totalExecutions,
         );
       }
 
@@ -210,8 +250,13 @@ describe('Skill Error Aggregation', () => {
       for (let i = 0; i < 11; i++) {
         skillErrorAggregation.recordError(
           skillType,
-          { code: SkillErrorCode.NETWORK_ERROR, message: 'Error', retryable: true, details: {} },
-          totalExecutions
+          {
+            code: SkillErrorCode.NETWORK_ERROR,
+            message: 'Error',
+            retryable: true,
+            details: {},
+          },
+          totalExecutions,
         );
       }
 
@@ -228,8 +273,13 @@ describe('Skill Error Aggregation', () => {
       for (let i = 0; i < 11; i++) {
         skillErrorAggregation.recordError(
           skillType,
-          { code: SkillErrorCode.NETWORK_ERROR, message: 'Error', retryable: true, details: {} },
-          100 // Small number to increase error rate
+          {
+            code: SkillErrorCode.NETWORK_ERROR,
+            message: 'Error',
+            retryable: true,
+            details: {},
+          },
+          100, // Small number to increase error rate
         );
       }
 
@@ -240,17 +290,24 @@ describe('Skill Error Aggregation', () => {
       for (let i = 0; i < 1000; i++) {
         skillErrorAggregation.recordError(
           skillType,
-          { code: SkillErrorCode.NETWORK_ERROR, message: 'Error', retryable: true, details: {} },
-          totalExecutions
+          {
+            code: SkillErrorCode.NETWORK_ERROR,
+            message: 'Error',
+            retryable: true,
+            details: {},
+          },
+          totalExecutions,
         );
       }
 
       // Error rate should drop below threshold
       const aggregation = skillErrorAggregation.getAggregation(skillType);
-      if (aggregation && aggregation.errorRate < aggregation.alertThreshold * 0.5) {
+      if (
+        aggregation &&
+        aggregation.errorRate < aggregation.alertThreshold * 0.5
+      ) {
         expect(aggregation.isAlerting).toBe(false);
       }
     });
   });
 });
-

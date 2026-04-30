@@ -55,7 +55,7 @@ export class DownloadAnimationsService {
    */
   animateButtonPress(
     animatedValues: Pick<DownloadAnimationState, 'scale'>,
-    onComplete?: () => void
+    onComplete?: () => void,
   ): void {
     const { scale } = animatedValues;
 
@@ -79,8 +79,11 @@ export class DownloadAnimationsService {
    * Animate download start transition
    */
   animateDownloadStart(
-    animatedValues: Pick<DownloadAnimationState, 'opacity' | 'scale' | 'rotation'>,
-    onComplete?: () => void
+    animatedValues: Pick<
+      DownloadAnimationState,
+      'opacity' | 'scale' | 'rotation'
+    >,
+    onComplete?: () => void,
   ): void {
     const { opacity, scale, rotation } = animatedValues;
 
@@ -102,7 +105,7 @@ export class DownloadAnimationsService {
           duration: 2000,
           easing: Easing.linear,
           useNativeDriver: true,
-        })
+        }),
       ),
     ]).start(onComplete);
 
@@ -115,7 +118,7 @@ export class DownloadAnimationsService {
   animateProgress(
     animatedValues: Pick<DownloadAnimationState, 'progressWidth'>,
     progress: number,
-    onComplete?: () => void
+    onComplete?: () => void,
   ): void {
     const { progressWidth } = animatedValues;
 
@@ -131,8 +134,11 @@ export class DownloadAnimationsService {
    * Animate download completion with success feedback
    */
   animateDownloadSuccess(
-    animatedValues: Pick<DownloadAnimationState, 'opacity' | 'scale' | 'rotation'>,
-    onComplete?: () => void
+    animatedValues: Pick<
+      DownloadAnimationState,
+      'opacity' | 'scale' | 'rotation'
+    >,
+    onComplete?: () => void,
   ): void {
     const { opacity, scale, rotation } = animatedValues;
 
@@ -161,8 +167,11 @@ export class DownloadAnimationsService {
    * Animate download error with attention-getting feedback
    */
   animateDownloadError(
-    animatedValues: Pick<DownloadAnimationState, 'opacity' | 'scale' | 'rotation' | 'translateY'>,
-    onComplete?: () => void
+    animatedValues: Pick<
+      DownloadAnimationState,
+      'opacity' | 'scale' | 'rotation' | 'translateY'
+    >,
+    onComplete?: () => void,
   ): void {
     const { opacity, scale, rotation, translateY } = animatedValues;
 
@@ -209,7 +218,7 @@ export class DownloadAnimationsService {
   animateStateTransition(
     animatedValues: Pick<DownloadAnimationState, 'opacity'>,
     onMidpoint: () => void,
-    onComplete?: () => void
+    onComplete?: () => void,
   ): void {
     const { opacity } = animatedValues;
 
@@ -238,8 +247,11 @@ export class DownloadAnimationsService {
    * Animate modal entrance
    */
   animateModalEntrance(
-    animatedValues: Pick<DownloadAnimationState, 'opacity' | 'scale' | 'translateY'>,
-    onComplete?: () => void
+    animatedValues: Pick<
+      DownloadAnimationState,
+      'opacity' | 'scale' | 'translateY'
+    >,
+    onComplete?: () => void,
   ): void {
     const { opacity, scale, translateY } = animatedValues;
 
@@ -274,8 +286,11 @@ export class DownloadAnimationsService {
    * Animate modal exit
    */
   animateModalExit(
-    animatedValues: Pick<DownloadAnimationState, 'opacity' | 'scale' | 'translateY'>,
-    onComplete?: () => void
+    animatedValues: Pick<
+      DownloadAnimationState,
+      'opacity' | 'scale' | 'translateY'
+    >,
+    onComplete?: () => void,
   ): void {
     const { opacity, scale, translateY } = animatedValues;
 
@@ -309,7 +324,7 @@ export class DownloadAnimationsService {
   animateListItemAppearance(
     animatedValues: Pick<DownloadAnimationState, 'opacity' | 'translateY'>,
     delay: number = 0,
-    onComplete?: () => void
+    onComplete?: () => void,
   ): void {
     const { opacity, translateY } = animatedValues;
 
@@ -340,7 +355,7 @@ export class DownloadAnimationsService {
    */
   animateListItemRemoval(
     animatedValues: Pick<DownloadAnimationState, 'opacity' | 'scale'>,
-    onComplete?: () => void
+    onComplete?: () => void,
   ): void {
     const { opacity, scale } = animatedValues;
 
@@ -366,12 +381,12 @@ export class DownloadAnimationsService {
   animateStaggeredList(
     items: Array<Pick<DownloadAnimationState, 'opacity' | 'translateY'>>,
     staggerDelay: number = 100,
-    onComplete?: () => void
+    onComplete?: () => void,
   ): void {
     const animations = items.map((item, index) => {
       const delay = index * staggerDelay;
-      
-      return new Promise<void>((resolve) => {
+
+      return new Promise<void>(resolve => {
         this.animateListItemAppearance(item, delay, resolve);
       });
     });
@@ -385,7 +400,7 @@ export class DownloadAnimationsService {
    */
   animateProgressPulse(
     animatedValues: Pick<DownloadAnimationState, 'opacity'>,
-    start: boolean = true
+    start: boolean = true,
   ): void {
     const { opacity } = animatedValues;
 
@@ -404,7 +419,7 @@ export class DownloadAnimationsService {
             easing: Easing.inOut(Easing.cubic),
             useNativeDriver: true,
           }),
-        ])
+        ]),
       ).start();
     } else {
       opacity.stopAnimation();
@@ -427,7 +442,7 @@ export class DownloadAnimationsService {
    */
   getProgressWidthInterpolation(
     progressValue: Animated.Value,
-    containerWidth: number
+    containerWidth: number,
   ): any {
     return progressValue.interpolate({
       inputRange: [0, 100],

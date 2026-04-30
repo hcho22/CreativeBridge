@@ -1,6 +1,6 @@
 /**
  * Security Auditor Service
- * 
+ *
  * Comprehensive security audit and validation framework for Claude Skills integration
  * Task 8.2: Security & Privacy Compliance Validation
  */
@@ -106,7 +106,7 @@ class SecurityAuditorService {
         networkInterception: true,
         securityRules: await this.loadSecurityRules(),
       };
-      
+
       structuredLogger.info('Security Auditor initialized', {
         capabilities: [
           'Vulnerability scanning',
@@ -117,7 +117,11 @@ class SecurityAuditorService {
         ],
       });
     } catch (error) {
-      structuredLogger.error('Failed to initialize Security Auditor', {}, error as Error);
+      structuredLogger.error(
+        'Failed to initialize Security Auditor',
+        {},
+        error as Error,
+      );
       throw error;
     }
   }
@@ -132,7 +136,7 @@ class SecurityAuditorService {
 
     const auditId = this.generateAuditId();
     const startTime = Date.now();
-    
+
     structuredLogger.info('Starting comprehensive security audit', { auditId });
 
     const testResults: SecurityTestResult[] = [];
@@ -140,53 +144,56 @@ class SecurityAuditorService {
 
     try {
       // API Security Tests
-      testResults.push(...await this.runAPISecurityTests());
-      
+      testResults.push(...(await this.runAPISecurityTests()));
+
       // Data Protection Tests
-      testResults.push(...await this.runDataProtectionTests());
-      
+      testResults.push(...(await this.runDataProtectionTests()));
+
       // Access Control Tests
-      testResults.push(...await this.runAccessControlTests());
-      
+      testResults.push(...(await this.runAccessControlTests()));
+
       // Input/Output Security Tests
-      testResults.push(...await this.runInputOutputSecurityTests());
-      
+      testResults.push(...(await this.runInputOutputSecurityTests()));
+
       // Infrastructure Security Tests
-      testResults.push(...await this.runInfrastructureSecurityTests());
-      
+      testResults.push(...(await this.runInfrastructureSecurityTests()));
+
       // Monitoring & Alerting Tests
-      testResults.push(...await this.runMonitoringSecurityTests());
-      
+      testResults.push(...(await this.runMonitoringSecurityTests()));
+
       // Penetration Testing Simulations
-      testResults.push(...await this.runPenetrationTests());
-      
+      testResults.push(...(await this.runPenetrationTests()));
+
       // Third-Party Integration Tests
-      testResults.push(...await this.runThirdPartySecurityTests());
-      
+      testResults.push(...(await this.runThirdPartySecurityTests()));
+
       // Mobile App Security Tests
-      testResults.push(...await this.runMobileSecurityTests());
-      
+      testResults.push(...(await this.runMobileSecurityTests()));
+
       // Configuration Management Tests
-      testResults.push(...await this.runConfigurationSecurityTests());
-      
+      testResults.push(...(await this.runConfigurationSecurityTests()));
+
       // Compliance Validation
       const complianceStatus = await this.validateCompliance();
-      
+
       // Calculate overall security score
       const overallScore = this.calculateSecurityScore(testResults);
-      
+
       // Generate findings from test results
       findings.push(...this.generateFindings(testResults));
-      
+
       // Generate recommendations
-      const recommendations = this.generateRecommendations(findings, testResults);
-      
+      const recommendations = this.generateRecommendations(
+        findings,
+        testResults,
+      );
+
       // Categorize findings by severity
       const criticalFindings = findings.filter(f => f.severity === 'critical');
       const highRiskFindings = findings.filter(f => f.severity === 'high');
       const mediumRiskFindings = findings.filter(f => f.severity === 'medium');
       const lowRiskFindings = findings.filter(f => f.severity === 'low');
-      
+
       const endTime = Date.now();
 
       const auditReport: SecurityAuditReport = {
@@ -202,8 +209,11 @@ class SecurityAuditorService {
         controlsEffectiveness: this.calculateControlsEffectiveness(testResults),
         recommendations,
         testResults,
-        readyForProduction: criticalFindings.length === 0 && highRiskFindings.length === 0 && 
-                           complianceStatus.coppa === 'compliant' && complianceStatus.privacy === 'compliant',
+        readyForProduction:
+          criticalFindings.length === 0 &&
+          highRiskFindings.length === 0 &&
+          complianceStatus.coppa === 'compliant' &&
+          complianceStatus.privacy === 'compliant',
         auditMetadata: {
           duration: endTime - startTime,
           testsExecuted: testResults.length,
@@ -224,7 +234,11 @@ class SecurityAuditorService {
 
       return auditReport;
     } catch (error) {
-      structuredLogger.error('Security audit failed', { auditId }, error as Error);
+      structuredLogger.error(
+        'Security audit failed',
+        { auditId },
+        error as Error,
+      );
       throw error;
     }
   }
@@ -243,7 +257,7 @@ class SecurityAuditorService {
     // Check for HTTP endpoints in configuration
     const config = await claudeSkillsConfig.getConfiguration();
     const configString = JSON.stringify(config);
-    
+
     const httpMatches = configString.match(/http:\/\//g);
     results.httpEndpointsFound = httpMatches ? httpMatches.length : 0;
 
@@ -384,9 +398,12 @@ class SecurityAuditorService {
         'Privacy policy appropriate for children',
       ],
       assessmentDate: new Date().toISOString(),
-      auditorNotes: 'Educational app complies with COPPA requirements through data minimization and secure handling',
+      auditorNotes:
+        'Educational app complies with COPPA requirements through data minimization and secure handling',
       evidenceFiles: ['privacy-policy.pdf', 'coppa-assessment.pdf'],
-      nextReviewDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year
+      nextReviewDate: new Date(
+        Date.now() + 365 * 24 * 60 * 60 * 1000,
+      ).toISOString(), // 1 year
       riskLevel: 'low',
     };
   }
@@ -472,7 +489,9 @@ class SecurityAuditorService {
     }));
   }
 
-  private async runInfrastructureSecurityTests(): Promise<SecurityTestResult[]> {
+  private async runInfrastructureSecurityTests(): Promise<
+    SecurityTestResult[]
+  > {
     const tests = [
       { name: 'Protocol Security', category: 'Infrastructure Security' },
       { name: 'Security Headers', category: 'Infrastructure Security' },
@@ -515,7 +534,10 @@ class SecurityAuditorService {
       { name: 'SQL Injection Simulation', category: 'Penetration Testing' },
       { name: 'XSS Attack Simulation', category: 'Penetration Testing' },
       { name: 'CSRF Attack Simulation', category: 'Penetration Testing' },
-      { name: 'Directory Traversal Simulation', category: 'Penetration Testing' },
+      {
+        name: 'Directory Traversal Simulation',
+        category: 'Penetration Testing',
+      },
       { name: 'API Fuzzing', category: 'Penetration Testing' },
     ];
 
@@ -532,7 +554,10 @@ class SecurityAuditorService {
 
   private async runThirdPartySecurityTests(): Promise<SecurityTestResult[]> {
     const tests = [
-      { name: 'Claude Skills Integration Security', category: 'Third-Party Security' },
+      {
+        name: 'Claude Skills Integration Security',
+        category: 'Third-Party Security',
+      },
       { name: 'Analytics Security', category: 'Third-Party Security' },
       { name: 'CDN Security', category: 'Third-Party Security' },
     ];
@@ -571,7 +596,10 @@ class SecurityAuditorService {
     const tests = [
       { name: 'Configuration Management', category: 'Configuration Security' },
       { name: 'Environment Separation', category: 'Configuration Security' },
-      { name: 'Disaster Recovery Security', category: 'Configuration Security' },
+      {
+        name: 'Disaster Recovery Security',
+        category: 'Configuration Security',
+      },
     ];
 
     return tests.map(test => ({
@@ -590,7 +618,7 @@ class SecurityAuditorService {
    */
   private async validateCompliance(): Promise<ComplianceStatus> {
     const coppaDetails = await this.validateCOPPACompliance();
-    
+
     return {
       coppa: 'compliant',
       ferpa: 'compliant',
@@ -601,19 +629,32 @@ class SecurityAuditorService {
       details: {
         coppa: coppaDetails,
         ferpa: {
-          requirements: ['Educational records protection', 'Parental consent', 'Data access controls'],
+          requirements: [
+            'Educational records protection',
+            'Parental consent',
+            'Data access controls',
+          ],
           assessmentDate: new Date().toISOString(),
-          auditorNotes: 'Educational app handles student data in compliance with FERPA',
+          auditorNotes:
+            'Educational app handles student data in compliance with FERPA',
           evidenceFiles: ['ferpa-assessment.pdf'],
-          nextReviewDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+          nextReviewDate: new Date(
+            Date.now() + 365 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
           riskLevel: 'low' as const,
         },
         privacy: {
-          requirements: ['Data minimization', 'Consent management', 'Right to deletion'],
+          requirements: [
+            'Data minimization',
+            'Consent management',
+            'Right to deletion',
+          ],
           assessmentDate: new Date().toISOString(),
           auditorNotes: 'Comprehensive privacy controls implemented',
           evidenceFiles: ['privacy-impact-assessment.pdf'],
-          nextReviewDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+          nextReviewDate: new Date(
+            Date.now() + 365 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
           riskLevel: 'low' as const,
         },
       },
@@ -624,15 +665,22 @@ class SecurityAuditorService {
    * Calculate overall security score
    */
   private calculateSecurityScore(testResults: SecurityTestResult[]): number {
-    const totalScore = testResults.reduce((sum, result) => sum + result.score, 0);
+    const totalScore = testResults.reduce(
+      (sum, result) => sum + result.score,
+      0,
+    );
     return Math.round(totalScore / testResults.length);
   }
 
   /**
    * Calculate controls effectiveness
    */
-  private calculateControlsEffectiveness(testResults: SecurityTestResult[]): number {
-    const passedTests = testResults.filter(test => test.status === 'passed').length;
+  private calculateControlsEffectiveness(
+    testResults: SecurityTestResult[],
+  ): number {
+    const passedTests = testResults.filter(
+      test => test.status === 'passed',
+    ).length;
     return Math.round((passedTests / testResults.length) * 100);
   }
 
@@ -647,12 +695,14 @@ class SecurityAuditorService {
   /**
    * Generate security findings from test results
    */
-  private generateFindings(testResults: SecurityTestResult[]): SecurityFinding[] {
+  private generateFindings(
+    testResults: SecurityTestResult[],
+  ): SecurityFinding[] {
     const findings: SecurityFinding[] = [];
-    
+
     // Convert failed tests to findings
     const failedTests = testResults.filter(test => test.status === 'failed');
-    
+
     failedTests.forEach(test => {
       findings.push({
         id: `finding_${test.testId}`,
@@ -675,7 +725,10 @@ class SecurityAuditorService {
   /**
    * Generate security recommendations
    */
-  private generateRecommendations(findings: SecurityFinding[], testResults: SecurityTestResult[]): SecurityRecommendation[] {
+  private generateRecommendations(
+    findings: SecurityFinding[],
+    testResults: SecurityTestResult[],
+  ): SecurityRecommendation[] {
     const recommendations: SecurityRecommendation[] = [];
 
     // Add general security improvements
@@ -688,7 +741,8 @@ class SecurityAuditorService {
       implementation: 'Configure security tests to run on every commit',
       estimatedEffort: '2-3 days',
       riskReduction: 30,
-      businessJustification: 'Prevents security regressions and catches issues early',
+      businessJustification:
+        'Prevents security regressions and catches issues early',
       dependencies: [],
     });
 
@@ -1045,7 +1099,7 @@ class SecurityAuditorService {
 
   async generateAuditReport(auditReport: SecurityAuditReport): Promise<string> {
     const reportPath = `/tmp/security_audit_${auditReport.auditId}.json`;
-    
+
     structuredLogger.info('Generated security audit report', {
       auditId: auditReport.auditId,
       reportPath,
@@ -1074,7 +1128,7 @@ class SecurityAuditorService {
   async shutdown(): Promise<void> {
     this.auditResults = [];
     this.isInitialized = false;
-    
+
     structuredLogger.info('Security Auditor shutdown completed');
   }
 }

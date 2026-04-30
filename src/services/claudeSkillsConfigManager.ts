@@ -1,7 +1,7 @@
 // Claude Skills Configuration Management Interface
 // Task 1.2: Skill configuration management interface for runtime updates
 
-import { 
+import {
   ClaudeSkillsConfig,
   ClaudeSkillsConfigFactory,
   ClaudeSkillsCredentialManager,
@@ -12,7 +12,7 @@ import {
   CredentialRotationConfiguration,
   CacheConfiguration,
   FallbackConfiguration,
-  MonitoringConfiguration
+  MonitoringConfiguration,
 } from '../config/claudeSkillsConfig';
 import { SkillType } from '../types/claudeSkills';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -62,13 +62,20 @@ export class ClaudeSkillsConfigManager {
   private static readonly MAX_HISTORY_ENTRIES = 10;
 
   // Runtime skill management
-  static async enableSkills(skills: SkillType[], options: ConfigManagementOptions = {}): Promise<ConfigUpdateResult> {
+  static async enableSkills(
+    skills: SkillType[],
+    options: ConfigManagementOptions = {},
+  ): Promise<ConfigUpdateResult> {
     try {
-      const currentConfig = await ClaudeSkillsConfigFactory.createConfig({ forceRefresh: true });
-      
+      const currentConfig = await ClaudeSkillsConfigFactory.createConfig({
+        forceRefresh: true,
+      });
+
       // Determine which skills are actually new
-      const skillsToEnable = skills.filter(skill => !currentConfig.enabledSkills.includes(skill));
-      
+      const skillsToEnable = skills.filter(
+        skill => !currentConfig.enabledSkills.includes(skill),
+      );
+
       if (skillsToEnable.length === 0) {
         return {
           success: true,
@@ -76,8 +83,8 @@ export class ClaudeSkillsConfigManager {
           warnings: ['All requested skills are already enabled'],
           changes: {
             skillChanges: { enabled: [], disabled: [] },
-            timestamp: new Date()
-          }
+            timestamp: new Date(),
+          },
         };
       }
 
@@ -86,169 +93,199 @@ export class ClaudeSkillsConfigManager {
       const updateRequest: ConfigUpdateRequest = {
         skillsToEnable: skillsToEnable,
         reason: `Enable skills: ${skillsToEnable.join(', ')}`,
-        requestedBy: options.requireBiometricForSecurityChanges ? 'authenticated_user' : 'system'
+        requestedBy: options.requireBiometricForSecurityChanges
+          ? 'authenticated_user'
+          : 'system',
       };
 
       const result = await this.updateConfiguration(
         { enabledSkills: updatedSkills },
         updateRequest,
-        options
+        options,
       );
 
       return result;
-
     } catch (error) {
       return {
         success: false,
-        errors: [error.message || 'Failed to enable skills']
+        errors: [error.message || 'Failed to enable skills'],
       };
     }
   }
 
-  static async disableSkills(skills: SkillType[], options: ConfigManagementOptions = {}): Promise<ConfigUpdateResult> {
+  static async disableSkills(
+    skills: SkillType[],
+    options: ConfigManagementOptions = {},
+  ): Promise<ConfigUpdateResult> {
     try {
-      const currentConfig = await ClaudeSkillsConfigFactory.createConfig({ forceRefresh: true });
-      
+      const currentConfig = await ClaudeSkillsConfigFactory.createConfig({
+        forceRefresh: true,
+      });
+
       // Ensure we don't disable all skills (keep at least ErrorRecoverySkill)
-      const remainingSkills = currentConfig.enabledSkills.filter(skill => !skills.includes(skill));
-      
+      const remainingSkills = currentConfig.enabledSkills.filter(
+        skill => !skills.includes(skill),
+      );
+
       if (remainingSkills.length === 0) {
         remainingSkills.push('ErrorRecoverySkill'); // Always keep error recovery
       }
 
-      const actuallyDisabled = currentConfig.enabledSkills.filter(skill => 
-        skills.includes(skill) && skill !== 'ErrorRecoverySkill'
+      const actuallyDisabled = currentConfig.enabledSkills.filter(
+        skill => skills.includes(skill) && skill !== 'ErrorRecoverySkill',
       );
 
       const updateRequest: ConfigUpdateRequest = {
         skillsToDisable: actuallyDisabled,
         reason: `Disable skills: ${actuallyDisabled.join(', ')}`,
-        requestedBy: options.requireBiometricForSecurityChanges ? 'authenticated_user' : 'system'
+        requestedBy: options.requireBiometricForSecurityChanges
+          ? 'authenticated_user'
+          : 'system',
       };
 
       const result = await this.updateConfiguration(
         { enabledSkills: remainingSkills },
         updateRequest,
-        options
+        options,
       );
 
       if (actuallyDisabled.includes('ErrorRecoverySkill')) {
         result.warnings = result.warnings || [];
-        result.warnings.push('ErrorRecoverySkill cannot be disabled - kept for system stability');
+        result.warnings.push(
+          'ErrorRecoverySkill cannot be disabled - kept for system stability',
+        );
       }
 
       return result;
-
     } catch (error) {
       return {
         success: false,
-        errors: [error.message || 'Failed to disable skills']
+        errors: [error.message || 'Failed to disable skills'],
       };
     }
   }
 
-  static async updateSecurityConfiguration(updates: Partial<SecurityConfiguration>, options: ConfigManagementOptions = {}): Promise<ConfigUpdateResult> {
+  static async updateSecurityConfiguration(
+    updates: Partial<SecurityConfiguration>,
+    options: ConfigManagementOptions = {},
+  ): Promise<ConfigUpdateResult> {
     try {
       // Security changes should require biometric authentication by default
       const requireAuth = options.requireBiometricForSecurityChanges !== false;
-      
+
       if (requireAuth) {
         // Verify authentication before proceeding
-        const sessionToken = await ClaudeSkillsCredentialManager.createSession();
+        const sessionToken =
+          await ClaudeSkillsCredentialManager.createSession();
         if (!sessionToken) {
           return {
             success: false,
-            errors: ['Biometric authentication required for security configuration changes']
+            errors: [
+              'Biometric authentication required for security configuration changes',
+            ],
           };
         }
       }
 
-      const currentConfig = await ClaudeSkillsConfigFactory.createConfig({ 
+      const currentConfig = await ClaudeSkillsConfigFactory.createConfig({
         forceRefresh: true,
-        requireBiometric: requireAuth 
+        requireBiometric: requireAuth,
       });
 
       const updatedSecurityConfig = {
         ...currentConfig.securityConfig,
-        ...updates
+        ...updates,
       };
 
       const updateRequest: ConfigUpdateRequest = {
         securityUpdates: updates,
-        reason: `Update security configuration: ${Object.keys(updates).join(', ')}`,
-        requestedBy: 'authenticated_user'
+        reason: `Update security configuration: ${Object.keys(updates).join(
+          ', ',
+        )}`,
+        requestedBy: 'authenticated_user',
       };
 
       const result = await this.updateConfiguration(
         { securityConfig: updatedSecurityConfig },
         updateRequest,
-        { ...options, requireBiometricForSecurityChanges: requireAuth }
+        { ...options, requireBiometricForSecurityChanges: requireAuth },
       );
 
       return result;
-
     } catch (error) {
       return {
         success: false,
-        errors: [error.message || 'Failed to update security configuration']
+        errors: [error.message || 'Failed to update security configuration'],
       };
     }
   }
 
-  static async updateCacheConfiguration(updates: Partial<CacheConfiguration>, options: ConfigManagementOptions = {}): Promise<ConfigUpdateResult> {
+  static async updateCacheConfiguration(
+    updates: Partial<CacheConfiguration>,
+    options: ConfigManagementOptions = {},
+  ): Promise<ConfigUpdateResult> {
     try {
-      const currentConfig = await ClaudeSkillsConfigFactory.createConfig({ forceRefresh: true });
+      const currentConfig = await ClaudeSkillsConfigFactory.createConfig({
+        forceRefresh: true,
+      });
 
       const updatedCacheConfig = {
         ...currentConfig.cacheConfig,
-        ...updates
+        ...updates,
       };
 
       const updateRequest: ConfigUpdateRequest = {
         cacheUpdates: updates,
-        reason: `Update cache configuration: ${Object.keys(updates).join(', ')}`,
-        requestedBy: 'system'
+        reason: `Update cache configuration: ${Object.keys(updates).join(
+          ', ',
+        )}`,
+        requestedBy: 'system',
       };
 
       return await this.updateConfiguration(
         { cacheConfig: updatedCacheConfig },
         updateRequest,
-        options
+        options,
       );
-
     } catch (error) {
       return {
         success: false,
-        errors: [error.message || 'Failed to update cache configuration']
+        errors: [error.message || 'Failed to update cache configuration'],
       };
     }
   }
 
-  static async updateMonitoringConfiguration(updates: Partial<MonitoringConfiguration>, options: ConfigManagementOptions = {}): Promise<ConfigUpdateResult> {
+  static async updateMonitoringConfiguration(
+    updates: Partial<MonitoringConfiguration>,
+    options: ConfigManagementOptions = {},
+  ): Promise<ConfigUpdateResult> {
     try {
-      const currentConfig = await ClaudeSkillsConfigFactory.createConfig({ forceRefresh: true });
+      const currentConfig = await ClaudeSkillsConfigFactory.createConfig({
+        forceRefresh: true,
+      });
 
       const updatedMonitoringConfig = {
         ...currentConfig.monitoringConfig,
-        ...updates
+        ...updates,
       };
 
       const updateRequest: ConfigUpdateRequest = {
         monitoringUpdates: updates,
-        reason: `Update monitoring configuration: ${Object.keys(updates).join(', ')}`,
-        requestedBy: 'system'
+        reason: `Update monitoring configuration: ${Object.keys(updates).join(
+          ', ',
+        )}`,
+        requestedBy: 'system',
       };
 
       return await this.updateConfiguration(
         { monitoringConfig: updatedMonitoringConfig },
         updateRequest,
-        options
+        options,
       );
-
     } catch (error) {
       return {
         success: false,
-        errors: [error.message || 'Failed to update monitoring configuration']
+        errors: [error.message || 'Failed to update monitoring configuration'],
       };
     }
   }
@@ -257,7 +294,7 @@ export class ClaudeSkillsConfigManager {
   private static async updateConfiguration(
     configUpdates: Partial<ClaudeSkillsConfig>,
     request: ConfigUpdateRequest,
-    options: ConfigManagementOptions = {}
+    options: ConfigManagementOptions = {},
   ): Promise<ConfigUpdateResult> {
     try {
       // Default options
@@ -266,66 +303,83 @@ export class ClaudeSkillsConfigManager {
         requireBiometricForSecurityChanges: false,
         notifyListeners: true,
         persistChanges: true,
-        ...options
+        ...options,
       };
 
-      const beforeConfig = await ClaudeSkillsConfigFactory.createConfig({ forceRefresh: true });
-      
+      const beforeConfig = await ClaudeSkillsConfigFactory.createConfig({
+        forceRefresh: true,
+      });
+
       // Apply updates
-      const updatedConfig = await ClaudeSkillsConfigFactory.updateConfig(configUpdates);
+      const updatedConfig = await ClaudeSkillsConfigFactory.updateConfig(
+        configUpdates,
+      );
 
       // Validate if requested
       if (opts.validateBeforeApply) {
-        const environment = ClaudeSkillsEnvironmentManager.getCurrentEnvironment();
-        const validation = ClaudeSkillsConfigValidator.validateForEnvironment(updatedConfig, environment);
-        
+        const environment =
+          ClaudeSkillsEnvironmentManager.getCurrentEnvironment();
+        const validation = ClaudeSkillsConfigValidator.validateForEnvironment(
+          updatedConfig,
+          environment,
+        );
+
         if (!validation.isValid) {
           // Rollback changes
           ClaudeSkillsConfigFactory.clearCache();
           return {
             success: false,
-            errors: validation.errors
+            errors: validation.errors,
           };
         }
 
         // Include warnings if any
-        const warnings = validation.warnings.length > 0 ? validation.warnings : undefined;
-        
+        const warnings =
+          validation.warnings.length > 0 ? validation.warnings : undefined;
+
         // Track changes
-        const changes = this.calculateChanges(beforeConfig, updatedConfig, request);
-        
+        const changes = this.calculateChanges(
+          beforeConfig,
+          updatedConfig,
+          request,
+        );
+
         // Store configuration history if persistence is enabled
         if (opts.persistChanges) {
-          await this.storeConfigurationHistory(beforeConfig, updatedConfig, request, changes);
+          await this.storeConfigurationHistory(
+            beforeConfig,
+            updatedConfig,
+            request,
+            changes,
+          );
         }
 
         // Notify listeners if requested
         if (opts.notifyListeners) {
           ClaudeSkillsConfigNotificationManager.notifyConfigChange(
-            updatedConfig, 
-            ClaudeSkillsConfigFactory.getConfigVersion()
+            updatedConfig,
+            ClaudeSkillsConfigFactory.getConfigVersion(),
           );
         }
 
         console.log('🔧 Configuration updated successfully:', {
           changes: changes,
           version: ClaudeSkillsConfigFactory.getConfigVersion(),
-          requestedBy: request.requestedBy
+          requestedBy: request.requestedBy,
         });
 
         return {
           success: true,
           updatedConfig,
           warnings,
-          changes
+          changes,
         };
       }
-
     } catch (error) {
       console.error('Configuration update failed:', error);
       return {
         success: false,
-        errors: [error.message || 'Configuration update failed']
+        errors: [error.message || 'Configuration update failed'],
       };
     }
   }
@@ -334,36 +388,46 @@ export class ClaudeSkillsConfigManager {
   private static calculateChanges(
     beforeConfig: ClaudeSkillsConfig,
     afterConfig: ClaudeSkillsConfig,
-    request: ConfigUpdateRequest
+    request: ConfigUpdateRequest,
   ): ConfigurationChanges {
     const changes: ConfigurationChanges = {
-      timestamp: new Date()
+      timestamp: new Date(),
     };
 
     // Skill changes
-    const enabledSkills = afterConfig.enabledSkills.filter(skill => !beforeConfig.enabledSkills.includes(skill));
-    const disabledSkills = beforeConfig.enabledSkills.filter(skill => !afterConfig.enabledSkills.includes(skill));
-    
+    const enabledSkills = afterConfig.enabledSkills.filter(
+      skill => !beforeConfig.enabledSkills.includes(skill),
+    );
+    const disabledSkills = beforeConfig.enabledSkills.filter(
+      skill => !afterConfig.enabledSkills.includes(skill),
+    );
+
     if (enabledSkills.length > 0 || disabledSkills.length > 0) {
       changes.skillChanges = {
         enabled: enabledSkills,
-        disabled: disabledSkills
+        disabled: disabledSkills,
       };
     }
 
     // Security changes
-    if (request.securityUpdates && Object.keys(request.securityUpdates).length > 0) {
-      changes.securityChanges = Object.keys(request.securityUpdates).map(key => 
-        `${key}: ${beforeConfig.securityConfig[key]} -> ${afterConfig.securityConfig[key]}`
+    if (
+      request.securityUpdates &&
+      Object.keys(request.securityUpdates).length > 0
+    ) {
+      changes.securityChanges = Object.keys(request.securityUpdates).map(
+        key =>
+          `${key}: ${beforeConfig.securityConfig[key]} -> ${afterConfig.securityConfig[key]}`,
       );
     }
 
     // Other changes
     const otherChanges: string[] = [];
     if (request.cacheUpdates) otherChanges.push('Cache configuration updated');
-    if (request.fallbackUpdates) otherChanges.push('Fallback configuration updated');
-    if (request.monitoringUpdates) otherChanges.push('Monitoring configuration updated');
-    
+    if (request.fallbackUpdates)
+      otherChanges.push('Fallback configuration updated');
+    if (request.monitoringUpdates)
+      otherChanges.push('Monitoring configuration updated');
+
     if (otherChanges.length > 0) {
       changes.otherChanges = otherChanges;
     }
@@ -376,7 +440,7 @@ export class ClaudeSkillsConfigManager {
     beforeConfig: ClaudeSkillsConfig,
     afterConfig: ClaudeSkillsConfig,
     request: ConfigUpdateRequest,
-    changes: ConfigurationChanges
+    changes: ConfigurationChanges,
   ): Promise<void> {
     try {
       const historyEntry = {
@@ -385,13 +449,19 @@ export class ClaudeSkillsConfigManager {
         afterConfigVersion: ClaudeSkillsConfigFactory.getConfigVersion(),
         request,
         changes,
-        environment: ClaudeSkillsEnvironmentManager.getCurrentEnvironment()
+        environment: ClaudeSkillsEnvironmentManager.getCurrentEnvironment(),
       };
 
       const existingHistory = await this.getConfigurationHistory();
-      const updatedHistory = [historyEntry, ...existingHistory.slice(0, this.MAX_HISTORY_ENTRIES - 1)];
-      
-      await AsyncStorage.setItem(this.CONFIG_HISTORY_KEY, JSON.stringify(updatedHistory));
+      const updatedHistory = [
+        historyEntry,
+        ...existingHistory.slice(0, this.MAX_HISTORY_ENTRIES - 1),
+      ];
+
+      await AsyncStorage.setItem(
+        this.CONFIG_HISTORY_KEY,
+        JSON.stringify(updatedHistory),
+      );
     } catch (error) {
       console.error('Failed to store configuration history:', error);
     }
@@ -419,34 +489,39 @@ export class ClaudeSkillsConfigManager {
   static async rollbackToVersion(version: number): Promise<ConfigUpdateResult> {
     try {
       const history = await this.getConfigurationHistory();
-      const targetEntry = history.find(entry => entry.afterConfigVersion === version);
-      
+      const targetEntry = history.find(
+        entry => entry.afterConfigVersion === version,
+      );
+
       if (!targetEntry) {
         return {
           success: false,
-          errors: [`Configuration version ${version} not found in history`]
+          errors: [`Configuration version ${version} not found in history`],
         };
       }
 
       // This is a simplified rollback - in a real implementation,
       // you would need to store the actual configuration data
       ClaudeSkillsConfigFactory.clearCache();
-      const currentConfig = await ClaudeSkillsConfigFactory.createConfig({ forceRefresh: true });
+      const currentConfig = await ClaudeSkillsConfigFactory.createConfig({
+        forceRefresh: true,
+      });
 
       return {
         success: true,
         updatedConfig: currentConfig,
-        warnings: ['Rollback completed - some settings may need manual adjustment'],
+        warnings: [
+          'Rollback completed - some settings may need manual adjustment',
+        ],
         changes: {
           otherChanges: [`Rolled back to version ${version}`],
-          timestamp: new Date()
-        }
+          timestamp: new Date(),
+        },
       };
-
     } catch (error) {
       return {
         success: false,
-        errors: [error.message || 'Rollback failed']
+        errors: [error.message || 'Rollback failed'],
       };
     }
   }
@@ -459,22 +534,28 @@ export class ClaudeSkillsConfigManager {
     environment: string;
   }> {
     try {
-      const environment = ClaudeSkillsEnvironmentManager.getCurrentEnvironment();
-      const config = await ClaudeSkillsConfigFactory.createConfig({ forceRefresh: true });
-      const validation = ClaudeSkillsConfigValidator.validateForEnvironment(config, environment);
+      const environment =
+        ClaudeSkillsEnvironmentManager.getCurrentEnvironment();
+      const config = await ClaudeSkillsConfigFactory.createConfig({
+        forceRefresh: true,
+      });
+      const validation = ClaudeSkillsConfigValidator.validateForEnvironment(
+        config,
+        environment,
+      );
 
       return {
         isValid: validation.isValid,
         issues: validation.errors,
         warnings: validation.warnings,
-        environment
+        environment,
       };
     } catch (error) {
       return {
         isValid: false,
         issues: [error.message || 'Configuration validation failed'],
         warnings: [],
-        environment: 'unknown'
+        environment: 'unknown',
       };
     }
   }
@@ -488,12 +569,14 @@ export class ClaudeSkillsConfigManager {
       environment: string;
     };
   }> {
-    const config = await ClaudeSkillsConfigFactory.createConfig({ forceRefresh: true });
-    
+    const config = await ClaudeSkillsConfigFactory.createConfig({
+      forceRefresh: true,
+    });
+
     // Remove sensitive information from export
     const exportConfig = {
       ...config,
-      apiKey: '[REDACTED]' // Don't export the actual API key
+      apiKey: '[REDACTED]', // Don't export the actual API key
     };
 
     return {
@@ -501,37 +584,42 @@ export class ClaudeSkillsConfigManager {
       metadata: {
         exportedAt: new Date().toISOString(),
         version: ClaudeSkillsConfigFactory.getConfigVersion(),
-        environment: ClaudeSkillsEnvironmentManager.getCurrentEnvironment()
-      }
+        environment: ClaudeSkillsEnvironmentManager.getCurrentEnvironment(),
+      },
     };
   }
 
   static async importConfiguration(
-    configData: any, 
-    options: { validateOnly?: boolean; preserveApiKey?: boolean } = {}
+    configData: any,
+    options: { validateOnly?: boolean; preserveApiKey?: boolean } = {},
   ): Promise<ConfigUpdateResult> {
     try {
-      const currentConfig = await ClaudeSkillsConfigFactory.createConfig({ forceRefresh: true });
-      
+      const currentConfig = await ClaudeSkillsConfigFactory.createConfig({
+        forceRefresh: true,
+      });
+
       // Restore API key if preserving current credentials
       const importConfig = {
         ...configData.config,
-        apiKey: options.preserveApiKey ? currentConfig.apiKey : configData.config.apiKey
+        apiKey: options.preserveApiKey
+          ? currentConfig.apiKey
+          : configData.config.apiKey,
       };
 
       // Validate the imported configuration
-      const validation = ClaudeSkillsConfigValidator.validateConfig(importConfig);
+      const validation =
+        ClaudeSkillsConfigValidator.validateConfig(importConfig);
       if (!validation.isValid) {
         return {
           success: false,
-          errors: validation.errors
+          errors: validation.errors,
         };
       }
 
       if (options.validateOnly) {
         return {
           success: true,
-          warnings: ['Configuration is valid (validation only)']
+          warnings: ['Configuration is valid (validation only)'],
         };
       }
 
@@ -539,33 +627,42 @@ export class ClaudeSkillsConfigManager {
       const result = await this.updateConfiguration(
         importConfig,
         {
-          reason: `Imported configuration from ${configData.metadata?.exportedAt || 'unknown'}`,
-          requestedBy: 'admin'
+          reason: `Imported configuration from ${
+            configData.metadata?.exportedAt || 'unknown'
+          }`,
+          requestedBy: 'admin',
         },
-        { validateBeforeApply: true, notifyListeners: true, persistChanges: true }
+        {
+          validateBeforeApply: true,
+          notifyListeners: true,
+          persistChanges: true,
+        },
       );
 
       return result;
-
     } catch (error) {
       return {
         success: false,
-        errors: [error.message || 'Configuration import failed']
+        errors: [error.message || 'Configuration import failed'],
       };
     }
   }
 
   // Real-time configuration monitoring
   static async startConfigurationMonitoring(
-    callback: (status: { isHealthy: boolean; issues: string[]; warnings: string[] }) => void,
-    intervalMs: number = 30000
+    callback: (status: {
+      isHealthy: boolean;
+      issues: string[];
+      warnings: string[];
+    }) => void,
+    intervalMs: number = 30000,
   ): Promise<() => void> {
     const checkConfiguration = async () => {
       const validation = await this.validateCurrentConfiguration();
       callback({
         isHealthy: validation.isValid && validation.warnings.length === 0,
         issues: validation.issues,
-        warnings: validation.warnings
+        warnings: validation.warnings,
       });
     };
 

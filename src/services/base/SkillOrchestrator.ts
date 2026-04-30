@@ -1,6 +1,6 @@
 /**
  * Skill Orchestration Layer
- * 
+ *
  * Coordinates multiple Claude Skills for a single operation.
  * Handles skill execution order, dependency management, and result aggregation.
  */
@@ -61,7 +61,7 @@ export class SkillOrchestrator {
    */
   async executePlan<T>(
     plan: SkillExecutionPlan,
-    aggregator?: SkillAggregator<T>
+    aggregator?: SkillAggregator<T>,
   ): Promise<OrchestrationResult<T>> {
     const startTime = Date.now();
     const results = new Map<string, SkillResult<any>>();
@@ -127,7 +127,7 @@ export class SkillOrchestrator {
     plan: SkillExecutionPlan,
     results: Map<string, SkillResult<any>>,
     errors: Map<string, SkillError>,
-    executed: Set<string>
+    executed: Set<string>,
   ): Promise<void> {
     // Group skills by dependency level
     const dependencyGroups = this.groupByDependencies(plan.skills);
@@ -141,13 +141,13 @@ export class SkillOrchestrator {
 
         // Check dependencies
         if (step.dependsOn) {
-          const allDependenciesMet = step.dependsOn.every(depId =>
-            results.has(depId) || executed.has(depId)
+          const allDependenciesMet = step.dependsOn.every(
+            depId => results.has(depId) || executed.has(depId),
           );
           if (!allDependenciesMet) {
             console.warn(
               `Skipping ${step.skillId}: dependencies not met`,
-              step.dependsOn
+              step.dependsOn,
             );
             return;
           }
@@ -188,7 +188,7 @@ export class SkillOrchestrator {
     plan: SkillExecutionPlan,
     results: Map<string, SkillResult<any>>,
     errors: Map<string, SkillError>,
-    executed: Set<string>
+    executed: Set<string>,
   ): Promise<void> {
     for (const step of plan.skills) {
       if (executed.has(step.skillId)) {
@@ -198,12 +198,12 @@ export class SkillOrchestrator {
       // Check dependencies
       if (step.dependsOn) {
         const allDependenciesMet = step.dependsOn.every(
-          depId => results.has(depId) || executed.has(depId)
+          depId => results.has(depId) || executed.has(depId),
         );
         if (!allDependenciesMet) {
           console.warn(
             `Skipping ${step.skillId}: dependencies not met`,
-            step.dependsOn
+            step.dependsOn,
           );
           continue;
         }
@@ -238,7 +238,7 @@ export class SkillOrchestrator {
    * Execute a single skill step
    */
   private async executeStep(
-    step: SkillExecutionStep
+    step: SkillExecutionStep,
   ): Promise<SkillResult<any>> {
     const executionId = `orchestrator_${step.skillId}_${Date.now()}`;
 
@@ -246,27 +246,27 @@ export class SkillOrchestrator {
     claudeSkillsMonitor.trackExecutionStart(
       executionId,
       step.skillType,
-      step.skillId
+      step.skillId,
     );
 
     try {
       // Execute with timeout if specified
       let result: SkillResult<any>;
       if (step.timeout) {
-            result = await Promise.race([
-              this.skillManager.executeSkill(step.skillId, step.input),
-              new Promise<SkillResult<any>>((_, reject) =>
-                setTimeout(
-                  () =>
-                    reject({
-                      code: 'SKILL_TIMEOUT' as any,
-                      message: `Skill ${step.skillId} timed out`,
-                      retryable: false,
-                    }),
-                  step.timeout
-                )
-              ),
-            ]);
+        result = await Promise.race([
+          this.skillManager.executeSkill(step.skillId, step.input),
+          new Promise<SkillResult<any>>((_, reject) =>
+            setTimeout(
+              () =>
+                reject({
+                  code: 'SKILL_TIMEOUT' as any,
+                  message: `Skill ${step.skillId} timed out`,
+                  retryable: false,
+                }),
+              step.timeout,
+            ),
+          ),
+        ]);
       } else {
         result = await this.skillManager.executeSkill(step.skillId, step.input);
       }
@@ -275,7 +275,7 @@ export class SkillOrchestrator {
       await claudeSkillsMonitor.trackExecutionComplete(
         executionId,
         result,
-        step.skillId
+        step.skillId,
       );
 
       return result;
@@ -290,7 +290,7 @@ export class SkillOrchestrator {
       await claudeSkillsMonitor.trackExecutionComplete(
         executionId,
         errorResult,
-        step.skillId
+        step.skillId,
       );
 
       return errorResult;
@@ -301,7 +301,7 @@ export class SkillOrchestrator {
    * Group skills by dependency levels for parallel execution
    */
   private groupByDependencies(
-    steps: SkillExecutionStep[]
+    steps: SkillExecutionStep[],
   ): SkillExecutionStep[][] {
     const groups: SkillExecutionStep[][] = [];
     const remaining = new Set(steps.map(s => s.skillId));
@@ -348,4 +348,3 @@ export class SkillOrchestrator {
     return groups;
   }
 }
-

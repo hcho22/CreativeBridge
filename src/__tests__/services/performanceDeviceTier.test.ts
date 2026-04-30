@@ -1,11 +1,18 @@
 /**
  * Performance and Device Tier Tests
- * 
+ *
  * Tests for device performance tier detection and tier-specific optimizations
  * Task 4.1: Dynamic Resource Management - Device Tier Integration
  */
 
-import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+import {
+  jest,
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+} from '@jest/globals';
 import DeviceInfo from 'react-native-device-info';
 import { Platform, Dimensions } from 'react-native';
 
@@ -24,7 +31,9 @@ jest.mock('react-native', () => ({
 jest.mock('../../services/performanceOptimizer');
 
 const mockDeviceInfo = DeviceInfo as jest.Mocked<typeof DeviceInfo>;
-const mockPerformanceOptimizer = performanceOptimizer as jest.Mocked<typeof performanceOptimizer>;
+const mockPerformanceOptimizer = performanceOptimizer as jest.Mocked<
+  typeof performanceOptimizer
+>;
 const mockDimensions = Dimensions as jest.Mocked<typeof Dimensions>;
 
 describe('Performance and Device Tier Integration', () => {
@@ -33,9 +42,9 @@ describe('Performance and Device Tier Integration', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     resourceManager = new DynamicResourceManager();
-    
+
     mockSkillManager = {
       initialize: jest.fn().mockResolvedValue(undefined),
       registerSkill: jest.fn(),
@@ -51,7 +60,9 @@ describe('Performance and Device Tier Integration', () => {
     mockDeviceInfo.getAvailableMemory.mockResolvedValue(2 * 1024 * 1024 * 1024);
     mockDeviceInfo.getTotalMemory.mockResolvedValue(4 * 1024 * 1024 * 1024);
     mockDeviceInfo.getUsedMemory.mockResolvedValue(2 * 1024 * 1024 * 1024);
-    mockDeviceInfo.getFreeDiskStorage.mockResolvedValue(10 * 1024 * 1024 * 1024);
+    mockDeviceInfo.getFreeDiskStorage.mockResolvedValue(
+      10 * 1024 * 1024 * 1024,
+    );
 
     // Default to medium performance level
     mockPerformanceOptimizer.getPerformanceLevel.mockReturnValue('medium');
@@ -78,7 +89,7 @@ describe('Performance and Device Tier Integration', () => {
       await resourceManager.initialize(mockSkillManager);
 
       const strategy = resourceManager.getCurrentStrategy();
-      
+
       expect(strategy.name).toBe('Conservative');
       expect(strategy.memoryLimitMB).toBe(50);
       expect(strategy.maxConcurrentOperations).toBe(1);
@@ -110,9 +121,9 @@ describe('Performance and Device Tier Integration', () => {
       });
 
       await resourceManager.initialize(mockSkillManager);
-      
+
       const strategy = resourceManager.getCurrentStrategy();
-      
+
       // Should use the most conservative settings
       expect(strategy.maxConcurrentOperations).toBe(1);
       expect(strategy.enableBackgroundTasks).toBe(false);
@@ -124,7 +135,10 @@ describe('Performance and Device Tier Integration', () => {
       await resourceManager.initialize(mockSkillManager);
 
       // Mock high memory pressure relative to low memory limit
-      const getCurrentMemoryUsageSpy = jest.spyOn(resourceManager as any, 'getCurrentMemoryUsage');
+      const getCurrentMemoryUsageSpy = jest.spyOn(
+        resourceManager as any,
+        'getCurrentMemoryUsage',
+      );
       getCurrentMemoryUsageSpy.mockResolvedValue(48 * 1024 * 1024); // 96% of 50MB limit
 
       await resourceManager.performAdaptiveMemoryManagement();
@@ -136,7 +150,7 @@ describe('Performance and Device Tier Integration', () => {
         expect.objectContaining({
           memoryUsage: 48 * 1024 * 1024,
           pressureRatio: 0.96,
-        })
+        }),
       );
     });
   });
@@ -150,7 +164,7 @@ describe('Performance and Device Tier Integration', () => {
       await resourceManager.initialize(mockSkillManager);
 
       const strategy = resourceManager.getCurrentStrategy();
-      
+
       expect(strategy.name).toBe('Balanced');
       expect(strategy.memoryLimitMB).toBe(100);
       expect(strategy.maxConcurrentOperations).toBe(2);
@@ -194,7 +208,7 @@ describe('Performance and Device Tier Integration', () => {
       await resourceManager.initialize(mockSkillManager);
 
       const strategy = resourceManager.getCurrentStrategy();
-      
+
       expect(strategy.name).toBe('Performance');
       expect(strategy.memoryLimitMB).toBe(200);
       expect(strategy.maxConcurrentOperations).toBe(4);
@@ -217,7 +231,10 @@ describe('Performance and Device Tier Integration', () => {
       await resourceManager.initialize(mockSkillManager);
 
       // Mock moderate memory pressure
-      const getCurrentMemoryUsageSpy = jest.spyOn(resourceManager as any, 'getCurrentMemoryUsage');
+      const getCurrentMemoryUsageSpy = jest.spyOn(
+        resourceManager as any,
+        'getCurrentMemoryUsage',
+      );
       getCurrentMemoryUsageSpy.mockResolvedValue(170 * 1024 * 1024); // 85% of 200MB limit
 
       await resourceManager.performAdaptiveMemoryManagement();
@@ -229,7 +246,7 @@ describe('Performance and Device Tier Integration', () => {
         expect.objectContaining({
           memoryUsage: 170 * 1024 * 1024,
           pressureRatio: 0.85,
-        })
+        }),
       );
     });
 
@@ -252,7 +269,7 @@ describe('Performance and Device Tier Integration', () => {
       await resourceManager.applyBatteryOptimizations();
 
       const strategy = resourceManager.getCurrentStrategy();
-      
+
       // Even high-tier devices should go into emergency mode
       expect(strategy.name).toBe('Emergency Battery');
       expect(strategy.maxConcurrentOperations).toBe(1);
@@ -265,14 +282,14 @@ describe('Performance and Device Tier Integration', () => {
       mockPerformanceOptimizer.getPerformanceLevel.mockReturnValue('low');
       const lowTierManager = new DynamicResourceManager();
       await lowTierManager.initialize(mockSkillManager);
-      
+
       expect(lowTierManager.getCurrentStrategy().name).toBe('Conservative');
       lowTierManager.destroy();
 
       mockPerformanceOptimizer.getPerformanceLevel.mockReturnValue('high');
       const highTierManager = new DynamicResourceManager();
       await highTierManager.initialize(mockSkillManager);
-      
+
       expect(highTierManager.getCurrentStrategy().name).toBe('Performance');
       highTierManager.destroy();
     });
@@ -281,12 +298,12 @@ describe('Performance and Device Tier Integration', () => {
       // Start with medium tier
       mockPerformanceOptimizer.getPerformanceLevel.mockReturnValue('medium');
       await resourceManager.initialize(mockSkillManager);
-      
+
       expect(resourceManager.getCurrentStrategy().name).toBe('Balanced');
 
       // Simulate device degradation (thermal throttling, etc.)
       mockPerformanceOptimizer.getPerformanceLevel.mockReturnValue('low');
-      
+
       // Apply a new strategy which should use current tier
       await resourceManager.applyResourceAllocationStrategy({
         name: 'Adaptive',
@@ -314,7 +331,7 @@ describe('Performance and Device Tier Integration', () => {
         mockPerformanceOptimizer.getPerformanceLevel.mockReturnValue(tier);
         const manager = new DynamicResourceManager();
         await manager.initialize(mockSkillManager);
-        
+
         strategies.push(manager.getCurrentStrategy());
         manager.destroy();
       }
@@ -322,12 +339,20 @@ describe('Performance and Device Tier Integration', () => {
       const [lowStrategy, mediumStrategy, highStrategy] = strategies;
 
       // Memory limits should increase across tiers
-      expect(lowStrategy.memoryLimitMB).toBeLessThan(mediumStrategy.memoryLimitMB);
-      expect(mediumStrategy.memoryLimitMB).toBeLessThan(highStrategy.memoryLimitMB);
+      expect(lowStrategy.memoryLimitMB).toBeLessThan(
+        mediumStrategy.memoryLimitMB,
+      );
+      expect(mediumStrategy.memoryLimitMB).toBeLessThan(
+        highStrategy.memoryLimitMB,
+      );
 
       // Concurrent operations should increase across tiers
-      expect(lowStrategy.maxConcurrentOperations).toBeLessThan(mediumStrategy.maxConcurrentOperations);
-      expect(mediumStrategy.maxConcurrentOperations).toBeLessThan(highStrategy.maxConcurrentOperations);
+      expect(lowStrategy.maxConcurrentOperations).toBeLessThan(
+        mediumStrategy.maxConcurrentOperations,
+      );
+      expect(mediumStrategy.maxConcurrentOperations).toBeLessThan(
+        highStrategy.maxConcurrentOperations,
+      );
 
       // Image quality should improve across tiers
       expect(lowStrategy.imageQuality).toBe('low');
@@ -348,7 +373,7 @@ describe('Performance and Device Tier Integration', () => {
         mockPerformanceOptimizer.getPerformanceLevel.mockReturnValue(tier);
         const manager = new DynamicResourceManager();
         await manager.initialize(mockSkillManager);
-        
+
         cacheStrategies.push(manager.getCurrentStrategy().cacheStrategy);
         manager.destroy();
       }
@@ -397,7 +422,7 @@ describe('Performance and Device Tier Integration', () => {
       });
 
       const conditions = await resourceManager.assessDeviceConditions();
-      
+
       // Should detect serious thermal state due to poor render performance
       expect(conditions.thermalState).toBe('serious');
       expect(conditions.cpuUsage).toBeGreaterThan(0.7);
@@ -435,10 +460,12 @@ describe('Performance and Device Tier Integration', () => {
   describe('Device Tier Edge Cases', () => {
     it('should handle unknown device tier gracefully', async () => {
       // Mock an unknown tier
-      mockPerformanceOptimizer.getPerformanceLevel.mockReturnValue('unknown' as any);
-      
+      mockPerformanceOptimizer.getPerformanceLevel.mockReturnValue(
+        'unknown' as any,
+      );
+
       await resourceManager.initialize(mockSkillManager);
-      
+
       // Should fall back to medium tier strategy
       const strategy = resourceManager.getCurrentStrategy();
       expect(strategy).toBeTruthy();
@@ -451,8 +478,10 @@ describe('Performance and Device Tier Integration', () => {
       });
 
       // Should not crash during initialization
-      await expect(resourceManager.initialize(mockSkillManager)).resolves.not.toThrow();
-      
+      await expect(
+        resourceManager.initialize(mockSkillManager),
+      ).resolves.not.toThrow();
+
       const strategy = resourceManager.getCurrentStrategy();
       expect(strategy).toBeTruthy();
     });
@@ -461,18 +490,23 @@ describe('Performance and Device Tier Integration', () => {
       // Start with high tier
       mockPerformanceOptimizer.getPerformanceLevel.mockReturnValue('high');
       await resourceManager.initialize(mockSkillManager);
-      
+
       const initialStrategy = resourceManager.getCurrentStrategy();
       expect(initialStrategy.name).toBe('Performance');
 
       // Simulate thermal throttling causing tier downgrade
       mockPerformanceOptimizer.getPerformanceLevel.mockReturnValue('low');
-      
+
       // Trigger app state change to background and back to active
       const { AppState } = require('react-native');
-      const addEventListenerSpy = AppState.addEventListener as jest.MockedFunction<typeof AppState.addEventListener>;
-      const changeCallback = addEventListenerSpy.mock.calls.find(call => call[0] === 'change')?.[1];
-      
+      const addEventListenerSpy =
+        AppState.addEventListener as jest.MockedFunction<
+          typeof AppState.addEventListener
+        >;
+      const changeCallback = addEventListenerSpy.mock.calls.find(
+        call => call[0] === 'change',
+      )?.[1];
+
       if (changeCallback) {
         await changeCallback('background');
         await changeCallback('active');

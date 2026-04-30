@@ -36,11 +36,11 @@ jest.mock('@react-native-community/netinfo', () => ({
 describe('Enhanced Error Handling Integration Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Reset service states
     (enhancedErrorHandling as any).downloadQueue = [];
     (enhancedErrorHandling as any).processingQueue = false;
-    
+
     // Default mocks
     (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
     (AsyncStorage.setItem as jest.Mock).mockResolvedValue(undefined);
@@ -68,7 +68,7 @@ describe('Enhanced Error Handling Integration Tests', () => {
       expect(RNFS.writeFile).toHaveBeenCalledWith(
         '/test/documents/test_story.txt',
         'Test story content for successful download',
-        'utf8'
+        'utf8',
       );
       expect(Share.open).toHaveBeenCalled();
     });
@@ -99,7 +99,8 @@ describe('Enhanced Error Handling Integration Tests', () => {
       });
 
       const result = await storyDownloadService.downloadStoryWithRecovery({
-        storyContent: 'Large story content that requires significant storage space',
+        storyContent:
+          'Large story content that requires significant storage space',
         fileName: 'large_story.txt',
         userId: 'user-123',
         sessionId: 'session-456',
@@ -111,7 +112,7 @@ describe('Enhanced Error Handling Integration Tests', () => {
       expect(result.storageInfo).toBeDefined();
       expect(result.storageInfo?.available).toBe(false);
       expect(result.storageInfo?.recommendations).toContain(
-        expect.stringContaining('Free up')
+        expect.stringContaining('Free up'),
       );
     });
 
@@ -138,7 +139,7 @@ describe('Enhanced Error Handling Integration Tests', () => {
       expect(result.error).toContain('Download queued');
       expect(AsyncStorage.setItem).toHaveBeenCalledWith(
         'download_queue',
-        expect.stringContaining(result.queueId!)
+        expect.stringContaining(result.queueId!),
       );
     });
   });
@@ -171,7 +172,9 @@ describe('Enhanced Error Handling Integration Tests', () => {
         },
       ];
 
-      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(mockQueue));
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
+        JSON.stringify(mockQueue),
+      );
 
       const result = await enhancedErrorHandling.processDownloadQueue();
 
@@ -184,12 +187,12 @@ describe('Enhanced Error Handling Integration Tests', () => {
       expect(RNFS.writeFile).toHaveBeenCalledWith(
         '/test/documents/queued_1.txt',
         'Queued story 1',
-        'utf8'
+        'utf8',
       );
       expect(RNFS.writeFile).toHaveBeenCalledWith(
         '/test/documents/queued_2.txt',
         'Queued story 2',
-        'utf8'
+        'utf8',
       );
 
       // Should clear the queue
@@ -222,7 +225,9 @@ describe('Enhanced Error Handling Integration Tests', () => {
         },
       ];
 
-      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(mockQueue));
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
+        JSON.stringify(mockQueue),
+      );
 
       // First call succeeds, second fails
       (RNFS.writeFile as jest.Mock)
@@ -241,7 +246,7 @@ describe('Enhanced Error Handling Integration Tests', () => {
 
     it('should respect priority ordering in queue processing', async () => {
       const processOrder: string[] = [];
-      
+
       // Mock the internal file write to track order
       (RNFS.writeFile as jest.Mock).mockImplementation((path: string) => {
         const fileName = path.split('/').pop();
@@ -276,14 +281,16 @@ describe('Enhanced Error Handling Integration Tests', () => {
         },
       ];
 
-      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(mockQueue));
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
+        JSON.stringify(mockQueue),
+      );
 
       await enhancedErrorHandling.processDownloadQueue();
 
       // High priority items should be processed first, then normal by age
       expect(processOrder).toEqual([
-        'high1.txt',   // High priority, older
-        'high2.txt',   // High priority, newer
+        'high1.txt', // High priority, older
+        'high2.txt', // High priority, newer
         'normal1.txt', // Normal priority, oldest
         'normal2.txt', // Normal priority, newer
       ]);
@@ -292,7 +299,9 @@ describe('Enhanced Error Handling Integration Tests', () => {
 
   describe('Error Recovery Scenarios', () => {
     it('should handle permission denied errors with recovery options', async () => {
-      (RNFS.writeFile as jest.Mock).mockRejectedValue(new Error('EACCES: permission denied'));
+      (RNFS.writeFile as jest.Mock).mockRejectedValue(
+        new Error('EACCES: permission denied'),
+      );
 
       const result = await storyDownloadService.downloadStoryWithRecovery({
         storyContent: 'Permission test story',
@@ -309,7 +318,7 @@ describe('Enhanced Error Handling Integration Tests', () => {
       // Verify the download was queued for later retry
       expect(AsyncStorage.setItem).toHaveBeenCalledWith(
         'download_queue',
-        expect.stringContaining(result.queueId!)
+        expect.stringContaining(result.queueId!),
       );
     });
 
@@ -338,7 +347,9 @@ describe('Enhanced Error Handling Integration Tests', () => {
     });
 
     it('should handle file system errors with appropriate categorization', async () => {
-      (RNFS.writeFile as jest.Mock).mockRejectedValue(new Error('ENOENT: no such file or directory'));
+      (RNFS.writeFile as jest.Mock).mockRejectedValue(
+        new Error('ENOENT: no such file or directory'),
+      );
 
       const result = await storyDownloadService.downloadStoryWithRecovery({
         storyContent: 'File system error test',
@@ -376,15 +387,17 @@ describe('Enhanced Error Handling Integration Tests', () => {
       expect(result.errorType).toBe('storage_full');
       expect(result.storageInfo).toBeDefined();
       expect(result.storageInfo?.recommendations).toContain(
-        expect.stringMatching(/Free up.*space/i)
+        expect.stringMatching(/Free up.*space/i),
       );
       expect(result.storageInfo?.recommendations).toContain(
-        expect.stringMatching(/Delete.*files/i)
+        expect.stringMatching(/Delete.*files/i),
       );
     });
 
     it('should handle storage check failures gracefully', async () => {
-      (RNFS.getFSInfo as jest.Mock).mockRejectedValue(new Error('Storage access denied'));
+      (RNFS.getFSInfo as jest.Mock).mockRejectedValue(
+        new Error('Storage access denied'),
+      );
 
       const result = await storyDownloadService.downloadStoryWithRecovery({
         storyContent: 'Storage check failure test',
@@ -409,12 +422,13 @@ describe('Enhanced Error Handling Integration Tests', () => {
       });
 
       // Queue a download while offline
-      const offlineResult = await storyDownloadService.downloadStoryWithRecovery({
-        storyContent: 'Offline to online test story',
-        fileName: 'offline_online_test.txt',
-        userId: 'user-123',
-        sessionId: 'session-456',
-      });
+      const offlineResult =
+        await storyDownloadService.downloadStoryWithRecovery({
+          storyContent: 'Offline to online test story',
+          fileName: 'offline_online_test.txt',
+          userId: 'user-123',
+          sessionId: 'session-456',
+        });
 
       expect(offlineResult.success).toBe(false);
       expect(offlineResult.queued).toBe(true);
@@ -435,7 +449,7 @@ describe('Enhanced Error Handling Integration Tests', () => {
       expect(RNFS.writeFile).toHaveBeenCalledWith(
         '/test/documents/offline_online_test.txt',
         'Offline to online test story',
-        'utf8'
+        'utf8',
       );
     });
 
@@ -484,11 +498,11 @@ describe('Enhanced Error Handling Integration Tests', () => {
       // Should log each retry attempt with context
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('❌ story_download failed on attempt 1:'),
-        expect.any(Error)
+        expect.any(Error),
       );
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('❌ story_download failed on attempt 2:'),
-        expect.any(Error)
+        expect.any(Error),
       );
 
       consoleSpy.mockRestore();

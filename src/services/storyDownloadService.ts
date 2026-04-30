@@ -19,14 +19,14 @@ export class StoryDownloadService {
    */
   generateStoryFile(options: StoryDownloadOptions): string {
     const { content, title } = options;
-    
+
     if (!content) {
       throw new Error('Story content is required for file generation');
     }
 
     // Clean and format the story content
     let formattedContent = content.trim();
-    
+
     // Ensure proper paragraph breaks
     formattedContent = formattedContent
       .replace(/\n\s*\n/g, '\n\n') // Normalize paragraph breaks
@@ -35,20 +35,20 @@ export class StoryDownloadService {
 
     // Build the final file content
     let fileContent = '';
-    
+
     // Add title if provided
     if (title) {
       fileContent += `${title}\n\n`;
     }
-    
+
     // Add the story content
     fileContent += formattedContent;
-    
+
     // Ensure file ends with a single newline
     if (!fileContent.endsWith('\n')) {
       fileContent += '\n';
     }
-    
+
     return fileContent;
   }
 
@@ -58,19 +58,19 @@ export class StoryDownloadService {
    */
   generateFileName(): string {
     const now = new Date();
-    
+
     // Format date as MMDDYY
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
     const year = String(now.getFullYear()).slice(-2);
     const dateStr = `${month}${day}${year}`;
-    
+
     // Format time as HHMMSS (24-hour format)
     const hours = String(now.getHours()).padStart(2, '0');
     const minutes = String(now.getMinutes()).padStart(2, '0');
     const seconds = String(now.getSeconds()).padStart(2, '0');
     const timeStr = `${hours}${minutes}${seconds}`;
-    
+
     return `Story_${dateStr}_${timeStr}.txt`;
   }
 
@@ -91,7 +91,7 @@ export class StoryDownloadService {
     return {
       storyId: session.id,
       content: session.story_content,
-      title
+      title,
     };
   }
 
@@ -99,34 +99,37 @@ export class StoryDownloadService {
    * Validates story content before file generation
    * Ensures content meets basic requirements for download
    */
-  validateStoryContent(content: string): { isValid: boolean; errors: string[] } {
+  validateStoryContent(content: string): {
+    isValid: boolean;
+    errors: string[];
+  } {
     const errors: string[] = [];
 
     if (typeof content !== 'string') {
       errors.push('Story content must be a non-empty string');
       return {
         isValid: false,
-        errors
+        errors,
       };
     }
 
     const trimmedContent = content.trim();
-    
+
     if (trimmedContent.length === 0) {
       errors.push('Story content cannot be empty');
     }
-    
+
     if (trimmedContent.length > 0 && trimmedContent.length < 10) {
       errors.push('Story content is too short (minimum 10 characters)');
     }
-    
+
     if (trimmedContent.length > 100000) {
       errors.push('Story content is too long (maximum 100,000 characters)');
     }
 
     return {
       isValid: errors.length === 0,
-      errors
+      errors,
     };
   }
 
@@ -148,11 +151,11 @@ export class StoryDownloadService {
     const fullContent = this.generateStoryFile(options);
     const lines = fullContent.split('\n');
     const previewLines = lines.slice(0, maxLines);
-    
+
     if (lines.length > maxLines) {
       previewLines.push('...');
     }
-    
+
     return previewLines.join('\n');
   }
 
@@ -163,14 +166,14 @@ export class StoryDownloadService {
   createDownloadOptionsFromContent(
     storyId: string,
     content: string,
-    customTitle?: string
+    customTitle?: string,
   ): StoryDownloadOptions {
     // Extract first line as potential title if not provided
     let title = customTitle;
     if (!title) {
       const lines = content.trim().split('\n');
       const firstLine = lines[0]?.trim();
-      
+
       // Use first line as title if it's short and doesn't end with punctuation
       if (firstLine && firstLine.length <= 50 && !/[.!?]$/.test(firstLine)) {
         title = firstLine;
@@ -182,7 +185,7 @@ export class StoryDownloadService {
     return {
       storyId,
       content,
-      title
+      title,
     };
   }
 
@@ -212,15 +215,20 @@ export class StoryDownloadService {
   } {
     const content = options.content;
     const fileContent = this.generateStoryFile(options);
-    
-    const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length;
-    const paragraphCount = content.split(/\n\s*\n/).filter(p => p.trim().length > 0).length;
-    
+
+    const wordCount = content
+      .trim()
+      .split(/\s+/)
+      .filter(word => word.length > 0).length;
+    const paragraphCount = content
+      .split(/\n\s*\n/)
+      .filter(p => p.trim().length > 0).length;
+
     return {
       contentLength: content.length,
       wordCount,
       paragraphCount,
-      estimatedFileSize: this.estimateFileSize(fileContent)
+      estimatedFileSize: this.estimateFileSize(fileContent),
     };
   }
 
@@ -235,41 +243,49 @@ export class StoryDownloadService {
     sessionId: string;
     maxRetries?: number;
   }): Promise<DownloadResult> {
-    const { storyContent, fileName, userId, sessionId, maxRetries = 3 } = options;
+    const {
+      storyContent,
+      fileName,
+      userId,
+      sessionId,
+      maxRetries = 3,
+    } = options;
 
     try {
       // Check network connectivity first
       const networkStatus = networkMonitor.getCurrentStatus();
       if (!networkStatus.isConnected) {
         console.log('📵 Offline - queueing download');
-        
+
         const queueId = await enhancedErrorHandling.queueDownload({
           storyContent,
           fileName: fileName || this.generateFileName(),
           userId,
           sessionId,
           priority: 'normal',
-          maxRetries
+          maxRetries,
         });
 
         return {
           success: false,
           queued: true,
           queueId,
-          error: 'Download queued - will retry when online'
+          error: 'Download queued - will retry when online',
         };
       }
 
       // Check storage space
       const requiredSpace = this.estimateFileSize(storyContent) * 2; // Extra buffer
-      const storageCheck = await enhancedErrorHandling.checkStorageSpace(requiredSpace);
-      
+      const storageCheck = await enhancedErrorHandling.checkStorageSpace(
+        requiredSpace,
+      );
+
       if (!storageCheck.available) {
         return {
           success: false,
           error: 'Insufficient storage space',
           errorType: 'storage_full',
-          storageInfo: storageCheck
+          storageInfo: storageCheck,
         };
       }
 
@@ -280,15 +296,14 @@ export class StoryDownloadService {
           operationName: 'story_download',
           fileName: fileName || this.generateFileName(),
           userId,
-          maxRetries
-        }
+          maxRetries,
+        },
       );
 
       return result;
-
     } catch (error) {
       console.error('❌ Enhanced download failed:', error);
-      
+
       // Queue the download for later retry
       try {
         const queueId = await enhancedErrorHandling.queueDownload({
@@ -297,19 +312,22 @@ export class StoryDownloadService {
           userId,
           sessionId,
           priority: 'normal',
-          maxRetries
+          maxRetries,
         });
 
         return {
           success: false,
           queued: true,
           queueId,
-          error: error instanceof Error ? error.message : 'Download failed - queued for retry'
+          error:
+            error instanceof Error
+              ? error.message
+              : 'Download failed - queued for retry',
         };
       } catch (queueError) {
         return {
           success: false,
-          error: error instanceof Error ? error.message : 'Download failed'
+          error: error instanceof Error ? error.message : 'Download failed',
         };
       }
     }
@@ -319,14 +337,19 @@ export class StoryDownloadService {
    * Saves story file using iOS native file picker integration
    * Uses share sheet to allow user to choose save location
    */
-  async saveStoryFile(content: string, fileName?: string): Promise<DownloadResult> {
+  async saveStoryFile(
+    content: string,
+    fileName?: string,
+  ): Promise<DownloadResult> {
     try {
       const finalFileName = fileName || this.generateFileName();
-      
+
       // Check if RNFS is in simulation mode
       if (RNFS.isSimulationMode) {
-        console.log('📁 [StoryDownload] RNFS in simulation mode - sharing content directly');
-        
+        console.log(
+          '📁 [StoryDownload] RNFS in simulation mode - sharing content directly',
+        );
+
         // In simulation mode, share content directly without file system
         const shareOptions = {
           title: 'Save Story',
@@ -335,19 +358,22 @@ export class StoryDownloadService {
           type: 'text/plain',
           saveToFiles: true,
           // Use data URL for direct content sharing
-          url: `data:text/plain;charset=utf-8;base64,${btoa(content)}`
+          url: `data:text/plain;charset=utf-8;base64,${btoa(content)}`,
         };
 
         try {
           await Share.open(shareOptions);
-          
+
           return {
             success: true,
             fileName: finalFileName,
             filePath: 'shared_directly', // No file path in simulation mode
           };
         } catch (shareError) {
-          const errorMessage = shareError instanceof Error ? shareError.message : String(shareError);
+          const errorMessage =
+            shareError instanceof Error
+              ? shareError.message
+              : String(shareError);
           if (errorMessage && errorMessage.includes('User did not share')) {
             return {
               success: true,
@@ -359,7 +385,7 @@ export class StoryDownloadService {
           throw shareError;
         }
       }
-      
+
       // For real device: Create temporary file in app's Documents directory
       const documentsPath = RNFS.DocumentDirectoryPath;
       const tempFilePath = `${documentsPath}/${finalFileName}`;
@@ -379,7 +405,7 @@ export class StoryDownloadService {
 
       try {
         await Share.open(shareOptions);
-        
+
         return {
           success: true,
           fileName: finalFileName,
@@ -387,7 +413,8 @@ export class StoryDownloadService {
         };
       } catch (shareError) {
         // Handle user cancellation gracefully
-        const errorMessage = shareError instanceof Error ? shareError.message : String(shareError);
+        const errorMessage =
+          shareError instanceof Error ? shareError.message : String(shareError);
         if (errorMessage && errorMessage.includes('User did not share')) {
           return {
             success: true,
@@ -398,13 +425,13 @@ export class StoryDownloadService {
         }
         throw shareError;
       }
-
     } catch (error) {
       console.error('❌ File save operation failed:', error);
-      
+
       // Provide specific error messages based on error type
       const errorMsg = error instanceof Error ? error.message : String(error);
-      let errorMessage = 'An unexpected error occurred while saving your story.';
+      let errorMessage =
+        'An unexpected error occurred while saving your story.';
 
       if (errorMsg?.includes('ENOSPC')) {
         errorMessage = 'Not enough storage space available.';

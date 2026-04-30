@@ -174,10 +174,10 @@ describe('OAuth Accessibility', () => {
     test('error messages are readable by screen readers', () => {
       // Error messages are displayed via Alert which is accessible
       // This test verifies message quality
-      const errorMessage = 'Connection error. Please check your internet connection and try again.';
+      const errorMessage =
+        'Connection error. Please check your internet connection and try again.';
       expect(errorMessage.length).toBeGreaterThan(0);
       expect(errorMessage).not.toContain('ERROR_CODE');
     });
   });
 });
-

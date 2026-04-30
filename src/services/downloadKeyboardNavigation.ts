@@ -54,7 +54,7 @@ export class DownloadKeyboardNavigationService {
     } else {
       this.setupNativeKeyboardHandlers();
     }
-    
+
     this.isActive = true;
     console.log('⌨️ Keyboard navigation service initialized');
   }
@@ -66,11 +66,11 @@ export class DownloadKeyboardNavigationService {
     this.focusableElements.clear();
     this.keyboardHandlers.clear();
     this.isActive = false;
-    
+
     if (Platform.OS === 'web') {
       document.removeEventListener('keydown', this.handleWebKeyDown);
     }
-    
+
     console.log('⌨️ Keyboard navigation service cleaned up');
   }
 
@@ -103,12 +103,12 @@ export class DownloadKeyboardNavigationService {
 
     const elements = this.getSortedElements();
     const index = elements.findIndex(el => el.id === elementId);
-    
+
     if (index >= 0) {
       this.setFocus(index);
       return true;
     }
-    
+
     return false;
   }
 
@@ -117,7 +117,7 @@ export class DownloadKeyboardNavigationService {
    */
   focusNext(): boolean {
     if (!this.config.enableTabNavigation) return false;
-    
+
     const elements = this.getSortedElements();
     if (elements.length === 0) return false;
 
@@ -134,7 +134,7 @@ export class DownloadKeyboardNavigationService {
    */
   focusPrevious(): boolean {
     if (!this.config.enableTabNavigation) return false;
-    
+
     const elements = this.getSortedElements();
     if (elements.length === 0) return false;
 
@@ -152,13 +152,13 @@ export class DownloadKeyboardNavigationService {
   activateCurrentElement(): boolean {
     const elements = this.getSortedElements();
     const currentElement = elements[this.currentFocusIndex];
-    
+
     if (currentElement?.enabled && currentElement.onActivate) {
       currentElement.onActivate();
       console.log(`⌨️ Activated element: ${currentElement.id}`);
       return true;
     }
-    
+
     return false;
   }
 
@@ -170,7 +170,7 @@ export class DownloadKeyboardNavigationService {
     if (!element) return {};
 
     const isFocused = this.getCurrentFocusedElementId() === elementId;
-    
+
     return {
       accessible: true,
       accessibilityRole: 'button',
@@ -181,7 +181,10 @@ export class DownloadKeyboardNavigationService {
         tabIndex: element.enabled ? element.order : -1,
         onKeyDown: (event: any) => this.handleElementKeyDown(event, elementId),
         style: {
-          outline: isFocused && this.config.focusRingVisible ? '2px solid #007AFF' : 'none',
+          outline:
+            isFocused && this.config.focusRingVisible
+              ? '2px solid #007AFF'
+              : 'none',
         },
       }),
     };
@@ -193,7 +196,7 @@ export class DownloadKeyboardNavigationService {
   getDownloadButtonKeyboardProps(
     buttonId: string,
     onPress: () => void,
-    disabled: boolean = false
+    disabled: boolean = false,
   ): any {
     this.registerElement({
       id: buttonId,
@@ -220,7 +223,11 @@ export class DownloadKeyboardNavigationService {
       accessibilityRole: 'dialog',
     };
 
-    if (onDismiss && this.config.enableEscapeKeyDismissal && Platform.OS === 'web') {
+    if (
+      onDismiss &&
+      this.config.enableEscapeKeyDismissal &&
+      Platform.OS === 'web'
+    ) {
       props.onKeyDown = (event: any) => {
         if (event.key === 'Escape') {
           onDismiss();
@@ -240,7 +247,7 @@ export class DownloadKeyboardNavigationService {
     itemId: string,
     index: number,
     onPress: () => void,
-    onMenuOpen?: () => void
+    onMenuOpen?: () => void,
   ): any {
     this.registerElement({
       id: itemId,
@@ -253,7 +260,8 @@ export class DownloadKeyboardNavigationService {
     const props = {
       ...this.getKeyboardAccessibilityProps(itemId),
       accessibilityRole: 'button',
-      accessibilityHint: 'Press Enter to view options, or use arrow keys to navigate',
+      accessibilityHint:
+        'Press Enter to view options, or use arrow keys to navigate',
     };
 
     if (onMenuOpen && Platform.OS === 'web') {
@@ -318,7 +326,10 @@ export class DownloadKeyboardNavigationService {
     if (index < 0 || index >= elements.length) return false;
 
     // Blur current element
-    if (this.currentFocusIndex >= 0 && this.currentFocusIndex < elements.length) {
+    if (
+      this.currentFocusIndex >= 0 &&
+      this.currentFocusIndex < elements.length
+    ) {
       const currentElement = elements[this.currentFocusIndex];
       if (currentElement.onBlur) {
         currentElement.onBlur();
@@ -328,7 +339,7 @@ export class DownloadKeyboardNavigationService {
     // Focus new element
     this.currentFocusIndex = index;
     const newElement = elements[index];
-    
+
     if (newElement.onFocus) {
       newElement.onFocus();
     }
@@ -365,7 +376,7 @@ export class DownloadKeyboardNavigationService {
       event.preventDefault();
       event.stopPropagation();
     }
-    
+
     return handled;
   }
 
@@ -421,7 +432,7 @@ export class DownloadKeyboardNavigationService {
 
   private handleArrowKeyNavigation(event: any): boolean {
     const { key } = event;
-    
+
     switch (key) {
       case 'ArrowUp':
         return this.focusPrevious();
@@ -432,7 +443,7 @@ export class DownloadKeyboardNavigationService {
       case 'ArrowRight':
         return this.focusNext();
     }
-    
+
     return false;
   }
 
@@ -486,31 +497,32 @@ export class DownloadKeyboardNavigationService {
    */
   getKeyboardInstructions(): string[] {
     const instructions: string[] = [];
-    
+
     if (this.config.enableTabNavigation) {
       instructions.push('Use Tab/Shift+Tab to navigate between elements');
     }
-    
+
     if (this.config.enableArrowKeyNavigation) {
       instructions.push('Use arrow keys to navigate lists and options');
     }
-    
+
     if (this.config.enableEnterKeyActivation) {
       instructions.push('Press Enter to activate buttons and confirm actions');
     }
-    
+
     if (this.config.enableSpaceKeyActivation) {
       instructions.push('Press Space to activate buttons');
     }
-    
+
     if (this.config.enableEscapeKeyDismissal) {
       instructions.push('Press Escape to close modals and cancel actions');
     }
-    
+
     return instructions;
   }
 }
 
 // Export singleton instance
-export const downloadKeyboardNavigation = new DownloadKeyboardNavigationService();
+export const downloadKeyboardNavigation =
+  new DownloadKeyboardNavigationService();
 export default downloadKeyboardNavigation;

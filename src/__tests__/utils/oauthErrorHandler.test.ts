@@ -157,7 +157,10 @@ describe('OAuth Error Handler', () => {
 
     test('handles general database errors with retry', () => {
       const error = 'database_error';
-      const result = handleOAuthError(error, { provider: 'google', attemptNumber: 1 });
+      const result = handleOAuthError(error, {
+        provider: 'google',
+        attemptNumber: 1,
+      });
 
       expect(result.shouldShowError).toBe(true);
       expect(result.userMessage).toContain('save account information');
@@ -402,4 +405,3 @@ describe('OAuth Error Handler', () => {
     });
   });
 });
-

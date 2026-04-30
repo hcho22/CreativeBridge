@@ -15,5 +15,17 @@
     }
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["**/node_modules", "**/Pods", "e2e"]
+  "exclude": [
+    "**/node_modules",
+    "**/Pods",
+    "e2e",
+    "web",
+    "convex",
+    "src/__tests__",
+    "src/**/__tests__",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/**/*.spec.ts",
+    "src/**/*.spec.tsx"
+  ]
 }

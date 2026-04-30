@@ -38,13 +38,16 @@ describe('File Picker Integration', () => {
     (Share.open as jest.Mock).mockRejectedValueOnce(mockShareError);
 
     // Create a mock save function similar to saveStoryWithLocationPicker
-    const saveStoryWithLocationPicker = async (fileContent: string, fileName: string) => {
+    const saveStoryWithLocationPicker = async (
+      fileContent: string,
+      fileName: string,
+    ) => {
       try {
         const documentsPath = RNFS.DocumentDirectoryPath;
         const tempFilePath = `${documentsPath}/${fileName}`;
 
         await RNFS.writeFile(tempFilePath, fileContent, 'utf8');
-        
+
         const shareOptions = {
           title: 'Save Story',
           message: 'Save your completed story',
@@ -57,7 +60,10 @@ describe('File Picker Integration', () => {
         try {
           await Share.open(shareOptions);
         } catch (shareError) {
-          const errorMessage = shareError instanceof Error ? shareError.message : String(shareError);
+          const errorMessage =
+            shareError instanceof Error
+              ? shareError.message
+              : String(shareError);
           if (errorMessage && errorMessage.includes('User did not share')) {
             return { cancelled: true, saved: true };
           }
@@ -69,31 +75,39 @@ describe('File Picker Integration', () => {
       }
     };
 
-    const result = await saveStoryWithLocationPicker('Test content', 'Story_110325_143022.txt');
-    
+    const result = await saveStoryWithLocationPicker(
+      'Test content',
+      'Story_110325_143022.txt',
+    );
+
     expect(result.cancelled).toBe(true);
     expect(result.saved).toBe(true);
     expect(RNFS.writeFile).toHaveBeenCalledWith(
       '/mock/documents/Story_110325_143022.txt',
       'Test content',
-      'utf8'
+      'utf8',
     );
   });
 
   test('saves file with correct name and content', async () => {
-    const mockFileContent = 'Once upon a time, there was a brave little mouse...';
+    const mockFileContent =
+      'Once upon a time, there was a brave little mouse...';
     const mockFileName = 'Story_110325_143022.txt';
 
     // Mock successful share
     (Share.open as jest.Mock).mockResolvedValueOnce({ success: true });
 
     // Test file creation
-    await RNFS.writeFile(`/mock/documents/${mockFileName}`, mockFileContent, 'utf8');
+    await RNFS.writeFile(
+      `/mock/documents/${mockFileName}`,
+      mockFileContent,
+      'utf8',
+    );
 
     expect(RNFS.writeFile).toHaveBeenCalledWith(
       '/mock/documents/Story_110325_143022.txt',
       mockFileContent,
-      'utf8'
+      'utf8',
     );
   });
 
@@ -108,10 +122,10 @@ describe('File Picker Integration', () => {
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         if (errorMsg?.includes('EACCES')) {
-          return { 
-            success: false, 
+          return {
+            success: false,
             error: 'Permission denied to write file.',
-            suggestion: 'Please check app permissions in Settings.'
+            suggestion: 'Please check app permissions in Settings.',
           };
         }
         return { success: false, error: 'Unknown error' };
@@ -135,10 +149,10 @@ describe('File Picker Integration', () => {
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         if (errorMsg?.includes('ENOSPC')) {
-          return { 
-            success: false, 
+          return {
+            success: false,
             error: 'Not enough storage space available.',
-            suggestion: 'Please free up some space and try again.'
+            suggestion: 'Please free up some space and try again.',
           };
         }
         return { success: false, error: 'Unknown error' };
@@ -153,10 +167,10 @@ describe('File Picker Integration', () => {
 
   test('implements loading state management during file operations', async () => {
     let loadingState = false;
-    
+
     const mockSaveWithLoading = async () => {
       loadingState = true;
-      
+
       try {
         await RNFS.writeFile('/mock/documents/test.txt', 'content', 'utf8');
         await Share.open({
@@ -171,7 +185,7 @@ describe('File Picker Integration', () => {
     };
 
     const result = await mockSaveWithLoading();
-    
+
     expect(result.success).toBe(true);
     expect(loadingState).toBe(false); // Should be reset after operation
     expect(RNFS.writeFile).toHaveBeenCalled();
@@ -181,7 +195,7 @@ describe('File Picker Integration', () => {
   test('share options include correct parameters for iOS file picker', () => {
     const fileName = 'Story_110325_143022.txt';
     const filePath = '/mock/documents/Story_110325_143022.txt';
-    
+
     const shareOptions = {
       title: 'Save Story',
       message: 'Save your completed story',
@@ -203,18 +217,18 @@ describe('File Picker Integration', () => {
       {
         error: new Error('ENOENT: no such file or directory'),
         expectedMessage: 'Directory not accessible.',
-        expectedSuggestion: 'Please restart the app and try again.'
+        expectedSuggestion: 'Please restart the app and try again.',
       },
       {
         error: new Error('EACCES: permission denied'),
         expectedMessage: 'Permission denied to write file.',
-        expectedSuggestion: 'Please check app permissions in Settings.'
+        expectedSuggestion: 'Please check app permissions in Settings.',
       },
       {
         error: new Error('ENOSPC: no space left on device'),
         expectedMessage: 'Not enough storage space available.',
-        expectedSuggestion: 'Please free up some space and try again.'
-      }
+        expectedSuggestion: 'Please free up some space and try again.',
+      },
     ];
 
     for (const testCase of testCases) {
@@ -225,9 +239,11 @@ describe('File Picker Integration', () => {
           await RNFS.writeFile('/mock/documents/test.txt', 'content', 'utf8');
           return { success: true };
         } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : String(error);
-          
-          let errorMessage = 'An unexpected error occurred while saving your story.';
+          const errorMsg =
+            error instanceof Error ? error.message : String(error);
+
+          let errorMessage =
+            'An unexpected error occurred while saving your story.';
           let suggestion = 'Please try again.';
 
           if (errorMsg?.includes('ENOSPC')) {
@@ -262,7 +278,10 @@ describe('File Picker Integration', () => {
       return { success: true };
     };
 
-    const retryWithBackoff = async (operation: () => Promise<any>, maxRetries = 3) => {
+    const retryWithBackoff = async (
+      operation: () => Promise<any>,
+      maxRetries = 3,
+    ) => {
       for (let i = 0; i < maxRetries; i++) {
         try {
           return await operation();
@@ -306,7 +325,7 @@ describe('File Picker Integration', () => {
         title: 'Save Story',
         url: `file://${filePath}`,
         saveToFiles: true,
-      })
+      }),
     );
   });
 });

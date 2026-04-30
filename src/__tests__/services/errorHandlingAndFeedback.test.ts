@@ -43,8 +43,9 @@ describe('Enhanced Error Handling and User Feedback', () => {
           await RNFS.writeFile('/mock/documents/test.txt', 'content', 'utf8');
           return { success: true };
         } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : String(error);
-          
+          const errorMsg =
+            error instanceof Error ? error.message : String(error);
+
           if (errorMsg?.includes('EACCES')) {
             return {
               success: false,
@@ -55,8 +56,8 @@ describe('Enhanced Error Handling and User Feedback', () => {
                 'Find "CreativeBridge" in the apps list',
                 'Enable "Files and Folders" permission',
                 'Restart the app',
-                'Try downloading again'
-              ]
+                'Try downloading again',
+              ],
             };
           }
           return { success: false, error: 'Unknown error' };
@@ -64,17 +65,21 @@ describe('Enhanced Error Handling and User Feedback', () => {
       };
 
       const result = await mockHandlePermissionError();
-      
+
       expect(result.success).toBe(false);
       expect(result.error).toBe('Permission denied to write file.');
-      expect(result.suggestion).toBe('Please check app permissions in Settings.');
-      expect(result.troubleshootingSteps).toContain('Go to Settings > Privacy & Security');
+      expect(result.suggestion).toBe(
+        'Please check app permissions in Settings.',
+      );
+      expect(result.troubleshootingSteps).toContain(
+        'Go to Settings > Privacy & Security',
+      );
     });
 
     test('provides restart app option for permission issues', () => {
       const restartAppAction = {
         text: 'Restart App',
-        onPress: jest.fn()
+        onPress: jest.fn(),
       };
 
       expect(restartAppAction.text).toBe('Restart App');
@@ -92,8 +97,9 @@ describe('Enhanced Error Handling and User Feedback', () => {
           await RNFS.writeFile('/mock/documents/test.txt', 'content', 'utf8');
           return { success: true };
         } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : String(error);
-          
+          const errorMsg =
+            error instanceof Error ? error.message : String(error);
+
           if (errorMsg?.includes('ENOSPC')) {
             return {
               success: false,
@@ -104,8 +110,8 @@ describe('Enhanced Error Handling and User Feedback', () => {
                 'Delete unused photos, videos, or apps',
                 'Clear app caches in Settings',
                 'Move files to iCloud or external storage',
-                'Restart your device'
-              ]
+                'Restart your device',
+              ],
             };
           }
           return { success: false, error: 'Unknown error' };
@@ -113,19 +119,21 @@ describe('Enhanced Error Handling and User Feedback', () => {
       };
 
       const result = await mockHandleStorageError(250); // 250KB file
-      
+
       expect(result.success).toBe(false);
       expect(result.error).toBe('Not enough storage space available.');
       expect(result.requiredSpace).toBe(250);
-      expect(result.troubleshootingSteps).toContain('Delete unused photos, videos, or apps');
+      expect(result.troubleshootingSteps).toContain(
+        'Delete unused photos, videos, or apps',
+      );
     });
 
     test('calculates and displays required storage space', () => {
       const mockStoryContent = 'A'.repeat(600000); // ~600KB story
       const estimatedSize = Math.round(mockStoryContent.length / 1024); // KB
-      
+
       expect(estimatedSize).toBeGreaterThan(500);
-      
+
       const storageMessage = `Your story needs about ${estimatedSize}KB of space.`;
       expect(storageMessage).toContain(`${estimatedSize}KB`);
     });
@@ -142,14 +150,19 @@ describe('Enhanced Error Handling and User Feedback', () => {
         return { success: true };
       };
 
-      const retryWithBackoff = async (operation: () => Promise<any>, maxRetries = 3) => {
+      const retryWithBackoff = async (
+        operation: () => Promise<any>,
+        maxRetries = 3,
+      ) => {
         for (let i = 0; i < maxRetries; i++) {
           try {
             return await operation();
           } catch (error) {
             if (i === maxRetries - 1) throw error;
             // Exponential backoff: 1s, 2s, 4s
-            await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 100));
+            await new Promise(resolve =>
+              setTimeout(resolve, Math.pow(2, i) * 100),
+            );
           }
         }
       };
@@ -166,12 +179,14 @@ describe('Enhanced Error Handling and User Feedback', () => {
           'Close other apps to free up memory',
           'Restart the CreativeBridge app',
           'Try downloading at a different time',
-          'Contact support if the issue persists'
+          'Contact support if the issue persists',
         ],
-        contactSupport: true
+        contactSupport: true,
       };
 
-      expect(networkTroubleshooting.steps).toContain('Ensure you have a stable internet connection');
+      expect(networkTroubleshooting.steps).toContain(
+        'Ensure you have a stable internet connection',
+      );
       expect(networkTroubleshooting.contactSupport).toBe(true);
     });
   });
@@ -181,14 +196,14 @@ describe('Enhanced Error Handling and User Feedback', () => {
       const mockLargeStory = {
         content: 'A'.repeat(600000), // 600KB story
         wordCount: 15000,
-        estimatedSize: 600 // KB
+        estimatedSize: 600, // KB
       };
 
       const shouldWarnForLargeFile = mockLargeStory.estimatedSize > 500;
       expect(shouldWarnForLargeFile).toBe(true);
 
       const warningMessage = `Your story is quite large (${mockLargeStory.estimatedSize}KB, ${mockLargeStory.wordCount} words).\n\nThis may take longer to process and share. Continue?`;
-      
+
       expect(warningMessage).toContain(`${mockLargeStory.estimatedSize}KB`);
       expect(warningMessage).toContain(`${mockLargeStory.wordCount} words`);
       expect(warningMessage).toContain('This may take longer to process');
@@ -197,7 +212,7 @@ describe('Enhanced Error Handling and User Feedback', () => {
     test('provides option to continue with large files', () => {
       const largeFileActions = [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Continue', onPress: jest.fn() }
+        { text: 'Continue', onPress: jest.fn() },
       ];
 
       expect(largeFileActions[0].text).toBe('Cancel');
@@ -213,19 +228,21 @@ describe('Enhanced Error Handling and User Feedback', () => {
         errors: ['Story content cannot be empty'],
         actions: [
           { text: 'OK' },
-          { text: 'Continue Writing', onPress: jest.fn() }
-        ]
+          { text: 'Continue Writing', onPress: jest.fn() },
+        ],
       };
 
       expect(emptyStoryValidation.isValid).toBe(false);
-      expect(emptyStoryValidation.errors).toContain('Story content cannot be empty');
+      expect(emptyStoryValidation.errors).toContain(
+        'Story content cannot be empty',
+      );
       expect(emptyStoryValidation.actions[1].text).toBe('Continue Writing');
     });
 
     test('provides "Try Anyway" option for validation failures', () => {
       const validationFailureActions = [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Try Anyway', onPress: jest.fn() }
+        { text: 'Try Anyway', onPress: jest.fn() },
       ];
 
       expect(validationFailureActions[1].text).toBe('Try Anyway');
@@ -235,14 +252,16 @@ describe('Enhanced Error Handling and User Feedback', () => {
     test('formats validation errors clearly', () => {
       const mockValidationErrors = [
         'Story content is too short (minimum 10 characters)',
-        'Story content contains invalid characters'
+        'Story content contains invalid characters',
       ];
 
       const formattedErrors = mockValidationErrors.join('\n• ');
       const errorMessage = `Your story cannot be downloaded due to the following issues:\n\n• ${formattedErrors}`;
 
       expect(errorMessage).toContain('• Story content is too short');
-      expect(errorMessage).toContain('• Story content contains invalid characters');
+      expect(errorMessage).toContain(
+        '• Story content contains invalid characters',
+      );
     });
   });
 
@@ -251,12 +270,13 @@ describe('Enhanced Error Handling and User Feedback', () => {
       const loadingStates = [
         {
           title: 'Preparing Your Story...',
-          message: 'Creating "Story_110325_143022.txt"\n\nThis includes formatting your story and preparing it for sharing.'
+          message:
+            'Creating "Story_110325_143022.txt"\n\nThis includes formatting your story and preparing it for sharing.',
         },
         {
           title: 'Saving Story...',
-          message: 'Creating your story file. This may take a moment.'
-        }
+          message: 'Creating your story file. This may take a moment.',
+        },
       ];
 
       loadingStates.forEach(state => {
@@ -270,20 +290,36 @@ describe('Enhanced Error Handling and User Feedback', () => {
       let progressState = {
         isLoading: false,
         message: '',
-        progress: 0
+        progress: 0,
       };
 
       const mockFileOperationWithProgress = async () => {
-        progressState = { isLoading: true, message: 'Preparing...', progress: 0 };
+        progressState = {
+          isLoading: true,
+          message: 'Preparing...',
+          progress: 0,
+        };
         await new Promise(resolve => setTimeout(resolve, 100));
-        
-        progressState = { isLoading: true, message: 'Writing file...', progress: 50 };
+
+        progressState = {
+          isLoading: true,
+          message: 'Writing file...',
+          progress: 50,
+        };
         await new Promise(resolve => setTimeout(resolve, 100));
-        
-        progressState = { isLoading: true, message: 'Sharing...', progress: 100 };
+
+        progressState = {
+          isLoading: true,
+          message: 'Sharing...',
+          progress: 100,
+        };
         await new Promise(resolve => setTimeout(resolve, 100));
-        
-        progressState = { isLoading: false, message: 'Complete!', progress: 100 };
+
+        progressState = {
+          isLoading: false,
+          message: 'Complete!',
+          progress: 100,
+        };
         return { success: true };
       };
 
@@ -299,8 +335,9 @@ describe('Enhanced Error Handling and User Feedback', () => {
     test('shows success message with filename', () => {
       const successMessage = {
         title: '✅ Story Saved!',
-        message: 'Your story "Story_110325_143022.txt" has been saved successfully!\n\nYou can find it in the location you selected.',
-        actions: [{ text: 'Great!' }]
+        message:
+          'Your story "Story_110325_143022.txt" has been saved successfully!\n\nYou can find it in the location you selected.',
+        actions: [{ text: 'Great!' }],
       };
 
       expect(successMessage.title).toContain('✅ Story Saved!');
@@ -312,8 +349,9 @@ describe('Enhanced Error Handling and User Feedback', () => {
     test('handles user cancellation gracefully', () => {
       const cancellationMessage = {
         title: 'Story Saved Locally',
-        message: 'Your story "Story_110325_143022.txt" has been saved to the app\'s Documents folder.\n\nYou can access it through the Files app and move it to your preferred location.',
-        graceful: true
+        message:
+          'Your story "Story_110325_143022.txt" has been saved to the app\'s Documents folder.\n\nYou can access it through the Files app and move it to your preferred location.',
+        graceful: true,
       };
 
       expect(cancellationMessage.title).toContain('Story Saved Locally');
@@ -325,7 +363,7 @@ describe('Enhanced Error Handling and User Feedback', () => {
     test('provides fallback options when share fails', () => {
       const fallbackOptions = [
         { text: 'OK' },
-        { text: 'Show in Files', onPress: jest.fn() }
+        { text: 'Show in Files', onPress: jest.fn() },
       ];
 
       expect(fallbackOptions[1].text).toBe('Show in Files');
@@ -336,17 +374,17 @@ describe('Enhanced Error Handling and User Feedback', () => {
   describe('Advanced Retry Mechanisms', () => {
     test('implements exponential backoff for retries', async () => {
       const retryAttempts: number[] = [];
-      
+
       const mockRetryWithBackoff = async (maxRetries = 3): Promise<any> => {
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
           retryAttempts.push(attempt);
-          
+
           if (attempt < maxRetries) {
             const delayMs = Math.pow(2, attempt - 1) * 10; // 10ms, 20ms, 40ms for testing
             await new Promise(resolve => setTimeout(resolve, delayMs));
             continue; // Continue to next retry
           }
-          
+
           // Success on final attempt
           return { success: true, attempts: attempt };
         }
@@ -360,14 +398,15 @@ describe('Enhanced Error Handling and User Feedback', () => {
 
     test('gives up after maximum retry attempts', async () => {
       let attemptCount = 0;
-      
+
       const mockFailingOperation = async () => {
         attemptCount++;
         if (attemptCount > 3) {
           return {
             success: false,
             gaveUp: true,
-            message: 'The download has failed multiple times. Your story will be saved locally in the app\'s Documents folder.'
+            message:
+              "The download has failed multiple times. Your story will be saved locally in the app's Documents folder.",
           };
         }
         throw new Error('Persistent failure');
@@ -399,7 +438,8 @@ describe('Enhanced Error Handling and User Feedback', () => {
       const supportAction = {
         text: 'Contact Support',
         onPress: jest.fn(),
-        errorDetails: 'EACCES: permission denied, open \'/mock/documents/test.txt\''
+        errorDetails:
+          "EACCES: permission denied, open '/mock/documents/test.txt'",
       };
 
       expect(supportAction.text).toBe('Contact Support');
@@ -411,7 +451,7 @@ describe('Enhanced Error Handling and User Feedback', () => {
       const copyErrorAction = {
         text: 'Copy Error',
         onPress: jest.fn(),
-        successMessage: 'Error details copied to clipboard for support.'
+        successMessage: 'Error details copied to clipboard for support.',
       };
 
       expect(copyErrorAction.text).toBe('Copy Error');
@@ -421,9 +461,9 @@ describe('Enhanced Error Handling and User Feedback', () => {
     test('provides comprehensive troubleshooting help', () => {
       const troubleshootingTopics = [
         'Storage Space Issue',
-        'Permission Issue', 
+        'Permission Issue',
         'Directory Access Issue',
-        'General Troubleshooting'
+        'General Troubleshooting',
       ];
 
       troubleshootingTopics.forEach(topic => {
