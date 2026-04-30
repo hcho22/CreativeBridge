@@ -14,10 +14,7 @@ jobs:
   lint-and-test:
     name: Lint, Type Check & Test
     runs-on: ubuntu-latest
-    # Bumped from 15 to accommodate the advisory test step while ~25% of the
-    # suite is red — many failing tests hit the 10s per-test timeout, so the
-    # full run is much slower than the ~65s healthy local time.
-    timeout-minutes: 25
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -32,29 +29,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Advisory: tsc surfaces ~960 pre-existing type errors across services/utils.
-      # Continues on error so the gate stays meaningful for new work; cleanup is
-      # tracked separately. Tighten back to a hard gate once the backlog is clear.
-      - name: TypeScript type check (advisory)
+      - name: TypeScript type check
         run: npx tsc --noEmit
-        continue-on-error: true
 
-      # Advisory: ESLint rules in this repo are configured as warnings to allow
-      # autonomous-agent workflows (see CLAUDE.md). 16 pre-existing errors are
-      # from no-undef on test/script globals; flip back to a gate after fixing.
-      - name: Run ESLint (advisory)
-        run: npx eslint .
-        continue-on-error: true
+      - name: Run ESLint
+        run: npx eslint . --max-warnings 0
 
       - name: Check formatting
         run: npx prettier --check "src/**/*.{ts,tsx,json}"
 
-      # Advisory: ~25% of the suite is currently red from accumulated drift
-      # (timeouts, mock divergence). Stays visible in CI but doesn't block PRs
-      # while the backlog is being worked through. Flip back to hard gate once
-      # the suite is healthy.
-      - name: Run tests (advisory)
-        # --coverage dropped while tests are advisory — saves ~50% wall time
-        # on a broken suite. Re-add when the suite is healthy.
-        run: npm test -- --watchAll=false
-        continue-on-error: true
+      - name: Run tests
+        run: npm test -- --coverage --watchAll=false
