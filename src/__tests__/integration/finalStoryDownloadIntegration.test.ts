@@ -116,7 +116,13 @@ describe('Final Story Download Integration Tests', () => {
   const mockStoryMedium = {
     id: 'story-medium-1',
     title: 'Medium Length Adventure',
-    content: 'Chapter 1: The Beginning\n\n' + 'This is a medium length story. '.repeat(100) + '\n\nChapter 2: The Middle\n\n' + 'More content here. '.repeat(150) + '\n\nChapter 3: The End\n\n' + 'The thrilling conclusion. '.repeat(50),
+    content:
+      'Chapter 1: The Beginning\n\n' +
+      'This is a medium length story. '.repeat(100) +
+      '\n\nChapter 2: The Middle\n\n' +
+      'More content here. '.repeat(150) +
+      '\n\nChapter 3: The End\n\n' +
+      'The thrilling conclusion. '.repeat(50),
     wordCount: 900,
     createdAt: new Date().toISOString(),
   };
@@ -124,7 +130,15 @@ describe('Final Story Download Integration Tests', () => {
   const mockStoryLarge = {
     id: 'story-large-1',
     title: 'Epic Novel',
-    content: 'Part I: The Journey Begins\n\n' + 'This is a very long story with multiple chapters and extensive content. '.repeat(2000) + '\n\nPart II: The Adventure Continues\n\n' + 'Even more detailed content with rich descriptions. '.repeat(3000) + '\n\nPart III: The Grand Finale\n\n' + 'The epic conclusion with detailed resolution. '.repeat(1500),
+    content:
+      'Part I: The Journey Begins\n\n' +
+      'This is a very long story with multiple chapters and extensive content. '.repeat(
+        2000,
+      ) +
+      '\n\nPart II: The Adventure Continues\n\n' +
+      'Even more detailed content with rich descriptions. '.repeat(3000) +
+      '\n\nPart III: The Grand Finale\n\n' +
+      'The epic conclusion with detailed resolution. '.repeat(1500),
     wordCount: 45000,
     createdAt: new Date().toISOString(),
   };
@@ -136,28 +150,31 @@ describe('Final Story Download Integration Tests', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    
+
     // Reset all services
     await enhancedErrorHandling.initialize();
     await accessibilityService.initialize();
     hapticFeedbackService.initialize();
     downloadKeyboardNavigation.initialize();
-    
+
     // Setup successful mocks by default
     const DocumentPicker = require('react-native-document-picker').default;
     const RNFS = require('react-native-fs');
-    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-    
-    DocumentPicker.pick.mockResolvedValue([{
-      uri: '/test/downloads/Story_110425_143022.txt',
-      name: 'Story_110425_143022.txt',
-      size: 1024,
-    }]);
-    
+    const AsyncStorage =
+      require('@react-native-async-storage/async-storage').default;
+
+    DocumentPicker.pick.mockResolvedValue([
+      {
+        uri: '/test/downloads/Story_110425_143022.txt',
+        name: 'Story_110425_143022.txt',
+        size: 1024,
+      },
+    ]);
+
     RNFS.writeFile.mockResolvedValue(true);
     RNFS.exists.mockResolvedValue(true);
     RNFS.stat.mockResolvedValue({ size: 1024 });
-    
+
     AsyncStorage.getItem.mockResolvedValue(null);
     AsyncStorage.setItem.mockResolvedValue(true);
   });
@@ -170,15 +187,16 @@ describe('Final Story Download Integration Tests', () => {
   describe('Complete Feature End-to-End Tests', () => {
     it('should handle complete download flow for short story', async () => {
       const startTime = Date.now();
-      
+
       // Test the complete flow
-      const result = await optimizedStoryDownloadService.downloadStoryWithOptimization({
-        ...mockStoryShort,
-        userId: mockUser.id,
-        sessionId: mockUser.sessionId,
-        enableCompression: false, // Short story doesn't need compression
-        enableBackgroundProcessing: false,
-      });
+      const result =
+        await optimizedStoryDownloadService.downloadStoryWithOptimization({
+          ...mockStoryShort,
+          userId: mockUser.id,
+          sessionId: mockUser.sessionId,
+          enableCompression: false, // Short story doesn't need compression
+          enableBackgroundProcessing: false,
+        });
 
       const duration = Date.now() - startTime;
 
@@ -189,17 +207,18 @@ describe('Final Story Download Integration Tests', () => {
 
     it('should handle complete download flow for medium story with compression', async () => {
       const progressUpdates: any[] = [];
-      
-      const result = await optimizedStoryDownloadService.downloadStoryWithOptimization({
-        ...mockStoryMedium,
-        userId: mockUser.id,
-        sessionId: mockUser.sessionId,
-        enableCompression: true,
-        enableBackgroundProcessing: true,
-        onProgress: (progress) => {
-          progressUpdates.push(progress);
-        },
-      });
+
+      const result =
+        await optimizedStoryDownloadService.downloadStoryWithOptimization({
+          ...mockStoryMedium,
+          userId: mockUser.id,
+          sessionId: mockUser.sessionId,
+          enableCompression: true,
+          enableBackgroundProcessing: true,
+          onProgress: progress => {
+            progressUpdates.push(progress);
+          },
+        });
 
       expect(result.success).toBe(true);
       expect(progressUpdates.length).toBeGreaterThan(0);
@@ -209,34 +228,36 @@ describe('Final Story Download Integration Tests', () => {
     it('should handle complete download flow for large story with all optimizations', async () => {
       const performanceMetrics: any[] = [];
       const accessibilityAnnouncements: any[] = [];
-      
+
       // Mock performance monitoring
       jest.spyOn(downloadPerformanceMonitor, 'startTracking');
       jest.spyOn(downloadPerformanceMonitor, 'stopTracking');
-      
-      // Mock accessibility announcements
-      jest.spyOn(accessibilityService, 'announceProgress').mockImplementation(async (progress, stage) => {
-        accessibilityAnnouncements.push({ progress, stage });
-      });
 
-      const result = await optimizedStoryDownloadService.downloadStoryWithOptimization({
-        ...mockStoryLarge,
-        userId: mockUser.id,
-        sessionId: mockUser.sessionId,
-        enableCompression: true,
-        enableBackgroundProcessing: true,
-        chunkSize: 1024,
-        onProgress: (progress) => {
-          performanceMetrics.push(progress);
-        },
-      });
+      // Mock accessibility announcements
+      jest
+        .spyOn(accessibilityService, 'announceProgress')
+        .mockImplementation(async (progress, stage) => {
+          accessibilityAnnouncements.push({ progress, stage });
+        });
+
+      const result =
+        await optimizedStoryDownloadService.downloadStoryWithOptimization({
+          ...mockStoryLarge,
+          userId: mockUser.id,
+          sessionId: mockUser.sessionId,
+          enableCompression: true,
+          enableBackgroundProcessing: true,
+          chunkSize: 1024,
+          onProgress: progress => {
+            performanceMetrics.push(progress);
+          },
+        });
 
       expect(result.success).toBe(true);
       expect(downloadPerformanceMonitor.startTracking).toHaveBeenCalled();
       expect(downloadPerformanceMonitor.stopTracking).toHaveBeenCalled();
       expect(performanceMetrics.length).toBeGreaterThan(0);
     });
-
   });
 
   describe('Error Scenario Integration Tests', () => {
@@ -245,12 +266,16 @@ describe('Final Story Download Integration Tests', () => {
       DocumentPicker.pick.mockRejectedValue(new Error('Permission denied'));
 
       const result = await enhancedErrorHandling.retryWithBackoff(
-        () => storyDownloadService.saveStoryFile(mockStoryShort.content, 'Test_Story.txt'),
+        () =>
+          storyDownloadService.saveStoryFile(
+            mockStoryShort.content,
+            'Test_Story.txt',
+          ),
         {
           operationName: 'story_download',
           maxRetries: 2,
           userId: mockUser.id,
-        }
+        },
       );
 
       // Should fail after retries but handle gracefully
@@ -259,11 +284,13 @@ describe('Final Story Download Integration Tests', () => {
 
     it('should handle storage full error', async () => {
       const RNFS = require('react-native-fs');
-      RNFS.writeFile.mockRejectedValue(new Error('ENOSPC: no space left on device'));
+      RNFS.writeFile.mockRejectedValue(
+        new Error('ENOSPC: no space left on device'),
+      );
 
       const errorInfo = downloadLocalization.getErrorWithRecovery(
         'insufficientStorage',
-        'freeStorage'
+        'freeStorage',
       );
 
       expect(errorInfo.error).toBe('Insufficient storage space');
@@ -286,7 +313,7 @@ describe('Final Story Download Integration Tests', () => {
 
       // Simulate connection restored
       NetInfo.fetch.mockResolvedValue({ isConnected: true });
-      
+
       const processResult = await enhancedErrorHandling.processDownloadQueue();
       expect(processResult.processed).toBeGreaterThan(0);
     });
@@ -296,12 +323,17 @@ describe('Final Story Download Integration Tests', () => {
       RNFS.writeFile.mockRejectedValue(new Error('File system error'));
 
       try {
-        await storyDownloadService.saveStoryFile(mockStoryShort.content, 'Test_Story.txt');
+        await storyDownloadService.saveStoryFile(
+          mockStoryShort.content,
+          'Test_Story.txt',
+        );
       } catch (error) {
         expect(error).toBeDefined();
-        
+
         // Should provide user-friendly error message
-        const errorMessage = downloadLocalization.getString('errors.fileSystemError');
+        const errorMessage = downloadLocalization.getString(
+          'errors.fileSystemError',
+        );
         expect(errorMessage).toBe('File system error');
       }
     });
@@ -316,16 +348,16 @@ describe('Final Story Download Integration Tests', () => {
       }));
 
       const startTime = Date.now();
-      
+
       const results = await Promise.all(
-        downloads.map(story => 
+        downloads.map(story =>
           optimizedStoryDownloadService.downloadStoryWithOptimization({
             ...story,
             userId: mockUser.id,
             sessionId: `${mockUser.sessionId}-${story.id}`,
             enableBackgroundProcessing: true,
-          })
-        )
+          }),
+        ),
       );
 
       const totalTime = Date.now() - startTime;
@@ -334,7 +366,7 @@ describe('Final Story Download Integration Tests', () => {
       results.forEach(result => {
         expect(result.success).toBe(true);
       });
-      
+
       // Should handle 5 concurrent downloads efficiently
       expect(totalTime).toBeLessThan(15000); // Within 15 seconds
     });
@@ -348,14 +380,15 @@ describe('Final Story Download Integration Tests', () => {
 
       // Process large stories sequentially to test memory management
       for (const story of largeStories) {
-        const result = await optimizedStoryDownloadService.downloadStoryWithOptimization({
-          ...story,
-          userId: mockUser.id,
-          sessionId: `${mockUser.sessionId}-${story.id}`,
-          enableCompression: true,
-          enableBackgroundProcessing: true,
-          chunkSize: 512, // Smaller chunks for memory testing
-        });
+        const result =
+          await optimizedStoryDownloadService.downloadStoryWithOptimization({
+            ...story,
+            userId: mockUser.id,
+            sessionId: `${mockUser.sessionId}-${story.id}`,
+            enableCompression: true,
+            enableBackgroundProcessing: true,
+            chunkSize: 512, // Smaller chunks for memory testing
+          });
 
         expect(result.success).toBe(true);
       }
@@ -368,7 +401,7 @@ describe('Final Story Download Integration Tests', () => {
       // Generate some test operations
       for (let i = 0; i < 3; i++) {
         const operationId = `perf-test-${i}`;
-        
+
         downloadPerformanceMonitor.startTracking(operationId, {
           operation: 'test_download',
           fileSize: 1000 + i * 500,
@@ -383,7 +416,8 @@ describe('Final Story Download Integration Tests', () => {
         });
       }
 
-      const analytics = await downloadPerformanceMonitor.getPerformanceAnalytics();
+      const analytics =
+        await downloadPerformanceMonitor.getPerformanceAnalytics();
 
       expect(analytics.operationsCount).toBe(3);
       expect(analytics.averageDownloadTime).toBeGreaterThan(0);
@@ -400,7 +434,7 @@ describe('Final Story Download Integration Tests', () => {
         ...downloadKeyboardNavigation.getDownloadButtonKeyboardProps(
           'integration-test-btn',
           () => hapticFeedbackService.buttonPressed('primary'),
-          false
+          false,
         ),
       };
 
@@ -414,7 +448,9 @@ describe('Final Story Download Integration Tests', () => {
 
       // Test localization integration
       downloadLocalization.setLanguage('es');
-      const spanishLabel = downloadLocalization.getString('downloadButton.idle');
+      const spanishLabel = downloadLocalization.getString(
+        'downloadButton.idle',
+      );
       expect(spanishLabel).toBe('Descargar Historia');
 
       downloadLocalization.setLanguage('en'); // Reset
@@ -425,9 +461,11 @@ describe('Final Story Download Integration Tests', () => {
       const announcements: any[] = [];
 
       // Mock accessibility announcements
-      jest.spyOn(accessibilityService, 'announce').mockImplementation(async (announcement) => {
-        announcements.push(announcement);
-      });
+      jest
+        .spyOn(accessibilityService, 'announce')
+        .mockImplementation(async announcement => {
+          announcements.push(announcement);
+        });
 
       // Simulate complete download flow with accessibility
       hapticFeedbackService.downloadStarted();
@@ -439,7 +477,10 @@ describe('Final Story Download Integration Tests', () => {
 
       hapticFeedbackService.downloadCompleted(true);
       downloadAnimations.animateDownloadSuccess(animatedValues);
-      await accessibilityService.announceDownloadSuccess('Story_110425_143022.txt', 1024);
+      await accessibilityService.announceDownloadSuccess(
+        'Story_110425_143022.txt',
+        1024,
+      );
 
       expect(announcements.length).toBeGreaterThan(0);
       downloadAnimations.cleanupAnimations(animatedValues);
@@ -457,16 +498,24 @@ describe('Final Story Download Integration Tests', () => {
 
       // Test navigation
       downloadKeyboardNavigation.focusElement('download-btn');
-      expect(downloadKeyboardNavigation.getCurrentFocusedElementId()).toBe('download-btn');
+      expect(downloadKeyboardNavigation.getCurrentFocusedElementId()).toBe(
+        'download-btn',
+      );
 
       downloadKeyboardNavigation.focusNext();
-      expect(downloadKeyboardNavigation.getCurrentFocusedElementId()).toBe('retry-btn');
+      expect(downloadKeyboardNavigation.getCurrentFocusedElementId()).toBe(
+        'retry-btn',
+      );
 
       downloadKeyboardNavigation.focusPrevious();
-      expect(downloadKeyboardNavigation.getCurrentFocusedElementId()).toBe('download-btn');
+      expect(downloadKeyboardNavigation.getCurrentFocusedElementId()).toBe(
+        'download-btn',
+      );
 
       // Clean up
-      elements.forEach(el => downloadKeyboardNavigation.unregisterElement(el.id));
+      elements.forEach(el =>
+        downloadKeyboardNavigation.unregisterElement(el.id),
+      );
     });
   });
 
@@ -479,8 +528,10 @@ describe('Final Story Download Integration Tests', () => {
       expect(darkTheme.isDark).toBe(true);
 
       // Test theme-aware components
-      const lightButtonStyles = downloadThemeService.getDownloadButtonStyles('idle');
-      const darkButtonStyles = downloadThemeService.getDownloadButtonStyles('idle');
+      const lightButtonStyles =
+        downloadThemeService.getDownloadButtonStyles('idle');
+      const darkButtonStyles =
+        downloadThemeService.getDownloadButtonStyles('idle');
 
       expect(lightButtonStyles.backgroundColor).toBeDefined();
       expect(darkButtonStyles.backgroundColor).toBeDefined();
@@ -489,14 +540,18 @@ describe('Final Story Download Integration Tests', () => {
 
     it('should handle multiple languages correctly', () => {
       const languages: Array<'en' | 'es'> = ['en', 'es'];
-      
+
       languages.forEach(lang => {
         downloadLocalization.setLanguage(lang);
-        
-        const downloadButton = downloadLocalization.getString('downloadButton.idle');
-        const errorMessage = downloadLocalization.getString('errors.networkError');
+
+        const downloadButton = downloadLocalization.getString(
+          'downloadButton.idle',
+        );
+        const errorMessage = downloadLocalization.getString(
+          'errors.networkError',
+        );
         const fileSize = downloadLocalization.formatFileSize(1024 * 1024);
-        
+
         expect(downloadButton).toBeTruthy();
         expect(errorMessage).toBeTruthy();
         expect(fileSize).toContain('MB');
@@ -508,17 +563,21 @@ describe('Final Story Download Integration Tests', () => {
     it('should handle very large stories (>1MB content)', async () => {
       const veryLargeStory = {
         ...mockStoryLarge,
-        content: 'This is a very long paragraph that will be repeated many times to create a large file. '.repeat(50000), // ~5MB
+        content:
+          'This is a very long paragraph that will be repeated many times to create a large file. '.repeat(
+            50000,
+          ), // ~5MB
       };
 
-      const result = await optimizedStoryDownloadService.downloadStoryWithOptimization({
-        ...veryLargeStory,
-        userId: mockUser.id,
-        sessionId: mockUser.sessionId,
-        enableCompression: true,
-        enableBackgroundProcessing: true,
-        chunkSize: 1024,
-      });
+      const result =
+        await optimizedStoryDownloadService.downloadStoryWithOptimization({
+          ...veryLargeStory,
+          userId: mockUser.id,
+          sessionId: mockUser.sessionId,
+          enableCompression: true,
+          enableBackgroundProcessing: true,
+          chunkSize: 1024,
+        });
 
       expect(result.success).toBe(true);
     });
@@ -527,16 +586,18 @@ describe('Final Story Download Integration Tests', () => {
       const specialCharacterStory = {
         id: 'special-chars-story',
         title: 'Special Characters Test: áéíóú ñÑ 中文 日本語 🚀🌟✨',
-        content: 'This story contains special characters: áéíóú ñÑ\n\nUnicode content: 中文字符\n\nJapanese: こんにちは世界\n\nEmojis: 🚀🌟✨🎯🔥💎\n\nMath symbols: ∞ ∑ ∆ π √',
+        content:
+          'This story contains special characters: áéíóú ñÑ\n\nUnicode content: 中文字符\n\nJapanese: こんにちは世界\n\nEmojis: 🚀🌟✨🎯🔥💎\n\nMath symbols: ∞ ∑ ∆ π √',
         wordCount: 25,
         createdAt: new Date().toISOString(),
       };
 
-      const result = await optimizedStoryDownloadService.downloadStoryWithOptimization({
-        ...specialCharacterStory,
-        userId: mockUser.id,
-        sessionId: mockUser.sessionId,
-      });
+      const result =
+        await optimizedStoryDownloadService.downloadStoryWithOptimization({
+          ...specialCharacterStory,
+          userId: mockUser.id,
+          sessionId: mockUser.sessionId,
+        });
 
       expect(result.success).toBe(true);
     });
@@ -549,15 +610,15 @@ describe('Final Story Download Integration Tests', () => {
       }));
 
       const startTime = Date.now();
-      
+
       const results = await Promise.all(
-        rapidDownloads.map((story, index) => 
+        rapidDownloads.map((story, index) =>
           optimizedStoryDownloadService.downloadStoryWithOptimization({
             ...story,
             userId: mockUser.id,
             sessionId: `rapid-session-${index}`,
-          })
-        )
+          }),
+        ),
       );
 
       const totalTime = Date.now() - startTime;
@@ -566,7 +627,7 @@ describe('Final Story Download Integration Tests', () => {
       results.forEach(result => {
         expect(result.success).toBe(true);
       });
-      
+
       // Should handle rapid downloads efficiently
       expect(totalTime).toBeLessThan(30000); // Within 30 seconds
     });
@@ -574,19 +635,28 @@ describe('Final Story Download Integration Tests', () => {
     it('should gracefully handle corrupted or malformed story data', async () => {
       const corruptedStories = [
         { id: 'null-content', title: 'Null Content', content: null },
-        { id: 'undefined-content', title: 'Undefined Content', content: undefined },
+        {
+          id: 'undefined-content',
+          title: 'Undefined Content',
+          content: undefined,
+        },
         { id: 'empty-content', title: 'Empty Content', content: '' },
-        { id: 'binary-content', title: 'Binary Content', content: '\x00\x01\x02\x03' },
+        {
+          id: 'binary-content',
+          title: 'Binary Content',
+          content: '\x00\x01\x02\x03',
+        },
       ];
 
       for (const story of corruptedStories) {
         try {
-          const result = await optimizedStoryDownloadService.downloadStoryWithOptimization({
-            ...story,
-            content: story.content || 'Fallback content',
-            userId: mockUser.id,
-            sessionId: `corrupted-${story.id}`,
-          });
+          const result =
+            await optimizedStoryDownloadService.downloadStoryWithOptimization({
+              ...story,
+              content: story.content || 'Fallback content',
+              userId: mockUser.id,
+              sessionId: `corrupted-${story.id}`,
+            });
 
           // Should either succeed with fallback or fail gracefully
           expect(result).toBeDefined();
@@ -601,16 +671,17 @@ describe('Final Story Download Integration Tests', () => {
   describe('Cross-Platform Compatibility Tests', () => {
     it('should work correctly on different iOS versions', async () => {
       const iosVersions = ['14.0', '15.0', '16.0', '17.0'];
-      
+
       for (const version of iosVersions) {
         // Mock different iOS versions
         (Platform as any).Version = version;
-        
-        const result = await optimizedStoryDownloadService.downloadStoryWithOptimization({
-          ...mockStoryShort,
-          userId: mockUser.id,
-          sessionId: `ios-${version}`,
-        });
+
+        const result =
+          await optimizedStoryDownloadService.downloadStoryWithOptimization({
+            ...mockStoryShort,
+            userId: mockUser.id,
+            sessionId: `ios-${version}`,
+          });
 
         expect(result.success).toBe(true);
       }
@@ -620,7 +691,7 @@ describe('Final Story Download Integration Tests', () => {
       // Test responsive design elements
       const buttonStyles = downloadThemeService.getDownloadButtonStyles('idle');
       const modalStyles = downloadThemeService.getModalStyles();
-      
+
       expect(buttonStyles.minHeight).toBe(44); // Touch target requirement
       expect(modalStyles.container.maxWidth).toBe('90%'); // Responsive width
     });
@@ -696,16 +767,17 @@ describe('Final Story Download Integration Tests', () => {
 
     it('should handle app lifecycle events correctly', async () => {
       // Test background/foreground transitions
-      const downloadPromise = optimizedStoryDownloadService.downloadStoryWithOptimization({
-        ...mockStoryMedium,
-        userId: mockUser.id,
-        sessionId: mockUser.sessionId,
-        enableBackgroundProcessing: true,
-      });
+      const downloadPromise =
+        optimizedStoryDownloadService.downloadStoryWithOptimization({
+          ...mockStoryMedium,
+          userId: mockUser.id,
+          sessionId: mockUser.sessionId,
+          enableBackgroundProcessing: true,
+        });
 
       // Simulate app going to background
       // (In a real test, this would trigger actual lifecycle events)
-      
+
       const result = await downloadPromise;
       expect(result.success).toBe(true);
     });

@@ -1,6 +1,6 @@
 /**
  * Secure Storage Utility
- * 
+ *
  * Provides COPPA-compliant secure storage for user personalization data
  * Uses React Native Keychain for sensitive data encryption
  */
@@ -42,14 +42,20 @@ class SecureStorageService {
   /**
    * Store sensitive data securely using Keychain
    */
-  async setSecure<T>(key: string, value: T, options?: SecureStorageOptions): Promise<void> {
+  async setSecure<T>(
+    key: string,
+    value: T,
+    options?: SecureStorageOptions,
+  ): Promise<void> {
     try {
       const finalOptions = { ...this.options, ...options };
       const serializedValue = JSON.stringify(value);
       const metadata: StorageMetadata = {
         createdAt: Date.now(),
         updatedAt: Date.now(),
-        expiresAt: finalOptions.expirationTime ? Date.now() + finalOptions.expirationTime : undefined,
+        expiresAt: finalOptions.expirationTime
+          ? Date.now() + finalOptions.expirationTime
+          : undefined,
         version: '1.0',
         encrypted: true,
       };
@@ -60,17 +66,19 @@ class SecureStorageService {
         key, // username
         serializedValue, // password (actual data)
         {
-          accessControl: Keychain.ACCESS_CONTROL.BIOMETRY_ANY_OR_DEVICE_PASSCODE,
-          authenticationType: Keychain.AUTHENTICATION_TYPE.DEVICE_PASSCODE_OR_BIOMETRICS,
+          accessControl:
+            Keychain.ACCESS_CONTROL.BIOMETRY_ANY_OR_DEVICE_PASSCODE,
+          authenticationType:
+            Keychain.AUTHENTICATION_TYPE.DEVICE_PASSCODE_OR_BIOMETRICS,
           accessGroup: finalOptions.accessGroup,
           storage: Keychain.STORAGE_TYPE.KC,
-        }
+        },
       );
 
       // Store metadata in AsyncStorage for quick access checks
       await AsyncStorage.setItem(
         `${this.metadataPrefix}${key}`,
-        JSON.stringify(metadata)
+        JSON.stringify(metadata),
       );
 
       structuredLogger.debug('Secure data stored', {
@@ -79,8 +87,14 @@ class SecureStorageService {
         hasExpiration: !!metadata.expiresAt,
       });
     } catch (error) {
-      structuredLogger.error('Failed to store secure data', { key: this.hashKey(key) }, error as Error);
-      throw new Error(`Failed to store secure data for key: ${this.hashKey(key)}`);
+      structuredLogger.error(
+        'Failed to store secure data',
+        { key: this.hashKey(key) },
+        error as Error,
+      );
+      throw new Error(
+        `Failed to store secure data for key: ${this.hashKey(key)}`,
+      );
     }
   }
 
@@ -97,8 +111,10 @@ class SecureStorageService {
       }
 
       // Retrieve from Keychain
-      const credentials = await Keychain.getInternetCredentials(`${this.options.service}:${key}`);
-      
+      const credentials = await Keychain.getInternetCredentials(
+        `${this.options.service}:${key}`,
+      );
+
       if (!credentials || credentials === false) {
         return null;
       }
@@ -106,7 +122,11 @@ class SecureStorageService {
       const deserializedValue = JSON.parse(credentials.password) as T;
       return deserializedValue;
     } catch (error) {
-      structuredLogger.error('Failed to retrieve secure data', { key: this.hashKey(key) }, error as Error);
+      structuredLogger.error(
+        'Failed to retrieve secure data',
+        { key: this.hashKey(key) },
+        error as Error,
+      );
       return null;
     }
   }
@@ -114,13 +134,19 @@ class SecureStorageService {
   /**
    * Store non-sensitive data in AsyncStorage
    */
-  async set<T>(key: string, value: T, options?: SecureStorageOptions): Promise<void> {
+  async set<T>(
+    key: string,
+    value: T,
+    options?: SecureStorageOptions,
+  ): Promise<void> {
     try {
       const finalOptions = { ...this.options, ...options };
       const metadata: StorageMetadata = {
         createdAt: Date.now(),
         updatedAt: Date.now(),
-        expiresAt: finalOptions.expirationTime ? Date.now() + finalOptions.expirationTime : undefined,
+        expiresAt: finalOptions.expirationTime
+          ? Date.now() + finalOptions.expirationTime
+          : undefined,
         version: '1.0',
         encrypted: false,
       };
@@ -138,7 +164,11 @@ class SecureStorageService {
         hasExpiration: !!metadata.expiresAt,
       });
     } catch (error) {
-      structuredLogger.error('Failed to store data', { key: this.hashKey(key) }, error as Error);
+      structuredLogger.error(
+        'Failed to store data',
+        { key: this.hashKey(key) },
+        error as Error,
+      );
       throw new Error(`Failed to store data for key: ${this.hashKey(key)}`);
     }
   }
@@ -164,7 +194,11 @@ class SecureStorageService {
 
       return data as T;
     } catch (error) {
-      structuredLogger.error('Failed to retrieve data', { key: this.hashKey(key) }, error as Error);
+      structuredLogger.error(
+        'Failed to retrieve data',
+        { key: this.hashKey(key) },
+        error as Error,
+      );
       return null;
     }
   }
@@ -174,9 +208,11 @@ class SecureStorageService {
    */
   async removeSecure(key: string): Promise<boolean> {
     try {
-      const result = await Keychain.resetInternetCredentials(`${this.options.service}:${key}`);
+      const result = await Keychain.resetInternetCredentials(
+        `${this.options.service}:${key}`,
+      );
       await AsyncStorage.removeItem(`${this.metadataPrefix}${key}`);
-      
+
       structuredLogger.debug('Secure data removed', {
         key: this.hashKey(key),
         success: result,
@@ -184,7 +220,11 @@ class SecureStorageService {
 
       return result;
     } catch (error) {
-      structuredLogger.error('Failed to remove secure data', { key: this.hashKey(key) }, error as Error);
+      structuredLogger.error(
+        'Failed to remove secure data',
+        { key: this.hashKey(key) },
+        error as Error,
+      );
       return false;
     }
   }
@@ -197,7 +237,11 @@ class SecureStorageService {
       await AsyncStorage.removeItem(key);
       return true;
     } catch (error) {
-      structuredLogger.error('Failed to remove data', { key: this.hashKey(key) }, error as Error);
+      structuredLogger.error(
+        'Failed to remove data',
+        { key: this.hashKey(key) },
+        error as Error,
+      );
       return false;
     }
   }
@@ -241,7 +285,9 @@ class SecureStorageService {
    */
   private async getMetadata(key: string): Promise<StorageMetadata | null> {
     try {
-      const metadataStr = await AsyncStorage.getItem(`${this.metadataPrefix}${key}`);
+      const metadataStr = await AsyncStorage.getItem(
+        `${this.metadataPrefix}${key}`,
+      );
       return metadataStr ? JSON.parse(metadataStr) : null;
     } catch (error) {
       return null;
@@ -293,13 +339,17 @@ class SecureStorageService {
   }> {
     try {
       const allKeys = await AsyncStorage.getAllKeys();
-      const metadataKeys = allKeys.filter(key => key.startsWith(this.metadataPrefix));
-      
+      const metadataKeys = allKeys.filter(key =>
+        key.startsWith(this.metadataPrefix),
+      );
+
       let expiredKeys = 0;
       let secureKeys = 0;
 
       for (const metaKey of metadataKeys) {
-        const metadata = await this.getMetadata(metaKey.replace(this.metadataPrefix, ''));
+        const metadata = await this.getMetadata(
+          metaKey.replace(this.metadataPrefix, ''),
+        );
         if (metadata) {
           if (metadata.encrypted) {
             secureKeys++;
@@ -342,13 +392,15 @@ class SecureStorageService {
   async cleanupExpired(): Promise<number> {
     try {
       const allKeys = await AsyncStorage.getAllKeys();
-      const metadataKeys = allKeys.filter(key => key.startsWith(this.metadataPrefix));
+      const metadataKeys = allKeys.filter(key =>
+        key.startsWith(this.metadataPrefix),
+      );
       let cleanedCount = 0;
 
       for (const metaKey of metadataKeys) {
         const actualKey = metaKey.replace(this.metadataPrefix, '');
         const metadata = await this.getMetadata(actualKey);
-        
+
         if (metadata?.expiresAt && Date.now() > metadata.expiresAt) {
           if (metadata.encrypted) {
             await this.removeSecure(actualKey);
@@ -365,7 +417,11 @@ class SecureStorageService {
 
       return cleanedCount;
     } catch (error) {
-      structuredLogger.error('Failed to cleanup expired entries', {}, error as Error);
+      structuredLogger.error(
+        'Failed to cleanup expired entries',
+        {},
+        error as Error,
+      );
       return 0;
     }
   }

@@ -73,10 +73,10 @@ describe('OAuth Flow Integration Tests', () => {
       // This test verifies the integration points work together
       // Note: Full rendering of AuthScreen requires extensive mocking
       // Component-level tests are in GoogleSignInButton.test.tsx
-      
+
       // Verify OAuth service functions exist
       expect(typeof useAuth).toBe('function');
-      
+
       // Note: Actual OAuth flow requires:
       // 1. User interaction with Clerk OAuth
       // 2. Deep linking callback
@@ -100,10 +100,10 @@ describe('OAuth Flow Integration Tests', () => {
       // This test verifies the integration points work together
       // Note: Full rendering of AuthScreen requires extensive mocking
       // Component-level tests are in AppleSignInButton.test.tsx
-      
+
       // Verify OAuth service functions exist
       expect(typeof useAuth).toBe('function');
-      
+
       // Note: Actual OAuth flow requires:
       // 1. User interaction with native Apple Sign In (iOS) or web OAuth (Android)
       // 2. Deep linking callback
@@ -136,7 +136,7 @@ describe('OAuth Flow Integration Tests', () => {
       // This test verifies error handling integration
       // Actual error scenarios are tested in unit tests (oauthErrorHandler.test.ts)
       // Component error handling is tested in GoogleSignInButton.test.tsx and AppleSignInButton.test.tsx
-      
+
       // Verify error handling utilities are available
       expect(handleOAuthError).toBeDefined();
     });
@@ -146,7 +146,6 @@ describe('OAuth Flow Integration Tests', () => {
     test('OAuth callback URLs are handled correctly', () => {
       // Deep linking is tested in clerkDeepLink.test.ts
       // This test verifies integration with AuthContext
-
       // Deep linking handling is tested in:
       // - src/__tests__/utils/clerkDeepLink.test.ts
       // - Integration with App.tsx requires manual testing
@@ -157,7 +156,6 @@ describe('OAuth Flow Integration Tests', () => {
     test('new OAuth users see profile completion screen', () => {
       // Profile completion is tested in profileCompletion.test.tsx
       // This test verifies integration with OAuth flow
-
       // Profile completion flow:
       // 1. User signs in with OAuth
       // 2. Clerk authenticates user
@@ -168,4 +166,3 @@ describe('OAuth Flow Integration Tests', () => {
     });
   });
 });
-

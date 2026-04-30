@@ -1439,6 +1439,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           difficulty: 1,
           theme: resolvedSetup.genre,
           character: resolvedSetup.character,
+          characterName: resolvedSetup.characterName,
           setting: resolvedSetup.setting,
         },
       );
@@ -1867,6 +1868,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         userId: effectiveUserId,
         storyId: currentSession?.id || undefined, // Use session ID as story ID
         genre: preferredGenre,
+        characterName: currentSession?.metadata?.characterName,
       });
 
       if (aiResponse.success && aiResponse.story) {
@@ -3568,88 +3570,70 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 </View>
 
                 <View style={styles.completionOptionsButtons}>
-                  <TouchableOpacity
-                    style={styles.completionOptionButton}
-                    onPress={handleViewStory}
-                  >
-                    <Text style={styles.completionOptionText}>
-                      📖 View Story
-                    </Text>
-                  </TouchableOpacity>
+                  <InkButton variant="foxglove" onPress={handleViewStory}>
+                    📖 View Story
+                  </InkButton>
 
-                  <TouchableOpacity
-                    style={styles.completionOptionButton}
+                  <InkButton
+                    variant="foxglove"
                     onPress={() => {
                       setShowCompletionOptions(false);
                       handleDownloadStory();
                     }}
                   >
-                    <Text style={styles.completionOptionText}>
-                      ⬇️ Download Story
-                    </Text>
-                  </TouchableOpacity>
+                    ⬇️ Download Story
+                  </InkButton>
 
                   {generatedImageUrl ||
                   currentSession?.generated_image_url ||
                   currentSession?.supabase_image_url ? (
-                    <TouchableOpacity
-                      style={styles.completionOptionButton}
+                    <InkButton
+                      variant="foxglove"
                       onPress={() => {
                         setShowCompletionOptions(false);
                         setShowImageDisplayModal(true);
                       }}
                     >
-                      <Text style={styles.completionOptionText}>
-                        🖼️ View Generated Image
-                      </Text>
-                    </TouchableOpacity>
+                      🖼️ View Generated Image
+                    </InkButton>
                   ) : (
-                    <TouchableOpacity
-                      style={styles.completionOptionButton}
+                    <InkButton
+                      variant="foxglove"
                       onPress={handleImageGeneration}
                     >
-                      <Text style={styles.completionOptionText}>
-                        🎨 Generate Image
-                      </Text>
-                    </TouchableOpacity>
+                      🎨 Generate Image
+                    </InkButton>
                   )}
 
                   {(generatedImageUrl ||
                     currentSession?.generated_image_url ||
                     currentSession?.supabase_image_url) && (
-                    <TouchableOpacity
-                      style={styles.completionOptionButton}
+                    <InkButton
+                      variant="foxglove"
                       onPress={handleSaveImageToPhotos}
                       disabled={isSavingToPhotos}
                       testID="save-image-to-photos-button"
                     >
                       {isSavingToPhotos ? (
-                        <View
-                          style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 8,
-                          }}
-                        >
-                          <ActivityIndicator size="small" color="#ffffff" />
-                          <Text style={styles.completionOptionText}>
+                        <View style={styles.completionInkButtonLoading}>
+                          <ActivityIndicator
+                            size="small"
+                            color={theme.colors.paper.cream}
+                          />
+                          <Text style={styles.completionInkButtonLabel}>
                             Saving to Photos...
                           </Text>
                         </View>
                       ) : (
-                        <Text style={styles.completionOptionText}>
+                        <Text style={styles.completionInkButtonLabel}>
                           📸 Save Image to Photos
                         </Text>
                       )}
-                    </TouchableOpacity>
+                    </InkButton>
                   )}
 
-                  <TouchableOpacity
-                    style={[
-                      styles.completionOptionButton,
-                      styles.secondaryOptionButton,
-                    ]}
+                  <InkButton
+                    variant="moss"
                     onPress={() => {
                       exitGame();
                       setTimeout(() => {
@@ -3657,22 +3641,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                       }, 500);
                     }}
                   >
-                    <Text style={styles.completionOptionText}>
-                      ✨ New Story
-                    </Text>
-                  </TouchableOpacity>
+                    ✨ New Story
+                  </InkButton>
 
-                  <TouchableOpacity
-                    style={[
-                      styles.completionOptionButton,
-                      styles.exitOptionButton,
-                    ]}
-                    onPress={() => exitGame()}
-                  >
-                    <Text style={styles.completionOptionText}>
-                      🏠 Main Menu
-                    </Text>
-                  </TouchableOpacity>
+                  <InkButton variant="ghost" onPress={() => exitGame()}>
+                    🏠 Main Menu
+                  </InkButton>
                 </View>
               </View>
             </ScrollView>
@@ -4892,76 +4866,58 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   completionOptionsContainer: {
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.colors.paper.card,
     borderRadius: 16,
     padding: 24,
     width: '100%',
     maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 16,
-    borderWidth: 3,
-    borderColor: '#4CAF50',
+    ...theme.shadows.lift,
+    borderWidth: 1.5,
+    borderColor: theme.colors.paper.edge,
   },
   completionOptionsHeader: {
     alignItems: 'center',
     marginBottom: 20,
   },
   completionTitle: {
+    fontFamily: theme.typography.fontFamily.serifItalic,
     fontSize: 30,
-    fontWeight: 'bold',
-    color: '#4CAF50',
+    color: theme.colors.ink.base,
     marginBottom: 12,
     textAlign: 'center',
   },
   completionSubtitle: {
+    fontFamily: theme.typography.fontFamily.uiRegular,
     fontSize: 19,
-    color: '#333',
+    color: theme.colors.ink.soft,
     textAlign: 'center',
     marginBottom: 20,
     lineHeight: 24,
-    fontWeight: '500',
   },
   completionStats: {
     alignItems: 'center',
     gap: 4,
   },
   completionStat: {
+    fontFamily: theme.typography.fontFamily.uiMedium,
     fontSize: 16,
-    color: '#666',
-    fontWeight: '600',
+    color: theme.colors.ink.faint,
   },
   completionOptionsButtons: {
     gap: 16,
     marginTop: 8,
   },
-  completionOptionButton: {
-    backgroundColor: '#4CAF50',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
+  completionInkButtonLoading: {
+    flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(76, 175, 80, 0.3)',
+    justifyContent: 'center',
+    gap: 8,
   },
-  secondaryOptionButton: {
-    backgroundColor: '#2196F3',
-  },
-  exitOptionButton: {
-    backgroundColor: '#666',
-  },
-  completionOptionText: {
-    color: '#ffffff',
-    fontSize: 19,
-    fontWeight: 'bold',
-    textAlign: 'center',
+  completionInkButtonLabel: {
+    fontFamily: theme.typography.fontFamily.uiSemibold,
+    fontSize: 17,
+    letterSpacing: -0.2,
+    color: theme.colors.paper.cream,
   },
   // Image Generation Modal Overlay Styles
   imageGenerationModalOverlay: {

@@ -1,16 +1,29 @@
 /**
  * Dynamic Resource Manager Tests
- * 
+ *
  * Comprehensive test suite for Task 4.1: Dynamic Resource Management
  */
 
-import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+import {
+  jest,
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+} from '@jest/globals';
 import DeviceInfo from 'react-native-device-info';
 import { AppState, Platform } from 'react-native';
 
-import DynamicResourceManager, { dynamicResourceManager } from '../../services/resourceManager';
+import DynamicResourceManager, {
+  dynamicResourceManager,
+} from '../../services/resourceManager';
 import { performanceOptimizer } from '../../services/performanceOptimizer';
-import { SkillManager, ResourceOptimizationResult, SkillResult } from '../../types/claudeSkills';
+import {
+  SkillManager,
+  ResourceOptimizationResult,
+  SkillResult,
+} from '../../types/claudeSkills';
 import { structuredLogger } from '../../utils/logger';
 
 // Mock dependencies
@@ -27,18 +40,22 @@ jest.mock('../../services/performanceOptimizer');
 jest.mock('../../utils/logger');
 jest.mock('@react-native-community/netinfo', () => ({
   default: {
-    fetch: jest.fn(() => Promise.resolve({
-      isConnected: true,
-      type: 'wifi',
-      details: {
-        cellularGeneration: '4g'
-      }
-    }))
-  }
+    fetch: jest.fn(() =>
+      Promise.resolve({
+        isConnected: true,
+        type: 'wifi',
+        details: {
+          cellularGeneration: '4g',
+        },
+      }),
+    ),
+  },
 }));
 
 const mockDeviceInfo = DeviceInfo as jest.Mocked<typeof DeviceInfo>;
-const mockPerformanceOptimizer = performanceOptimizer as jest.Mocked<typeof performanceOptimizer>;
+const mockPerformanceOptimizer = performanceOptimizer as jest.Mocked<
+  typeof performanceOptimizer
+>;
 const mockLogger = structuredLogger as jest.Mocked<typeof structuredLogger>;
 
 describe('DynamicResourceManager', () => {
@@ -48,10 +65,10 @@ describe('DynamicResourceManager', () => {
   beforeEach(() => {
     // Reset all mocks
     jest.clearAllMocks();
-    
+
     // Create new instance for each test
     resourceManager = new DynamicResourceManager();
-    
+
     // Mock SkillManager
     mockSkillManager = {
       initialize: jest.fn(),
@@ -69,7 +86,9 @@ describe('DynamicResourceManager', () => {
     mockDeviceInfo.getAvailableMemory.mockResolvedValue(2 * 1024 * 1024 * 1024);
     mockDeviceInfo.getTotalMemory.mockResolvedValue(4 * 1024 * 1024 * 1024);
     mockDeviceInfo.getUsedMemory.mockResolvedValue(2 * 1024 * 1024 * 1024);
-    mockDeviceInfo.getFreeDiskStorage.mockResolvedValue(10 * 1024 * 1024 * 1024);
+    mockDeviceInfo.getFreeDiskStorage.mockResolvedValue(
+      10 * 1024 * 1024 * 1024,
+    );
 
     // Setup performance optimizer mocks
     mockPerformanceOptimizer.getPerformanceLevel.mockReturnValue('medium');
@@ -110,19 +129,23 @@ describe('DynamicResourceManager', () => {
         expect.objectContaining({
           initialStrategy: 'Balanced',
           deviceConditions: expect.any(Object),
-        })
+        }),
       );
     });
 
     it('should handle initialization failure gracefully', async () => {
-      mockDeviceInfo.getBatteryLevel.mockRejectedValue(new Error('Device info failure'));
+      mockDeviceInfo.getBatteryLevel.mockRejectedValue(
+        new Error('Device info failure'),
+      );
 
-      await expect(resourceManager.initialize(mockSkillManager)).rejects.toThrow();
-      
+      await expect(
+        resourceManager.initialize(mockSkillManager),
+      ).rejects.toThrow();
+
       expect(mockLogger.error).toHaveBeenCalledWith(
         'Failed to initialize Dynamic Resource Manager',
         {},
-        expect.any(Error)
+        expect.any(Error),
       );
     });
 
@@ -134,7 +157,7 @@ describe('DynamicResourceManager', () => {
 
       expect(mockLogger.info).not.toHaveBeenCalledWith(
         'Dynamic Resource Manager initialized',
-        expect.any(Object)
+        expect.any(Object),
       );
     });
   });
@@ -161,7 +184,7 @@ describe('DynamicResourceManager', () => {
     it('should calculate memory pressure levels correctly', async () => {
       // Test high memory pressure
       mockDeviceInfo.getUsedMemory.mockResolvedValue(3.5 * 1024 * 1024 * 1024); // 87.5% of 4GB
-      
+
       const conditions = await resourceManager.assessDeviceConditions();
       expect(conditions.memoryPressure).toBe('high');
     });
@@ -169,7 +192,7 @@ describe('DynamicResourceManager', () => {
     it('should determine battery state correctly', async () => {
       // Test low battery
       mockDeviceInfo.getBatteryLevel.mockResolvedValue(0.15);
-      
+
       const conditions = await resourceManager.assessDeviceConditions();
       expect(conditions.batteryState).toBe('low');
 
@@ -180,8 +203,12 @@ describe('DynamicResourceManager', () => {
     });
 
     it('should handle device info errors gracefully', async () => {
-      mockDeviceInfo.getBatteryLevel.mockRejectedValue(new Error('Battery info unavailable'));
-      mockDeviceInfo.getTotalMemory.mockRejectedValue(new Error('Memory info unavailable'));
+      mockDeviceInfo.getBatteryLevel.mockRejectedValue(
+        new Error('Battery info unavailable'),
+      );
+      mockDeviceInfo.getTotalMemory.mockRejectedValue(
+        new Error('Memory info unavailable'),
+      );
 
       const conditions = await resourceManager.assessDeviceConditions();
 
@@ -246,7 +273,7 @@ describe('DynamicResourceManager', () => {
         expect.objectContaining({
           deviceInfo: expect.any(Object),
           currentUsage: expect.any(Object),
-        })
+        }),
       );
 
       expect(mockLogger.info).toHaveBeenCalledWith(
@@ -254,12 +281,14 @@ describe('DynamicResourceManager', () => {
         expect.objectContaining({
           recommendations: 1,
           optimizations: 1,
-        })
+        }),
       );
     });
 
     it('should handle Claude optimization failures gracefully', async () => {
-      mockSkillManager.executeSkill.mockRejectedValue(new Error('Claude API error'));
+      mockSkillManager.executeSkill.mockRejectedValue(
+        new Error('Claude API error'),
+      );
 
       const result = await resourceManager.requestClaudeOptimization();
 
@@ -267,7 +296,7 @@ describe('DynamicResourceManager', () => {
       expect(mockLogger.error).toHaveBeenCalledWith(
         'Claude optimization request failed',
         {},
-        expect.any(Error)
+        expect.any(Error),
       );
     });
 
@@ -277,7 +306,11 @@ describe('DynamicResourceManager', () => {
         data: {
           recommendations: [],
           optimizations: [],
-          estimatedImpact: { memorySavings: 0, batterySavings: 0, performanceImprovement: 0 },
+          estimatedImpact: {
+            memorySavings: 0,
+            batterySavings: 0,
+            performanceImprovement: 0,
+          },
         },
         executionTimeMs: 100,
         skillType: 'ResourceOptimizationSkill',
@@ -326,7 +359,7 @@ describe('DynamicResourceManager', () => {
           memoryLimit: 150,
           maxOperations: 3,
           backgroundTasks: true,
-        })
+        }),
       );
     });
 
@@ -368,7 +401,10 @@ describe('DynamicResourceManager', () => {
 
     it('should perform aggressive cleanup for critical memory pressure', async () => {
       // Mock getCurrentMemoryUsage to return high value
-      const getCurrentMemoryUsageSpy = jest.spyOn(resourceManager as any, 'getCurrentMemoryUsage');
+      const getCurrentMemoryUsageSpy = jest.spyOn(
+        resourceManager as any,
+        'getCurrentMemoryUsage',
+      );
       getCurrentMemoryUsageSpy.mockResolvedValue(200 * 1024 * 1024); // 200MB
 
       await resourceManager.performAdaptiveMemoryManagement();
@@ -379,12 +415,15 @@ describe('DynamicResourceManager', () => {
         expect.objectContaining({
           memoryUsage: 200 * 1024 * 1024,
           pressureRatio: expect.any(Number),
-        })
+        }),
       );
     });
 
     it('should perform moderate cleanup for warning level memory pressure', async () => {
-      const getCurrentMemoryUsageSpy = jest.spyOn(resourceManager as any, 'getCurrentMemoryUsage');
+      const getCurrentMemoryUsageSpy = jest.spyOn(
+        resourceManager as any,
+        'getCurrentMemoryUsage',
+      );
       getCurrentMemoryUsageSpy.mockResolvedValue(90 * 1024 * 1024); // 90MB
 
       await resourceManager.performAdaptiveMemoryManagement();
@@ -394,20 +433,25 @@ describe('DynamicResourceManager', () => {
         expect.objectContaining({
           memoryUsage: 90 * 1024 * 1024,
           pressureRatio: expect.any(Number),
-        })
+        }),
       );
     });
 
     it('should handle memory management errors gracefully', async () => {
-      const getCurrentMemoryUsageSpy = jest.spyOn(resourceManager as any, 'getCurrentMemoryUsage');
-      getCurrentMemoryUsageSpy.mockRejectedValue(new Error('Memory info unavailable'));
+      const getCurrentMemoryUsageSpy = jest.spyOn(
+        resourceManager as any,
+        'getCurrentMemoryUsage',
+      );
+      getCurrentMemoryUsageSpy.mockRejectedValue(
+        new Error('Memory info unavailable'),
+      );
 
       await resourceManager.performAdaptiveMemoryManagement();
 
       expect(mockLogger.error).toHaveBeenCalledWith(
         'Adaptive memory management failed',
         {},
-        expect.any(Error)
+        expect.any(Error),
       );
     });
   });
@@ -433,7 +477,7 @@ describe('DynamicResourceManager', () => {
         expect.objectContaining({
           batteryLevel: 0.05,
           strategy: 'Emergency Battery',
-        })
+        }),
       );
     });
 
@@ -447,19 +491,21 @@ describe('DynamicResourceManager', () => {
         expect.objectContaining({
           batteryLevel: 0.15,
           reducedOperations: expect.any(Number),
-        })
+        }),
       );
     });
 
     it('should handle battery optimization errors gracefully', async () => {
-      mockDeviceInfo.getBatteryLevel.mockRejectedValue(new Error('Battery info unavailable'));
+      mockDeviceInfo.getBatteryLevel.mockRejectedValue(
+        new Error('Battery info unavailable'),
+      );
 
       await resourceManager.applyBatteryOptimizations();
 
       expect(mockLogger.error).toHaveBeenCalledWith(
         'Battery optimization failed',
         {},
-        expect.any(Error)
+        expect.any(Error),
       );
     });
   });
@@ -470,12 +516,15 @@ describe('DynamicResourceManager', () => {
     });
 
     it('should handle app going to background', async () => {
-      const addEventListenerSpy = AppState.addEventListener as jest.MockedFunction<typeof AppState.addEventListener>;
-      
+      const addEventListenerSpy =
+        AppState.addEventListener as jest.MockedFunction<
+          typeof AppState.addEventListener
+        >;
+
       // Get the callback that was registered
       const calls = addEventListenerSpy.mock.calls;
       const changeCallback = calls.find(call => call[0] === 'change')?.[1];
-      
+
       if (changeCallback) {
         // Simulate app going to background
         await changeCallback('background');
@@ -488,15 +537,18 @@ describe('DynamicResourceManager', () => {
     });
 
     it('should handle app becoming active', async () => {
-      const addEventListenerSpy = AppState.addEventListener as jest.MockedFunction<typeof AppState.addEventListener>;
-      
+      const addEventListenerSpy =
+        AppState.addEventListener as jest.MockedFunction<
+          typeof AppState.addEventListener
+        >;
+
       const calls = addEventListenerSpy.mock.calls;
       const changeCallback = calls.find(call => call[0] === 'change')?.[1];
-      
+
       if (changeCallback) {
         // First go to background
         await changeCallback('background');
-        
+
         // Then become active
         await changeCallback('active');
 
@@ -550,7 +602,11 @@ describe('DynamicResourceManager', () => {
         data: {
           recommendations: [],
           optimizations: [],
-          estimatedImpact: { memorySavings: 0, batterySavings: 0, performanceImprovement: 0 },
+          estimatedImpact: {
+            memorySavings: 0,
+            batterySavings: 0,
+            performanceImprovement: 0,
+          },
         },
         executionTimeMs: 100,
         skillType: 'ResourceOptimizationSkill',
@@ -578,11 +634,13 @@ describe('DynamicResourceManager', () => {
 
     it('should handle destroyed state', () => {
       resourceManager.destroy();
-      
+
       const conditions = resourceManager.getCurrentConditions();
       const strategy = resourceManager.getCurrentStrategy();
-      
-      expect(mockLogger.info).toHaveBeenCalledWith('Dynamic Resource Manager destroyed');
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        'Dynamic Resource Manager destroyed',
+      );
     });
   });
 });

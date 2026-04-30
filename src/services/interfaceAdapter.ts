@@ -1,12 +1,16 @@
 /**
  * Interface Adapter Service
- * 
+ *
  * Dynamic UI optimization and engagement-driven interface improvements
  * Task 7.1: User Behavior Analysis Implementation - Interface adaptation strategies
  */
 
 import { structuredLogger } from '../utils/logger';
-import { behaviorAnalytics, AdaptationRecommendation, BehaviorPattern } from './behaviorAnalytics';
+import {
+  behaviorAnalytics,
+  AdaptationRecommendation,
+  BehaviorPattern,
+} from './behaviorAnalytics';
 import { userPreferencesService } from './userPreferences';
 import { GradeLevel } from '../types/database';
 
@@ -61,7 +65,12 @@ export interface NavigationOptimization {
 }
 
 export interface ReadingComprehensionFeature {
-  type: 'highlighting' | 'pacing' | 'vocabulary' | 'structure' | 'audio_support';
+  type:
+    | 'highlighting'
+    | 'pacing'
+    | 'vocabulary'
+    | 'structure'
+    | 'audio_support';
   level: 'basic' | 'intermediate' | 'advanced';
   enabled: boolean;
   effectiveness: number; // 0-1
@@ -110,22 +119,26 @@ class InterfaceAdapterService {
   async initialize(gradeLevel: GradeLevel): Promise<void> {
     try {
       this.currentGradeLevel = gradeLevel;
-      
+
       // Establish engagement baseline
       await this.establishEngagementBaseline();
-      
+
       // Start optimization monitoring
       this.startOptimizationMonitoring();
-      
+
       this.isInitialized = true;
-      
+
       structuredLogger.info('Interface adapter service initialized', {
         gradeLevel,
         realTimeAdaptation: this.config.enableRealTimeAdaptation,
         maxAdaptations: this.config.maxActiveAdaptations,
       });
     } catch (error) {
-      structuredLogger.error('Failed to initialize interface adapter', {}, error as Error);
+      structuredLogger.error(
+        'Failed to initialize interface adapter',
+        {},
+        error as Error,
+      );
       throw error;
     }
   }
@@ -133,15 +146,18 @@ class InterfaceAdapterService {
   /**
    * Apply interface adaptations based on behavior patterns
    */
-  async applyAdaptationsFromPatterns(patterns: BehaviorPattern[]): Promise<UIAdaptation[]> {
+  async applyAdaptationsFromPatterns(
+    patterns: BehaviorPattern[],
+  ): Promise<UIAdaptation[]> {
     const appliedAdaptations: UIAdaptation[] = [];
-    
+
     for (const pattern of patterns) {
-      if (pattern.confidence >= this.config.adaptationConfidenceThreshold && 
-          this.activeAdaptations.size < this.config.maxActiveAdaptations) {
-        
+      if (
+        pattern.confidence >= this.config.adaptationConfidenceThreshold &&
+        this.activeAdaptations.size < this.config.maxActiveAdaptations
+      ) {
         const adaptations = await this.createAdaptationsFromPattern(pattern);
-        
+
         for (const adaptation of adaptations) {
           const success = await this.applyAdaptation(adaptation);
           if (success) {
@@ -150,41 +166,46 @@ class InterfaceAdapterService {
         }
       }
     }
-    
+
     return appliedAdaptations;
   }
 
   /**
    * Apply interface adaptations based on recommendations
    */
-  async applyRecommendations(recommendations: AdaptationRecommendation[]): Promise<UIAdaptation[]> {
+  async applyRecommendations(
+    recommendations: AdaptationRecommendation[],
+  ): Promise<UIAdaptation[]> {
     const appliedAdaptations: UIAdaptation[] = [];
-    
+
     // Sort by priority and confidence
     const sortedRecommendations = recommendations.sort((a, b) => {
       const priorityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
-      const priorityDiff = priorityOrder[b.priority] - priorityOrder[a.priority];
+      const priorityDiff =
+        priorityOrder[b.priority] - priorityOrder[a.priority];
       if (priorityDiff !== 0) return priorityDiff;
       return b.confidence - a.confidence;
     });
-    
+
     for (const recommendation of sortedRecommendations) {
       if (this.activeAdaptations.size >= this.config.maxActiveAdaptations) {
         break;
       }
-      
-      const adaptation = await this.createAdaptationFromRecommendation(recommendation);
+
+      const adaptation = await this.createAdaptationFromRecommendation(
+        recommendation,
+      );
       if (adaptation) {
         const success = await this.applyAdaptation(adaptation);
         if (success) {
           appliedAdaptations.push(adaptation);
-          
+
           // Mark recommendation as applied in behavior analytics
           behaviorAnalytics.applyAdaptation(recommendation.id);
         }
       }
     }
-    
+
     return appliedAdaptations;
   }
 
@@ -193,31 +214,42 @@ class InterfaceAdapterService {
    */
   async optimizeNavigationFlows(): Promise<NavigationOptimization[]> {
     const optimizations: NavigationOptimization[] = [];
-    
+
     try {
       // Get behavior patterns related to navigation
-      const navigationPatterns = behaviorAnalytics.getBehaviorPatterns('navigation_difficulty');
-      
+      const navigationPatterns = behaviorAnalytics.getBehaviorPatterns(
+        'navigation_difficulty',
+      );
+
       for (const pattern of navigationPatterns) {
         const optimization = await this.analyzeNavigationPattern(pattern);
         if (optimization && optimization.reductionInSteps > 0) {
           optimizations.push(optimization);
-          
+
           // Apply navigation optimization
           await this.implementNavigationOptimization(optimization);
         }
       }
-      
+
       structuredLogger.info('Navigation flow optimization completed', {
         optimizationsFound: optimizations.length,
-        totalStepsReduced: optimizations.reduce((sum, opt) => sum + opt.reductionInSteps, 0),
-        estimatedTimeSaved: optimizations.reduce((sum, opt) => sum + opt.estimatedTimeSaving, 0),
+        totalStepsReduced: optimizations.reduce(
+          (sum, opt) => sum + opt.reductionInSteps,
+          0,
+        ),
+        estimatedTimeSaved: optimizations.reduce(
+          (sum, opt) => sum + opt.estimatedTimeSaving,
+          0,
+        ),
       });
-      
     } catch (error) {
-      structuredLogger.error('Navigation optimization failed', {}, error as Error);
+      structuredLogger.error(
+        'Navigation optimization failed',
+        {},
+        error as Error,
+      );
     }
-    
+
     return optimizations;
   }
 
@@ -226,34 +258,41 @@ class InterfaceAdapterService {
    */
   async optimizeReadingComprehension(): Promise<ReadingComprehensionFeature[]> {
     const features: ReadingComprehensionFeature[] = [];
-    
+
     try {
       // Get user preferences to understand reading patterns
       const preferencesData = userPreferencesService.getPreferencesData();
       if (!preferencesData) return features;
-      
+
       // Analyze reading-related interactions for this grade level
-      const readingFeatures = await this.analyzeReadingPatterns(preferencesData);
-      
+      const readingFeatures = await this.analyzeReadingPatterns(
+        preferencesData,
+      );
+
       features.push(...readingFeatures);
-      
+
       // Apply reading comprehension optimizations
       for (const feature of features) {
         if (feature.enabled && feature.gradeAppropriate) {
           await this.implementReadingFeature(feature);
         }
       }
-      
+
       structuredLogger.info('Reading comprehension optimization completed', {
         featuresOptimized: features.filter(f => f.enabled).length,
         gradeLevel: this.currentGradeLevel,
-        avgEffectiveness: features.reduce((sum, f) => sum + f.effectiveness, 0) / Math.max(features.length, 1),
+        avgEffectiveness:
+          features.reduce((sum, f) => sum + f.effectiveness, 0) /
+          Math.max(features.length, 1),
       });
-      
     } catch (error) {
-      structuredLogger.error('Reading comprehension optimization failed', {}, error as Error);
+      structuredLogger.error(
+        'Reading comprehension optimization failed',
+        {},
+        error as Error,
+      );
     }
-    
+
     return features;
   }
 
@@ -263,7 +302,7 @@ class InterfaceAdapterService {
   async measureInterfacePerformance(): Promise<EngagementMetrics> {
     try {
       const usageMetrics = behaviorAnalytics.getUsageMetrics();
-      
+
       // Calculate current engagement metrics
       const currentMetrics: EngagementMetrics = {
         sessionDuration: usageMetrics.avgSessionDuration,
@@ -274,18 +313,22 @@ class InterfaceAdapterService {
         satisfactionScore: await this.calculateSatisfactionScore(),
         retentionIndicator: await this.calculateRetentionIndicator(),
       };
-      
+
       this.currentEngagement = currentMetrics;
-      
+
       // Compare with baseline if available
       if (this.engagementBaseline) {
         await this.evaluateAdaptationEffectiveness(currentMetrics);
       }
-      
+
       return currentMetrics;
     } catch (error) {
-      structuredLogger.error('Failed to measure interface performance', {}, error as Error);
-      
+      structuredLogger.error(
+        'Failed to measure interface performance',
+        {},
+        error as Error,
+      );
+
       // Return default metrics
       return {
         sessionDuration: 0,
@@ -303,8 +346,9 @@ class InterfaceAdapterService {
    * Get current active adaptations
    */
   getActiveAdaptations(): UIAdaptation[] {
-    return Array.from(this.activeAdaptations.values())
-      .sort((a, b) => b.appliedAt - a.appliedAt);
+    return Array.from(this.activeAdaptations.values()).sort(
+      (a, b) => b.appliedAt - a.appliedAt,
+    );
   }
 
   /**
@@ -315,27 +359,31 @@ class InterfaceAdapterService {
     if (!adaptation || !adaptation.rollbackData) {
       return false;
     }
-    
+
     try {
       // Apply rollback changes
       for (const change of adaptation.rollbackData) {
         await this.applyUIChange(change);
       }
-      
+
       // Mark as inactive and move to history
       adaptation.isActive = false;
       this.activeAdaptations.delete(adaptationId);
       this.adaptationHistory.push(adaptation);
-      
+
       structuredLogger.info('Adaptation rolled back', {
         adaptationId,
         component: adaptation.component,
         type: adaptation.adaptationType,
       });
-      
+
       return true;
     } catch (error) {
-      structuredLogger.error('Failed to rollback adaptation', { adaptationId }, error as Error);
+      structuredLogger.error(
+        'Failed to rollback adaptation',
+        { adaptationId },
+        error as Error,
+      );
       return false;
     }
   }
@@ -343,94 +391,112 @@ class InterfaceAdapterService {
   /**
    * Get adaptation effectiveness metrics
    */
-  getAdaptationEffectiveness(): { 
-    overall: number; 
+  getAdaptationEffectiveness(): {
+    overall: number;
     byType: Record<string, number>;
     recommendations: string[];
   } {
     const activeAdaptations = this.getActiveAdaptations();
     const effectiveAdaptations = activeAdaptations.filter(
-      a => a.effectiveness && a.effectiveness.userSatisfactionDelta > 0
+      a => a.effectiveness && a.effectiveness.userSatisfactionDelta > 0,
     );
-    
-    const overall = effectiveAdaptations.length / Math.max(activeAdaptations.length, 1);
-    
+
+    const overall =
+      effectiveAdaptations.length / Math.max(activeAdaptations.length, 1);
+
     const byType: Record<string, number> = {};
     const typeCounts: Record<string, number> = {};
-    
+
     for (const adaptation of activeAdaptations) {
       const type = adaptation.adaptationType;
       if (!byType[type]) {
         byType[type] = 0;
         typeCounts[type] = 0;
       }
-      
+
       typeCounts[type]++;
-      if (adaptation.effectiveness && adaptation.effectiveness.userSatisfactionDelta > 0) {
+      if (
+        adaptation.effectiveness &&
+        adaptation.effectiveness.userSatisfactionDelta > 0
+      ) {
         byType[type] += adaptation.effectiveness.userSatisfactionDelta;
       }
     }
-    
+
     // Average effectiveness by type
     for (const type of Object.keys(byType)) {
       byType[type] = byType[type] / typeCounts[type];
     }
-    
-    const recommendations = this.generateEffectivenessRecommendations(overall, byType);
-    
+
+    const recommendations = this.generateEffectivenessRecommendations(
+      overall,
+      byType,
+    );
+
     return { overall, byType, recommendations };
   }
 
   // Private methods
 
-  private async createAdaptationsFromPattern(pattern: BehaviorPattern): Promise<UIAdaptation[]> {
+  private async createAdaptationsFromPattern(
+    pattern: BehaviorPattern,
+  ): Promise<UIAdaptation[]> {
     const adaptations: UIAdaptation[] = [];
-    
+
     switch (pattern.type) {
       case 'navigation_difficulty':
         adaptations.push(await this.createNavigationAdaptation(pattern));
         break;
-        
+
       case 'input_struggle':
         adaptations.push(await this.createInputAdaptation(pattern));
         break;
-        
+
       case 'accessibility_need':
         adaptations.push(await this.createAccessibilityAdaptation(pattern));
         break;
-        
+
       case 'error_prone_area':
         adaptations.push(await this.createErrorPreventionAdaptation(pattern));
         break;
-        
+
       case 'engagement_drop':
         adaptations.push(await this.createEngagementAdaptation(pattern));
         break;
     }
-    
+
     return adaptations.filter(adaptation => adaptation !== null);
   }
 
-  private async createAdaptationFromRecommendation(recommendation: AdaptationRecommendation): Promise<UIAdaptation | null> {
+  private async createAdaptationFromRecommendation(
+    recommendation: AdaptationRecommendation,
+  ): Promise<UIAdaptation | null> {
     try {
       const uiChanges: UIChange[] = [];
-      
+
       for (const change of recommendation.changes) {
         uiChanges.push({
           property: change.property,
           originalValue: change.currentValue,
           adaptedValue: change.recommendedValue,
-          priority: recommendation.priority === 'critical' ? 10 : 
-                   recommendation.priority === 'high' ? 8 : 
-                   recommendation.priority === 'medium' ? 5 : 3,
+          priority:
+            recommendation.priority === 'critical'
+              ? 10
+              : recommendation.priority === 'high'
+              ? 8
+              : recommendation.priority === 'medium'
+              ? 5
+              : 3,
           animationDuration: 300, // Smooth transitions
         });
       }
-      
+
       const adaptation: UIAdaptation = {
         id: `adaptation_${recommendation.type}_${Date.now()}`,
         component: recommendation.component,
-        adaptationType: this.mapRecommendationToAdaptationType(recommendation.type),
+        adaptationType: this.mapRecommendationToAdaptationType(
+          recommendation.type,
+        ),
         changes: uiChanges,
         isActive: false,
         appliedAt: Date.now(),
@@ -440,237 +506,301 @@ class InterfaceAdapterService {
           adaptedValue: change.originalValue,
         })),
       };
-      
+
       return adaptation;
     } catch (error) {
-      structuredLogger.error('Failed to create adaptation from recommendation', 
-        { recommendationId: recommendation.id }, error as Error);
+      structuredLogger.error(
+        'Failed to create adaptation from recommendation',
+        { recommendationId: recommendation.id },
+        error as Error,
+      );
       return null;
     }
   }
 
-  private mapRecommendationToAdaptationType(type: string): UIAdaptation['adaptationType'] {
+  private mapRecommendationToAdaptationType(
+    type: string,
+  ): UIAdaptation['adaptationType'] {
     switch (type) {
-      case 'layout_adjustment': return 'layout';
-      case 'size_modification': return 'style';
-      case 'color_contrast': return 'style';
-      case 'navigation_simplification': return 'navigation';
-      case 'input_assistance': return 'behavior';
-      case 'accessibility_enhancement': return 'behavior';
-      case 'performance_optimization': return 'behavior';
-      case 'content_personalization': return 'content';
-      default: return 'style';
+      case 'layout_adjustment':
+        return 'layout';
+      case 'size_modification':
+        return 'style';
+      case 'color_contrast':
+        return 'style';
+      case 'navigation_simplification':
+        return 'navigation';
+      case 'input_assistance':
+        return 'behavior';
+      case 'accessibility_enhancement':
+        return 'behavior';
+      case 'performance_optimization':
+        return 'behavior';
+      case 'content_personalization':
+        return 'content';
+      default:
+        return 'style';
     }
   }
 
-  private async createNavigationAdaptation(pattern: BehaviorPattern): Promise<UIAdaptation> {
+  private async createNavigationAdaptation(
+    pattern: BehaviorPattern,
+  ): Promise<UIAdaptation> {
     return {
       id: `nav_adapt_${Date.now()}`,
       component: 'navigation',
       adaptationType: 'navigation',
-      changes: [{
-        property: 'navigationComplexity',
-        originalValue: 'standard',
-        adaptedValue: 'simplified',
-        priority: 8,
-        animationDuration: 500,
-      }, {
-        property: 'breadcrumbVisibility',
-        originalValue: false,
-        adaptedValue: true,
-        priority: 6,
-      }],
+      changes: [
+        {
+          property: 'navigationComplexity',
+          originalValue: 'standard',
+          adaptedValue: 'simplified',
+          priority: 8,
+          animationDuration: 500,
+        },
+        {
+          property: 'breadcrumbVisibility',
+          originalValue: false,
+          adaptedValue: true,
+          priority: 6,
+        },
+      ],
       isActive: false,
       appliedAt: Date.now(),
-      rollbackData: [{
-        property: 'navigationComplexity',
-        originalValue: 'simplified',
-        adaptedValue: 'standard',
-        priority: 8,
-      }, {
-        property: 'breadcrumbVisibility',
-        originalValue: true,
-        adaptedValue: false,
-        priority: 6,
-      }],
+      rollbackData: [
+        {
+          property: 'navigationComplexity',
+          originalValue: 'simplified',
+          adaptedValue: 'standard',
+          priority: 8,
+        },
+        {
+          property: 'breadcrumbVisibility',
+          originalValue: true,
+          adaptedValue: false,
+          priority: 6,
+        },
+      ],
     };
   }
 
-  private async createInputAdaptation(pattern: BehaviorPattern): Promise<UIAdaptation> {
+  private async createInputAdaptation(
+    pattern: BehaviorPattern,
+  ): Promise<UIAdaptation> {
     return {
       id: `input_adapt_${Date.now()}`,
       component: 'text_input',
       adaptationType: 'behavior',
-      changes: [{
-        property: 'autoSuggestions',
-        originalValue: false,
-        adaptedValue: true,
-        priority: 9,
-      }, {
-        property: 'voiceInputButton',
-        originalValue: false,
-        adaptedValue: true,
-        priority: 7,
-      }, {
-        property: 'touchTargetSize',
-        originalValue: '44px',
-        adaptedValue: '56px',
-        priority: 8,
-      }],
+      changes: [
+        {
+          property: 'autoSuggestions',
+          originalValue: false,
+          adaptedValue: true,
+          priority: 9,
+        },
+        {
+          property: 'voiceInputButton',
+          originalValue: false,
+          adaptedValue: true,
+          priority: 7,
+        },
+        {
+          property: 'touchTargetSize',
+          originalValue: '44px',
+          adaptedValue: '56px',
+          priority: 8,
+        },
+      ],
       isActive: false,
       appliedAt: Date.now(),
-      rollbackData: [{
-        property: 'autoSuggestions',
-        originalValue: true,
-        adaptedValue: false,
-        priority: 9,
-      }, {
-        property: 'voiceInputButton',
-        originalValue: true,
-        adaptedValue: false,
-        priority: 7,
-      }, {
-        property: 'touchTargetSize',
-        originalValue: '56px',
-        adaptedValue: '44px',
-        priority: 8,
-      }],
+      rollbackData: [
+        {
+          property: 'autoSuggestions',
+          originalValue: true,
+          adaptedValue: false,
+          priority: 9,
+        },
+        {
+          property: 'voiceInputButton',
+          originalValue: true,
+          adaptedValue: false,
+          priority: 7,
+        },
+        {
+          property: 'touchTargetSize',
+          originalValue: '56px',
+          adaptedValue: '44px',
+          priority: 8,
+        },
+      ],
     };
   }
 
-  private async createAccessibilityAdaptation(pattern: BehaviorPattern): Promise<UIAdaptation> {
+  private async createAccessibilityAdaptation(
+    pattern: BehaviorPattern,
+  ): Promise<UIAdaptation> {
     return {
       id: `a11y_adapt_${Date.now()}`,
       component: 'accessibility',
       adaptationType: 'style',
-      changes: [{
-        property: 'fontSize',
-        originalValue: '16px',
-        adaptedValue: '18px',
-        cssSelector: 'body',
-        priority: 10,
-      }, {
-        property: 'colorContrast',
-        originalValue: 'standard',
-        adaptedValue: 'high',
-        priority: 9,
-      }, {
-        property: 'focusIndicatorSize',
-        originalValue: '2px',
-        adaptedValue: '4px',
-        priority: 8,
-      }],
+      changes: [
+        {
+          property: 'fontSize',
+          originalValue: '16px',
+          adaptedValue: '18px',
+          cssSelector: 'body',
+          priority: 10,
+        },
+        {
+          property: 'colorContrast',
+          originalValue: 'standard',
+          adaptedValue: 'high',
+          priority: 9,
+        },
+        {
+          property: 'focusIndicatorSize',
+          originalValue: '2px',
+          adaptedValue: '4px',
+          priority: 8,
+        },
+      ],
       isActive: false,
       appliedAt: Date.now(),
-      rollbackData: [{
-        property: 'fontSize',
-        originalValue: '18px',
-        adaptedValue: '16px',
-        cssSelector: 'body',
-        priority: 10,
-      }, {
-        property: 'colorContrast',
-        originalValue: 'high',
-        adaptedValue: 'standard',
-        priority: 9,
-      }, {
-        property: 'focusIndicatorSize',
-        originalValue: '4px',
-        adaptedValue: '2px',
-        priority: 8,
-      }],
+      rollbackData: [
+        {
+          property: 'fontSize',
+          originalValue: '18px',
+          adaptedValue: '16px',
+          cssSelector: 'body',
+          priority: 10,
+        },
+        {
+          property: 'colorContrast',
+          originalValue: 'high',
+          adaptedValue: 'standard',
+          priority: 9,
+        },
+        {
+          property: 'focusIndicatorSize',
+          originalValue: '4px',
+          adaptedValue: '2px',
+          priority: 8,
+        },
+      ],
     };
   }
 
-  private async createErrorPreventionAdaptation(pattern: BehaviorPattern): Promise<UIAdaptation> {
+  private async createErrorPreventionAdaptation(
+    pattern: BehaviorPattern,
+  ): Promise<UIAdaptation> {
     return {
       id: `error_prevent_${Date.now()}`,
       component: pattern.metadata.component || 'form',
       adaptationType: 'behavior',
-      changes: [{
-        property: 'confirmationDialogs',
-        originalValue: false,
-        adaptedValue: true,
-        priority: 9,
-      }, {
-        property: 'inputValidation',
-        originalValue: 'onSubmit',
-        adaptedValue: 'realTime',
-        priority: 8,
-      }, {
-        property: 'errorRecoveryHelp',
-        originalValue: false,
-        adaptedValue: true,
-        priority: 7,
-      }],
+      changes: [
+        {
+          property: 'confirmationDialogs',
+          originalValue: false,
+          adaptedValue: true,
+          priority: 9,
+        },
+        {
+          property: 'inputValidation',
+          originalValue: 'onSubmit',
+          adaptedValue: 'realTime',
+          priority: 8,
+        },
+        {
+          property: 'errorRecoveryHelp',
+          originalValue: false,
+          adaptedValue: true,
+          priority: 7,
+        },
+      ],
       isActive: false,
       appliedAt: Date.now(),
-      rollbackData: [{
-        property: 'confirmationDialogs',
-        originalValue: true,
-        adaptedValue: false,
-        priority: 9,
-      }, {
-        property: 'inputValidation',
-        originalValue: 'realTime',
-        adaptedValue: 'onSubmit',
-        priority: 8,
-      }, {
-        property: 'errorRecoveryHelp',
-        originalValue: true,
-        adaptedValue: false,
-        priority: 7,
-      }],
+      rollbackData: [
+        {
+          property: 'confirmationDialogs',
+          originalValue: true,
+          adaptedValue: false,
+          priority: 9,
+        },
+        {
+          property: 'inputValidation',
+          originalValue: 'realTime',
+          adaptedValue: 'onSubmit',
+          priority: 8,
+        },
+        {
+          property: 'errorRecoveryHelp',
+          originalValue: true,
+          adaptedValue: false,
+          priority: 7,
+        },
+      ],
     };
   }
 
-  private async createEngagementAdaptation(pattern: BehaviorPattern): Promise<UIAdaptation> {
+  private async createEngagementAdaptation(
+    pattern: BehaviorPattern,
+  ): Promise<UIAdaptation> {
     return {
       id: `engagement_adapt_${Date.now()}`,
       component: 'user_interface',
       adaptationType: 'content',
-      changes: [{
-        property: 'motivationalElements',
-        originalValue: 'minimal',
-        adaptedValue: 'enhanced',
-        priority: 6,
-      }, {
-        property: 'progressIndicators',
-        originalValue: 'simple',
-        adaptedValue: 'detailed',
-        priority: 7,
-      }, {
-        property: 'rewardSystem',
-        originalValue: false,
-        adaptedValue: true,
-        priority: 8,
-      }],
+      changes: [
+        {
+          property: 'motivationalElements',
+          originalValue: 'minimal',
+          adaptedValue: 'enhanced',
+          priority: 6,
+        },
+        {
+          property: 'progressIndicators',
+          originalValue: 'simple',
+          adaptedValue: 'detailed',
+          priority: 7,
+        },
+        {
+          property: 'rewardSystem',
+          originalValue: false,
+          adaptedValue: true,
+          priority: 8,
+        },
+      ],
       isActive: false,
       appliedAt: Date.now(),
-      rollbackData: [{
-        property: 'motivationalElements',
-        originalValue: 'enhanced',
-        adaptedValue: 'minimal',
-        priority: 6,
-      }, {
-        property: 'progressIndicators',
-        originalValue: 'detailed',
-        adaptedValue: 'simple',
-        priority: 7,
-      }, {
-        property: 'rewardSystem',
-        originalValue: true,
-        adaptedValue: false,
-        priority: 8,
-      }],
+      rollbackData: [
+        {
+          property: 'motivationalElements',
+          originalValue: 'enhanced',
+          adaptedValue: 'minimal',
+          priority: 6,
+        },
+        {
+          property: 'progressIndicators',
+          originalValue: 'detailed',
+          adaptedValue: 'simple',
+          priority: 7,
+        },
+        {
+          property: 'rewardSystem',
+          originalValue: true,
+          adaptedValue: false,
+          priority: 8,
+        },
+      ],
     };
   }
 
   private async applyAdaptation(adaptation: UIAdaptation): Promise<boolean> {
     try {
       // Sort changes by priority
-      const sortedChanges = adaptation.changes.sort((a, b) => b.priority - a.priority);
-      
+      const sortedChanges = adaptation.changes.sort(
+        (a, b) => b.priority - a.priority,
+      );
+
       for (const change of sortedChanges) {
         const success = await this.applyUIChange(change);
         if (!success) {
@@ -680,21 +810,24 @@ class InterfaceAdapterService {
           });
         }
       }
-      
+
       adaptation.isActive = true;
       this.activeAdaptations.set(adaptation.id, adaptation);
-      
+
       structuredLogger.info('Adaptation applied successfully', {
         adaptationId: adaptation.id,
         component: adaptation.component,
         type: adaptation.adaptationType,
         changesApplied: sortedChanges.length,
       });
-      
+
       return true;
     } catch (error) {
-      structuredLogger.error('Failed to apply adaptation', 
-        { adaptationId: adaptation.id }, error as Error);
+      structuredLogger.error(
+        'Failed to apply adaptation',
+        { adaptationId: adaptation.id },
+        error as Error,
+      );
       return false;
     }
   }
@@ -703,7 +836,7 @@ class InterfaceAdapterService {
     try {
       // In a real implementation, this would interact with the React Native
       // component system or styling engine to apply the changes
-      
+
       if (change.cssSelector) {
         // Apply CSS-based changes
         await this.applyCSSChange(change);
@@ -714,13 +847,17 @@ class InterfaceAdapterService {
         // Apply behavioral changes
         await this.applyBehaviorChange(change);
       }
-      
+
       return true;
     } catch (error) {
-      structuredLogger.error('Failed to apply UI change', {
-        property: change.property,
-        value: change.adaptedValue,
-      }, error as Error);
+      structuredLogger.error(
+        'Failed to apply UI change',
+        {
+          property: change.property,
+          value: change.adaptedValue,
+        },
+        error as Error,
+      );
       return false;
     }
   }
@@ -751,27 +888,29 @@ class InterfaceAdapterService {
     });
   }
 
-  private async analyzeNavigationPattern(pattern: BehaviorPattern): Promise<NavigationOptimization | null> {
+  private async analyzeNavigationPattern(
+    pattern: BehaviorPattern,
+  ): Promise<NavigationOptimization | null> {
     try {
       const metadata = pattern.metadata;
       const currentPath = metadata.path;
-      
+
       // Analyze typical navigation paths to this destination
       const commonPaths = await this.analyzeCommonNavigationPaths(currentPath);
-      
+
       if (commonPaths.length === 0) return null;
-      
+
       // Find shortest path
-      const optimizedPath = commonPaths.reduce((shortest, current) => 
-        current.length < shortest.length ? current : shortest
+      const optimizedPath = commonPaths.reduce((shortest, current) =>
+        current.length < shortest.length ? current : shortest,
       );
-      
+
       const currentSteps = Math.max(commonPaths[0]?.length || 0, 1);
       const optimizedSteps = optimizedPath.length;
       const stepsReduced = currentSteps - optimizedSteps;
-      
+
       if (stepsReduced <= 0) return null;
-      
+
       return {
         currentFlow: commonPaths[0] || [currentPath],
         optimizedFlow: optimizedPath,
@@ -780,78 +919,100 @@ class InterfaceAdapterService {
         confidenceScore: Math.min(pattern.confidence + 0.2, 1),
       };
     } catch (error) {
-      structuredLogger.error('Failed to analyze navigation pattern', {}, error as Error);
+      structuredLogger.error(
+        'Failed to analyze navigation pattern',
+        {},
+        error as Error,
+      );
       return null;
     }
   }
 
-  private async analyzeCommonNavigationPaths(destination: string): Promise<string[][]> {
+  private async analyzeCommonNavigationPaths(
+    destination: string,
+  ): Promise<string[][]> {
     // In a real implementation, this would analyze actual navigation data
     // For now, return sample paths
     const samplePaths: Record<string, string[][]> = {
-      'story_creation': [
+      story_creation: [
         ['home', 'stories', 'create', 'story_creation'],
         ['home', 'create', 'story_creation'],
       ],
-      'settings': [
+      settings: [
         ['home', 'menu', 'settings'],
         ['home', 'profile', 'settings'],
       ],
-      'help': [
+      help: [
         ['home', 'menu', 'help'],
         ['error', 'help'],
       ],
     };
-    
+
     return samplePaths[destination] || [[destination]];
   }
 
-  private async implementNavigationOptimization(optimization: NavigationOptimization): Promise<void> {
+  private async implementNavigationOptimization(
+    optimization: NavigationOptimization,
+  ): Promise<void> {
     const adaptation: UIAdaptation = {
       id: `nav_opt_${Date.now()}`,
       component: 'navigation',
       adaptationType: 'navigation',
-      changes: [{
-        property: 'navigationShortcuts',
-        originalValue: optimization.currentFlow,
-        adaptedValue: optimization.optimizedFlow,
-        priority: 9,
-      }],
+      changes: [
+        {
+          property: 'navigationShortcuts',
+          originalValue: optimization.currentFlow,
+          adaptedValue: optimization.optimizedFlow,
+          priority: 9,
+        },
+      ],
       isActive: false,
       appliedAt: Date.now(),
-      rollbackData: [{
-        property: 'navigationShortcuts',
-        originalValue: optimization.optimizedFlow,
-        adaptedValue: optimization.currentFlow,
-        priority: 9,
-      }],
+      rollbackData: [
+        {
+          property: 'navigationShortcuts',
+          originalValue: optimization.optimizedFlow,
+          adaptedValue: optimization.currentFlow,
+          priority: 9,
+        },
+      ],
     };
-    
+
     await this.applyAdaptation(adaptation);
   }
 
-  private async analyzeReadingPatterns(preferencesData: any): Promise<ReadingComprehensionFeature[]> {
+  private async analyzeReadingPatterns(
+    preferencesData: any,
+  ): Promise<ReadingComprehensionFeature[]> {
     const features: ReadingComprehensionFeature[] = [];
     const gradeLevel = preferencesData.gradeLevel;
-    
+
     // Analyze reading patterns based on grade level and user data
     const baseFeatures = this.getGradeAppropriateFeatures(gradeLevel);
-    
+
     for (const baseFeature of baseFeatures) {
-      const effectiveness = this.calculateFeatureEffectiveness(baseFeature, preferencesData);
-      
+      const effectiveness = this.calculateFeatureEffectiveness(
+        baseFeature,
+        preferencesData,
+      );
+
       features.push({
         ...baseFeature,
         effectiveness,
         enabled: effectiveness > 0.5,
       });
     }
-    
+
     return features;
   }
 
-  private getGradeAppropriateFeatures(gradeLevel: GradeLevel): Partial<ReadingComprehensionFeature>[] {
-    const featuresByGrade: Record<GradeLevel, Partial<ReadingComprehensionFeature>[]> = {
+  private getGradeAppropriateFeatures(
+    gradeLevel: GradeLevel,
+  ): Partial<ReadingComprehensionFeature>[] {
+    const featuresByGrade: Record<
+      GradeLevel,
+      Partial<ReadingComprehensionFeature>[]
+    > = {
       'K-2': [
         { type: 'highlighting', level: 'basic', gradeAppropriate: true },
         { type: 'audio_support', level: 'basic', gradeAppropriate: true },
@@ -861,7 +1022,11 @@ class InterfaceAdapterService {
         { type: 'highlighting', level: 'intermediate', gradeAppropriate: true },
         { type: 'vocabulary', level: 'basic', gradeAppropriate: true },
         { type: 'structure', level: 'basic', gradeAppropriate: true },
-        { type: 'audio_support', level: 'intermediate', gradeAppropriate: true },
+        {
+          type: 'audio_support',
+          level: 'intermediate',
+          gradeAppropriate: true,
+        },
       ],
       '6-8': [
         { type: 'highlighting', level: 'advanced', gradeAppropriate: true },
@@ -877,24 +1042,24 @@ class InterfaceAdapterService {
         { type: 'audio_support', level: 'advanced', gradeAppropriate: true },
       ],
     };
-    
+
     return featuresByGrade[gradeLevel] || featuresByGrade['3-5'];
   }
 
   private calculateFeatureEffectiveness(
-    feature: Partial<ReadingComprehensionFeature>, 
-    preferencesData: any
+    feature: Partial<ReadingComprehensionFeature>,
+    preferencesData: any,
   ): number {
     // Calculate effectiveness based on user preferences and behavior
     let effectiveness = 0.5; // Base effectiveness
-    
+
     // Adjust based on user engagement patterns
     const sessionPatterns = preferencesData.sessionPatterns;
     if (sessionPatterns) {
       effectiveness += sessionPatterns.completionRate * 0.3;
       effectiveness += sessionPatterns.engagementScore * 0.2;
     }
-    
+
     // Adjust based on feature type and user needs
     switch (feature.type) {
       case 'audio_support':
@@ -902,55 +1067,62 @@ class InterfaceAdapterService {
         const voiceUsage = sessionPatterns?.voiceUsageRate || 0;
         effectiveness += voiceUsage * 0.4;
         break;
-        
+
       case 'vocabulary':
         // Higher effectiveness for struggling readers
         if (sessionPatterns?.completionRate < 0.7) {
           effectiveness += 0.3;
         }
         break;
-        
+
       case 'highlighting':
         // Generally effective for all users
         effectiveness += 0.2;
         break;
     }
-    
+
     return Math.max(0, Math.min(1, effectiveness));
   }
 
-  private async implementReadingFeature(feature: ReadingComprehensionFeature): Promise<void> {
+  private async implementReadingFeature(
+    feature: ReadingComprehensionFeature,
+  ): Promise<void> {
     const adaptation: UIAdaptation = {
       id: `reading_${feature.type}_${Date.now()}`,
       component: 'reading_interface',
       adaptationType: 'content',
-      changes: [{
-        property: `${feature.type}Enabled`,
-        originalValue: false,
-        adaptedValue: true,
-        priority: 7,
-      }, {
-        property: `${feature.type}Level`,
-        originalValue: 'basic',
-        adaptedValue: feature.level,
-        priority: 6,
-      }],
+      changes: [
+        {
+          property: `${feature.type}Enabled`,
+          originalValue: false,
+          adaptedValue: true,
+          priority: 7,
+        },
+        {
+          property: `${feature.type}Level`,
+          originalValue: 'basic',
+          adaptedValue: feature.level,
+          priority: 6,
+        },
+      ],
       isActive: false,
       appliedAt: Date.now(),
-      rollbackData: [{
-        property: `${feature.type}Enabled`,
-        originalValue: true,
-        adaptedValue: false,
-        priority: 7,
-      }],
+      rollbackData: [
+        {
+          property: `${feature.type}Enabled`,
+          originalValue: true,
+          adaptedValue: false,
+          priority: 7,
+        },
+      ],
     };
-    
+
     await this.applyAdaptation(adaptation);
   }
 
   private async establishEngagementBaseline(): Promise<void> {
     const usageMetrics = behaviorAnalytics.getUsageMetrics();
-    
+
     this.engagementBaseline = {
       sessionDuration: usageMetrics.avgSessionDuration,
       interactionsPerMinute: this.calculateInteractionsPerMinute(),
@@ -960,8 +1132,11 @@ class InterfaceAdapterService {
       satisfactionScore: 0.7, // Default baseline
       retentionIndicator: 0.8, // Default baseline
     };
-    
-    structuredLogger.info('Engagement baseline established', this.engagementBaseline);
+
+    structuredLogger.info(
+      'Engagement baseline established',
+      this.engagementBaseline,
+    );
   }
 
   private calculateInteractionsPerMinute(): number {
@@ -995,28 +1170,35 @@ class InterfaceAdapterService {
     return Math.random() * 0.3 + 0.7; // Simulate 70-100% retention
   }
 
-  private async evaluateAdaptationEffectiveness(currentMetrics: EngagementMetrics): Promise<void> {
+  private async evaluateAdaptationEffectiveness(
+    currentMetrics: EngagementMetrics,
+  ): Promise<void> {
     if (!this.engagementBaseline) return;
-    
+
     for (const adaptation of this.activeAdaptations.values()) {
       if (!adaptation.effectiveness) {
         adaptation.effectiveness = {
-          userSatisfactionDelta: currentMetrics.satisfactionScore - this.engagementBaseline.satisfactionScore,
-          taskCompletionDelta: currentMetrics.taskCompletionRate - this.engagementBaseline.taskCompletionRate,
-          errorReductionDelta: this.engagementBaseline.errorRate - currentMetrics.errorRate,
+          userSatisfactionDelta:
+            currentMetrics.satisfactionScore -
+            this.engagementBaseline.satisfactionScore,
+          taskCompletionDelta:
+            currentMetrics.taskCompletionRate -
+            this.engagementBaseline.taskCompletionRate,
+          errorReductionDelta:
+            this.engagementBaseline.errorRate - currentMetrics.errorRate,
           accessibilityImprovementDelta: 0, // Would be calculated based on accessibility metrics
           measurementPeriod: this.config.effectivenessMeasurementWindow,
           sampleSize: behaviorAnalytics.getUsageMetrics().totalInteractions,
           statisticalSignificance: 0.05, // Would be properly calculated
         };
-        
+
         // Check if adaptation should be rolled back
-        const overallEffectiveness = (
-          adaptation.effectiveness.userSatisfactionDelta +
-          adaptation.effectiveness.taskCompletionDelta +
-          adaptation.effectiveness.errorReductionDelta
-        ) / 3;
-        
+        const overallEffectiveness =
+          (adaptation.effectiveness.userSatisfactionDelta +
+            adaptation.effectiveness.taskCompletionDelta +
+            adaptation.effectiveness.errorReductionDelta) /
+          3;
+
         if (overallEffectiveness < this.config.rollbackThreshold) {
           await this.rollbackAdaptation(adaptation.id);
         }
@@ -1028,7 +1210,7 @@ class InterfaceAdapterService {
     this.optimizationTimer = setInterval(async () => {
       try {
         await this.measureInterfacePerformance();
-        
+
         // Check for new patterns and apply adaptations
         if (this.config.enableRealTimeAdaptation) {
           const analysisResults = await behaviorAnalytics.analyzePatterns();
@@ -1042,25 +1224,35 @@ class InterfaceAdapterService {
 
   private generateEffectivenessRecommendations(
     overall: number,
-    byType: Record<string, number>
+    byType: Record<string, number>,
   ): string[] {
     const recommendations: string[] = [];
-    
+
     if (overall < 0.3) {
-      recommendations.push('Consider reducing the number of active adaptations');
-      recommendations.push('Review adaptation criteria and confidence thresholds');
+      recommendations.push(
+        'Consider reducing the number of active adaptations',
+      );
+      recommendations.push(
+        'Review adaptation criteria and confidence thresholds',
+      );
     } else if (overall > 0.8) {
-      recommendations.push('Current adaptations are highly effective - consider expanding');
+      recommendations.push(
+        'Current adaptations are highly effective - consider expanding',
+      );
     }
-    
+
     for (const [type, effectiveness] of Object.entries(byType)) {
       if (effectiveness < 0.2) {
-        recommendations.push(`${type} adaptations are not performing well - consider revision`);
+        recommendations.push(
+          `${type} adaptations are not performing well - consider revision`,
+        );
       } else if (effectiveness > 0.8) {
-        recommendations.push(`${type} adaptations are highly effective - consider prioritizing`);
+        recommendations.push(
+          `${type} adaptations are highly effective - consider prioritizing`,
+        );
       }
     }
-    
+
     return recommendations;
   }
 
@@ -1072,7 +1264,7 @@ class InterfaceAdapterService {
       clearInterval(this.optimizationTimer);
       this.optimizationTimer = null;
     }
-    
+
     // Save adaptation history
     structuredLogger.info('Interface adapter service shutdown completed', {
       activeAdaptations: this.activeAdaptations.size,

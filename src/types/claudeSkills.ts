@@ -1,16 +1,21 @@
 // Claude Skills TypeScript Definitions
 // Type definitions for Claude Skills SDK integration
 
-export type SkillType = 
+export type SkillType =
   | 'ContentPredictionSkill'
-  | 'ResourceOptimizationSkill' 
+  | 'ResourceOptimizationSkill'
   | 'QualityAssessmentSkill'
   | 'BehaviorAnalysisSkill'
   | 'ErrorRecoverySkill';
 
 export type PerformanceMode = 'balanced' | 'performance' | 'battery';
 
-export type SkillExecutionState = 'idle' | 'executing' | 'completed' | 'failed' | 'timeout';
+export type SkillExecutionState =
+  | 'idle'
+  | 'executing'
+  | 'completed'
+  | 'failed'
+  | 'timeout';
 
 // Core SDK Interfaces
 export interface SkillConfig {
@@ -45,7 +50,7 @@ export enum SkillErrorCode {
   INVALID_INPUT = 'INVALID_INPUT',
   SKILL_UNAVAILABLE = 'SKILL_UNAVAILABLE',
   CONFIGURATION_ERROR = 'CONFIGURATION_ERROR',
-  UNKNOWN_ERROR = 'UNKNOWN_ERROR'
+  UNKNOWN_ERROR = 'UNKNOWN_ERROR',
 }
 
 // Skill Manager Interface
@@ -293,7 +298,7 @@ export interface PerformanceMetrics {
 }
 
 // Event Types for Monitoring
-export type SkillEvent = 
+export type SkillEvent =
   | SkillExecutionStartEvent
   | SkillExecutionCompleteEvent
   | SkillErrorEvent

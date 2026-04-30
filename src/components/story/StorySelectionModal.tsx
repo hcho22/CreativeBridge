@@ -20,6 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { GameSession, StorySource } from '../../types/database';
 import { StoryManagementService } from '../../services/storyManagementService';
+import { theme } from '../../constants/theme';
 import Share from '../../utils/shareWrapper';
 import RNFS from '../../utils/rnfsWrapper';
 import FolderPickerUtil from '../../utils/folderPicker';
@@ -85,18 +86,23 @@ const StoryCard: React.FC<StoryCardProps> = ({
   const hasImage = !!imageUrl;
   const uploadStatus = story.image_upload_status;
 
+  // Storybook source-badge palette (US-003).
+  // CreativeBridge ≈ native/Convex stories → moss (quill-green).
+  // Story_Quest ≈ legacy/Supabase stories → inkwell (navy info).
+  // File ≈ imported manuscripts → plum (rare-badge tint).
+  // New stories → amber to round out the warm palette.
   const getSourceColor = (source: StorySource) => {
     switch (source) {
       case 'CreativeBridge':
-        return '#4CAF50';
+        return theme.colors.accents.moss;
       case 'Story_Quest':
-        return '#2196F3';
+        return theme.colors.accents.inkwell;
       case 'File':
-        return '#FF9800';
+        return theme.colors.accents.plum;
       case 'New':
-        return '#9C27B0';
+        return theme.colors.accents.amber;
       default:
-        return '#757575';
+        return theme.colors.ink.faint;
     }
   };
 
@@ -333,7 +339,10 @@ const StoryCard: React.FC<StoryCardProps> = ({
         {/* Loading indicator */}
         {imageLoading && !imageError && (
           <View style={styles.thumbnailLoading}>
-            <ActivityIndicator size="small" color="#6f42c1" />
+            <ActivityIndicator
+              size="small"
+              color={theme.colors.accents.foxglove}
+            />
           </View>
         )}
 
@@ -347,7 +356,7 @@ const StoryCard: React.FC<StoryCardProps> = ({
         {/* Upload status indicator */}
         {uploadStatus === 'pending' && !imageError && (
           <View style={styles.uploadingBadge}>
-            <ActivityIndicator size="small" color="#fff" />
+            <ActivityIndicator size="small" color={theme.colors.paper.cream} />
           </View>
         )}
         {uploadStatus === 'uploaded' && !imageError && (
@@ -445,7 +454,7 @@ export const StorySelectionModal: React.FC<StorySelectionModalProps> = ({
   onClose,
   onStorySelect,
   userId,
-  title: modalTitle = 'Select a Story',
+  title: modalTitle = 'Your library',
   showOnlyCompleted = false,
   excludeStoryIds = EMPTY_STRING_ARRAY,
   initialSource,
@@ -782,30 +791,31 @@ export const StorySelectionModal: React.FC<StorySelectionModalProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.colors.paper.base,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.paper.cream,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: theme.colors.paper.edge,
   },
   closeButton: {
     padding: 8,
   },
   closeButtonText: {
     fontSize: 20,
-    color: '#666',
+    color: theme.colors.ink.soft,
   },
   title: {
     flex: 1,
     textAlign: 'center',
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#333',
+    fontFamily: theme.typography.fontFamily.serifItalic,
+    fontStyle: 'italic',
+    fontSize: 28,
+    color: theme.colors.ink.base,
   },
   headerSpacer: {
     width: 34, // Match close button width
@@ -814,23 +824,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     margin: 16,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.paper.cream,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: theme.colors.paper.edge,
   },
   searchInput: {
     flex: 1,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 18,
+    fontFamily: theme.typography.fontFamily.uiRegular,
+    color: theme.colors.ink.base,
   },
   clearSearchButton: {
     padding: 12,
   },
   clearSearchText: {
     fontSize: 18,
-    color: '#666',
+    color: theme.colors.ink.soft,
   },
   filtersContainer: {
     paddingHorizontal: 16,
@@ -842,7 +854,7 @@ const styles = StyleSheet.create({
   filterLabel: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#666',
+    color: theme.colors.ink.soft,
     marginBottom: 4,
   },
   filterButtons: {
@@ -853,21 +865,21 @@ const styles = StyleSheet.create({
   filterButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.paper.cardWarm,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: theme.colors.paper.edge,
   },
   filterButtonActive: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+    backgroundColor: theme.colors.accents.foxglove,
+    borderColor: theme.colors.accents.foxglove,
   },
   filterButtonText: {
     fontSize: 14,
-    color: '#666',
+    color: theme.colors.ink.soft,
   },
   filterButtonTextActive: {
-    color: '#fff',
+    color: theme.colors.paper.cream,
   },
   toggleButton: {
     alignSelf: 'flex-start',
@@ -875,28 +887,24 @@ const styles = StyleSheet.create({
   },
   toggleButtonText: {
     fontSize: 16,
-    color: '#007AFF',
+    color: theme.colors.accents.foxglove,
   },
   resultsCount: {
     paddingHorizontal: 16,
     paddingBottom: 8,
     fontSize: 14,
-    color: '#666',
+    color: theme.colors.ink.soft,
   },
   listContainer: {
     paddingHorizontal: 16,
     paddingBottom: 16,
   },
   storyCard: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.paper.card,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
+    ...theme.shadows.paper,
     position: 'relative',
   },
   storyCardContent: {
@@ -912,7 +920,7 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 8,
     overflow: 'hidden',
-    backgroundColor: '#f0f0f0',
+    backgroundColor: theme.colors.paper.cardWarm,
     position: 'relative',
   },
   thumbnail: {
@@ -923,11 +931,11 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 8,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: theme.colors.paper.cardWarm,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#e0e0e0',
+    borderColor: theme.colors.paper.edge,
     borderStyle: 'dashed',
   },
   thumbnailPlaceholderIcon: {
@@ -940,7 +948,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    // Translucent paper.cream tint so the loading overlay reads as parchment, not paper-white.
+    backgroundColor: 'rgba(251, 245, 230, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -950,19 +959,21 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#f8d7da',
+    backgroundColor: theme.colors.paper.cardWarm,
     justifyContent: 'center',
     alignItems: 'center',
   },
   thumbnailErrorIcon: {
     fontSize: 26,
   },
-  // Upload Status Badges
+  // Upload Status Badges — translucent warm-accent rgba so the spinner/check reads
+  // against the thumbnail without blocking the image entirely.
   uploadingBadge: {
     position: 'absolute',
     bottom: 4,
     right: 4,
-    backgroundColor: 'rgba(111, 66, 193, 0.9)',
+    // accents.inkwell (#1E3A5F) at 0.9 alpha — uploading == in-flight info.
+    backgroundColor: 'rgba(30, 58, 95, 0.9)',
     borderRadius: 12,
     padding: 4,
   },
@@ -970,7 +981,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 4,
     right: 4,
-    backgroundColor: 'rgba(76, 175, 80, 0.9)',
+    // accents.moss (#3F6A3A) at 0.9 alpha — uploaded == quill-green success.
+    backgroundColor: 'rgba(63, 106, 58, 0.9)',
     borderRadius: 10,
     width: 20,
     height: 20,
@@ -978,7 +990,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   uploadedBadgeText: {
-    color: '#fff',
+    color: theme.colors.paper.cream,
     fontSize: 14,
     fontWeight: 'bold',
   },
@@ -986,7 +998,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 4,
     right: 4,
-    backgroundColor: 'rgba(255, 152, 0, 0.9)',
+    // accents.amber (#D97706) at 0.9 alpha — failed == warm warning.
+    backgroundColor: 'rgba(217, 119, 6, 0.9)',
     borderRadius: 10,
     width: 20,
     height: 20,
@@ -994,7 +1007,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   uploadFailedBadgeText: {
-    color: '#fff',
+    color: theme.colors.paper.cream,
     fontSize: 16,
     fontWeight: 'bold',
   },
@@ -1008,7 +1021,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: theme.colors.ink.base,
     marginRight: 8,
   },
   sourceIndicator: {
@@ -1019,11 +1032,11 @@ const styles = StyleSheet.create({
   sourceText: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#fff',
+    color: theme.colors.paper.cream,
   },
   storyPreview: {
     fontSize: 16,
-    color: '#666',
+    color: theme.colors.ink.soft,
     lineHeight: 20,
     marginBottom: 12,
   },
@@ -1034,7 +1047,7 @@ const styles = StyleSheet.create({
   },
   storyDate: {
     fontSize: 14,
-    color: '#999',
+    color: theme.colors.ink.faint,
   },
   storyStats: {
     flexDirection: 'row',
@@ -1042,11 +1055,11 @@ const styles = StyleSheet.create({
   },
   wordCount: {
     fontSize: 14,
-    color: '#666',
+    color: theme.colors.ink.soft,
   },
   score: {
     fontSize: 14,
-    color: '#4CAF50',
+    color: theme.colors.accents.moss,
     fontWeight: '500',
   },
   completedBadge: {
@@ -1056,21 +1069,23 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: '#4CAF50',
+    backgroundColor: theme.colors.accents.moss,
     justifyContent: 'center',
     alignItems: 'center',
   },
   completedText: {
     fontSize: 14,
-    color: '#fff',
+    color: theme.colors.paper.cream,
     fontWeight: 'bold',
   },
   highlightedText: {
-    backgroundColor: '#FFEB3B',
+    // Subtle warm-paper highlight reads as a quill underline against paper.card,
+    // unlike the bright `#FFEB3B` of Round 1.
+    backgroundColor: theme.colors.paper.deep,
     fontWeight: '500',
   },
   skeletonCard: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.paper.card,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -1078,7 +1093,7 @@ const styles = StyleSheet.create({
   skeletonThumbnail: {
     width: 80,
     height: 80,
-    backgroundColor: '#e0e0e0',
+    backgroundColor: theme.colors.paper.deep,
     borderRadius: 8,
   },
   skeletonHeader: {
@@ -1089,26 +1104,26 @@ const styles = StyleSheet.create({
   skeletonTitle: {
     width: '70%',
     height: 20,
-    backgroundColor: '#e0e0e0',
+    backgroundColor: theme.colors.paper.deep,
     borderRadius: 4,
   },
   skeletonSource: {
     width: 60,
     height: 16,
-    backgroundColor: '#e0e0e0',
+    backgroundColor: theme.colors.paper.deep,
     borderRadius: 8,
   },
   skeletonPreview1: {
     width: '100%',
     height: 14,
-    backgroundColor: '#e0e0e0',
+    backgroundColor: theme.colors.paper.deep,
     borderRadius: 4,
     marginBottom: 4,
   },
   skeletonPreview2: {
     width: '80%',
     height: 14,
-    backgroundColor: '#e0e0e0',
+    backgroundColor: theme.colors.paper.deep,
     borderRadius: 4,
     marginBottom: 12,
   },
@@ -1119,13 +1134,13 @@ const styles = StyleSheet.create({
   skeletonDate: {
     width: 60,
     height: 12,
-    backgroundColor: '#e0e0e0',
+    backgroundColor: theme.colors.paper.deep,
     borderRadius: 4,
   },
   skeletonStats: {
     width: 80,
     height: 12,
-    backgroundColor: '#e0e0e0',
+    backgroundColor: theme.colors.paper.deep,
     borderRadius: 4,
   },
   emptyContainer: {
@@ -1136,34 +1151,34 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    color: '#666',
+    color: theme.colors.ink.soft,
     textAlign: 'center',
     marginBottom: 16,
   },
   errorText: {
     fontSize: 18,
-    color: '#f44336',
+    color: theme.colors.accents.foxglove,
     textAlign: 'center',
     marginBottom: 16,
   },
   retryButton: {
     paddingHorizontal: 20,
     paddingVertical: 10,
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.colors.accents.foxglove,
     borderRadius: 8,
   },
   retryText: {
-    color: '#fff',
+    color: theme.colors.paper.cream,
     fontWeight: '500',
   },
   clearButton: {
     paddingHorizontal: 20,
     paddingVertical: 10,
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.colors.accents.foxglove,
     borderRadius: 8,
   },
   clearButtonText: {
-    color: '#fff',
+    color: theme.colors.paper.cream,
     fontWeight: '500',
   },
 });

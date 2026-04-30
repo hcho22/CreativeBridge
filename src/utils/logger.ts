@@ -1,11 +1,16 @@
 /**
  * Structured Logging Utility for Claude Skills
- * 
+ *
  * Provides structured logging with correlation IDs, log levels,
  * and integration with monitoring systems.
  */
 
-import { auditLogger, EventType, EventCategory, Severity } from '../services/auditLogger';
+import {
+  auditLogger,
+  EventType,
+  EventCategory,
+  Severity,
+} from '../services/auditLogger';
 import { SkillType, SkillError, SkillErrorCode } from '../types/claudeSkills';
 
 export enum LogLevel {
@@ -74,21 +79,33 @@ class StructuredLogger {
   /**
    * Log warning message
    */
-  warn(message: string, context: LogContext = {}, error?: Error | SkillError): void {
+  warn(
+    message: string,
+    context: LogContext = {},
+    error?: Error | SkillError,
+  ): void {
     this.log(LogLevel.WARN, message, context, error);
   }
 
   /**
    * Log error message
    */
-  error(message: string, context: LogContext = {}, error?: Error | SkillError): void {
+  error(
+    message: string,
+    context: LogContext = {},
+    error?: Error | SkillError,
+  ): void {
     this.log(LogLevel.ERROR, message, context, error);
   }
 
   /**
    * Log critical message
    */
-  critical(message: string, context: LogContext = {}, error?: Error | SkillError): void {
+  critical(
+    message: string,
+    context: LogContext = {},
+    error?: Error | SkillError,
+  ): void {
     this.log(LogLevel.CRITICAL, message, context, error);
   }
 
@@ -99,10 +116,10 @@ class StructuredLogger {
     skillType: SkillType,
     skillId: string,
     input: any,
-    context: LogContext = {}
+    context: LogContext = {},
   ): string {
     const correlationId = context.correlationId || this.generateCorrelationId();
-    
+
     this.info(`Skill operation started: ${skillType}`, {
       ...context,
       correlationId,
@@ -128,27 +145,32 @@ class StructuredLogger {
     executionTimeMs: number,
     result?: any,
     error?: SkillError,
-    context: LogContext = {}
+    context: LogContext = {},
   ): void {
     const level = success ? LogLevel.INFO : LogLevel.ERROR;
     const message = success
       ? `Skill operation completed: ${skillType}`
       : `Skill operation failed: ${skillType}`;
 
-    this.log(level, message, {
-      ...context,
-      skillType,
-      skillId,
-      operation: 'skill_execution_complete',
-      metadata: {
-        success,
-        executionTimeMs,
-        resultSize: result ? JSON.stringify(result).length : 0,
-        errorCode: error?.code,
-        errorMessage: error?.message,
-        retryable: error?.retryable,
+    this.log(
+      level,
+      message,
+      {
+        ...context,
+        skillType,
+        skillId,
+        operation: 'skill_execution_complete',
+        metadata: {
+          success,
+          executionTimeMs,
+          resultSize: result ? JSON.stringify(result).length : 0,
+          errorCode: error?.code,
+          errorMessage: error?.message,
+          retryable: error?.retryable,
+        },
       },
-    }, error);
+      error,
+    );
   }
 
   /**
@@ -158,21 +180,26 @@ class StructuredLogger {
     skillType: SkillType,
     skillId: string,
     error: SkillError,
-    context: LogContext = {}
+    context: LogContext = {},
   ): void {
     const level = this.mapSkillErrorToLogLevel(error);
-    
-    this.log(level, `Skill error: ${error.message}`, {
-      ...context,
-      skillType,
-      skillId,
-      operation: 'skill_error',
-      metadata: {
-        errorCode: error.code,
-        retryable: error.retryable,
-        errorDetails: error.details,
+
+    this.log(
+      level,
+      `Skill error: ${error.message}`,
+      {
+        ...context,
+        skillType,
+        skillId,
+        operation: 'skill_error',
+        metadata: {
+          errorCode: error.code,
+          retryable: error.retryable,
+          errorDetails: error.details,
+        },
       },
-    }, error);
+      error,
+    );
 
     // Also log to audit system
     this.logToAuditSystem(skillType, error, context);
@@ -185,7 +212,7 @@ class StructuredLogger {
     level: LogLevel,
     message: string,
     context: LogContext = {},
-    error?: Error | SkillError
+    error?: Error | SkillError,
   ): void {
     const entry: StructuredLogEntry = {
       level,
@@ -249,7 +276,7 @@ class StructuredLogger {
   private async logToAuditSystem(
     skillType: SkillType,
     error: SkillError,
-    context: LogContext
+    context: LogContext,
   ): Promise<void> {
     try {
       const eventType = this.mapSkillErrorToEventType(error.code);
@@ -385,7 +412,7 @@ class StructuredLogger {
    */
   getLogsByCorrelationId(correlationId: string): StructuredLogEntry[] {
     return this.logBuffer.filter(
-      entry => entry.context.correlationId === correlationId
+      entry => entry.context.correlationId === correlationId,
     );
   }
 
@@ -410,4 +437,3 @@ class StructuredLogger {
 // Export singleton instance
 export const structuredLogger = new StructuredLogger();
 export default structuredLogger;
-

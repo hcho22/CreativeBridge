@@ -5,7 +5,14 @@
 
 import { Vibration, Platform } from 'react-native';
 
-export type HapticPattern = 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' | 'selection';
+export type HapticPattern =
+  | 'light'
+  | 'medium'
+  | 'heavy'
+  | 'success'
+  | 'warning'
+  | 'error'
+  | 'selection';
 
 export interface HapticConfig {
   enabled: boolean;
@@ -36,7 +43,11 @@ export class HapticFeedbackService {
    * Initialize haptic feedback service
    */
   initialize(): void {
-    console.log(`📳 Haptic Feedback Service initialized - Supported: ${this.isSupported ? 'yes' : 'no'}`);
+    console.log(
+      `📳 Haptic Feedback Service initialized - Supported: ${
+        this.isSupported ? 'yes' : 'no'
+      }`,
+    );
   }
 
   /**
@@ -81,7 +92,9 @@ export class HapticFeedbackService {
   /**
    * Trigger haptic feedback for button presses
    */
-  buttonPressed(buttonType: 'primary' | 'secondary' | 'destructive' = 'primary'): void {
+  buttonPressed(
+    buttonType: 'primary' | 'secondary' | 'destructive' = 'primary',
+  ): void {
     if (!this.config.enabled || !this.config.buttonPress) return;
 
     const hapticType = buttonType === 'destructive' ? 'warning' : 'selection';
@@ -243,7 +256,7 @@ export class HapticFeedbackService {
    */
   downloadStateChanged(
     previousState: 'idle' | 'downloading' | 'completed' | 'error',
-    newState: 'idle' | 'downloading' | 'completed' | 'error'
+    newState: 'idle' | 'downloading' | 'completed' | 'error',
   ): void {
     if (!this.config.enabled) return;
 
@@ -256,15 +269,15 @@ export class HapticFeedbackService {
           this.downloadStarted();
         }
         break;
-      
+
       case 'completed':
         this.downloadCompleted(true);
         break;
-      
+
       case 'error':
         this.downloadCompleted(false);
         break;
-      
+
       case 'idle':
         // No haptic needed for returning to idle state
         break;
@@ -304,16 +317,20 @@ export class HapticFeedbackService {
     }
 
     this.triggerHaptic(hapticType);
-    console.log(`📳 Haptic: UI interaction (${interaction.type} on ${interaction.element})`);
+    console.log(
+      `📳 Haptic: UI interaction (${interaction.type} on ${interaction.element})`,
+    );
   }
 
   /**
    * Create haptic feedback sequence for complex operations
    */
-  async playSequence(sequence: Array<{
-    pattern: HapticPattern;
-    delay: number;
-  }>): Promise<void> {
+  async playSequence(
+    sequence: Array<{
+      pattern: HapticPattern;
+      delay: number;
+    }>,
+  ): Promise<void> {
     if (!this.config.enabled) return;
 
     for (const step of sequence) {
@@ -327,7 +344,9 @@ export class HapticFeedbackService {
   /**
    * Pre-defined haptic sequences for common scenarios
    */
-  async playPredefinedSequence(sequenceType: 'downloadSuccess' | 'downloadError' | 'operationComplete'): Promise<void> {
+  async playPredefinedSequence(
+    sequenceType: 'downloadSuccess' | 'downloadError' | 'operationComplete',
+  ): Promise<void> {
     const sequences = {
       downloadSuccess: [
         { pattern: 'light' as HapticPattern, delay: 0 },

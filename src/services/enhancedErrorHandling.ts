@@ -11,7 +11,14 @@ import * as RNFS from 'react-native-fs';
 // Error types and interfaces
 export interface DownloadError {
   id: string;
-  type: 'permission_denied' | 'storage_full' | 'network_error' | 'file_system_error' | 'timeout' | 'user_cancelled' | 'unknown';
+  type:
+    | 'permission_denied'
+    | 'storage_full'
+    | 'network_error'
+    | 'file_system_error'
+    | 'timeout'
+    | 'user_cancelled'
+    | 'unknown';
   message: string;
   timestamp: string;
   context: {
@@ -33,7 +40,13 @@ export interface RecoveryOption {
   id: string;
   label: string;
   description: string;
-  action: 'retry' | 'retry_different_location' | 'clear_cache' | 'check_storage' | 'manual_action' | 'report_issue';
+  action:
+    | 'retry'
+    | 'retry_different_location'
+    | 'clear_cache'
+    | 'check_storage'
+    | 'manual_action'
+    | 'report_issue';
   automated: boolean;
   priority: 'high' | 'medium' | 'low';
 }
@@ -79,29 +92,38 @@ export class EnhancedErrorHandlingService {
       baseDelay?: number;
       fileName?: string;
       userId?: string;
-    }
+    },
   ): Promise<T> {
-    const { operationName, maxRetries = EnhancedErrorHandlingService.DEFAULT_MAX_RETRIES, baseDelay = EnhancedErrorHandlingService.BASE_RETRY_DELAY } = context;
+    const {
+      operationName,
+      maxRetries = EnhancedErrorHandlingService.DEFAULT_MAX_RETRIES,
+      baseDelay = EnhancedErrorHandlingService.BASE_RETRY_DELAY,
+    } = context;
     let lastError: Error;
-    
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`🔄 Attempting ${operationName} (attempt ${attempt}/${maxRetries})`);
+        console.log(
+          `🔄 Attempting ${operationName} (attempt ${attempt}/${maxRetries})`,
+        );
         const result = await operation();
-        
+
         if (attempt > 1) {
           // Log successful recovery
           await this.logErrorRecovery({
             operation: operationName,
             attemptsRequired: attempt,
-            ...context
+            ...context,
           });
         }
-        
+
         return result;
       } catch (error) {
         lastError = error as Error;
-        console.warn(`❌ ${operationName} failed on attempt ${attempt}:`, error);
+        console.warn(
+          `❌ ${operationName} failed on attempt ${attempt}:`,
+          error,
+        );
 
         // Log error with retry information
         await this.logError({
@@ -111,11 +133,11 @@ export class EnhancedErrorHandlingService {
             operation: operationName,
             attempt,
             ...context,
-            stackTrace: error.stack
+            stackTrace: error.stack,
           },
           canRetry: attempt < maxRetries,
           retryCount: attempt - 1,
-          maxRetries
+          maxRetries,
         });
 
         if (attempt === maxRetries) {
@@ -123,7 +145,8 @@ export class EnhancedErrorHandlingService {
         }
 
         // Exponential backoff with jitter
-        const delay = baseDelay * Math.pow(2, attempt - 1) + Math.random() * 1000;
+        const delay =
+          baseDelay * Math.pow(2, attempt - 1) + Math.random() * 1000;
         await this.delay(delay);
       }
     }
@@ -134,14 +157,18 @@ export class EnhancedErrorHandlingService {
   /**
    * Queue downloads when offline or when errors occur
    */
-  async queueDownload(download: Omit<QueuedDownload, 'id' | 'timestamp' | 'retryCount'>): Promise<string> {
+  async queueDownload(
+    download: Omit<QueuedDownload, 'id' | 'timestamp' | 'retryCount'>,
+  ): Promise<string> {
     try {
-      const downloadId = `download_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const downloadId = `download_${Date.now()}_${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
       const queuedDownload: QueuedDownload = {
         id: downloadId,
         timestamp: new Date().toISOString(),
         retryCount: 0,
-        ...download
+        ...download,
       };
 
       const queue = await this.getDownloadQueue();
@@ -149,10 +176,10 @@ export class EnhancedErrorHandlingService {
       await this.saveDownloadQueue(queue);
 
       console.log(`📥 Download queued: ${downloadId} (${download.fileName})`);
-      
+
       // Try to process queue immediately if online
       this.processQueueInBackground();
-      
+
       return downloadId;
     } catch (error) {
       console.error('❌ Failed to queue download:', error);
@@ -163,7 +190,11 @@ export class EnhancedErrorHandlingService {
   /**
    * Process queued downloads
    */
-  async processDownloadQueue(): Promise<{ processed: number; failed: number; remaining: number }> {
+  async processDownloadQueue(): Promise<{
+    processed: number;
+    failed: number;
+    remaining: number;
+  }> {
     try {
       const queue = await this.getDownloadQueue();
       if (queue.length === 0) {
@@ -187,28 +218,35 @@ export class EnhancedErrorHandlingService {
           processed++;
           console.log(`✅ Processed queued download: ${download.fileName}`);
         } catch (error) {
-          console.error(`❌ Failed to process queued download ${download.fileName}:`, error);
-          
+          console.error(
+            `❌ Failed to process queued download ${download.fileName}:`,
+            error,
+          );
+
           download.retryCount++;
           download.lastError = await this.createDownloadError(error as Error, {
             operation: 'process_queued_download',
             fileName: download.fileName,
-            userId: download.userId
+            userId: download.userId,
           });
 
           if (download.retryCount < download.maxRetries) {
             remaining.push(download);
           } else {
             failed++;
-            console.log(`🚫 Abandoning download after ${download.retryCount} attempts: ${download.fileName}`);
+            console.log(
+              `🚫 Abandoning download after ${download.retryCount} attempts: ${download.fileName}`,
+            );
           }
         }
       }
 
       await this.saveDownloadQueue(remaining);
-      
-      console.log(`📊 Queue processing complete: ${processed} processed, ${failed} failed, ${remaining.length} remaining`);
-      
+
+      console.log(
+        `📊 Queue processing complete: ${processed} processed, ${failed} failed, ${remaining.length} remaining`,
+      );
+
       return { processed, failed, remaining: remaining.length };
     } catch (error) {
       console.error('❌ Failed to process download queue:', error);
@@ -221,7 +259,9 @@ export class EnhancedErrorHandlingService {
    */
   async getDownloadQueue(): Promise<QueuedDownload[]> {
     try {
-      const queueData = await AsyncStorage.getItem(EnhancedErrorHandlingService.QUEUE_STORAGE_KEY);
+      const queueData = await AsyncStorage.getItem(
+        EnhancedErrorHandlingService.QUEUE_STORAGE_KEY,
+      );
       return queueData ? JSON.parse(queueData) : [];
     } catch (error) {
       console.error('❌ Failed to get download queue:', error);
@@ -245,7 +285,7 @@ export class EnhancedErrorHandlingService {
       const available = freeSpace >= requiredBytes;
 
       const recommendations: string[] = [];
-      
+
       if (!available) {
         recommendations.push('Delete old files or apps to free up space');
         if (freeSpace < requiredBytes * 0.5) {
@@ -258,7 +298,7 @@ export class EnhancedErrorHandlingService {
         available,
         freeSpace,
         totalSpace,
-        recommendations
+        recommendations,
       };
     } catch (error) {
       console.error('❌ Failed to check storage space:', error);
@@ -266,7 +306,9 @@ export class EnhancedErrorHandlingService {
         available: false,
         freeSpace: 0,
         totalSpace: 0,
-        recommendations: ['Unable to check storage space - try restarting the app']
+        recommendations: [
+          'Unable to check storage space - try restarting the app',
+        ],
       };
     }
   }
@@ -274,7 +316,9 @@ export class EnhancedErrorHandlingService {
   /**
    * Create error recovery workflows
    */
-  async suggestRecoveryOptions(error: DownloadError): Promise<RecoveryOption[]> {
+  async suggestRecoveryOptions(
+    error: DownloadError,
+  ): Promise<RecoveryOption[]> {
     const options: RecoveryOption[] = [];
 
     switch (error.type) {
@@ -285,7 +329,7 @@ export class EnhancedErrorHandlingService {
           description: 'Open Settings to grant file access permissions',
           action: 'manual_action',
           automated: false,
-          priority: 'high'
+          priority: 'high',
         });
         break;
 
@@ -294,10 +338,12 @@ export class EnhancedErrorHandlingService {
         options.push({
           id: 'clear_space',
           label: 'Free Up Storage',
-          description: `You need ${Math.round((10 * 1024 * 1024 - storageInfo.freeSpace) / (1024 * 1024))} MB more space`,
+          description: `You need ${Math.round(
+            (10 * 1024 * 1024 - storageInfo.freeSpace) / (1024 * 1024),
+          )} MB more space`,
           action: 'check_storage',
           automated: false,
-          priority: 'high'
+          priority: 'high',
         });
         break;
 
@@ -305,10 +351,11 @@ export class EnhancedErrorHandlingService {
         options.push({
           id: 'retry_when_online',
           label: 'Retry When Online',
-          description: 'Download will retry automatically when connection is restored',
+          description:
+            'Download will retry automatically when connection is restored',
           action: 'retry',
           automated: true,
-          priority: 'high'
+          priority: 'high',
         });
         break;
 
@@ -319,7 +366,7 @@ export class EnhancedErrorHandlingService {
           description: 'Save to a different folder or storage location',
           action: 'retry_different_location',
           automated: false,
-          priority: 'medium'
+          priority: 'medium',
         });
         options.push({
           id: 'clear_cache',
@@ -327,7 +374,7 @@ export class EnhancedErrorHandlingService {
           description: 'Clear temporary files that might be causing conflicts',
           action: 'clear_cache',
           automated: true,
-          priority: 'medium'
+          priority: 'medium',
         });
         break;
 
@@ -338,7 +385,7 @@ export class EnhancedErrorHandlingService {
           description: 'Try the download again immediately',
           action: 'retry',
           automated: false,
-          priority: 'high'
+          priority: 'high',
         });
         break;
 
@@ -349,7 +396,7 @@ export class EnhancedErrorHandlingService {
           description: 'Retry the operation',
           action: 'retry',
           automated: false,
-          priority: 'medium'
+          priority: 'medium',
         });
         break;
     }
@@ -362,7 +409,7 @@ export class EnhancedErrorHandlingService {
         description: 'Help us improve by reporting this issue',
         action: 'report_issue',
         automated: false,
-        priority: 'low'
+        priority: 'low',
       });
     }
 
@@ -372,7 +419,10 @@ export class EnhancedErrorHandlingService {
   /**
    * Execute recovery action
    */
-  async executeRecoveryAction(option: RecoveryOption, error: DownloadError): Promise<boolean> {
+  async executeRecoveryAction(
+    option: RecoveryOption,
+    error: DownloadError,
+  ): Promise<boolean> {
     try {
       switch (option.action) {
         case 'retry':
@@ -387,19 +437,19 @@ export class EnhancedErrorHandlingService {
           const storageInfo = await this.checkStorageSpace();
           Alert.alert(
             'Storage Information',
-            `Free space: ${Math.round(storageInfo.freeSpace / (1024 * 1024))} MB\n\nRecommendations:\n${storageInfo.recommendations.join('\n')}`
+            `Free space: ${Math.round(
+              storageInfo.freeSpace / (1024 * 1024),
+            )} MB\n\nRecommendations:\n${storageInfo.recommendations.join(
+              '\n',
+            )}`,
           );
           return false; // User needs to take manual action
 
         case 'manual_action':
-          Alert.alert(
-            'Manual Action Required',
-            option.description,
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Open Settings', onPress: () => this.openAppSettings() }
-            ]
-          );
+          Alert.alert('Manual Action Required', option.description, [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => this.openAppSettings() },
+          ]);
           return false;
 
         case 'report_issue':
@@ -429,7 +479,7 @@ export class EnhancedErrorHandlingService {
           description: 'Grant file access permissions',
           action: 'manual_action',
           automated: false,
-          priority: 'high'
+          priority: 'high',
         });
         options.push({
           id: 'retry',
@@ -437,7 +487,7 @@ export class EnhancedErrorHandlingService {
           description: 'Retry the download',
           action: 'retry',
           automated: false,
-          priority: 'medium'
+          priority: 'medium',
         });
         break;
 
@@ -448,7 +498,7 @@ export class EnhancedErrorHandlingService {
           description: 'View storage information and recommendations',
           action: 'check_storage',
           automated: true,
-          priority: 'high'
+          priority: 'high',
         });
         options.push({
           id: 'queue_download',
@@ -456,7 +506,7 @@ export class EnhancedErrorHandlingService {
           description: 'Save download for when storage is available',
           action: 'retry',
           automated: true,
-          priority: 'medium'
+          priority: 'medium',
         });
         break;
 
@@ -467,7 +517,7 @@ export class EnhancedErrorHandlingService {
           description: 'Verify your internet connection',
           action: 'manual_action',
           automated: false,
-          priority: 'high'
+          priority: 'high',
         });
         options.push({
           id: 'queue_download',
@@ -475,7 +525,7 @@ export class EnhancedErrorHandlingService {
           description: 'Download will retry when connection is restored',
           action: 'retry',
           automated: true,
-          priority: 'medium'
+          priority: 'medium',
         });
         break;
 
@@ -486,7 +536,7 @@ export class EnhancedErrorHandlingService {
           description: 'Retry the operation',
           action: 'retry',
           automated: false,
-          priority: 'medium'
+          priority: 'medium',
         });
         break;
     }
@@ -497,7 +547,10 @@ export class EnhancedErrorHandlingService {
   /**
    * Generate error analytics
    */
-  async getErrorAnalytics(timeRange: { start: Date; end: Date }): Promise<ErrorAnalytics> {
+  async getErrorAnalytics(timeRange: {
+    start: Date;
+    end: Date;
+  }): Promise<ErrorAnalytics> {
     try {
       const errorLogs = await this.getErrorLogs();
       const relevantErrors = errorLogs.filter(error => {
@@ -511,20 +564,26 @@ export class EnhancedErrorHandlingService {
         return acc;
       }, {} as Record<string, number>);
 
-      const retriedErrors = relevantErrors.filter(error => error.retryCount > 0);
-      const recoverySuccessRate = retriedErrors.length > 0 
-        ? retriedErrors.filter(error => error.retryCount < error.maxRetries).length / retriedErrors.length 
-        : 0;
+      const retriedErrors = relevantErrors.filter(
+        error => error.retryCount > 0,
+      );
+      const recoverySuccessRate =
+        retriedErrors.length > 0
+          ? retriedErrors.filter(error => error.retryCount < error.maxRetries)
+              .length / retriedErrors.length
+          : 0;
 
-      const averageRetryCount = totalErrors > 0 
-        ? relevantErrors.reduce((sum, error) => sum + error.retryCount, 0) / totalErrors 
-        : 0;
+      const averageRetryCount =
+        totalErrors > 0
+          ? relevantErrors.reduce((sum, error) => sum + error.retryCount, 0) /
+            totalErrors
+          : 0;
 
       const mostCommonErrors = Object.entries(errorsByType)
         .map(([type, count]) => ({
           type,
           count,
-          percentage: Math.round((count / totalErrors) * 100)
+          percentage: Math.round((count / totalErrors) * 100),
         }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 5);
@@ -536,7 +595,7 @@ export class EnhancedErrorHandlingService {
         averageRetryCount,
         mostCommonErrors,
         timeToRecovery: this.calculateAverageTimeToRecovery(relevantErrors),
-        userAbandonmentRate: this.calculateUserAbandonmentRate(relevantErrors)
+        userAbandonmentRate: this.calculateUserAbandonmentRate(relevantErrors),
       };
     } catch (error) {
       console.error('❌ Failed to generate error analytics:', error);
@@ -549,13 +608,13 @@ export class EnhancedErrorHandlingService {
   private async processQueuedDownload(download: QueuedDownload): Promise<void> {
     // This would integrate with the existing download service
     const { storyDownloadService } = await import('./storyDownloadService');
-    
+
     await storyDownloadService.downloadStory({
       storyContent: download.storyContent,
       fileName: download.fileName,
       options: {
-        userId: download.userId
-      }
+        userId: download.userId,
+      },
     });
   }
 
@@ -570,19 +629,30 @@ export class EnhancedErrorHandlingService {
   }
 
   private async saveDownloadQueue(queue: QueuedDownload[]): Promise<void> {
-    await AsyncStorage.setItem(EnhancedErrorHandlingService.QUEUE_STORAGE_KEY, JSON.stringify(queue));
+    await AsyncStorage.setItem(
+      EnhancedErrorHandlingService.QUEUE_STORAGE_KEY,
+      JSON.stringify(queue),
+    );
   }
 
   public categorizeError(error: Error): DownloadError['type'] {
     const message = error.message.toLowerCase();
-    
+
     if (message.includes('permission') || message.includes('access denied')) {
       return 'permission_denied';
     }
-    if (message.includes('storage') || message.includes('space') || message.includes('disk full')) {
+    if (
+      message.includes('storage') ||
+      message.includes('space') ||
+      message.includes('disk full')
+    ) {
       return 'storage_full';
     }
-    if (message.includes('network') || message.includes('connection') || message.includes('internet')) {
+    if (
+      message.includes('network') ||
+      message.includes('connection') ||
+      message.includes('internet')
+    ) {
       return 'network_error';
     }
     if (message.includes('timeout') || message.includes('timed out')) {
@@ -591,24 +661,35 @@ export class EnhancedErrorHandlingService {
     if (message.includes('cancel') || message.includes('abort')) {
       return 'user_cancelled';
     }
-    if (message.includes('file') || message.includes('directory') || message.includes('path')) {
+    if (
+      message.includes('file') ||
+      message.includes('directory') ||
+      message.includes('path')
+    ) {
       return 'file_system_error';
     }
-    
+
     return 'unknown';
   }
 
   public enhanceError(error: Error, context: any): Error {
-    const enhancedMessage = `${error.message} (Operation: ${context.operationName || 'unknown'}${context.fileName ? `, File: ${context.fileName}` : ''})`;
+    const enhancedMessage = `${error.message} (Operation: ${
+      context.operationName || 'unknown'
+    }${context.fileName ? `, File: ${context.fileName}` : ''})`;
     const enhancedError = new Error(enhancedMessage);
     enhancedError.stack = error.stack;
     return enhancedError;
   }
 
-  private async createDownloadError(error: Error, context: any): Promise<DownloadError> {
+  private async createDownloadError(
+    error: Error,
+    context: any,
+  ): Promise<DownloadError> {
     const errorType = this.categorizeError(error);
-    const errorId = `error_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+    const errorId = `error_${Date.now()}_${Math.random()
+      .toString(36)
+      .substr(2, 9)}`;
+
     const downloadError: DownloadError = {
       id: errorId,
       type: errorType,
@@ -621,15 +702,16 @@ export class EnhancedErrorHandlingService {
         fileSize: context.fileSize,
         userId: context.userId,
         attempt: context.attempt,
-        stackTrace: error.stack
+        stackTrace: error.stack,
       },
       recoveryOptions: await this.suggestRecoveryOptions({
         type: errorType,
-        retryCount: context.attempt || 0
+        retryCount: context.attempt || 0,
       } as DownloadError),
       canRetry: errorType !== 'user_cancelled',
       retryCount: context.attempt || 0,
-      maxRetries: context.maxRetries || EnhancedErrorHandlingService.DEFAULT_MAX_RETRIES
+      maxRetries:
+        context.maxRetries || EnhancedErrorHandlingService.DEFAULT_MAX_RETRIES,
     };
 
     return downloadError;
@@ -648,17 +730,23 @@ export class EnhancedErrorHandlingService {
         type: 'unknown',
         message: 'Unknown error',
         context: { operation: 'unknown' },
-        ...errorData
+        ...errorData,
       };
 
       errorLogs.push(error);
-      
+
       // Keep only the most recent errors
       if (errorLogs.length > EnhancedErrorHandlingService.MAX_ERROR_LOGS) {
-        errorLogs.splice(0, errorLogs.length - EnhancedErrorHandlingService.MAX_ERROR_LOGS);
+        errorLogs.splice(
+          0,
+          errorLogs.length - EnhancedErrorHandlingService.MAX_ERROR_LOGS,
+        );
       }
 
-      await AsyncStorage.setItem(EnhancedErrorHandlingService.ERROR_LOG_STORAGE_KEY, JSON.stringify(errorLogs));
+      await AsyncStorage.setItem(
+        EnhancedErrorHandlingService.ERROR_LOG_STORAGE_KEY,
+        JSON.stringify(errorLogs),
+      );
     } catch (logError) {
       console.error('❌ Failed to log error:', logError);
     }
@@ -671,7 +759,9 @@ export class EnhancedErrorHandlingService {
 
   private async getErrorLogs(): Promise<DownloadError[]> {
     try {
-      const logsData = await AsyncStorage.getItem(EnhancedErrorHandlingService.ERROR_LOG_STORAGE_KEY);
+      const logsData = await AsyncStorage.getItem(
+        EnhancedErrorHandlingService.ERROR_LOG_STORAGE_KEY,
+      );
       return logsData ? JSON.parse(logsData) : [];
     } catch (error) {
       console.error('❌ Failed to get error logs:', error);
@@ -684,7 +774,7 @@ export class EnhancedErrorHandlingService {
       // Clear temporary files and cache
       const tempDir = RNFS.TemporaryDirectoryPath;
       const cacheDir = RNFS.CachesDirectoryPath;
-      
+
       const tempFiles = await RNFS.readDir(tempDir);
       for (const file of tempFiles) {
         if (file.name.startsWith('story_') || file.name.includes('download')) {
@@ -708,11 +798,11 @@ export class EnhancedErrorHandlingService {
     try {
       // This would send error report to analytics or support system
       console.log('📝 Reporting issue:', error.id);
-      
+
       Alert.alert(
         'Issue Reported',
-        'Thank you for reporting this issue. We\'ll use this information to improve the app.',
-        [{ text: 'OK' }]
+        "Thank you for reporting this issue. We'll use this information to improve the app.",
+        [{ text: 'OK' }],
       );
     } catch (reportError) {
       console.error('❌ Failed to report issue:', reportError);
@@ -726,9 +816,13 @@ export class EnhancedErrorHandlingService {
 
   private calculateUserAbandonmentRate(errors: DownloadError[]): number {
     const retriedErrors = errors.filter(error => error.retryCount > 0);
-    const abandonedErrors = errors.filter(error => error.retryCount >= error.maxRetries);
-    
-    return retriedErrors.length > 0 ? abandonedErrors.length / retriedErrors.length : 0;
+    const abandonedErrors = errors.filter(
+      error => error.retryCount >= error.maxRetries,
+    );
+
+    return retriedErrors.length > 0
+      ? abandonedErrors.length / retriedErrors.length
+      : 0;
   }
 
   private delay(ms: number): Promise<void> {

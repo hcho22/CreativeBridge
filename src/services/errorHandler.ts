@@ -1,8 +1,16 @@
 import { auditLogger, EventType, EventCategory, Severity } from './auditLogger';
 import { SkillError, SkillErrorCode, SkillType } from '../types/claudeSkills';
 import { structuredLogger } from '../utils/logger';
-import { ContextualFallbackService, ErrorRecoveryContext, ContextualFallbackResult } from './contextualFallback';
-import { SeamlessErrorMaskingService, UserProfile, SessionContext } from './seamlessErrorMasking';
+import {
+  ContextualFallbackService,
+  ErrorRecoveryContext,
+  ContextualFallbackResult,
+} from './contextualFallback';
+import {
+  SeamlessErrorMaskingService,
+  UserProfile,
+  SessionContext,
+} from './seamlessErrorMasking';
 import { PredictiveFailurePreventionService } from './predictiveFailurePrevention';
 import { ProgressiveEnhancementService } from './progressiveEnhancement';
 import { NetworkAdapterService } from './networkAdapter';
@@ -261,7 +269,7 @@ class ErrorHandler {
 
     // Map skill error code to error level
     const errorLevel = this.mapSkillErrorToLevel(skillError.code);
-    
+
     // Log using structured logger
     structuredLogger.logSkillError(skillType, skillId, skillError, {
       correlationId: context.metadata?.correlationId as string,
@@ -283,10 +291,15 @@ class ErrorHandler {
    * Initialize context-aware error handling services with progressive enhancement
    */
   initializeContextAwareHandling(skillManager: any): void {
-    this.contextualFallbackService = new ContextualFallbackService(skillManager);
+    this.contextualFallbackService = new ContextualFallbackService(
+      skillManager,
+    );
     this.seamlessErrorMaskingService = new SeamlessErrorMaskingService();
-    this.predictiveFailurePreventionService = new PredictiveFailurePreventionService(skillManager);
-    this.progressiveEnhancementService = new ProgressiveEnhancementService(skillManager);
+    this.predictiveFailurePreventionService =
+      new PredictiveFailurePreventionService(skillManager);
+    this.progressiveEnhancementService = new ProgressiveEnhancementService(
+      skillManager,
+    );
     this.networkAdapterService = new NetworkAdapterService();
   }
 
@@ -305,28 +318,40 @@ class ErrorHandler {
       consecutiveFailures: number;
     },
     userProfile?: UserProfile,
-    sessionContext?: SessionContext
-  ): Promise<ProcessedError & {
-    fallbackResult?: ContextualFallbackResult;
-    userMasking?: {
-      userMessage: string | null;
-      showProgress: boolean;
-      delayResponse: boolean;
-      alternativeAction?: string;
-    };
-  }> {
+    sessionContext?: SessionContext,
+  ): Promise<
+    ProcessedError & {
+      fallbackResult?: ContextualFallbackResult;
+      userMasking?: {
+        userMessage: string | null;
+        showProgress: boolean;
+        delayResponse: boolean;
+        alternativeAction?: string;
+      };
+    }
+  > {
     // Create SkillError from regular Error if needed
     const isSkillError = (err: any): err is SkillError => {
-      return err && typeof err === 'object' && 'code' in err && 'retryable' in err && 'message' in err;
+      return (
+        err &&
+        typeof err === 'object' &&
+        'code' in err &&
+        'retryable' in err &&
+        'message' in err
+      );
     };
 
-    const skillError: SkillError = isSkillError(error) 
-      ? error 
+    const skillError: SkillError = isSkillError(error)
+      ? error
       : {
           code: 'UNKNOWN_ERROR' as any,
-          message: error instanceof Error ? error.message : 'Unknown error occurred',
+          message:
+            error instanceof Error ? error.message : 'Unknown error occurred',
           retryable: true,
-          details: { originalError: error instanceof Error ? error.message : String(error) }
+          details: {
+            originalError:
+              error instanceof Error ? error.message : String(error),
+          },
         };
 
     const baseProcessedError = await this.handleSkillError(
@@ -342,8 +367,8 @@ class ErrorHandler {
           requestGradeLevel: request?.gradeLevel,
           storyLength: request?.storySoFar?.length || 0,
           userExperienceState,
-        }
-      }
+        },
+      },
     );
 
     let fallbackResult: ContextualFallbackResult | undefined;
@@ -363,39 +388,45 @@ class ErrorHandler {
           errorMessage: skillError.message,
           attemptNumber,
           previousFailures: [],
-          userExperienceState
+          userExperienceState,
         };
 
-        fallbackResult = await this.contextualFallbackService.recoverFromError(skillError, recoveryContext);
+        fallbackResult = await this.contextualFallbackService.recoverFromError(
+          skillError,
+          recoveryContext,
+        );
 
         // Apply seamless error masking if user profile is available
         if (this.seamlessErrorMaskingService && userProfile && sessionContext) {
-          const maskingStrategy = await this.seamlessErrorMaskingService.maskErrorForUser(
-            skillError,
-            fallbackResult,
-            userProfile,
-            sessionContext,
-            recoveryContext
-          );
+          const maskingStrategy =
+            await this.seamlessErrorMaskingService.maskErrorForUser(
+              skillError,
+              fallbackResult,
+              userProfile,
+              sessionContext,
+              recoveryContext,
+            );
 
           userMasking = {
             userMessage: maskingStrategy.userMessage,
             showProgress: maskingStrategy.showProgress,
             delayResponse: maskingStrategy.delayResponse,
-            alternativeAction: maskingStrategy.alternativeAction
+            alternativeAction: maskingStrategy.alternativeAction,
           };
         }
-
       } catch (contextualError) {
-        structuredLogger.warn('Contextual error handling failed, using basic recovery', {}, 
-          contextualError as Error);
+        structuredLogger.warn(
+          'Contextual error handling failed, using basic recovery',
+          {},
+          contextualError as Error,
+        );
       }
     }
 
     return {
       ...baseProcessedError,
       fallbackResult,
-      userMasking
+      userMasking,
     };
   }
 
@@ -411,7 +442,7 @@ class ErrorHandler {
       retryStrategy?: string;
       fallbackChain?: string;
       preserveUserExperience?: boolean;
-    } = {}
+    } = {},
   ): Promise<{
     result?: any;
     progressiveEnhancementUsed: boolean;
@@ -429,17 +460,26 @@ class ErrorHandler {
     const errors: ProcessedError[] = [];
 
     try {
-      structuredLogger.info('Starting progressive enhancement for story generation', {
-        requestGradeLevel: request.gradeLevel,
-        hasUserProfile: !!userProfile,
-        hasSessionContext: !!sessionContext,
-        preserveUserExperience: options.preserveUserExperience
-      });
+      structuredLogger.info(
+        'Starting progressive enhancement for story generation',
+        {
+          requestGradeLevel: request.gradeLevel,
+          hasUserProfile: !!userProfile,
+          hasSessionContext: !!sessionContext,
+          preserveUserExperience: options.preserveUserExperience,
+        },
+      );
 
       // Check if progressive enhancement is available
       if (!this.progressiveEnhancementService || !this.networkAdapterService) {
-        structuredLogger.warn('Progressive enhancement services not initialized, using basic story generation');
-        return await this.handleBasicStoryGeneration(storyOperation, request, startTime);
+        structuredLogger.warn(
+          'Progressive enhancement services not initialized, using basic story generation',
+        );
+        return await this.handleBasicStoryGeneration(
+          storyOperation,
+          request,
+          startTime,
+        );
       }
 
       // Step 1: Network condition assessment and adaptation
@@ -448,17 +488,22 @@ class ErrorHandler {
       let adaptedRequest = request;
 
       try {
-        const networkViability = await this.networkAdapterService.checkNetworkViability('story_generation');
-        
+        const networkViability =
+          await this.networkAdapterService.checkNetworkViability(
+            'story_generation',
+          );
+
         if (networkViability.recommendation === 'adapt') {
-          const adaptationResult = await this.networkAdapterService.adaptRequestForNetwork(request);
+          const adaptationResult =
+            await this.networkAdapterService.adaptRequestForNetwork(request);
           adaptedRequest = adaptationResult.modifiedRequest;
           networkAdaptationApplied = adaptationResult.adaptations.length > 0;
-          
+
           structuredLogger.info('Network adaptation applied', {
             adaptationCount: adaptationResult.adaptations.length,
-            expectedLatencyReduction: adaptationResult.expectedBehavior.reducedLatency,
-            qualityImpact: adaptationResult.expectedBehavior.qualityImpact
+            expectedLatencyReduction:
+              adaptationResult.expectedBehavior.reducedLatency,
+            qualityImpact: adaptationResult.expectedBehavior.qualityImpact,
           });
         } else if (networkViability.recommendation === 'offline') {
           // Handle connection loss
@@ -469,7 +514,7 @@ class ErrorHandler {
         const processedError = await this.handleError(
           adaptationError as Error,
           ErrorLevel.WARNING,
-          ErrorCategory.NETWORK
+          ErrorCategory.NETWORK,
         );
         errors.push(processedError);
       }
@@ -478,36 +523,51 @@ class ErrorHandler {
 
       // Step 2: Progressive enhancement execution
       const enhancementStartTime = Date.now();
-      
-      const enhancementResult = await this.progressiveEnhancementService.executeWithEnhancement(
-        () => storyOperation(),
-        'story_generation',
-        adaptedRequest,
-        {
-          retryStrategy: options.retryStrategy || 'adaptive',
-          fallbackChain: options.fallbackChain || 'story_generation',
-          preserveUserExperience: options.preserveUserExperience !== false
-        }
-      );
+
+      const enhancementResult =
+        await this.progressiveEnhancementService.executeWithEnhancement(
+          () => storyOperation(),
+          'story_generation',
+          adaptedRequest,
+          {
+            retryStrategy: options.retryStrategy || 'adaptive',
+            fallbackChain: options.fallbackChain || 'story_generation',
+            preserveUserExperience: options.preserveUserExperience !== false,
+          },
+        );
 
       const enhancementTime = Date.now() - enhancementStartTime;
       const totalTime = Date.now() - startTime;
 
       // Step 3: Apply user experience preservation if context-aware services are available
-      let finalUserExperiencePreserved = enhancementResult.userExperiencePreserved;
-      
-      if (enhancementResult.fallbackUsed && this.seamlessErrorMaskingService && userProfile && sessionContext) {
+      let finalUserExperiencePreserved =
+        enhancementResult.userExperiencePreserved;
+
+      if (
+        enhancementResult.fallbackUsed &&
+        this.seamlessErrorMaskingService &&
+        userProfile &&
+        sessionContext
+      ) {
         try {
           // Create a mock recovery result for the masking service
           const mockRecoveryResult = {
             story: enhancementResult.result?.content || '',
             preservedContext: enhancementResult.degradationLevel < 50,
-            contextPreservationScore: Math.max(0, 100 - enhancementResult.degradationLevel),
+            contextPreservationScore: Math.max(
+              0,
+              100 - enhancementResult.degradationLevel,
+            ),
             fallbackStrategy: 'progressive_enhancement',
-            qualityScore: Math.max(0, 100 - enhancementResult.degradationLevel * 1.5),
+            qualityScore: Math.max(
+              0,
+              100 - enhancementResult.degradationLevel * 1.5,
+            ),
             seamless: enhancementResult.userExperiencePreserved,
             continuityMaintained: enhancementResult.degradationLevel < 30,
-            recommendations: [`Progressive enhancement level: ${enhancementResult.degradationLevel}`]
+            recommendations: [
+              `Progressive enhancement level: ${enhancementResult.degradationLevel}`,
+            ],
           };
 
           const mockRecoveryContext = {
@@ -521,35 +581,43 @@ class ErrorHandler {
               isFirstInteraction: sessionContext.isFirstSession,
               sessionDuration: sessionContext.currentDuration,
               previousSuccesses: sessionContext.successfulInteractions,
-              consecutiveFailures: sessionContext.errorCount
-            }
+              consecutiveFailures: sessionContext.errorCount,
+            },
           };
 
-          const maskingStrategy = await this.seamlessErrorMaskingService.maskErrorForUser(
-            new Error(`Progressive degradation level ${enhancementResult.degradationLevel}`),
-            mockRecoveryResult,
-            userProfile,
-            sessionContext,
-            mockRecoveryContext
-          );
+          const maskingStrategy =
+            await this.seamlessErrorMaskingService.maskErrorForUser(
+              new Error(
+                `Progressive degradation level ${enhancementResult.degradationLevel}`,
+              ),
+              mockRecoveryResult,
+              userProfile,
+              sessionContext,
+              mockRecoveryContext,
+            );
 
           // Execute masking strategy to further improve user experience
-          const maskingExecution = await this.seamlessErrorMaskingService.executeMaskingStrategy(
-            maskingStrategy,
-            userProfile,
-            sessionContext
-          );
+          const maskingExecution =
+            await this.seamlessErrorMaskingService.executeMaskingStrategy(
+              maskingStrategy,
+              userProfile,
+              sessionContext,
+            );
 
-          finalUserExperiencePreserved = maskingExecution.userExperienceScore > 70;
+          finalUserExperiencePreserved =
+            maskingExecution.userExperienceScore > 70;
 
           structuredLogger.info('User experience masking applied', {
             maskingStrategy: maskingStrategy.strategy,
             userExperienceScore: maskingExecution.userExperienceScore,
-            maskingExecuted: maskingExecution.executed
+            maskingExecuted: maskingExecution.executed,
           });
-
         } catch (maskingError) {
-          structuredLogger.warn('User experience masking failed', {}, maskingError as Error);
+          structuredLogger.warn(
+            'User experience masking failed',
+            {},
+            maskingError as Error,
+          );
         }
       }
 
@@ -562,7 +630,7 @@ class ErrorHandler {
         userExperiencePreserved: finalUserExperiencePreserved,
         totalTime,
         adaptationTime,
-        enhancementTime
+        enhancementTime,
       });
 
       return {
@@ -574,29 +642,36 @@ class ErrorHandler {
         performance: {
           totalTime,
           adaptationTime,
-          enhancementTime
+          enhancementTime,
         },
-        errors: errors.length > 0 ? errors : undefined
+        errors: errors.length > 0 ? errors : undefined,
       };
-
     } catch (error) {
-      structuredLogger.error('Progressive enhancement failed completely', {}, error as Error);
-      
+      structuredLogger.error(
+        'Progressive enhancement failed completely',
+        {},
+        error as Error,
+      );
+
       const processedError = await this.handleError(
         error as Error,
         ErrorLevel.ERROR,
-        ErrorCategory.CLAUDE_SKILLS
+        ErrorCategory.CLAUDE_SKILLS,
       );
       errors.push(processedError);
 
       // Fall back to basic story generation
-      const basicResult = await this.handleBasicStoryGeneration(storyOperation, request, startTime);
-      
+      const basicResult = await this.handleBasicStoryGeneration(
+        storyOperation,
+        request,
+        startTime,
+      );
+
       return {
         ...basicResult,
         progressiveEnhancementUsed: false,
         networkAdaptationApplied: false,
-        errors
+        errors,
       };
     }
   }
@@ -607,7 +682,7 @@ class ErrorHandler {
   private async handleBasicStoryGeneration(
     storyOperation: () => Promise<any>,
     request: any,
-    startTime: number
+    startTime: number,
   ): Promise<{
     result?: any;
     progressiveEnhancementUsed: boolean;
@@ -629,23 +704,30 @@ class ErrorHandler {
         degradationLevel: 0,
         userExperiencePreserved: true,
         performance: {
-          totalTime
-        }
+          totalTime,
+        },
       };
     } catch (error) {
       const totalTime = Date.now() - startTime;
-      
+
       // Try context-aware fallback if available
       if (this.contextualFallbackService) {
         try {
           const isSkillError = (err: any): err is SkillError => {
-            return err && typeof err === 'object' && 'code' in err && 'retryable' in err;
+            return (
+              err &&
+              typeof err === 'object' &&
+              'code' in err &&
+              'retryable' in err
+            );
           };
 
           const recoveryContext = {
             originalRequest: request,
             storyContext: null,
-            errorType: isSkillError(error) ? error.code : 'UNKNOWN_ERROR' as any,
+            errorType: isSkillError(error)
+              ? error.code
+              : ('UNKNOWN_ERROR' as any),
             errorMessage: (error as Error).message,
             attemptNumber: 1,
             previousFailures: [],
@@ -653,14 +735,15 @@ class ErrorHandler {
               isFirstInteraction: true,
               sessionDuration: 0,
               previousSuccesses: 0,
-              consecutiveFailures: 1
-            }
+              consecutiveFailures: 1,
+            },
           };
 
-          const fallbackResult = await this.contextualFallbackService.recoverFromError(
-            error as SkillError,
-            recoveryContext
-          );
+          const fallbackResult =
+            await this.contextualFallbackService.recoverFromError(
+              error as SkillError,
+              recoveryContext,
+            );
 
           return {
             result: { content: fallbackResult.story },
@@ -669,28 +752,33 @@ class ErrorHandler {
             degradationLevel: 80, // High degradation for basic fallback
             userExperiencePreserved: fallbackResult.seamless,
             performance: {
-              totalTime
-            }
+              totalTime,
+            },
           };
         } catch (fallbackError) {
-          structuredLogger.error('Basic fallback also failed', {}, fallbackError as Error);
+          structuredLogger.error(
+            'Basic fallback also failed',
+            {},
+            fallbackError as Error,
+          );
         }
       }
 
       // Emergency fallback
       return {
         result: {
-          content: request.gradeLevel === 'K-2' ? 
-            "Let's continue this story together! What would you like to happen next?" :
-            "The story continues with new possibilities. What direction should it take?"
+          content:
+            request.gradeLevel === 'K-2'
+              ? "Let's continue this story together! What would you like to happen next?"
+              : 'The story continues with new possibilities. What direction should it take?',
         },
         progressiveEnhancementUsed: false,
         networkAdaptationApplied: false,
         degradationLevel: 95, // Maximum degradation
         userExperiencePreserved: false,
         performance: {
-          totalTime
-        }
+          totalTime,
+        },
       };
     }
   }
@@ -710,7 +798,7 @@ class ErrorHandler {
     return {
       available: true,
       networkMetrics: this.networkAdapterService.getNetworkMetrics(),
-      enhancementMetrics: this.progressiveEnhancementService.getMetrics()
+      enhancementMetrics: this.progressiveEnhancementService.getMetrics(),
     };
   }
 

@@ -33,7 +33,7 @@ describe('Download Button Integration', () => {
   test('download button has proper accessibility', () => {
     // This test verifies the button would have proper accessibility when rendered
     // The Alert.alert buttons automatically have accessibility support in React Native
-    
+
     const buttonConfig = {
       text: '⬇️ Download Story',
       onPress: expect.any(Function),
@@ -47,30 +47,37 @@ describe('Download Button Integration', () => {
   test('download functionality works correctly', async () => {
     const mockSession = {
       id: 'session-123',
-      story_content: 'Once upon a time, there was a brave little mouse who loved adventures.',
+      story_content:
+        'Once upon a time, there was a brave little mouse who loved adventures.',
       contributions: [],
       sessionStats: { userWords: 12 },
     };
 
     // Test the download service integration
-    const downloadOptions = storyDownloadService.createDownloadOptionsFromContent(
-      mockSession.id,
-      mockSession.story_content
-    );
+    const downloadOptions =
+      storyDownloadService.createDownloadOptionsFromContent(
+        mockSession.id,
+        mockSession.story_content,
+      );
 
     expect(downloadOptions).toEqual({
       storyId: 'session-123',
-      content: 'Once upon a time, there was a brave little mouse who loved adventures.',
+      content:
+        'Once upon a time, there was a brave little mouse who loved adventures.',
       title: 'My Story',
     });
 
-    const validation = storyDownloadService.validateStoryContent(downloadOptions.content);
+    const validation = storyDownloadService.validateStoryContent(
+      downloadOptions.content,
+    );
     expect(validation.isValid).toBe(true);
     expect(validation.errors).toHaveLength(0);
 
     const fileContent = storyDownloadService.generateStoryFile(downloadOptions);
     expect(fileContent).toContain('My Story');
-    expect(fileContent).toContain('Once upon a time, there was a brave little mouse who loved adventures.');
+    expect(fileContent).toContain(
+      'Once upon a time, there was a brave little mouse who loved adventures.',
+    );
 
     const fileName = storyDownloadService.generateFileName();
     expect(fileName).toMatch(/^Story_\d{6}_\d{6}\.txt$/);
@@ -79,14 +86,17 @@ describe('Download Button Integration', () => {
   test('handles download errors gracefully', () => {
     // Test error handling in download service
     const mockInvalidContent = '';
-    
-    const invalidOptions = storyDownloadService.createDownloadOptionsFromContent(
-      'test-id',
-      mockInvalidContent
-    );
+
+    const invalidOptions =
+      storyDownloadService.createDownloadOptionsFromContent(
+        'test-id',
+        mockInvalidContent,
+      );
 
     // The service should validate content
-    const validation = storyDownloadService.validateStoryContent(invalidOptions.content);
+    const validation = storyDownloadService.validateStoryContent(
+      invalidOptions.content,
+    );
     expect(validation.isValid).toBe(false);
     expect(validation.errors).toContain('Story content cannot be empty');
   });
@@ -112,15 +122,15 @@ describe('Download Button Integration', () => {
     const expectedButtons = [
       'View Story',
       '⬇️ Download Story',
-      '🎨 Generate Image', 
+      '🎨 Generate Image',
       'New Story',
       'Main Menu',
     ];
 
-    expectedButtons.forEach((buttonText) => {
+    expectedButtons.forEach(buttonText => {
       // Verify each button has the expected text
       expect(buttonText).toBeTruthy();
-      
+
       // Verify download button uses iOS-standard download symbol
       if (buttonText.includes('Download')) {
         expect(buttonText).toContain('⬇️');
@@ -131,10 +141,10 @@ describe('Download Button Integration', () => {
   test('ensures 44pt minimum touch target size compliance', () => {
     // Alert.alert buttons in React Native automatically meet accessibility requirements
     // including minimum touch target sizes. This test documents that requirement.
-    
+
     const touchTargetRequirement = 44; // Points
     expect(touchTargetRequirement).toBe(44);
-    
+
     // React Native Alert buttons automatically meet this requirement
     // No additional styling needed for Alert.alert buttons
   });

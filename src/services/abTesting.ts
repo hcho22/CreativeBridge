@@ -1,6 +1,6 @@
 /**
  * A/B Testing Framework for Claude Skills
- * 
+ *
  * Implements A/B testing framework to measure Claude Skills effectiveness.
  * Provides user segmentation, metrics collection, and statistical analysis.
  */
@@ -77,17 +77,17 @@ export interface VariantMetrics {
   averageResponseTime: number;
   successRate: number;
   errorRate: number;
-  
+
   // User engagement metrics
   sessionCompletionRate: number;
   averageSessionDuration: number;
   userSatisfaction?: number;
-  
+
   // Claude Skills specific metrics
   skillUsageRate: number;
   averageSkillExecutionTime: number;
   skillSuccessRate: number;
-  
+
   // Custom metrics
   customMetrics?: Record<string, number>;
 }
@@ -140,7 +140,8 @@ class ABTestingService {
       {
         id: 'claude_skills_performance',
         name: 'Claude Skills Performance Impact',
-        description: 'Measure performance impact of Claude Skills on story generation',
+        description:
+          'Measure performance impact of Claude Skills on story generation',
         enabled: false, // Start disabled, enable when ready
         startDate: new Date(),
         variants: [
@@ -224,7 +225,7 @@ class ABTestingService {
   async assignUserToExperiment(
     userId: string,
     experimentId: string,
-    userContext?: UserContext
+    userContext?: UserContext,
   ): Promise<UserAssignment | null> {
     const experiment = this.experiments.get(experimentId);
     if (!experiment || !experiment.enabled) {
@@ -233,7 +234,7 @@ class ABTestingService {
 
     // Check if user is already assigned
     const existingAssignment = this.userAssignments.get(
-      `${userId}:${experimentId}`
+      `${userId}:${experimentId}`,
     );
     if (existingAssignment) {
       return existingAssignment;
@@ -276,7 +277,7 @@ class ABTestingService {
     await this.persistAssignments();
 
     console.log(
-      `📊 User ${userId} assigned to experiment ${experimentId}, variant ${variant.id}`
+      `📊 User ${userId} assigned to experiment ${experimentId}, variant ${variant.id}`,
     );
 
     return assignment;
@@ -288,7 +289,7 @@ class ABTestingService {
   async getUserVariant(
     userId: string,
     experimentId: string,
-    userContext?: UserContext
+    userContext?: UserContext,
   ): Promise<string | null> {
     // Try to get existing assignment
     const assignment = this.userAssignments.get(`${userId}:${experimentId}`);
@@ -300,7 +301,7 @@ class ABTestingService {
     const newAssignment = await this.assignUserToExperiment(
       userId,
       experimentId,
-      userContext
+      userContext,
     );
     return newAssignment?.variantId || null;
   }
@@ -311,9 +312,13 @@ class ABTestingService {
   async shouldEnableClaudeSkills(
     userId: string,
     experimentId: string = 'claude_skills_performance',
-    userContext?: UserContext
+    userContext?: UserContext,
   ): Promise<boolean> {
-    const variantId = await this.getUserVariant(userId, experimentId, userContext);
+    const variantId = await this.getUserVariant(
+      userId,
+      experimentId,
+      userContext,
+    );
     if (!variantId) {
       return false; // Not in experiment or experiment disabled
     }
@@ -335,7 +340,7 @@ class ABTestingService {
     experimentId: string,
     metricName: string,
     metricValue: number,
-    metadata?: Record<string, any>
+    metadata?: Record<string, any>,
   ): Promise<void> {
     const assignment = this.userAssignments.get(`${userId}:${experimentId}`);
     if (!assignment) {
@@ -365,7 +370,7 @@ class ABTestingService {
         variantId: assignment.variantId,
         userId,
         ...metadata,
-      }
+      },
     );
 
     // Persist events (batch)
@@ -381,7 +386,7 @@ class ABTestingService {
     userId: string,
     experimentId: string,
     conversionType: string,
-    metadata?: Record<string, any>
+    metadata?: Record<string, any>,
   ): Promise<void> {
     const assignment = this.userAssignments.get(`${userId}:${experimentId}`);
     if (!assignment) {
@@ -406,7 +411,9 @@ class ABTestingService {
   /**
    * Get experiment results with statistical analysis
    */
-  async getExperimentResults(experimentId: string): Promise<ExperimentResults | null> {
+  async getExperimentResults(
+    experimentId: string,
+  ): Promise<ExperimentResults | null> {
     const experiment = this.experiments.get(experimentId);
     if (!experiment) {
       return null;
@@ -414,16 +421,19 @@ class ABTestingService {
 
     // Get events for this experiment
     const experimentEvents = this.experimentEvents.filter(
-      e => e.experimentId === experimentId
+      e => e.experimentId === experimentId,
     );
 
     // Calculate variant results
     const variantResults: VariantResult[] = experiment.variants.map(variant => {
       const variantEvents = experimentEvents.filter(
-        e => e.variantId === variant.id
+        e => e.variantId === variant.id,
       );
       const variantUsers = new Set(variantEvents.map(e => e.userId));
-      const metrics = this.calculateVariantMetrics(variantEvents, variantUsers.size);
+      const metrics = this.calculateVariantMetrics(
+        variantEvents,
+        variantUsers.size,
+      );
 
       return {
         variantId: variant.id,
@@ -433,7 +443,7 @@ class ABTestingService {
         confidenceInterval: this.calculateConfidenceInterval(
           metrics.successRate,
           variantUsers.size,
-          experiment.confidenceLevel || this.DEFAULT_CONFIDENCE_LEVEL
+          experiment.confidenceLevel || this.DEFAULT_CONFIDENCE_LEVEL,
         ),
       };
     });
@@ -441,19 +451,19 @@ class ABTestingService {
     // Calculate statistical significance
     const statisticalSignificance = this.calculateStatisticalSignificance(
       variantResults,
-      experiment.confidenceLevel || this.DEFAULT_CONFIDENCE_LEVEL
+      experiment.confidenceLevel || this.DEFAULT_CONFIDENCE_LEVEL,
     );
 
     // Generate recommendation
     const recommendation = this.generateRecommendation(
       variantResults,
       statisticalSignificance,
-      experiment
+      experiment,
     );
 
     // Calculate duration
     const duration = Math.floor(
-      (Date.now() - experiment.startDate.getTime()) / (1000 * 60 * 60 * 24)
+      (Date.now() - experiment.startDate.getTime()) / (1000 * 60 * 60 * 24),
     );
 
     return {
@@ -472,14 +482,14 @@ class ABTestingService {
    */
   private calculateVariantMetrics(
     events: ExperimentEvent[],
-    userCount: number
+    userCount: number,
   ): VariantMetrics {
     const metricEvents = events.filter(e => e.eventType === 'metric');
     const conversionEvents = events.filter(e => e.eventType === 'conversion');
 
     // Calculate average response time
     const responseTimeEvents = metricEvents.filter(
-      e => e.metricName === 'averageResponseTime'
+      e => e.metricName === 'averageResponseTime',
     );
     const averageResponseTime =
       responseTimeEvents.length > 0
@@ -488,7 +498,9 @@ class ABTestingService {
         : 0;
 
     // Calculate success rate
-    const successEvents = metricEvents.filter(e => e.metricName === 'successRate');
+    const successEvents = metricEvents.filter(
+      e => e.metricName === 'successRate',
+    );
     const successRate =
       successEvents.length > 0
         ? successEvents.reduce((sum, e) => sum + (e.metricValue || 0), 0) /
@@ -505,19 +517,19 @@ class ABTestingService {
 
     // Calculate session completion rate
     const sessionCompletionEvents = metricEvents.filter(
-      e => e.metricName === 'sessionCompletionRate'
+      e => e.metricName === 'sessionCompletionRate',
     );
     const sessionCompletionRate =
       sessionCompletionEvents.length > 0
         ? sessionCompletionEvents.reduce(
             (sum, e) => sum + (e.metricValue || 0),
-            0
+            0,
           ) / sessionCompletionEvents.length
         : 0;
 
     // Calculate skill usage rate
     const skillUsageEvents = metricEvents.filter(
-      e => e.metricName === 'skillUsageRate'
+      e => e.metricName === 'skillUsageRate',
     );
     const skillUsageRate =
       skillUsageEvents.length > 0
@@ -543,17 +555,20 @@ class ABTestingService {
   private calculateConfidenceInterval(
     proportion: number,
     sampleSize: number,
-    confidenceLevel: number
+    confidenceLevel: number,
   ): ConfidenceInterval {
     if (sampleSize === 0) {
       return { lower: 0, upper: 0, level: confidenceLevel };
     }
 
     // Z-score for confidence level (95% = 1.96, 99% = 2.58)
-    const zScore = confidenceLevel === 0.95 ? 1.96 : confidenceLevel === 0.99 ? 2.58 : 1.96;
+    const zScore =
+      confidenceLevel === 0.95 ? 1.96 : confidenceLevel === 0.99 ? 2.58 : 1.96;
 
     // Standard error
-    const standardError = Math.sqrt((proportion * (1 - proportion)) / sampleSize);
+    const standardError = Math.sqrt(
+      (proportion * (1 - proportion)) / sampleSize,
+    );
 
     // Margin of error
     const marginOfError = zScore * standardError;
@@ -570,7 +585,7 @@ class ABTestingService {
    */
   private calculateStatisticalSignificance(
     variantResults: VariantResult[],
-    confidenceLevel: number
+    confidenceLevel: number,
   ): StatisticalSignificance {
     if (variantResults.length < 2) {
       return {
@@ -597,9 +612,12 @@ class ABTestingService {
 
     // Simplified chi-square test for success rates
     const controlSuccess = control.metrics.successRate * control.sampleSize;
-    const controlFailures = (1 - control.metrics.successRate) * control.sampleSize;
-    const treatmentSuccess = treatment.metrics.successRate * treatment.sampleSize;
-    const treatmentFailures = (1 - treatment.metrics.successRate) * treatment.sampleSize;
+    const controlFailures =
+      (1 - control.metrics.successRate) * control.sampleSize;
+    const treatmentSuccess =
+      treatment.metrics.successRate * treatment.sampleSize;
+    const treatmentFailures =
+      (1 - treatment.metrics.successRate) * treatment.sampleSize;
 
     // Calculate chi-square statistic
     const totalSuccess = controlSuccess + treatmentSuccess;
@@ -607,9 +625,12 @@ class ABTestingService {
     const total = control.sampleSize + treatment.sampleSize;
 
     const expectedControlSuccess = (totalSuccess * control.sampleSize) / total;
-    const expectedControlFailures = (totalFailures * control.sampleSize) / total;
-    const expectedTreatmentSuccess = (totalSuccess * treatment.sampleSize) / total;
-    const expectedTreatmentFailures = (totalFailures * treatment.sampleSize) / total;
+    const expectedControlFailures =
+      (totalFailures * control.sampleSize) / total;
+    const expectedTreatmentSuccess =
+      (totalSuccess * treatment.sampleSize) / total;
+    const expectedTreatmentFailures =
+      (totalFailures * treatment.sampleSize) / total;
 
     const chiSquare =
       Math.pow(controlSuccess - expectedControlSuccess, 2) /
@@ -629,19 +650,22 @@ class ABTestingService {
     const pValue = isSignificant ? 0.01 : 0.5; // Simplified
 
     // Calculate effect size (Cohen's h)
-    const effectSize =
-      Math.abs(
-        2 *
-          (Math.asin(Math.sqrt(treatment.metrics.successRate)) -
-            Math.asin(Math.sqrt(control.metrics.successRate)))
-      );
+    const effectSize = Math.abs(
+      2 *
+        (Math.asin(Math.sqrt(treatment.metrics.successRate)) -
+          Math.asin(Math.sqrt(control.metrics.successRate))),
+    );
 
     let interpretation = '';
     if (isSignificant) {
       if (treatment.metrics.successRate > control.metrics.successRate) {
-        interpretation = `Treatment significantly outperforms control (p < ${pValue.toFixed(3)})`;
+        interpretation = `Treatment significantly outperforms control (p < ${pValue.toFixed(
+          3,
+        )})`;
       } else {
-        interpretation = `Control significantly outperforms treatment (p < ${pValue.toFixed(3)})`;
+        interpretation = `Control significantly outperforms treatment (p < ${pValue.toFixed(
+          3,
+        )})`;
       }
     } else {
       interpretation = 'No significant difference between variants';
@@ -662,7 +686,7 @@ class ABTestingService {
   private generateRecommendation(
     variantResults: VariantResult[],
     significance: StatisticalSignificance,
-    experiment: ExperimentConfig
+    experiment: ExperimentConfig,
   ): 'control' | 'treatment' | 'inconclusive' | 'continue' {
     const control = variantResults.find(v => v.variantId === 'control');
     const treatment = variantResults.find(v => v.variantId !== 'control');
@@ -673,7 +697,10 @@ class ABTestingService {
 
     // Check if we have minimum sample size
     const totalSampleSize = control.sampleSize + treatment.sampleSize;
-    if (totalSampleSize < (experiment.minimumSampleSize || this.DEFAULT_MIN_SAMPLE_SIZE)) {
+    if (
+      totalSampleSize <
+      (experiment.minimumSampleSize || this.DEFAULT_MIN_SAMPLE_SIZE)
+    ) {
       return 'continue'; // Need more data
     }
 
@@ -687,7 +714,10 @@ class ABTestingService {
     }
 
     // If not significant but have enough data, inconclusive
-    if (totalSampleSize >= (experiment.minimumSampleSize || this.DEFAULT_MIN_SAMPLE_SIZE) * 2) {
+    if (
+      totalSampleSize >=
+      (experiment.minimumSampleSize || this.DEFAULT_MIN_SAMPLE_SIZE) * 2
+    ) {
       return 'inconclusive';
     }
 
@@ -700,7 +730,7 @@ class ABTestingService {
    */
   private selectVariant(
     userHash: number,
-    variants: ExperimentVariant[]
+    variants: ExperimentVariant[],
   ): ExperimentVariant {
     // Normalize allocation to 0-100
     const totalAllocation = variants.reduce((sum, v) => sum + v.allocation, 0);
@@ -768,7 +798,9 @@ class ABTestingService {
   /**
    * Create or update experiment
    */
-  async createExperiment(config: Omit<ExperimentConfig, 'createdAt' | 'updatedAt'>): Promise<void> {
+  async createExperiment(
+    config: Omit<ExperimentConfig, 'createdAt' | 'updatedAt'>,
+  ): Promise<void> {
     const experiment: ExperimentConfig = {
       ...config,
       createdAt: new Date(),
@@ -782,7 +814,10 @@ class ABTestingService {
   /**
    * Enable/disable experiment
    */
-  async setExperimentEnabled(experimentId: string, enabled: boolean): Promise<void> {
+  async setExperimentEnabled(
+    experimentId: string,
+    enabled: boolean,
+  ): Promise<void> {
     const experiment = this.experiments.get(experimentId);
     if (!experiment) {
       throw new Error(`Experiment ${experimentId} not found`);
@@ -814,10 +849,7 @@ class ABTestingService {
   private async persistAssignments(): Promise<void> {
     try {
       const assignments = Array.from(this.userAssignments.values());
-      await AsyncStorage.setItem(
-        this.STORAGE_KEY,
-        JSON.stringify(assignments)
-      );
+      await AsyncStorage.setItem(this.STORAGE_KEY, JSON.stringify(assignments));
     } catch (error) {
       console.error('Failed to persist assignments:', error);
     }
@@ -835,7 +867,7 @@ class ABTestingService {
         assignments.forEach(assignment => {
           this.userAssignments.set(
             `${assignment.userId}:${assignment.experimentId}`,
-            assignment
+            assignment,
           );
         });
       }
@@ -861,7 +893,7 @@ class ABTestingService {
       const experiments = Array.from(this.experiments.values());
       await AsyncStorage.setItem(
         this.EXPERIMENTS_KEY,
-        JSON.stringify(experiments)
+        JSON.stringify(experiments),
       );
     } catch (error) {
       console.error('Failed to persist experiments:', error);
@@ -883,4 +915,3 @@ class ABTestingService {
 // Export singleton instance
 export const abTestingService = new ABTestingService();
 export default abTestingService;
-

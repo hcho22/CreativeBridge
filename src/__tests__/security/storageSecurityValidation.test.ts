@@ -31,7 +31,9 @@ describe('Task 6.5: Security Testing - Image Storage', () => {
       expect(user2Path).not.toContain(user1Id);
 
       // Policy validation complete
-      console.log('✓ RLS policy structure validated: user-scoped paths enforced');
+      console.log(
+        '✓ RLS policy structure validated: user-scoped paths enforced',
+      );
     });
 
     it('should prevent cross-user access through path validation', () => {
@@ -128,7 +130,9 @@ describe('Task 6.5: Security Testing - Image Storage', () => {
         expect(maliciousId).not.toMatch(/^[a-zA-Z0-9-]+$/); // Contains SQL chars
       });
 
-      console.log('✓ SQL injection prevention validated: parameterized queries enforced');
+      console.log(
+        '✓ SQL injection prevention validated: parameterized queries enforced',
+      );
     });
 
     it('should prevent SQL injection in user ID parameters', () => {
@@ -150,12 +154,13 @@ describe('Task 6.5: Security Testing - Image Storage', () => {
 
     it('should safely store error messages with SQL-like content', () => {
       // Error messages might contain SQL-like text - should be stored as literals
-      const errorWithSQL = "Upload failed: Error'; DROP TABLE game_sessions; --";
+      const errorWithSQL =
+        "Upload failed: Error'; DROP TABLE game_sessions; --";
 
       // When stored in image_upload_error column, should be treated as string
       const isStoredAsLiteral = true; // Parameterized insert
       expect(isStoredAsLiteral).toBe(true);
-      expect(errorWithSQL).toContain("DROP TABLE"); // Contains SQL but harmless as string
+      expect(errorWithSQL).toContain('DROP TABLE'); // Contains SQL but harmless as string
 
       console.log('✓ Error message SQL injection prevention validated');
     });
@@ -179,8 +184,8 @@ describe('Task 6.5: Security Testing - Image Storage', () => {
 
       // Valid file sizes
       const validSizes = [
-        1024,           // 1 KB
-        1024 * 1024,    // 1 MB
+        1024, // 1 KB
+        1024 * 1024, // 1 MB
         5 * 1024 * 1024, // 5 MB
         9.9 * 1024 * 1024, // 9.9 MB
       ];
@@ -191,9 +196,9 @@ describe('Task 6.5: Security Testing - Image Storage', () => {
 
       // Invalid file sizes
       const invalidSizes = [
-        11 * 1024 * 1024,    // 11 MB
-        50 * 1024 * 1024,    // 50 MB
-        100 * 1024 * 1024,   // 100 MB
+        11 * 1024 * 1024, // 11 MB
+        50 * 1024 * 1024, // 50 MB
+        100 * 1024 * 1024, // 100 MB
       ];
 
       invalidSizes.forEach(size => {
@@ -236,11 +241,7 @@ describe('Task 6.5: Security Testing - Image Storage', () => {
 
     it('should validate content-type during download', () => {
       // Downloaded content must start with 'image/'
-      const validContentTypes = [
-        'image/png',
-        'image/jpeg',
-        'image/webp',
-      ];
+      const validContentTypes = ['image/png', 'image/jpeg', 'image/webp'];
 
       validContentTypes.forEach(type => {
         expect(type).toMatch(/^image\//);
@@ -281,7 +282,12 @@ describe('Task 6.5: Security Testing - Image Storage', () => {
         'application/x-python',
       ];
 
-      const allowedImageTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+      const allowedImageTypes = [
+        'image/png',
+        'image/jpeg',
+        'image/jpg',
+        'image/webp',
+      ];
 
       dangerousMimeTypes.forEach(dangerous => {
         expect(allowedImageTypes).not.toContain(dangerous);

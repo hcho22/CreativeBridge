@@ -68,7 +68,14 @@ export interface DownloadResult {
   // Enhanced error handling properties (Task 2.4)
   queued?: boolean;
   queueId?: string;
-  errorType?: 'permission_denied' | 'storage_full' | 'file_system_error' | 'network_error' | 'timeout' | 'user_cancelled' | 'unknown';
+  errorType?:
+    | 'permission_denied'
+    | 'storage_full'
+    | 'file_system_error'
+    | 'network_error'
+    | 'timeout'
+    | 'user_cancelled'
+    | 'unknown';
   storageInfo?: {
     available: boolean;
     freeSpace: number;
@@ -79,15 +86,20 @@ export interface DownloadResult {
   canRetry?: boolean;
 }
 
-
 export interface StoryDownloadService {
   generateStoryFile(options: StoryDownloadOptions): string;
   generateFileName(): string;
-  createDownloadOptionsFromSession(session: import('../types/database').GameSession): StoryDownloadOptions;
+  createDownloadOptionsFromSession(
+    session: import('../types/database').GameSession,
+  ): StoryDownloadOptions;
   validateStoryContent(content: string): { isValid: boolean; errors: string[] };
   estimateFileSize(content: string): number;
   generatePreview(options: StoryDownloadOptions, maxLines?: number): string;
-  createDownloadOptionsFromContent(storyId: string, content: string, customTitle?: string): StoryDownloadOptions;
+  createDownloadOptionsFromContent(
+    storyId: string,
+    content: string,
+    customTitle?: string,
+  ): StoryDownloadOptions;
   sanitizeFileName(fileName: string): string;
   generateDownloadStats(options: StoryDownloadOptions): {
     contentLength: number;
@@ -103,7 +115,12 @@ declare module 'react-native-document-picker' {
     mode?: 'import' | 'open';
     copyTo?: 'cachesDirectory' | 'documentDirectory';
     allowMultiSelection?: boolean;
-    presentationStyle?: 'fullScreen' | 'pageSheet' | 'formSheet' | 'overFullScreen' | 'overCurrentContext';
+    presentationStyle?:
+      | 'fullScreen'
+      | 'pageSheet'
+      | 'formSheet'
+      | 'overFullScreen'
+      | 'overCurrentContext';
   }
 
   export interface DocumentPickerResult {
@@ -136,8 +153,12 @@ declare module 'react-native-document-picker' {
     zip: string;
   };
 
-  export function pick(options?: DocumentPickerOptions): Promise<DocumentPickerResult[]>;
-  export function pickSingle(options?: DocumentPickerOptions): Promise<DocumentPickerResult>;
+  export function pick(
+    options?: DocumentPickerOptions,
+  ): Promise<DocumentPickerResult[]>;
+  export function pickSingle(
+    options?: DocumentPickerOptions,
+  ): Promise<DocumentPickerResult>;
   export function isCancel(error: any): boolean;
   export function isInProgress(error: any): boolean;
 }
@@ -168,11 +189,21 @@ declare module 'react-native-fs' {
   export const PicturesDirectoryPath: string;
   export const TemporaryDirectoryPath: string;
 
-  export function writeFile(filepath: string, contents: string, options?: WriteFileOptions): Promise<void>;
+  export function writeFile(
+    filepath: string,
+    contents: string,
+    options?: WriteFileOptions,
+  ): Promise<void>;
   export function exists(filepath: string): Promise<boolean>;
-  export function readFile(filepath: string, encoding?: string): Promise<string>;
+  export function readFile(
+    filepath: string,
+    encoding?: string,
+  ): Promise<string>;
   export function stat(filepath: string): Promise<StatResult>;
   export function unlink(filepath: string): Promise<void>;
-  export function mkdir(filepath: string, options?: {NSURLIsExcludedFromBackupKey?: boolean}): Promise<void>;
+  export function mkdir(
+    filepath: string,
+    options?: { NSURLIsExcludedFromBackupKey?: boolean },
+  ): Promise<void>;
   export function readDir(dirpath: string): Promise<StatResult[]>;
 }

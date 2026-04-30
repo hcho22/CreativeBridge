@@ -1,6 +1,6 @@
 /**
  * Test Coverage Verification Utility
- * 
+ *
  * Verifies test coverage for Claude Skills integration points
  */
 
@@ -27,7 +27,7 @@ export class TestCoverageVerifier {
   registerIntegrationPoint(
     point: string,
     testFiles: string[],
-    covered: boolean = false
+    covered: boolean = false,
   ): void {
     this.integrationPoints.set(point, {
       point,
@@ -57,17 +57,15 @@ export class TestCoverageVerifier {
     const overallCoverage =
       points.length > 0 ? (coveredPoints.length / points.length) * 100 : 0;
 
-    const missingCoverage = points
-      .filter(p => !p.covered)
-      .map(p => p.point);
+    const missingCoverage = points.filter(p => !p.covered).map(p => p.point);
 
     const recommendations: string[] = [];
     if (overallCoverage < 95) {
       recommendations.push(
-        `Test coverage is ${overallCoverage.toFixed(1)}%. Target is 95%.`
+        `Test coverage is ${overallCoverage.toFixed(1)}%. Target is 95%.`,
       );
       recommendations.push(
-        `Missing coverage for: ${missingCoverage.join(', ')}`
+        `Missing coverage for: ${missingCoverage.join(', ')}`,
       );
     }
 
@@ -107,4 +105,3 @@ export const EXPECTED_INTEGRATION_POINTS = [
   'skillOrchestrator.executePlan',
   'fallbackStrategy.executeFallback',
 ];
-

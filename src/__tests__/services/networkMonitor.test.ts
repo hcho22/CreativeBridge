@@ -3,7 +3,10 @@
  * Tests for network connectivity monitoring and automatic queue processing
  */
 
-import { networkMonitor, NetworkMonitorService } from '../../services/networkMonitor';
+import {
+  networkMonitor,
+  NetworkMonitorService,
+} from '../../services/networkMonitor';
 import NetInfo from '@react-native-community/netinfo';
 
 // Mock NetInfo
@@ -30,7 +33,7 @@ describe('NetworkMonitorService', () => {
     jest.clearAllMocks();
     mockUnsubscribe = jest.fn();
     mockListener = jest.fn();
-    
+
     (NetInfo.addEventListener as jest.Mock).mockReturnValue(mockUnsubscribe);
     (NetInfo.fetch as jest.Mock).mockResolvedValue({
       isConnected: true,
@@ -50,7 +53,7 @@ describe('NetworkMonitorService', () => {
       networkMonitorInstance.initialize();
 
       expect(NetInfo.addEventListener).toHaveBeenCalledWith(
-        expect.any(Function)
+        expect.any(Function),
       );
       expect(NetInfo.fetch).toHaveBeenCalled();
     });
@@ -88,9 +91,10 @@ describe('NetworkMonitorService', () => {
       };
 
       networkMonitorInstance.initialize();
-      
+
       // Simulate network state change
-      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock.calls[0][0];
+      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock
+        .calls[0][0];
       networkChangeHandler(mockNetInfoState);
 
       const status = networkMonitorInstance.getCurrentStatus();
@@ -110,7 +114,8 @@ describe('NetworkMonitorService', () => {
       ];
 
       networkMonitorInstance.initialize();
-      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock.calls[0][0];
+      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock
+        .calls[0][0];
 
       testCases.forEach(({ strength, expected }) => {
         const mockState = {
@@ -135,7 +140,8 @@ describe('NetworkMonitorService', () => {
       ];
 
       networkMonitorInstance.initialize();
-      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock.calls[0][0];
+      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock
+        .calls[0][0];
 
       testCases.forEach(({ strength, expected }) => {
         const mockState = {
@@ -160,7 +166,8 @@ describe('NetworkMonitorService', () => {
       };
 
       networkMonitorInstance.initialize();
-      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock.calls[0][0];
+      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock
+        .calls[0][0];
       networkChangeHandler(mockState);
 
       const status = networkMonitorInstance.getCurrentStatus();
@@ -171,7 +178,7 @@ describe('NetworkMonitorService', () => {
   describe('Listener Management', () => {
     it('should add and notify listeners', () => {
       networkMonitorInstance.initialize();
-      
+
       const listener = jest.fn();
       const unsubscribe = networkMonitorInstance.addListener(listener);
 
@@ -184,7 +191,8 @@ describe('NetworkMonitorService', () => {
       });
 
       // Simulate network change
-      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock.calls[0][0];
+      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock
+        .calls[0][0];
       networkChangeHandler({
         isConnected: true,
         type: 'wifi',
@@ -196,7 +204,7 @@ describe('NetworkMonitorService', () => {
           isConnected: true,
           connectionType: 'wifi',
           isInternetReachable: true,
-        })
+        }),
       );
 
       unsubscribe();
@@ -204,14 +212,15 @@ describe('NetworkMonitorService', () => {
 
     it('should remove listeners correctly', () => {
       networkMonitorInstance.initialize();
-      
+
       const listener = jest.fn();
       const unsubscribe = networkMonitorInstance.addListener(listener);
 
       unsubscribe();
 
       // Simulate network change after unsubscribe
-      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock.calls[0][0];
+      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock
+        .calls[0][0];
       networkChangeHandler({
         isConnected: true,
         type: 'wifi',
@@ -224,17 +233,18 @@ describe('NetworkMonitorService', () => {
 
     it('should handle listener errors gracefully', () => {
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
-      
+
       networkMonitorInstance.initialize();
-      
+
       const errorListener = jest.fn().mockImplementation(() => {
         throw new Error('Listener error');
       });
-      
+
       networkMonitorInstance.addListener(errorListener);
 
-      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock.calls[0][0];
-      
+      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock
+        .calls[0][0];
+
       expect(() => {
         networkChangeHandler({
           isConnected: true,
@@ -245,7 +255,7 @@ describe('NetworkMonitorService', () => {
 
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('❌ Network listener error:'),
-        expect.any(Error)
+        expect.any(Error),
       );
 
       consoleSpy.mockRestore();
@@ -255,8 +265,9 @@ describe('NetworkMonitorService', () => {
   describe('Download Readiness Assessment', () => {
     it('should return true when ready for downloads', () => {
       networkMonitorInstance.initialize();
-      
-      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock.calls[0][0];
+
+      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock
+        .calls[0][0];
       networkChangeHandler({
         isConnected: true,
         type: 'wifi',
@@ -269,8 +280,9 @@ describe('NetworkMonitorService', () => {
 
     it('should return false when not connected', () => {
       networkMonitorInstance.initialize();
-      
-      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock.calls[0][0];
+
+      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock
+        .calls[0][0];
       networkChangeHandler({
         isConnected: false,
         type: 'none',
@@ -282,8 +294,9 @@ describe('NetworkMonitorService', () => {
 
     it('should return false when internet not reachable', () => {
       networkMonitorInstance.initialize();
-      
-      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock.calls[0][0];
+
+      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock
+        .calls[0][0];
       networkChangeHandler({
         isConnected: true,
         type: 'wifi',
@@ -295,8 +308,9 @@ describe('NetworkMonitorService', () => {
 
     it('should return false when connection strength is poor', () => {
       networkMonitorInstance.initialize();
-      
-      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock.calls[0][0];
+
+      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock
+        .calls[0][0];
       networkChangeHandler({
         isConnected: true,
         type: 'cellular',
@@ -311,8 +325,9 @@ describe('NetworkMonitorService', () => {
   describe('Connection Waiting', () => {
     it('should resolve immediately if already connected', async () => {
       networkMonitorInstance.initialize();
-      
-      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock.calls[0][0];
+
+      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock
+        .calls[0][0];
       networkChangeHandler({
         isConnected: true,
         type: 'wifi',
@@ -335,7 +350,8 @@ describe('NetworkMonitorService', () => {
 
       // Simulate connection after a delay
       setTimeout(() => {
-        const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock.calls[0][0];
+        const networkChangeHandler = (NetInfo.addEventListener as jest.Mock)
+          .mock.calls[0][0];
         networkChangeHandler({
           isConnected: true,
           type: 'wifi',
@@ -362,14 +378,17 @@ describe('NetworkMonitorService', () => {
   describe('Automatic Queue Processing', () => {
     it('should process download queue when connection is restored', async () => {
       const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
-      (enhancedErrorHandling.processDownloadQueue as jest.Mock).mockResolvedValue({
+      (
+        enhancedErrorHandling.processDownloadQueue as jest.Mock
+      ).mockResolvedValue({
         processed: 2,
         failed: 0,
         total: 2,
       });
 
       networkMonitorInstance.initialize();
-      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock.calls[0][0];
+      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock
+        .calls[0][0];
 
       // Simulate initial disconnected state
       networkChangeHandler({
@@ -390,10 +409,12 @@ describe('NetworkMonitorService', () => {
 
       expect(enhancedErrorHandling.processDownloadQueue).toHaveBeenCalled();
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('🔗 Connection restored - processing download queue')
+        expect.stringContaining(
+          '🔗 Connection restored - processing download queue',
+        ),
       );
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('✅ Successfully processed 2 queued downloads')
+        expect.stringContaining('✅ Successfully processed 2 queued downloads'),
       );
 
       consoleSpy.mockRestore();
@@ -401,12 +422,13 @@ describe('NetworkMonitorService', () => {
 
     it('should handle queue processing errors gracefully', async () => {
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
-      (enhancedErrorHandling.processDownloadQueue as jest.Mock).mockRejectedValue(
-        new Error('Queue processing failed')
-      );
+      (
+        enhancedErrorHandling.processDownloadQueue as jest.Mock
+      ).mockRejectedValue(new Error('Queue processing failed'));
 
       networkMonitorInstance.initialize();
-      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock.calls[0][0];
+      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock
+        .calls[0][0];
 
       // Simulate connection restoration
       networkChangeHandler({
@@ -425,8 +447,10 @@ describe('NetworkMonitorService', () => {
       await new Promise(resolve => setTimeout(resolve, 2100));
 
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('❌ Failed to process queue on connection restore:'),
-        expect.any(Error)
+        expect.stringContaining(
+          '❌ Failed to process queue on connection restore:',
+        ),
+        expect.any(Error),
       );
 
       consoleSpy.mockRestore();
@@ -434,7 +458,8 @@ describe('NetworkMonitorService', () => {
 
     it('should not process queue if not download ready', async () => {
       networkMonitorInstance.initialize();
-      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock.calls[0][0];
+      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock
+        .calls[0][0];
 
       // Simulate connection but poor quality
       networkChangeHandler({
@@ -458,9 +483,10 @@ describe('NetworkMonitorService', () => {
 
     it('should log connection loss events', () => {
       const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
-      
+
       networkMonitorInstance.initialize();
-      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock.calls[0][0];
+      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock
+        .calls[0][0];
 
       // Simulate connected state
       networkChangeHandler({
@@ -477,7 +503,9 @@ describe('NetworkMonitorService', () => {
       });
 
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('📵 Connection lost - downloads will be queued')
+        expect.stringContaining(
+          '📵 Connection lost - downloads will be queued',
+        ),
       );
 
       consoleSpy.mockRestore();
@@ -487,7 +515,8 @@ describe('NetworkMonitorService', () => {
   describe('Edge Cases and Error Handling', () => {
     it('should handle null network state values', () => {
       networkMonitorInstance.initialize();
-      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock.calls[0][0];
+      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock
+        .calls[0][0];
 
       const mockState = {
         isConnected: null,
@@ -504,7 +533,8 @@ describe('NetworkMonitorService', () => {
 
     it('should handle missing connection details', () => {
       networkMonitorInstance.initialize();
-      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock.calls[0][0];
+      const networkChangeHandler = (NetInfo.addEventListener as jest.Mock).mock
+        .calls[0][0];
 
       const mockState = {
         isConnected: true,

@@ -817,10 +817,27 @@ class StoryGenerationService {
       },
     );
 
-    // Safety net: replace any PII placeholders that leaked into the AI output.
-    // The server-side PII scrub can cause the AI to echo [NAME] in its response.
-    if (request.characterName) {
-      content = content.replace(/\[NAME\]/g, request.characterName);
+    // Safety net: replace any [NAME] placeholders that leaked into the AI output.
+    // Two upstream causes: (1) the PII scrubber rewrites "named X Y" → "named [NAME]"
+    // when story context echoes back into the prompt, and (2) the LLM occasionally
+    // emits [NAME] on its own — especially for secondary characters it invents.
+    // Always strip the marker. If a user-chosen name exists, use it; otherwise pick
+    // a random fallback so we never display "[NAME]" in finished prose.
+    if (/\[NAME\]/.test(content)) {
+      const fallbackNames = [
+        'Sage',
+        'Ari',
+        'Sky',
+        'River',
+        'Quinn',
+        'Wren',
+        'Rowan',
+        'Finch',
+      ];
+      const replacement =
+        request.characterName ||
+        fallbackNames[Math.floor(Math.random() * fallbackNames.length)];
+      content = content.replace(/\[NAME\]/g, replacement);
     }
 
     // Apply content filtering and sentence limiting
@@ -1101,7 +1118,7 @@ ${vocabularyGuidance[gradeLevel]}`;
 - If continuing a story, maintain the same characters, setting, and tone
 - Build on what the student has written without changing their creative direction
 - Use familiar, everyday words that ${gradeLevel} students know
-- NEVER use bracket placeholders like [NAME], [LOCATION], or [SCHOOL] in your story. Always invent actual names for every character, place, and school`;
+- Always invent specific, vivid names for every character, place, and school you introduce. Write only finished prose — never use templates, abbreviations, or bracketed markers of any kind`;
 
     // Provide character name context so the AI uses the correct name
     if (characterName) {

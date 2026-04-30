@@ -1,19 +1,19 @@
 /**
  * Claude Skills Resource Integration Tests
- * 
+ *
  * Specialized tests for Claude Skills integration in resource management
  * Task 4.1.1: Resource allocation skill integration
  */
 
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import DynamicResourceManager from '../../services/resourceManager';
-import { 
-  SkillManager, 
+import {
+  SkillManager,
   ResourceOptimizationInput,
   ResourceOptimizationResult,
   SkillResult,
   SkillErrorCode,
-  SkillError
+  SkillError,
 } from '../../types/claudeSkills';
 
 jest.mock('react-native-device-info');
@@ -29,7 +29,7 @@ describe('Claude Skills Resource Integration', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     resourceManager = new DynamicResourceManager();
-    
+
     mockSkillManager = {
       initialize: jest.fn().mockResolvedValue(undefined),
       registerSkill: jest.fn().mockResolvedValue({
@@ -174,15 +174,19 @@ describe('Claude Skills Resource Integration', () => {
             cpuUsage: expect.any(Number),
             activeBackgroundTasks: expect.any(Number),
           }),
-        })
+        }),
       );
     });
 
     it('should use safe defaults when device info is unavailable', async () => {
       // Mock DeviceInfo to throw errors
       const DeviceInfo = require('react-native-device-info');
-      DeviceInfo.getTotalMemory.mockRejectedValue(new Error('Device info error'));
-      DeviceInfo.getBatteryLevel.mockRejectedValue(new Error('Battery info error'));
+      DeviceInfo.getTotalMemory.mockRejectedValue(
+        new Error('Device info error'),
+      );
+      DeviceInfo.getBatteryLevel.mockRejectedValue(
+        new Error('Battery info error'),
+      );
 
       const mockResult: SkillResult<ResourceOptimizationResult> = {
         success: true,
@@ -290,7 +294,7 @@ describe('Claude Skills Resource Integration', () => {
 
       const newStrategy = resourceManager.getCurrentStrategy();
       expect(newStrategy.maxConcurrentOperations).toBe(
-        Math.max(1, initialConcurrent - 1)
+        Math.max(1, initialConcurrent - 1),
       );
     });
 
@@ -414,15 +418,15 @@ describe('Claude Skills Resource Integration', () => {
       await resourceManager.requestClaudeOptimization();
 
       const newStrategy = resourceManager.getCurrentStrategy();
-      
+
       // Should apply memory recommendation
       expect(newStrategy.cacheStrategy).toBe('aggressive');
-      
+
       // Should apply CPU recommendation
       expect(newStrategy.maxConcurrentOperations).toBe(
-        Math.min(4, initialStrategy.maxConcurrentOperations + 1)
+        Math.min(4, initialStrategy.maxConcurrentOperations + 1),
       );
-      
+
       // Should apply optimizations
       expect(newStrategy.imageQuality).toBe('high');
       expect(newStrategy.enablePrefetching).toBe(false);
@@ -505,24 +509,32 @@ describe('Claude Skills Resource Integration', () => {
 
   describe('Integration with Performance Optimizer', () => {
     beforeEach(async () => {
-      const { performanceOptimizer } = require('../../services/performanceOptimizer');
+      const {
+        performanceOptimizer,
+      } = require('../../services/performanceOptimizer');
       performanceOptimizer.enableResourceManagerIntegration = jest.fn();
       performanceOptimizer.updateSettings = jest.fn();
       performanceOptimizer.isResourceManagerIntegrated = jest.fn(() => true);
-      
+
       await resourceManager.initialize(mockSkillManager);
     });
 
     it('should notify performance optimizer of resource manager integration', async () => {
-      const { performanceOptimizer } = require('../../services/performanceOptimizer');
-      
+      const {
+        performanceOptimizer,
+      } = require('../../services/performanceOptimizer');
+
       // Integration should be enabled during initialization
-      expect(performanceOptimizer.enableResourceManagerIntegration).toHaveBeenCalled();
+      expect(
+        performanceOptimizer.enableResourceManagerIntegration,
+      ).toHaveBeenCalled();
     });
 
     it('should update performance optimizer settings when strategy changes', async () => {
-      const { performanceOptimizer } = require('../../services/performanceOptimizer');
-      
+      const {
+        performanceOptimizer,
+      } = require('../../services/performanceOptimizer');
+
       const mockResult: SkillResult<ResourceOptimizationResult> = {
         success: true,
         data: {
@@ -557,7 +569,7 @@ describe('Claude Skills Resource Integration', () => {
           backgroundProcessing: expect.any(Boolean),
           animationsEnabled: expect.any(Boolean),
           compressionLevel: expect.any(Number),
-        })
+        }),
       );
     });
   });
@@ -634,7 +646,7 @@ describe('Claude Skills Resource Integration', () => {
         expect.objectContaining({
           executionTime: 250,
           estimatedImpact: expect.any(Object),
-        })
+        }),
       );
     });
   });

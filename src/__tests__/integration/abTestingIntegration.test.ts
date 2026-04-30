@@ -1,6 +1,6 @@
 /**
  * A/B Testing Integration Tests
- * 
+ *
  * Integration tests for Task 1.4: A/B Testing Framework
  */
 
@@ -30,7 +30,7 @@ describe('A/B Testing Integration', () => {
       const assignment = await abTestingService.assignUserToExperiment(
         mockUserContext.userId,
         experimentId,
-        mockUserContext
+        mockUserContext,
       );
 
       expect(assignment).toBeDefined();
@@ -39,7 +39,7 @@ describe('A/B Testing Integration', () => {
       const shouldEnable = await abTestingService.shouldEnableClaudeSkills(
         mockUserContext.userId,
         experimentId,
-        mockUserContext
+        mockUserContext,
       );
 
       // Should be boolean (true for treatment, false for control)
@@ -53,7 +53,7 @@ describe('A/B Testing Integration', () => {
       await abTestingService.assignUserToExperiment(
         mockUserContext.userId,
         experimentId,
-        mockUserContext
+        mockUserContext,
       );
 
       // Simulate skill execution and track metrics
@@ -65,7 +65,7 @@ describe('A/B Testing Integration', () => {
         executionId,
         skillType,
         skillId,
-        mockUserContext.userId
+        mockUserContext.userId,
       );
 
       const result = {
@@ -79,7 +79,7 @@ describe('A/B Testing Integration', () => {
         executionId,
         result,
         skillId,
-        mockUserContext.userId
+        mockUserContext.userId,
       );
 
       // Track metric in A/B test
@@ -87,7 +87,7 @@ describe('A/B Testing Integration', () => {
         mockUserContext.userId,
         experimentId,
         'averageResponseTime',
-        250
+        250,
       );
 
       // Verify metrics are tracked
@@ -105,14 +105,14 @@ describe('A/B Testing Integration', () => {
       await abTestingService.assignUserToExperiment(
         mockUserContext.userId,
         experimentId,
-        mockUserContext
+        mockUserContext,
       );
 
       // Check feature flag (should respect A/B test)
       const variantId = await abTestingService.getUserVariant(
         mockUserContext.userId,
         experimentId,
-        mockUserContext
+        mockUserContext,
       );
 
       expect(variantId).toBeDefined();
@@ -129,14 +129,14 @@ describe('A/B Testing Integration', () => {
       const assignment1 = await abTestingService.assignUserToExperiment(
         mockUserContext.userId,
         experimentId,
-        mockUserContext
+        mockUserContext,
       );
 
       // Simulate app restart - get variant again
       const variantId = await abTestingService.getUserVariant(
         mockUserContext.userId,
         experimentId,
-        mockUserContext
+        mockUserContext,
       );
 
       // Should be same variant
@@ -153,18 +153,16 @@ describe('A/B Testing Integration', () => {
       const users = Array.from({ length: 50 }, (_, i) => `stat_user_${i}`);
 
       for (const userId of users) {
-        await abTestingService.assignUserToExperiment(
+        await abTestingService.assignUserToExperiment(userId, experimentId, {
           userId,
-          experimentId,
-          { userId }
-        );
+        });
 
         // Track metrics
         await abTestingService.trackMetric(
           userId,
           experimentId,
           'successRate',
-          Math.random() * 0.2 + 0.8 // Random between 0.8 and 1.0
+          Math.random() * 0.2 + 0.8, // Random between 0.8 and 1.0
         );
       }
 
@@ -174,7 +172,9 @@ describe('A/B Testing Integration', () => {
       expect(results?.statisticalSignificance).toBeDefined();
       expect(results?.statisticalSignificance.isSignificant).toBeDefined();
       expect(typeof results?.statisticalSignificance.pValue).toBe('number');
-      expect(results?.statisticalSignificance.confidenceLevel).toBeGreaterThan(0);
+      expect(results?.statisticalSignificance.confidenceLevel).toBeGreaterThan(
+        0,
+      );
     });
   });
 
@@ -187,14 +187,14 @@ describe('A/B Testing Integration', () => {
       await abTestingService.assignUserToExperiment(
         mockUserContext.userId,
         experimentId,
-        mockUserContext
+        mockUserContext,
       );
 
       await abTestingService.trackMetric(
         mockUserContext.userId,
         experimentId,
         'successRate',
-        0.9
+        0.9,
       );
 
       const results = await abTestingService.getExperimentResults(experimentId);
@@ -210,22 +210,23 @@ describe('A/B Testing Integration', () => {
 
       // Create diverse test data
       const controlUsers = Array.from({ length: 30 }, (_, i) => `control_${i}`);
-      const treatmentUsers = Array.from({ length: 30 }, (_, i) => `treatment_${i}`);
+      const treatmentUsers = Array.from(
+        { length: 30 },
+        (_, i) => `treatment_${i}`,
+      );
 
       // Note: In real implementation, assignment would be automatic
       // For testing, we'll just track metrics
       for (const userId of [...controlUsers, ...treatmentUsers]) {
-        await abTestingService.assignUserToExperiment(
+        await abTestingService.assignUserToExperiment(userId, experimentId, {
           userId,
-          experimentId,
-          { userId }
-        );
+        });
 
         await abTestingService.trackMetric(
           userId,
           experimentId,
           'successRate',
-          Math.random() * 0.3 + 0.7
+          Math.random() * 0.3 + 0.7,
         );
       }
 
@@ -238,4 +239,3 @@ describe('A/B Testing Integration', () => {
     });
   });
 });
-

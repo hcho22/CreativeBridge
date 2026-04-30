@@ -14,6 +14,7 @@ import { xpEventTracker } from '../../services/xpEventTracker';
 import { storySessionManager } from '../../services/storySessionManager';
 import { imageStorageService } from '../../services/imageStorageService';
 import type { ErrorType, GradeLevel } from '../../types/database';
+import { theme } from '../../constants/theme';
 
 interface ImageGenerationProps {
   storyContent: string;
@@ -593,7 +594,10 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
         >
           {state.isGenerating ? (
             <View style={styles.loadingContent}>
-              <ActivityIndicator size="small" color="#ffffff" />
+              <ActivityIndicator
+                size="small"
+                color={theme.colors.paper.cream}
+              />
               <Text style={styles.generateButtonText}>Generating...</Text>
             </View>
           ) : (
@@ -740,7 +744,10 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
             >
               {state.isRetrying ? (
                 <View style={styles.retryLoadingContent}>
-                  <ActivityIndicator size="small" color="#ffffff" />
+                  <ActivityIndicator
+                    size="small"
+                    color={theme.colors.paper.cream}
+                  />
                   <Text style={styles.retryButtonText}>Retrying...</Text>
                 </View>
               ) : (
@@ -779,7 +786,10 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
       <View style={styles.uploadStatusContainer}>
         {state.uploadStatus === 'pending' && (
           <View style={styles.uploadPendingContainer}>
-            <ActivityIndicator size="small" color="#6f42c1" />
+            <ActivityIndicator
+              size="small"
+              color={theme.colors.accents.foxglove}
+            />
             <Text style={styles.uploadStatusText}>
               Backing up image to cloud storage...
             </Text>
@@ -813,7 +823,10 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
             >
               {state.isRetryingUpload ? (
                 <View style={styles.retryUploadButtonContent}>
-                  <ActivityIndicator size="small" color="#ffffff" />
+                  <ActivityIndicator
+                    size="small"
+                    color={theme.colors.paper.cream}
+                  />
                   <Text style={styles.retryUploadButtonText}>Retrying...</Text>
                 </View>
               ) : (
@@ -843,29 +856,25 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
 const styles = StyleSheet.create({
   container: {
     padding: 16,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.colors.paper.card,
     borderRadius: 12,
     marginVertical: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...theme.shadows.paper,
   },
 
   // XP Balance Display
   xpBalanceContainer: {
     marginBottom: 16,
     padding: 12,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme.colors.paper.cream,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e9ecef',
+    borderColor: theme.colors.paper.edge,
   },
   xpBalanceLabel: {
+    fontFamily: theme.typography.fontFamily.uiSemibold,
     fontSize: 14,
-    fontWeight: '600',
-    color: '#6c757d',
+    color: theme.colors.ink.faint,
     marginBottom: 4,
   },
   xpBalanceInfo: {
@@ -874,57 +883,54 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   xpBalanceValue: {
+    fontFamily: theme.typography.fontFamily.uiBold,
     fontSize: 22,
-    fontWeight: 'bold',
   },
   xpSufficient: {
-    color: '#28a745',
+    color: theme.colors.accents.moss,
   },
   xpInsufficient: {
-    color: '#dc3545',
+    color: theme.colors.accents.foxglove,
   },
   xpBalanceCost: {
+    fontFamily: theme.typography.fontFamily.uiRegular,
     fontSize: 14,
-    color: '#6c757d',
+    color: theme.colors.ink.faint,
     fontStyle: 'italic',
   },
   xpShortfallMessage: {
+    fontFamily: theme.typography.fontFamily.uiSemibold,
     fontSize: 14,
-    color: '#dc3545',
-    fontWeight: '600',
+    color: theme.colors.accents.foxglove,
     marginTop: 4,
     textAlign: 'center',
   },
 
   // Generation Button
   generateButton: {
-    backgroundColor: '#6f42c1',
+    backgroundColor: theme.colors.accents.foxglove,
     paddingVertical: 16,
     paddingHorizontal: 24,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#6f42c1',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    ...theme.shadows.card,
   },
   generateButtonDisabled: {
-    backgroundColor: '#adb5bd',
+    backgroundColor: theme.colors.ink.faint,
     shadowOpacity: 0,
     elevation: 0,
   },
   generateButtonLoading: {
-    backgroundColor: '#5a32a3',
+    backgroundColor: theme.colors.ink.base,
   },
   generateButtonText: {
-    color: '#ffffff',
+    fontFamily: theme.typography.fontFamily.uiBold,
+    color: theme.colors.paper.cream,
     fontSize: 20,
-    fontWeight: 'bold',
   },
   generateButtonTextDisabled: {
-    color: '#6c757d',
+    color: theme.colors.ink.faint,
   },
   loadingContent: {
     flexDirection: 'row',
@@ -936,10 +942,10 @@ const styles = StyleSheet.create({
   loadingContainer: {
     marginTop: 16,
     padding: 16,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme.colors.paper.cream,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#dee2e6',
+    borderColor: theme.colors.paper.edge,
   },
   progressHeader: {
     flexDirection: 'row',
@@ -948,32 +954,33 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   progressTitle: {
+    fontFamily: theme.typography.fontFamily.serifItalic,
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#495057',
+    color: theme.colors.ink.base,
   },
   progressPercentage: {
+    fontFamily: theme.typography.fontFamily.uiSemibold,
     fontSize: 16,
-    fontWeight: '600',
-    color: '#6f42c1',
+    color: theme.colors.accents.moss,
   },
   progressBarContainer: {
     marginBottom: 12,
   },
   progressBar: {
     height: 8,
-    backgroundColor: '#e9ecef',
+    backgroundColor: theme.colors.paper.edge,
     borderRadius: 4,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#6f42c1',
+    backgroundColor: theme.colors.accents.moss,
     borderRadius: 4,
   },
   progressStep: {
+    fontFamily: theme.typography.fontFamily.uiRegular,
     fontSize: 16,
-    color: '#6c757d',
+    color: theme.colors.ink.faint,
     textAlign: 'center',
     marginBottom: 8,
     fontStyle: 'italic',
@@ -982,19 +989,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   estimateText: {
+    fontFamily: theme.typography.fontFamily.uiMedium,
     fontSize: 14,
-    color: '#6c757d',
-    fontWeight: '500',
+    color: theme.colors.ink.faint,
   },
 
   // Disabled State
   disabledContainer: {
     marginTop: 16,
     padding: 16,
-    backgroundColor: '#f8d7da',
+    backgroundColor: theme.colors.paper.cardWarm,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#f5c6cb',
+    borderWidth: 1.5,
+    borderColor: theme.colors.accents.foxglove,
     alignItems: 'center',
   },
   disabledIcon: {
@@ -1002,28 +1009,30 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   disabledTitle: {
+    fontFamily: theme.typography.fontFamily.serifItalic,
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#721c24',
+    color: theme.colors.ink.base,
     marginBottom: 8,
     textAlign: 'center',
   },
   disabledMessage: {
+    fontFamily: theme.typography.fontFamily.uiRegular,
     fontSize: 16,
-    color: '#721c24',
+    color: theme.colors.ink.soft,
     textAlign: 'center',
     marginBottom: 8,
   },
   disabledProgress: {
+    fontFamily: theme.typography.fontFamily.uiBold,
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#6f42c1',
+    color: theme.colors.accents.moss,
     textAlign: 'center',
     marginBottom: 8,
   },
   disabledHint: {
+    fontFamily: theme.typography.fontFamily.uiRegular,
     fontSize: 14,
-    color: '#856404',
+    color: theme.colors.ink.soft,
     textAlign: 'center',
     fontStyle: 'italic',
   },
@@ -1031,14 +1040,14 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingVertical: 12,
     paddingHorizontal: 24,
-    backgroundColor: '#6c757d',
+    backgroundColor: theme.colors.ink.faint,
     borderRadius: 8,
     alignSelf: 'center',
   },
   closeButtonText: {
-    color: '#ffffff',
+    fontFamily: theme.typography.fontFamily.uiSemibold,
+    color: theme.colors.paper.cream,
     fontSize: 16,
-    fontWeight: '600',
     textAlign: 'center',
   },
 
@@ -1047,20 +1056,16 @@ const styles = StyleSheet.create({
     marginTop: 16,
     padding: 16,
     borderRadius: 12,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderWidth: 1.5,
+    ...theme.shadows.paper,
   },
   errorContainerSevere: {
-    backgroundColor: '#f8d7da',
-    borderColor: '#f5c6cb',
+    backgroundColor: theme.colors.paper.cardWarm,
+    borderColor: theme.colors.accents.foxglove,
   },
   warningContainer: {
-    backgroundColor: '#fff3cd',
-    borderColor: '#ffeaa7',
+    backgroundColor: theme.colors.paper.cardWarm,
+    borderColor: theme.colors.accents.amber,
   },
   errorHeader: {
     flexDirection: 'row',
@@ -1072,14 +1077,15 @@ const styles = StyleSheet.create({
     fontSize: 30,
   },
   errorTitle: {
+    fontFamily: theme.typography.fontFamily.serifItalic,
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#721c24',
+    color: theme.colors.ink.base,
     flex: 1,
   },
   errorMessage: {
+    fontFamily: theme.typography.fontFamily.uiRegular,
     fontSize: 16,
-    color: '#721c24',
+    color: theme.colors.ink.soft,
     lineHeight: 20,
     marginBottom: 12,
   },
@@ -1087,14 +1093,15 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   retryInfo: {
+    fontFamily: theme.typography.fontFamily.uiRegular,
     fontSize: 14,
-    color: '#6c757d',
+    color: theme.colors.ink.faint,
     textAlign: 'center',
     marginBottom: 8,
     fontStyle: 'italic',
   },
   enhancedRetryButton: {
-    backgroundColor: '#007bff',
+    backgroundColor: theme.colors.accents.foxglove,
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,
@@ -1102,7 +1109,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   retryButtonDisabled: {
-    backgroundColor: '#6c757d',
+    backgroundColor: theme.colors.ink.faint,
   },
   retryLoadingContent: {
     flexDirection: 'row',
@@ -1110,19 +1117,20 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   retryButtonText: {
-    color: '#ffffff',
+    fontFamily: theme.typography.fontFamily.uiSemibold,
+    color: theme.colors.paper.cream,
     fontSize: 16,
-    fontWeight: '600',
   },
   maxRetriesContainer: {
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme.colors.paper.cream,
     padding: 12,
     borderRadius: 6,
     marginBottom: 12,
   },
   maxRetriesText: {
+    fontFamily: theme.typography.fontFamily.uiRegular,
     fontSize: 15,
-    color: '#495057',
+    color: theme.colors.ink.soft,
     textAlign: 'center',
     fontStyle: 'italic',
   },
@@ -1130,8 +1138,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   errorHint: {
+    fontFamily: theme.typography.fontFamily.uiRegular,
     fontSize: 14,
-    color: '#6c757d',
+    color: theme.colors.ink.faint,
     textAlign: 'center',
     lineHeight: 16,
     fontStyle: 'italic',
@@ -1142,13 +1151,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#6c757d',
+    borderColor: theme.colors.ink.faint,
     alignItems: 'center',
   },
   dismissButtonText: {
-    color: '#6c757d',
+    fontFamily: theme.typography.fontFamily.uiMedium,
+    color: theme.colors.ink.faint,
     fontSize: 14,
-    fontWeight: '500',
   },
 
   // NEW: Supabase upload status styles
@@ -1156,7 +1165,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     padding: 12,
     borderRadius: 8,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme.colors.paper.cream,
   },
   uploadPendingContainer: {
     flexDirection: 'row',
@@ -1164,8 +1173,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   uploadStatusText: {
+    fontFamily: theme.typography.fontFamily.uiRegular,
     fontSize: 15,
-    color: '#6c757d',
+    color: theme.colors.ink.faint,
     marginLeft: 8,
   },
   uploadSuccessContainer: {
@@ -1177,9 +1187,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   uploadSuccessText: {
+    fontFamily: theme.typography.fontFamily.uiMedium,
     fontSize: 15,
-    color: '#28a745',
-    fontWeight: '500',
+    color: theme.colors.accents.moss,
   },
   uploadFailedContainer: {
     gap: 8,
@@ -1193,18 +1203,19 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   uploadFailedText: {
+    fontFamily: theme.typography.fontFamily.uiMedium,
     fontSize: 15,
-    color: '#dc3545',
-    fontWeight: '500',
+    color: theme.colors.accents.foxglove,
     flex: 1,
   },
   uploadFailedHint: {
+    fontFamily: theme.typography.fontFamily.uiRegular,
     fontSize: 14,
-    color: '#6c757d',
+    color: theme.colors.ink.faint,
     fontStyle: 'italic',
   },
   retryUploadButton: {
-    backgroundColor: '#6f42c1',
+    backgroundColor: theme.colors.accents.foxglove,
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,
@@ -1217,9 +1228,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   retryUploadButtonText: {
-    color: '#ffffff',
+    fontFamily: theme.typography.fontFamily.uiSemibold,
+    color: theme.colors.paper.cream,
     fontSize: 15,
-    fontWeight: '600',
     marginLeft: 4,
   },
 });

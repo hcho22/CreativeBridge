@@ -1,6 +1,6 @@
 /**
  * A/B Testing Framework Tests
- * 
+ *
  * Comprehensive tests for Task 1.4: A/B Testing Framework
  */
 
@@ -41,7 +41,7 @@ describe('A/B Testing Framework', () => {
   describe('User Segmentation', () => {
     test('User segmentation works correctly', async () => {
       const experimentId = 'claude_skills_performance';
-      
+
       // Enable experiment first
       await abTestingService.setExperimentEnabled(experimentId, true);
 
@@ -49,7 +49,7 @@ describe('A/B Testing Framework', () => {
       const assignment = await abTestingService.assignUserToExperiment(
         mockUserContext.userId,
         experimentId,
-        mockUserContext
+        mockUserContext,
       );
 
       expect(assignment).toBeDefined();
@@ -72,7 +72,7 @@ describe('A/B Testing Framework', () => {
         const assignment = await abTestingService.assignUserToExperiment(
           userId,
           experimentId,
-          { userId }
+          { userId },
         );
         if (assignment) {
           assignments.push(assignment.variantId);
@@ -99,19 +99,19 @@ describe('A/B Testing Framework', () => {
       await abTestingService.setExperimentEnabled(experimentId, true);
 
       const userId = 'consistent_user';
-      
+
       // First assignment
       const assignment1 = await abTestingService.assignUserToExperiment(
         userId,
         experimentId,
-        mockUserContext
+        mockUserContext,
       );
 
       // Second assignment (should be same)
       const assignment2 = await abTestingService.assignUserToExperiment(
         userId,
         experimentId,
-        mockUserContext
+        mockUserContext,
       );
 
       expect(assignment1?.variantId).toBe(assignment2?.variantId);
@@ -128,21 +128,21 @@ describe('A/B Testing Framework', () => {
       const assignment = await abTestingService.assignUserToExperiment(
         mockUserContext.userId,
         experimentId,
-        mockUserContext
+        mockUserContext,
       );
 
       if (assignment?.variantId === 'treatment') {
         const enabled = await abTestingService.shouldEnableClaudeSkills(
           mockUserContext.userId,
           experimentId,
-          mockUserContext
+          mockUserContext,
         );
         expect(enabled).toBe(true);
       } else {
         const enabled = await abTestingService.shouldEnableClaudeSkills(
           mockUserContext.userId,
           experimentId,
-          mockUserContext
+          mockUserContext,
         );
         expect(enabled).toBe(false);
       }
@@ -150,47 +150,47 @@ describe('A/B Testing Framework', () => {
 
     test('Flag changes take effect immediately', async () => {
       const experimentId = 'claude_skills_performance';
-      
+
       // Initially disabled
       await abTestingService.setExperimentEnabled(experimentId, false);
       let enabled = await abTestingService.shouldEnableClaudeSkills(
         mockUserContext.userId,
         experimentId,
-        mockUserContext
+        mockUserContext,
       );
       expect(enabled).toBe(false);
 
       // Enable experiment
       await abTestingService.setExperimentEnabled(experimentId, true);
-      
+
       // Assign user
       await abTestingService.assignUserToExperiment(
         mockUserContext.userId,
         experimentId,
-        mockUserContext
+        mockUserContext,
       );
 
       // Check again
       enabled = await abTestingService.shouldEnableClaudeSkills(
         mockUserContext.userId,
         experimentId,
-        mockUserContext
+        mockUserContext,
       );
-      
+
       // Should now potentially be enabled (depending on variant)
       expect(typeof enabled).toBe('boolean');
     });
 
     test('Fallback behavior when not in experiment', async () => {
       const experimentId = 'claude_skills_performance';
-      
+
       // Disable experiment
       await abTestingService.setExperimentEnabled(experimentId, false);
 
       const enabled = await abTestingService.shouldEnableClaudeSkills(
         mockUserContext.userId,
         experimentId,
-        mockUserContext
+        mockUserContext,
       );
 
       // Should default to false when not in experiment
@@ -204,26 +204,28 @@ describe('A/B Testing Framework', () => {
       await abTestingService.setExperimentEnabled(experimentId, true);
 
       // Create test data for control and treatment
-      const controlUsers = Array.from({ length: 50 }, (_, i) => `control_user_${i}`);
-      const treatmentUsers = Array.from({ length: 50 }, (_, i) => `treatment_user_${i}`);
+      const controlUsers = Array.from(
+        { length: 50 },
+        (_, i) => `control_user_${i}`,
+      );
+      const treatmentUsers = Array.from(
+        { length: 50 },
+        (_, i) => `treatment_user_${i}`,
+      );
 
       // Assign users
       for (const userId of controlUsers) {
         // Force assignment to control by using a hash that maps to control
         // In real implementation, this would be handled by the assignment algorithm
-        await abTestingService.assignUserToExperiment(
+        await abTestingService.assignUserToExperiment(userId, experimentId, {
           userId,
-          experimentId,
-          { userId }
-        );
+        });
       }
 
       for (const userId of treatmentUsers) {
-        await abTestingService.assignUserToExperiment(
+        await abTestingService.assignUserToExperiment(userId, experimentId, {
           userId,
-          experimentId,
-          { userId }
-        );
+        });
       }
 
       // Track metrics
@@ -232,7 +234,7 @@ describe('A/B Testing Framework', () => {
           userId,
           experimentId,
           'successRate',
-          0.75 // 75% success rate
+          0.75, // 75% success rate
         );
       }
 
@@ -241,7 +243,7 @@ describe('A/B Testing Framework', () => {
           userId,
           experimentId,
           'successRate',
-          0.85 // 85% success rate (better)
+          0.85, // 85% success rate (better)
         );
       }
 
@@ -259,31 +261,29 @@ describe('A/B Testing Framework', () => {
 
       // Create sample data
       const users = Array.from({ length: 100 }, (_, i) => `user_${i}`);
-      
+
       for (const userId of users) {
-        await abTestingService.assignUserToExperiment(
+        await abTestingService.assignUserToExperiment(userId, experimentId, {
           userId,
-          experimentId,
-          { userId }
-        );
-        
+        });
+
         await abTestingService.trackMetric(
           userId,
           experimentId,
           'successRate',
-          0.8
+          0.8,
         );
       }
 
       const results = await abTestingService.getExperimentResults(experimentId);
-      
+
       if (results && results.variantResults.length > 0) {
         const variant = results.variantResults[0];
         expect(variant.confidenceInterval).toBeDefined();
         expect(variant.confidenceInterval.lower).toBeGreaterThanOrEqual(0);
         expect(variant.confidenceInterval.upper).toBeLessThanOrEqual(1);
         expect(variant.confidenceInterval.upper).toBeGreaterThanOrEqual(
-          variant.confidenceInterval.lower
+          variant.confidenceInterval.lower,
         );
       }
     });
@@ -291,7 +291,7 @@ describe('A/B Testing Framework', () => {
     test('Sample size requirements checked', async () => {
       const experimentId = 'claude_skills_performance';
       const experiment = abTestingService.getExperiment(experimentId);
-      
+
       if (experiment) {
         expect(experiment.minimumSampleSize).toBeDefined();
         expect(experiment.minimumSampleSize).toBeGreaterThan(0);
@@ -307,7 +307,7 @@ describe('A/B Testing Framework', () => {
       await abTestingService.assignUserToExperiment(
         mockUserContext.userId,
         experimentId,
-        mockUserContext
+        mockUserContext,
       );
 
       // Track various metrics
@@ -315,26 +315,26 @@ describe('A/B Testing Framework', () => {
         mockUserContext.userId,
         experimentId,
         'averageResponseTime',
-        250
+        250,
       );
 
       await abTestingService.trackMetric(
         mockUserContext.userId,
         experimentId,
         'successRate',
-        0.95
+        0.95,
       );
 
       await abTestingService.trackMetric(
         mockUserContext.userId,
         experimentId,
         'errorRate',
-        0.05
+        0.05,
       );
 
       // Get results
       const results = await abTestingService.getExperimentResults(experimentId);
-      
+
       expect(results).toBeDefined();
       expect(results?.variantResults.length).toBeGreaterThan(0);
     });
@@ -346,13 +346,13 @@ describe('A/B Testing Framework', () => {
       await abTestingService.assignUserToExperiment(
         mockUserContext.userId,
         experimentId,
-        mockUserContext
+        mockUserContext,
       );
 
       await abTestingService.trackConversion(
         mockUserContext.userId,
         experimentId,
-        'story_completed'
+        'story_completed',
       );
 
       // Verify conversion was tracked
@@ -370,14 +370,14 @@ describe('A/B Testing Framework', () => {
       const assignment1 = await abTestingService.assignUserToExperiment(
         mockUserContext.userId,
         experimentId,
-        mockUserContext
+        mockUserContext,
       );
 
       // Simulate app restart - load from storage
       const variantId = await abTestingService.getUserVariant(
         mockUserContext.userId,
         experimentId,
-        mockUserContext
+        mockUserContext,
       );
 
       expect(variantId).toBe(assignment1?.variantId);
@@ -385,7 +385,7 @@ describe('A/B Testing Framework', () => {
 
     test('Experiment configuration updates properly', async () => {
       const experimentId = 'claude_skills_performance';
-      
+
       // Initially disabled
       await abTestingService.setExperimentEnabled(experimentId, false);
       let experiment = abTestingService.getExperiment(experimentId);
@@ -399,21 +399,21 @@ describe('A/B Testing Framework', () => {
 
     test('Results export correctly to analytics system', async () => {
       const { analyticsService } = require('../../services/analyticsService');
-      
+
       const experimentId = 'claude_skills_performance';
       await abTestingService.setExperimentEnabled(experimentId, true);
 
       await abTestingService.assignUserToExperiment(
         mockUserContext.userId,
         experimentId,
-        mockUserContext
+        mockUserContext,
       );
 
       await abTestingService.trackMetric(
         mockUserContext.userId,
         experimentId,
         'successRate',
-        0.9
+        0.9,
       );
 
       // Verify analytics service was called
@@ -426,30 +426,28 @@ describe('A/B Testing Framework', () => {
 
       // Create test data
       const users = Array.from({ length: 20 }, (_, i) => `user_${i}`);
-      
+
       for (const userId of users) {
-        await abTestingService.assignUserToExperiment(
+        await abTestingService.assignUserToExperiment(userId, experimentId, {
           userId,
-          experimentId,
-          { userId }
-        );
-        
+        });
+
         await abTestingService.trackMetric(
           userId,
           experimentId,
           'successRate',
-          Math.random() * 0.3 + 0.7 // Random between 0.7 and 1.0
+          Math.random() * 0.3 + 0.7, // Random between 0.7 and 1.0
         );
       }
 
       const results = await abTestingService.getExperimentResults(experimentId);
-      
+
       expect(results).toBeDefined();
       expect(results?.variantResults).toBeDefined();
       expect(results?.statisticalSignificance).toBeDefined();
       expect(results?.recommendation).toBeDefined();
       expect(['control', 'treatment', 'inconclusive', 'continue']).toContain(
-        results?.recommendation
+        results?.recommendation,
       );
     });
   });
@@ -467,7 +465,7 @@ describe('A/B Testing Framework', () => {
         const assignment = await abTestingService.assignUserToExperiment(
           userId,
           experimentId,
-          { userId }
+          { userId },
         );
         if (assignment) {
           assignments.push(assignment.variantId);
@@ -494,7 +492,7 @@ describe('A/B Testing Framework', () => {
       const assignment = await abTestingService.assignUserToExperiment(
         mockUserContext.userId,
         'non_existent_experiment',
-        mockUserContext
+        mockUserContext,
       );
 
       expect(assignment).toBeNull();
@@ -507,11 +505,10 @@ describe('A/B Testing Framework', () => {
       const assignment = await abTestingService.assignUserToExperiment(
         mockUserContext.userId,
         experimentId,
-        mockUserContext
+        mockUserContext,
       );
 
       expect(assignment).toBeNull();
     });
   });
 });
-

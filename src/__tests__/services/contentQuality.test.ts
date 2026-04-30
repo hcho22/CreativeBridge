@@ -1,12 +1,22 @@
 /**
  * Claude-Powered Quality Assessment Tests
- * 
+ *
  * Tests for the comprehensive content quality assessment system
  * Task 5.1: Claude-Powered Quality Assessment
  */
 
-import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
-import { ContentQualityService, QualityAssessmentResult } from '../../services/contentQuality';
+import {
+  jest,
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+} from '@jest/globals';
+import {
+  ContentQualityService,
+  QualityAssessmentResult,
+} from '../../services/contentQuality';
 import { StoryRequest, StoryResponse } from '../../types/story';
 import { SkillManager } from '../../types/claudeSkills';
 
@@ -51,23 +61,24 @@ describe('Claude-Powered Quality Assessment', () => {
           contentSafety: 100,
           issues: [],
           recommendations: ['Enhance character development'],
-          improvements: ['Add more sensory details']
+          improvements: ['Add more sensory details'],
         },
         confidence: 0.9,
         executionTimeMs: 150,
-        skillType: 'ComprehensiveQualityAssessmentSkill'
+        skillType: 'ComprehensiveQualityAssessmentSkill',
       });
 
       const story: StoryResponse = {
-        story: 'Once upon a time, there was a curious little girl named Maya who loved to explore the colorful garden behind her house.',
+        story:
+          'Once upon a time, there was a curious little girl named Maya who loved to explore the colorful garden behind her house.',
         gradeLevel: 'K-2',
         isPersonalized: false,
-        confidence: 0.8
+        confidence: 0.8,
       };
 
       const request: StoryRequest = {
         gradeLevel: 'K-2',
-        userInput: 'Tell me a story about a garden'
+        userInput: 'Tell me a story about a garden',
       };
 
       const result = await qualityService.assessContent(story, request);
@@ -78,7 +89,9 @@ describe('Claude-Powered Quality Assessment', () => {
       expect(result.metrics.narrativeCoherence).toBe(90);
       expect(result.confidence).toBe(0.9);
       expect(result.recommendations).toContain('Enhance character development');
-      expect(result.improvementSuggestions).toContain('Add more sensory details');
+      expect(result.improvementSuggestions).toContain(
+        'Add more sensory details',
+      );
 
       // Verify skill was called with correct parameters
       expect(mockSkillManager.executeSkill).toHaveBeenCalledWith(
@@ -94,9 +107,9 @@ describe('Claude-Powered Quality Assessment', () => {
             'engagement_potential',
             'cultural_sensitivity',
             'vocabulary_complexity',
-            'content_safety'
-          ])
-        })
+            'content_safety',
+          ]),
+        }),
       );
     });
 
@@ -118,39 +131,40 @@ describe('Claude-Powered Quality Assessment', () => {
               type: 'appropriateness',
               severity: 'high',
               description: 'Vocabulary too complex for K-2 grade level',
-              suggestion: 'Use simpler words appropriate for young readers'
+              suggestion: 'Use simpler words appropriate for young readers',
             },
             {
               type: 'educational',
               severity: 'medium',
               description: 'Limited educational value',
-              suggestion: 'Include learning opportunities or teachable moments'
-            }
+              suggestion: 'Include learning opportunities or teachable moments',
+            },
           ],
           recommendations: [
             'Simplify vocabulary for target grade level',
-            'Add educational elements to the story'
+            'Add educational elements to the story',
           ],
           improvements: [
             'Use shorter sentences',
-            'Include counting or color recognition'
-          ]
+            'Include counting or color recognition',
+          ],
         },
         confidence: 0.8,
         executionTimeMs: 200,
-        skillType: 'ComprehensiveQualityAssessmentSkill'
+        skillType: 'ComprehensiveQualityAssessmentSkill',
       });
 
       const story: StoryResponse = {
-        story: 'The protagonist embarked upon an extraordinary expedition through the magnificent botanical sanctuary.',
+        story:
+          'The protagonist embarked upon an extraordinary expedition through the magnificent botanical sanctuary.',
         gradeLevel: 'K-2',
         isPersonalized: false,
-        confidence: 0.7
+        confidence: 0.7,
       };
 
       const request: StoryRequest = {
         gradeLevel: 'K-2',
-        userInput: 'Garden adventure'
+        userInput: 'Garden adventure',
       };
 
       const result = await qualityService.assessContent(story, request);
@@ -158,13 +172,19 @@ describe('Claude-Powered Quality Assessment', () => {
       expect(result.passed).toBe(false); // Below threshold due to appropriateness issues
       expect(result.metrics.overallScore).toBe(65);
       expect(result.issues).toHaveLength(2);
-      
-      const appropriatenessIssue = result.issues.find(issue => issue.type === 'appropriateness');
+
+      const appropriatenessIssue = result.issues.find(
+        issue => issue.type === 'appropriateness',
+      );
       expect(appropriatenessIssue).toBeDefined();
       expect(appropriatenessIssue?.severity).toBe('high');
-      expect(appropriatenessIssue?.description).toContain('Vocabulary too complex');
+      expect(appropriatenessIssue?.description).toContain(
+        'Vocabulary too complex',
+      );
 
-      const educationalIssue = result.issues.find(issue => issue.type === 'educational');
+      const educationalIssue = result.issues.find(
+        issue => issue.type === 'educational',
+      );
       expect(educationalIssue).toBeDefined();
       expect(educationalIssue?.severity).toBe('medium');
       expect(educationalIssue?.suggestion).toContain('learning opportunities');
@@ -176,19 +196,19 @@ describe('Claude-Powered Quality Assessment', () => {
         success: false,
         error: 'Quality assessment skill temporarily unavailable',
         executionTimeMs: 100,
-        skillType: 'ComprehensiveQualityAssessmentSkill'
+        skillType: 'ComprehensiveQualityAssessmentSkill',
       });
 
       const story: StoryResponse = {
         story: 'A simple story for testing fallback behavior.',
         gradeLevel: '3-5',
         isPersonalized: false,
-        confidence: 0.8
+        confidence: 0.8,
       };
 
       const request: StoryRequest = {
         gradeLevel: '3-5',
-        userInput: 'Simple test story'
+        userInput: 'Simple test story',
       };
 
       const result = await qualityService.assessContent(story, request);
@@ -196,8 +216,12 @@ describe('Claude-Powered Quality Assessment', () => {
       // Should provide fallback assessment
       expect(result.passed).toBe(true); // Fallback is more permissive
       expect(result.confidence).toBe(0.6); // Lower confidence for fallback
-      expect(result.recommendations).toContain('Review content manually for quality assurance');
-      expect(result.improvementSuggestions).toContain('Consider manual review due to assessment system limitations');
+      expect(result.recommendations).toContain(
+        'Review content manually for quality assurance',
+      );
+      expect(result.improvementSuggestions).toContain(
+        'Consider manual review due to assessment system limitations',
+      );
     });
   });
 
@@ -208,21 +232,25 @@ describe('Claude-Powered Quality Assessment', () => {
         success: true,
         data: {
           appropriateness: 0.95,
-          adjustments: []
+          adjustments: [],
         },
         confidence: 0.92,
         executionTimeMs: 120,
-        skillType: 'GradeLevelAssessmentSkill'
+        skillType: 'GradeLevelAssessmentSkill',
       });
 
       const story: StoryResponse = {
-        story: 'The little cat found a red ball in the yard. She played with it all day.',
+        story:
+          'The little cat found a red ball in the yard. She played with it all day.',
         gradeLevel: 'K-2',
         isPersonalized: false,
-        confidence: 0.9
+        confidence: 0.9,
       };
 
-      const result = await qualityService.assessGradeLevelAppropriateness(story, 'K-2');
+      const result = await qualityService.assessGradeLevelAppropriateness(
+        story,
+        'K-2',
+      );
 
       expect(result.appropriate).toBe(true);
       expect(result.confidence).toBe(0.92);
@@ -238,9 +266,9 @@ describe('Claude-Powered Quality Assessment', () => {
             'sentence_structure',
             'concept_difficulty',
             'content_maturity',
-            'reading_level'
-          ])
-        })
+            'reading_level',
+          ]),
+        }),
       );
     });
 
@@ -253,43 +281,54 @@ describe('Claude-Powered Quality Assessment', () => {
           adjustments: [
             'Replace complex words with simpler alternatives',
             'Shorten sentence length',
-            'Remove abstract concepts'
-          ]
+            'Remove abstract concepts',
+          ],
         },
         confidence: 0.85,
         executionTimeMs: 140,
-        skillType: 'GradeLevelAssessmentSkill'
+        skillType: 'GradeLevelAssessmentSkill',
       });
 
       const story: StoryResponse = {
-        story: 'The protagonist contemplated the philosophical implications of their extraordinary discovery.',
+        story:
+          'The protagonist contemplated the philosophical implications of their extraordinary discovery.',
         gradeLevel: 'K-2',
         isPersonalized: false,
-        confidence: 0.8
+        confidence: 0.8,
       };
 
-      const result = await qualityService.assessGradeLevelAppropriateness(story, 'K-2');
+      const result = await qualityService.assessGradeLevelAppropriateness(
+        story,
+        'K-2',
+      );
 
       expect(result.appropriate).toBe(false); // Below 0.9 threshold
       expect(result.confidence).toBe(0.85);
       expect(result.suggestedAdjustments).toHaveLength(3);
-      expect(result.suggestedAdjustments).toContain('Replace complex words with simpler alternatives');
+      expect(result.suggestedAdjustments).toContain(
+        'Replace complex words with simpler alternatives',
+      );
       expect(result.suggestedAdjustments).toContain('Shorten sentence length');
       expect(result.suggestedAdjustments).toContain('Remove abstract concepts');
     });
 
     it('should provide fallback assessment when skill fails', async () => {
       // Mock skill failure
-      mockSkillManager.executeSkill.mockRejectedValue(new Error('Network timeout'));
+      mockSkillManager.executeSkill.mockRejectedValue(
+        new Error('Network timeout'),
+      );
 
       const story: StoryResponse = {
         story: 'The cat sat on the mat. It was a sunny day.',
         gradeLevel: 'K-2',
         isPersonalized: false,
-        confidence: 0.8
+        confidence: 0.8,
       };
 
-      const result = await qualityService.assessGradeLevelAppropriateness(story, 'K-2');
+      const result = await qualityService.assessGradeLevelAppropriateness(
+        story,
+        'K-2',
+      );
 
       // Should provide fallback based on simple heuristics
       expect(result.appropriate).toBe(true); // Simple sentences should pass
@@ -306,37 +345,45 @@ describe('Claude-Powered Quality Assessment', () => {
         data: {
           coherenceScore: 0.88,
           issues: [
-            'Transition between second and third paragraph could be smoother'
+            'Transition between second and third paragraph could be smoother',
           ],
           improvements: [
             'Add transitional phrases between ideas',
-            'Strengthen character motivation connections'
-          ]
+            'Strengthen character motivation connections',
+          ],
         },
         confidence: 0.87,
         executionTimeMs: 180,
-        skillType: 'NarrativeCoherenceSkill'
+        skillType: 'NarrativeCoherenceSkill',
       });
 
       const story: StoryResponse = {
-        story: 'Maya walked into the garden. She saw beautiful flowers everywhere. The flowers were red, yellow, and purple. Maya decided to pick some for her mom.',
+        story:
+          'Maya walked into the garden. She saw beautiful flowers everywhere. The flowers were red, yellow, and purple. Maya decided to pick some for her mom.',
         gradeLevel: '3-5',
         isPersonalized: false,
-        confidence: 0.85
+        confidence: 0.85,
       };
 
       const request: StoryRequest = {
         gradeLevel: '3-5',
-        userInput: 'Story about flowers'
+        userInput: 'Story about flowers',
       };
 
-      const result = await qualityService.evaluateNarrativeCoherence(story, request);
+      const result = await qualityService.evaluateNarrativeCoherence(
+        story,
+        request,
+      );
 
       expect(result.coherenceScore).toBe(88); // Converted to 0-100 scale
       expect(result.flowIssues).toHaveLength(1);
-      expect(result.flowIssues[0]).toContain('Transition between second and third paragraph');
+      expect(result.flowIssues[0]).toContain(
+        'Transition between second and third paragraph',
+      );
       expect(result.improvements).toHaveLength(2);
-      expect(result.improvements).toContain('Add transitional phrases between ideas');
+      expect(result.improvements).toContain(
+        'Add transitional phrases between ideas',
+      );
 
       expect(mockSkillManager.executeSkill).toHaveBeenCalledWith(
         'NarrativeCoherenceSkill',
@@ -348,9 +395,9 @@ describe('Claude-Powered Quality Assessment', () => {
             'plot_progression',
             'setting_continuity',
             'cause_effect_relationships',
-            'resolution_quality'
-          ])
-        })
+            'resolution_quality',
+          ]),
+        }),
       );
     });
 
@@ -360,22 +407,25 @@ describe('Claude-Powered Quality Assessment', () => {
         success: false,
         error: 'Service temporarily unavailable',
         executionTimeMs: 50,
-        skillType: 'NarrativeCoherenceSkill'
+        skillType: 'NarrativeCoherenceSkill',
       });
 
       const story: StoryResponse = {
         story: 'Simple story with basic narrative structure.',
         gradeLevel: '3-5',
         isPersonalized: false,
-        confidence: 0.8
+        confidence: 0.8,
       };
 
       const request: StoryRequest = {
         gradeLevel: '3-5',
-        userInput: 'Test story'
+        userInput: 'Test story',
       };
 
-      const result = await qualityService.evaluateNarrativeCoherence(story, request);
+      const result = await qualityService.evaluateNarrativeCoherence(
+        story,
+        request,
+      );
 
       // Should provide conservative fallback assessment
       expect(result.coherenceScore).toBe(80);
@@ -391,32 +441,37 @@ describe('Claude-Powered Quality Assessment', () => {
         success: true,
         data: {
           contextConsistency: 0.92,
-          inconsistencies: []
+          inconsistencies: [],
         },
         confidence: 0.89,
         executionTimeMs: 110,
-        skillType: 'ContentValidationSkill'
+        skillType: 'ContentValidationSkill',
       });
 
       const story: StoryResponse = {
-        story: 'Maya continued exploring the garden, finding more colorful flowers just as she had hoped.',
+        story:
+          'Maya continued exploring the garden, finding more colorful flowers just as she had hoped.',
         gradeLevel: 'K-2',
         isPersonalized: false,
-        confidence: 0.8
+        confidence: 0.8,
       };
 
       const request: StoryRequest = {
         gradeLevel: 'K-2',
-        userInput: 'Continue exploring'
+        userInput: 'Continue exploring',
       };
 
       const previousContext = {
         setting: 'garden',
         character: 'Maya',
-        theme: 'exploration'
+        theme: 'exploration',
       };
 
-      const result = await qualityService.validateContextualContent(story, request, previousContext);
+      const result = await qualityService.validateContextualContent(
+        story,
+        request,
+        previousContext,
+      );
 
       expect(result.valid).toBe(true);
       expect(result.contextConsistency).toBe(0.92);
@@ -428,8 +483,8 @@ describe('Claude-Powered Quality Assessment', () => {
           content: story.story,
           request,
           previousContext,
-          validationType: 'contextual'
-        })
+          validationType: 'contextual',
+        }),
       );
     });
 
@@ -441,33 +496,41 @@ describe('Claude-Powered Quality Assessment', () => {
           contextConsistency: 0.45,
           inconsistencies: [
             'Character name changed from Maya to Sarah',
-            'Setting shifted from garden to beach without explanation'
-          ]
+            'Setting shifted from garden to beach without explanation',
+          ],
         },
         confidence: 0.78,
         executionTimeMs: 130,
-        skillType: 'ContentValidationSkill'
+        skillType: 'ContentValidationSkill',
       });
 
       const story: StoryResponse = {
-        story: 'Sarah ran along the sandy beach, collecting seashells in the warm sunshine.',
+        story:
+          'Sarah ran along the sandy beach, collecting seashells in the warm sunshine.',
         gradeLevel: 'K-2',
         isPersonalized: false,
-        confidence: 0.8
+        confidence: 0.8,
       };
 
       const request: StoryRequest = {
         gradeLevel: 'K-2',
-        userInput: 'Keep exploring'
+        userInput: 'Keep exploring',
       };
 
-      const result = await qualityService.validateContextualContent(story, request);
+      const result = await qualityService.validateContextualContent(
+        story,
+        request,
+      );
 
       expect(result.valid).toBe(false); // Below 0.8 threshold
       expect(result.contextConsistency).toBe(0.45);
       expect(result.issues).toHaveLength(2);
-      expect(result.issues).toContain('Character name changed from Maya to Sarah');
-      expect(result.issues).toContain('Setting shifted from garden to beach without explanation');
+      expect(result.issues).toContain(
+        'Character name changed from Maya to Sarah',
+      );
+      expect(result.issues).toContain(
+        'Setting shifted from garden to beach without explanation',
+      );
     });
   });
 
@@ -482,21 +545,53 @@ describe('Claude-Powered Quality Assessment', () => {
       // Simulate some cached assessments by manually adding to cache
       const mockAssessments: QualityAssessmentResult[] = [
         {
-          metrics: { overallScore: 85, educationalValue: 80, narrativeCoherence: 85, gradeAppropriatenesss: 90, engagementPotential: 80, culturalSensitivity: 90, vocabularyComplexity: 80, contentSafety: 95 },
+          metrics: {
+            overallScore: 85,
+            educationalValue: 80,
+            narrativeCoherence: 85,
+            gradeAppropriatenesss: 90,
+            engagementPotential: 80,
+            culturalSensitivity: 90,
+            vocabularyComplexity: 80,
+            contentSafety: 95,
+          },
           passed: true,
           confidence: 0.9,
           recommendations: [],
-          issues: [{ type: 'vocabulary', severity: 'low', description: 'Minor complexity issue', suggestion: 'Simplify one word' }],
-          improvementSuggestions: []
+          issues: [
+            {
+              type: 'vocabulary',
+              severity: 'low',
+              description: 'Minor complexity issue',
+              suggestion: 'Simplify one word',
+            },
+          ],
+          improvementSuggestions: [],
         },
         {
-          metrics: { overallScore: 75, educationalValue: 70, narrativeCoherence: 75, gradeAppropriatenesss: 80, engagementPotential: 75, culturalSensitivity: 85, vocabularyComplexity: 70, contentSafety: 90 },
+          metrics: {
+            overallScore: 75,
+            educationalValue: 70,
+            narrativeCoherence: 75,
+            gradeAppropriatenesss: 80,
+            engagementPotential: 75,
+            culturalSensitivity: 85,
+            vocabularyComplexity: 70,
+            contentSafety: 90,
+          },
           passed: false,
           confidence: 0.8,
           recommendations: [],
-          issues: [{ type: 'educational', severity: 'medium', description: 'Limited educational value', suggestion: 'Add learning elements' }],
-          improvementSuggestions: []
-        }
+          issues: [
+            {
+              type: 'educational',
+              severity: 'medium',
+              description: 'Limited educational value',
+              suggestion: 'Add learning elements',
+            },
+          ],
+          improvementSuggestions: [],
+        },
       ];
 
       // Add to cache using private method access
@@ -527,23 +622,23 @@ describe('Claude-Powered Quality Assessment', () => {
           contentSafety: 100,
           issues: [],
           recommendations: [],
-          improvements: []
+          improvements: [],
         },
         confidence: 0.92,
         executionTimeMs: 150,
-        skillType: 'ComprehensiveQualityAssessmentSkill'
+        skillType: 'ComprehensiveQualityAssessmentSkill',
       });
 
       const story: StoryResponse = {
         story: 'A wonderful story about friendship and adventure.',
         gradeLevel: '3-5',
         isPersonalized: false,
-        confidence: 0.9
+        confidence: 0.9,
       };
 
       const request: StoryRequest = {
         gradeLevel: '3-5',
-        userInput: 'Adventure story'
+        userInput: 'Adventure story',
       };
 
       // First call should execute skill

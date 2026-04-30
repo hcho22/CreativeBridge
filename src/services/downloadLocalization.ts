@@ -5,7 +5,17 @@
 
 import { Platform, NativeModules } from 'react-native';
 
-export type SupportedLanguage = 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt' | 'zh' | 'ja' | 'ko' | 'ar';
+export type SupportedLanguage =
+  | 'en'
+  | 'es'
+  | 'fr'
+  | 'de'
+  | 'it'
+  | 'pt'
+  | 'zh'
+  | 'ja'
+  | 'ko'
+  | 'ar';
 
 export interface LocalizationStrings {
   // Download button states
@@ -123,31 +133,31 @@ export class DownloadLocalizationService {
   private initializeTranslations(): void {
     // English (default)
     this.translations.set('en', this.getEnglishStrings());
-    
+
     // Spanish
     this.translations.set('es', this.getSpanishStrings());
-    
+
     // French
     this.translations.set('fr', this.getFrenchStrings());
-    
+
     // German
     this.translations.set('de', this.getGermanStrings());
-    
+
     // Italian
     this.translations.set('it', this.getItalianStrings());
-    
+
     // Portuguese
     this.translations.set('pt', this.getPortugueseStrings());
-    
+
     // Chinese (Simplified)
     this.translations.set('zh', this.getChineseStrings());
-    
+
     // Japanese
     this.translations.set('ja', this.getJapaneseStrings());
-    
+
     // Korean
     this.translations.set('ko', this.getKoreanStrings());
-    
+
     // Arabic
     this.translations.set('ar', this.getArabicStrings());
   }
@@ -160,8 +170,10 @@ export class DownloadLocalizationService {
 
     try {
       if (Platform.OS === 'ios') {
-        systemLanguage = NativeModules.SettingsManager?.settings?.AppleLocale ||
-                        NativeModules.SettingsManager?.settings?.AppleLanguages?.[0] || 'en';
+        systemLanguage =
+          NativeModules.SettingsManager?.settings?.AppleLocale ||
+          NativeModules.SettingsManager?.settings?.AppleLanguages?.[0] ||
+          'en';
       } else if (Platform.OS === 'android') {
         systemLanguage = NativeModules.I18nManager?.localeIdentifier || 'en';
       } else if (Platform.OS === 'web') {
@@ -169,13 +181,18 @@ export class DownloadLocalizationService {
       }
 
       // Extract language code (e.g., 'en-US' -> 'en')
-      const languageCode = systemLanguage.split('-')[0].toLowerCase() as SupportedLanguage;
-      
+      const languageCode = systemLanguage
+        .split('-')[0]
+        .toLowerCase() as SupportedLanguage;
+
       if (this.translations.has(languageCode)) {
         this.currentLanguage = languageCode;
       }
     } catch (error) {
-      console.warn('⚠️ Failed to detect system language, using English:', error);
+      console.warn(
+        '⚠️ Failed to detect system language, using English:',
+        error,
+      );
     }
 
     console.log(`🌐 Detected language: ${this.currentLanguage}`);
@@ -189,7 +206,9 @@ export class DownloadLocalizationService {
       this.currentLanguage = language;
       console.log(`🌐 Language set to: ${language}`);
     } else {
-      console.warn(`⚠️ Language not supported: ${language}, using ${this.currentLanguage}`);
+      console.warn(
+        `⚠️ Language not supported: ${language}, using ${this.currentLanguage}`,
+      );
     }
   }
 
@@ -213,7 +232,7 @@ export class DownloadLocalizationService {
   getString(key: string): string {
     const keys = key.split('.');
     let value: any = this.translations.get(this.currentLanguage);
-    
+
     // Navigate through nested object
     for (const k of keys) {
       value = value?.[k];
@@ -233,14 +252,20 @@ export class DownloadLocalizationService {
   /**
    * Get localized string with parameters
    */
-  getStringWithParams(key: string, params: Record<string, string | number>): string {
+  getStringWithParams(
+    key: string,
+    params: Record<string, string | number>,
+  ): string {
     let template = this.getString(key);
-    
+
     // Replace parameters in template
     Object.entries(params).forEach(([param, value]) => {
-      template = template.replace(new RegExp(`{{${param}}}`, 'g'), String(value));
+      template = template.replace(
+        new RegExp(`{{${param}}}`, 'g'),
+        String(value),
+      );
     });
-    
+
     return template;
   }
 
@@ -248,8 +273,10 @@ export class DownloadLocalizationService {
    * Format file size with localization
    */
   formatFileSize(bytes: number): string {
-    const strings = this.translations.get(this.currentLanguage) || this.translations.get(this.fallbackLanguage)!;
-    
+    const strings =
+      this.translations.get(this.currentLanguage) ||
+      this.translations.get(this.fallbackLanguage)!;
+
     if (bytes < 1024) {
       return `${bytes} ${strings.fileSize.bytes}`;
     } else if (bytes < 1024 * 1024) {
@@ -257,7 +284,9 @@ export class DownloadLocalizationService {
     } else if (bytes < 1024 * 1024 * 1024) {
       return `${(bytes / (1024 * 1024)).toFixed(1)} ${strings.fileSize.mb}`;
     } else {
-      return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} ${strings.fileSize.gb}`;
+      return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} ${
+        strings.fileSize.gb
+      }`;
     }
   }
 
@@ -265,14 +294,22 @@ export class DownloadLocalizationService {
    * Format time remaining with localization
    */
   formatTimeRemaining(seconds: number): string {
-    const strings = this.translations.get(this.currentLanguage) || this.translations.get(this.fallbackLanguage)!;
-    
+    const strings =
+      this.translations.get(this.currentLanguage) ||
+      this.translations.get(this.fallbackLanguage)!;
+
     if (seconds < 60) {
-      return this.getStringWithParams('time.secondsRemaining', { seconds: Math.round(seconds) });
+      return this.getStringWithParams('time.secondsRemaining', {
+        seconds: Math.round(seconds),
+      });
     } else if (seconds < 3600) {
-      return this.getStringWithParams('time.minutesRemaining', { minutes: Math.round(seconds / 60) });
+      return this.getStringWithParams('time.minutesRemaining', {
+        minutes: Math.round(seconds / 60),
+      });
     } else {
-      return this.getStringWithParams('time.hoursRemaining', { hours: Math.round(seconds / 3600) });
+      return this.getStringWithParams('time.hoursRemaining', {
+        hours: Math.round(seconds / 3600),
+      });
     }
   }
 
@@ -291,7 +328,9 @@ export class DownloadLocalizationService {
     if (diffSeconds < 60) {
       return this.getString('time.justNow');
     } else if (diffMinutes < 60) {
-      return this.getStringWithParams('time.minutesAgo', { minutes: diffMinutes });
+      return this.getStringWithParams('time.minutesAgo', {
+        minutes: diffMinutes,
+      });
     } else if (diffHours < 24) {
       return this.getStringWithParams('time.hoursAgo', { hours: diffHours });
     } else if (diffDays < 7) {
@@ -304,13 +343,18 @@ export class DownloadLocalizationService {
   /**
    * Get error message with recovery suggestion
    */
-  getErrorWithRecovery(errorType: string, recoveryType?: string): {
+  getErrorWithRecovery(
+    errorType: string,
+    recoveryType?: string,
+  ): {
     error: string;
     recovery?: string;
   } {
     const error = this.getString(`errors.${errorType}`);
-    const recovery = recoveryType ? this.getString(`recovery.${recoveryType}`) : undefined;
-    
+    const recovery = recoveryType
+      ? this.getString(`recovery.${recoveryType}`)
+      : undefined;
+
     return { error, recovery };
   }
 
@@ -440,7 +484,8 @@ export class DownloadLocalizationService {
         unsupportedFormat: 'Formato de archivo no compatible',
       },
       recovery: {
-        checkPermissions: 'Por favor revisa los permisos de la app en Configuración',
+        checkPermissions:
+          'Por favor revisa los permisos de la app en Configuración',
         freeStorage: 'Libera espacio de almacenamiento e intenta de nuevo',
         checkConnection: 'Verifica tu conexión a internet',
         tryAgainLater: 'Por favor intenta más tarde',
@@ -465,7 +510,8 @@ export class DownloadLocalizationService {
         status: 'Estado',
       },
       accessibility: {
-        downloadButtonHint: 'Toca dos veces para descargar tu historia como archivo de texto',
+        downloadButtonHint:
+          'Toca dos veces para descargar tu historia como archivo de texto',
         progressIndicatorLabel: 'Progreso de descarga',
         downloadHistoryLabel: 'Lista de historias descargadas',
         errorModalTitle: 'Error de Descarga',

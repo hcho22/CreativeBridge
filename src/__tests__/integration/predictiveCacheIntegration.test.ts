@@ -1,6 +1,6 @@
 /**
  * Predictive Cache Integration Tests
- * 
+ *
  * Integration tests for Task 3.2: Predictive Cache Management System
  */
 
@@ -48,7 +48,9 @@ describe('Predictive Cache Integration', () => {
 
       // Generate and cache stories
       for (const request of requests) {
-        const storyResponse = await enhancedStoryAgentService.continueStory(request);
+        const storyResponse = await enhancedStoryAgentService.continueStory(
+          request,
+        );
         if (storyResponse.success) {
           await predictiveStoryCacheService.set(request, storyResponse);
         }
@@ -80,7 +82,9 @@ describe('Predictive Cache Integration', () => {
 
       // Cache size should be appropriate for device tier
       const stats = predictiveStoryCacheService.getStats();
-      expect(stats.cacheSize).toBeLessThanOrEqual(capabilities?.maxCacheSize || 300);
+      expect(stats.cacheSize).toBeLessThanOrEqual(
+        capabilities?.maxCacheSize || 300,
+      );
     });
 
     test('Low-memory devices have smaller cache', async () => {
@@ -88,7 +92,9 @@ describe('Predictive Cache Integration', () => {
       DeviceInfo.getTotalMemory.mockResolvedValueOnce(1 * 1024 * 1024 * 1024); // 1GB
 
       // Re-initialize to get low-memory config
-      const { PredictiveStoryCacheService } = await import('../../services/predictiveStoryCache');
+      const { PredictiveStoryCacheService } = await import(
+        '../../services/predictiveStoryCache'
+      );
       const lowMemoryCache = new PredictiveStoryCacheService();
 
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -202,4 +208,3 @@ describe('Predictive Cache Integration', () => {
     });
   });
 });
-

@@ -1,11 +1,18 @@
 /**
  * Adaptive Memory Management Tests
- * 
+ *
  * Specialized tests for adaptive memory management strategies
  * Task 4.1.3: Adaptive memory management strategies
  */
 
-import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+import {
+  jest,
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+} from '@jest/globals';
 import DeviceInfo from 'react-native-device-info';
 
 import DynamicResourceManager from '../../services/resourceManager';
@@ -22,7 +29,9 @@ jest.mock('../../services/performanceOptimizer');
 jest.mock('../../utils/logger');
 
 const mockDeviceInfo = DeviceInfo as jest.Mocked<typeof DeviceInfo>;
-const mockPerformanceOptimizer = performanceOptimizer as jest.Mocked<typeof performanceOptimizer>;
+const mockPerformanceOptimizer = performanceOptimizer as jest.Mocked<
+  typeof performanceOptimizer
+>;
 const mockLogger = structuredLogger as jest.Mocked<typeof structuredLogger>;
 
 // Mock global garbage collection
@@ -34,9 +43,9 @@ describe('Adaptive Memory Management', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     resourceManager = new DynamicResourceManager();
-    
+
     mockSkillManager = {
       initialize: jest.fn().mockResolvedValue(undefined),
       registerSkill: jest.fn(),
@@ -52,7 +61,9 @@ describe('Adaptive Memory Management', () => {
     mockDeviceInfo.getAvailableMemory.mockResolvedValue(2 * 1024 * 1024 * 1024);
     mockDeviceInfo.getTotalMemory.mockResolvedValue(4 * 1024 * 1024 * 1024);
     mockDeviceInfo.getUsedMemory.mockResolvedValue(2 * 1024 * 1024 * 1024);
-    mockDeviceInfo.getFreeDiskStorage.mockResolvedValue(10 * 1024 * 1024 * 1024);
+    mockDeviceInfo.getFreeDiskStorage.mockResolvedValue(
+      10 * 1024 * 1024 * 1024,
+    );
 
     // Setup performance optimizer mocks
     mockPerformanceOptimizer.getPerformanceLevel.mockReturnValue('medium');
@@ -82,7 +93,7 @@ describe('Adaptive Memory Management', () => {
 
     it('should initialize memory config based on device tier', async () => {
       const memoryConfig = resourceManager.getMemoryConfig();
-      
+
       expect(memoryConfig).toMatchObject({
         baseMemoryLimit: 100 * 1024 * 1024, // 100MB for medium tier
         warningThreshold: 0.8,
@@ -95,25 +106,25 @@ describe('Adaptive Memory Management', () => {
 
     it('should adjust memory config for low-tier devices', async () => {
       mockPerformanceOptimizer.getPerformanceLevel.mockReturnValue('low');
-      
+
       const lowTierManager = new DynamicResourceManager();
       await lowTierManager.initialize(mockSkillManager);
-      
+
       const memoryConfig = lowTierManager.getMemoryConfig();
       expect(memoryConfig.baseMemoryLimit).toBe(50 * 1024 * 1024); // 50MB for low tier
-      
+
       lowTierManager.destroy();
     });
 
     it('should adjust memory config for high-tier devices', async () => {
       mockPerformanceOptimizer.getPerformanceLevel.mockReturnValue('high');
-      
+
       const highTierManager = new DynamicResourceManager();
       await highTierManager.initialize(mockSkillManager);
-      
+
       const memoryConfig = highTierManager.getMemoryConfig();
       expect(memoryConfig.baseMemoryLimit).toBe(200 * 1024 * 1024); // 200MB for high tier
-      
+
       highTierManager.destroy();
     });
   });
@@ -125,7 +136,10 @@ describe('Adaptive Memory Management', () => {
 
     it('should detect normal memory conditions', async () => {
       // Mock normal memory usage (50MB out of 100MB limit)
-      const getCurrentMemoryUsageSpy = jest.spyOn(resourceManager as any, 'getCurrentMemoryUsage');
+      const getCurrentMemoryUsageSpy = jest.spyOn(
+        resourceManager as any,
+        'getCurrentMemoryUsage',
+      );
       getCurrentMemoryUsageSpy.mockResolvedValue(50 * 1024 * 1024);
 
       await resourceManager.performAdaptiveMemoryManagement();
@@ -134,12 +148,15 @@ describe('Adaptive Memory Management', () => {
       expect(mockLogger.warn).not.toHaveBeenCalled();
       expect(mockLogger.info).not.toHaveBeenCalledWith(
         expect.stringContaining('cleanup performed'),
-        expect.any(Object)
+        expect.any(Object),
       );
     });
 
     it('should detect warning-level memory pressure', async () => {
-      const getCurrentMemoryUsageSpy = jest.spyOn(resourceManager as any, 'getCurrentMemoryUsage');
+      const getCurrentMemoryUsageSpy = jest.spyOn(
+        resourceManager as any,
+        'getCurrentMemoryUsage',
+      );
       getCurrentMemoryUsageSpy.mockResolvedValue(85 * 1024 * 1024); // 85MB out of 100MB (85%)
 
       await resourceManager.performAdaptiveMemoryManagement();
@@ -149,12 +166,15 @@ describe('Adaptive Memory Management', () => {
         expect.objectContaining({
           memoryUsage: 85 * 1024 * 1024,
           pressureRatio: 0.85,
-        })
+        }),
       );
     });
 
     it('should detect critical memory pressure', async () => {
-      const getCurrentMemoryUsageSpy = jest.spyOn(resourceManager as any, 'getCurrentMemoryUsage');
+      const getCurrentMemoryUsageSpy = jest.spyOn(
+        resourceManager as any,
+        'getCurrentMemoryUsage',
+      );
       getCurrentMemoryUsageSpy.mockResolvedValue(98 * 1024 * 1024); // 98MB out of 100MB (98%)
 
       await resourceManager.performAdaptiveMemoryManagement();
@@ -165,12 +185,15 @@ describe('Adaptive Memory Management', () => {
           memoryUsage: 98 * 1024 * 1024,
           memoryLimit: 100 * 1024 * 1024,
           pressureRatio: 0.98,
-        })
+        }),
       );
     });
 
     it('should trigger preemptive cleanup when enabled', async () => {
-      const getCurrentMemoryUsageSpy = jest.spyOn(resourceManager as any, 'getCurrentMemoryUsage');
+      const getCurrentMemoryUsageSpy = jest.spyOn(
+        resourceManager as any,
+        'getCurrentMemoryUsage',
+      );
       getCurrentMemoryUsageSpy.mockResolvedValue(75 * 1024 * 1024); // 75MB out of 100MB (75%)
 
       await resourceManager.performAdaptiveMemoryManagement();
@@ -187,38 +210,44 @@ describe('Adaptive Memory Management', () => {
     });
 
     it('should perform aggressive cleanup for critical memory pressure', async () => {
-      const getCurrentMemoryUsageSpy = jest.spyOn(resourceManager as any, 'getCurrentMemoryUsage');
+      const getCurrentMemoryUsageSpy = jest.spyOn(
+        resourceManager as any,
+        'getCurrentMemoryUsage',
+      );
       getCurrentMemoryUsageSpy.mockResolvedValue(96 * 1024 * 1024); // Critical level
 
       await resourceManager.performAdaptiveMemoryManagement();
 
       // Should call global garbage collection if available
       expect(global.gc).toHaveBeenCalled();
-      
+
       // Should reset performance optimizer caches
       expect(mockPerformanceOptimizer.resetOptimizations).toHaveBeenCalled();
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
         'Aggressive memory cleanup performed',
-        expect.any(Object)
+        expect.any(Object),
       );
     });
 
     it('should perform moderate cleanup for warning level', async () => {
-      const getCurrentMemoryUsageSpy = jest.spyOn(resourceManager as any, 'getCurrentMemoryUsage');
+      const getCurrentMemoryUsageSpy = jest.spyOn(
+        resourceManager as any,
+        'getCurrentMemoryUsage',
+      );
       getCurrentMemoryUsageSpy.mockResolvedValue(82 * 1024 * 1024); // Warning level
 
       await resourceManager.performAdaptiveMemoryManagement();
 
       // Should reset performance optimizer (moderate cleanup)
       expect(mockPerformanceOptimizer.resetOptimizations).toHaveBeenCalled();
-      
+
       // Should not call aggressive garbage collection
       expect(global.gc).not.toHaveBeenCalled();
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         'Moderate memory cleanup performed',
-        expect.any(Object)
+        expect.any(Object),
       );
     });
 
@@ -226,7 +255,10 @@ describe('Adaptive Memory Management', () => {
       // Remove global gc function
       delete (global as any).gc;
 
-      const getCurrentMemoryUsageSpy = jest.spyOn(resourceManager as any, 'getCurrentMemoryUsage');
+      const getCurrentMemoryUsageSpy = jest.spyOn(
+        resourceManager as any,
+        'getCurrentMemoryUsage',
+      );
       getCurrentMemoryUsageSpy.mockResolvedValue(96 * 1024 * 1024);
 
       await resourceManager.performAdaptiveMemoryManagement();
@@ -235,7 +267,7 @@ describe('Adaptive Memory Management', () => {
       expect(mockPerformanceOptimizer.resetOptimizations).toHaveBeenCalled();
       expect(mockLogger.warn).toHaveBeenCalledWith(
         'Aggressive memory cleanup performed',
-        expect.any(Object)
+        expect.any(Object),
       );
     });
   });
@@ -266,7 +298,10 @@ describe('Adaptive Memory Management', () => {
 
     it('should trigger memory cleanup after reducing memory limit', async () => {
       // Set high memory usage
-      const getCurrentMemoryUsageSpy = jest.spyOn(resourceManager as any, 'getCurrentMemoryUsage');
+      const getCurrentMemoryUsageSpy = jest.spyOn(
+        resourceManager as any,
+        'getCurrentMemoryUsage',
+      );
       getCurrentMemoryUsageSpy.mockResolvedValue(90 * 1024 * 1024);
 
       // Mock high memory pressure conditions
@@ -307,17 +342,29 @@ describe('Adaptive Memory Management', () => {
     it('should estimate memory usage from device info', async () => {
       mockDeviceInfo.getUsedMemory.mockResolvedValue(150 * 1024 * 1024);
 
-      const getCurrentMemoryUsageSpy = jest.spyOn(resourceManager as any, 'getCurrentMemoryUsage');
-      const usage = await getCurrentMemoryUsageSpy.mockImplementation.call(resourceManager);
+      const getCurrentMemoryUsageSpy = jest.spyOn(
+        resourceManager as any,
+        'getCurrentMemoryUsage',
+      );
+      const usage = await getCurrentMemoryUsageSpy.mockImplementation.call(
+        resourceManager,
+      );
 
       expect(usage).toBe(150 * 1024 * 1024);
     });
 
     it('should use fallback when device memory info is unavailable', async () => {
-      mockDeviceInfo.getUsedMemory.mockRejectedValue(new Error('Memory info unavailable'));
+      mockDeviceInfo.getUsedMemory.mockRejectedValue(
+        new Error('Memory info unavailable'),
+      );
 
-      const getCurrentMemoryUsageSpy = jest.spyOn(resourceManager as any, 'getCurrentMemoryUsage');
-      const usage = await getCurrentMemoryUsageSpy.mockImplementation.call(resourceManager);
+      const getCurrentMemoryUsageSpy = jest.spyOn(
+        resourceManager as any,
+        'getCurrentMemoryUsage',
+      );
+      const usage = await getCurrentMemoryUsageSpy.mockImplementation.call(
+        resourceManager,
+      );
 
       expect(usage).toBe(50 * 1024 * 1024); // Default fallback
     });
@@ -350,15 +397,20 @@ describe('Adaptive Memory Management', () => {
     });
 
     it('should handle memory management errors gracefully', async () => {
-      const getCurrentMemoryUsageSpy = jest.spyOn(resourceManager as any, 'getCurrentMemoryUsage');
-      getCurrentMemoryUsageSpy.mockRejectedValue(new Error('Memory access error'));
+      const getCurrentMemoryUsageSpy = jest.spyOn(
+        resourceManager as any,
+        'getCurrentMemoryUsage',
+      );
+      getCurrentMemoryUsageSpy.mockRejectedValue(
+        new Error('Memory access error'),
+      );
 
       await resourceManager.performAdaptiveMemoryManagement();
 
       expect(mockLogger.error).toHaveBeenCalledWith(
         'Adaptive memory management failed',
         {},
-        expect.any(Error)
+        expect.any(Error),
       );
 
       // Should not crash and should continue functioning
@@ -371,16 +423,21 @@ describe('Adaptive Memory Management', () => {
         throw new Error('Cleanup failed');
       });
 
-      const getCurrentMemoryUsageSpy = jest.spyOn(resourceManager as any, 'getCurrentMemoryUsage');
+      const getCurrentMemoryUsageSpy = jest.spyOn(
+        resourceManager as any,
+        'getCurrentMemoryUsage',
+      );
       getCurrentMemoryUsageSpy.mockResolvedValue(96 * 1024 * 1024);
 
       // Should not throw despite cleanup failure
-      await expect(resourceManager.performAdaptiveMemoryManagement()).resolves.not.toThrow();
+      await expect(
+        resourceManager.performAdaptiveMemoryManagement(),
+      ).resolves.not.toThrow();
 
       expect(mockLogger.error).toHaveBeenCalledWith(
         'Adaptive memory management failed',
         {},
-        expect.any(Error)
+        expect.any(Error),
       );
     });
   });
@@ -402,7 +459,10 @@ describe('Adaptive Memory Management', () => {
         cpuUsage: 0.7,
       });
 
-      const performAdaptiveMemoryManagementSpy = jest.spyOn(resourceManager, 'performAdaptiveMemoryManagement');
+      const performAdaptiveMemoryManagementSpy = jest.spyOn(
+        resourceManager,
+        'performAdaptiveMemoryManagement',
+      );
 
       const strategy = {
         name: 'Test Strategy',
@@ -434,7 +494,10 @@ describe('Adaptive Memory Management', () => {
         cpuUsage: 0.3,
       });
 
-      const performAdaptiveMemoryManagementSpy = jest.spyOn(resourceManager, 'performAdaptiveMemoryManagement');
+      const performAdaptiveMemoryManagementSpy = jest.spyOn(
+        resourceManager,
+        'performAdaptiveMemoryManagement',
+      );
 
       const strategy = {
         name: 'Normal Strategy',
@@ -462,8 +525,11 @@ describe('Adaptive Memory Management', () => {
 
     it('should track memory cleanup effectiveness', async () => {
       let memoryUsage = 95 * 1024 * 1024; // Start high
-      
-      const getCurrentMemoryUsageSpy = jest.spyOn(resourceManager as any, 'getCurrentMemoryUsage');
+
+      const getCurrentMemoryUsageSpy = jest.spyOn(
+        resourceManager as any,
+        'getCurrentMemoryUsage',
+      );
       getCurrentMemoryUsageSpy.mockImplementation(async () => {
         const usage = memoryUsage;
         memoryUsage = Math.max(40 * 1024 * 1024, memoryUsage * 0.8); // Simulate cleanup reducing memory
@@ -478,12 +544,15 @@ describe('Adaptive Memory Management', () => {
         expect.objectContaining({
           memoryUsage: 95 * 1024 * 1024,
           pressureRatio: 0.95,
-        })
+        }),
       );
     });
 
     it('should measure memory management frequency', async () => {
-      const getCurrentMemoryUsageSpy = jest.spyOn(resourceManager as any, 'getCurrentMemoryUsage');
+      const getCurrentMemoryUsageSpy = jest.spyOn(
+        resourceManager as any,
+        'getCurrentMemoryUsage',
+      );
       getCurrentMemoryUsageSpy.mockResolvedValue(90 * 1024 * 1024);
 
       // Trigger multiple memory management cycles
@@ -493,7 +562,7 @@ describe('Adaptive Memory Management', () => {
 
       // Should have logged multiple cleanup events
       const warningCalls = (mockLogger.warn as jest.Mock).mock.calls.filter(
-        call => call[0] === 'Aggressive memory cleanup performed'
+        call => call[0] === 'Aggressive memory cleanup performed',
       );
       expect(warningCalls.length).toBe(3);
     });

@@ -1,11 +1,19 @@
 /**
  * Device Tier Performance Validation Tests
- * 
+ *
  * Comprehensive performance testing across device categories
  * Task 4.2: Performance Validation & Testing
  */
 
-import { jest, describe, it, expect, beforeAll, afterAll, beforeEach } from '@jest/globals';
+import {
+  jest,
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+} from '@jest/globals';
 import { Platform } from 'react-native';
 import DeviceInfo from 'react-native-device-info';
 
@@ -132,18 +140,21 @@ describe('Device Tier Performance Validation', () => {
 
       // Measure baseline memory usage
       const baselineMemory = await measureMemoryUsage();
-      
+
       // Trigger memory optimization
       await dynamicResourceManager.performAdaptiveMemoryManagement();
-      
+
       // Measure optimized memory usage
       const optimizedMemory = await measureMemoryUsage();
-      
+
       // Calculate optimization percentage
-      const optimizationPercentage = ((baselineMemory - optimizedMemory) / baselineMemory) * 100;
-      
-      expect(optimizationPercentage).toBeGreaterThanOrEqual(config.expectedMemoryOptimization);
-      
+      const optimizationPercentage =
+        ((baselineMemory - optimizedMemory) / baselineMemory) * 100;
+
+      expect(optimizationPercentage).toBeGreaterThanOrEqual(
+        config.expectedMemoryOptimization,
+      );
+
       // Verify memory usage stays within device limits
       const memoryConfig = dynamicResourceManager.getMemoryConfig();
       expect(optimizedMemory).toBeLessThanOrEqual(memoryConfig.baseMemoryLimit);
@@ -151,16 +162,16 @@ describe('Device Tier Performance Validation', () => {
 
     it('should maintain core functionality on low-end devices', async () => {
       await dynamicResourceManager.initialize(mockSkillManager);
-      
+
       const strategy = dynamicResourceManager.getCurrentStrategy();
-      
+
       // Verify conservative strategy is applied
       expect(strategy.name).toBe('Conservative');
       expect(strategy.maxConcurrentOperations).toBe(1);
       expect(strategy.enableBackgroundTasks).toBe(false);
       expect(strategy.imageQuality).toBe('low');
       expect(strategy.animationComplexity).toBe('none');
-      
+
       // Verify core functionality is preserved
       expect(strategy.memoryLimitMB).toBeGreaterThan(0);
       expect(strategy.cacheStrategy).toBeDefined();
@@ -168,9 +179,12 @@ describe('Device Tier Performance Validation', () => {
 
     it('should handle memory pressure aggressively on low-end devices', async () => {
       await dynamicResourceManager.initialize(mockSkillManager);
-      
+
       // Simulate high memory pressure
-      const getCurrentMemoryUsageSpy = jest.spyOn(dynamicResourceManager as any, 'getCurrentMemoryUsage');
+      const getCurrentMemoryUsageSpy = jest.spyOn(
+        dynamicResourceManager as any,
+        'getCurrentMemoryUsage',
+      );
       getCurrentMemoryUsageSpy.mockResolvedValue(48 * 1024 * 1024); // 96% of 50MB limit
 
       const startTime = Date.now();
@@ -183,13 +197,13 @@ describe('Device Tier Performance Validation', () => {
       // Should trigger aggressive cleanup
       expect(structuredLogger.warn).toHaveBeenCalledWith(
         'Aggressive memory cleanup performed',
-        expect.any(Object)
+        expect.any(Object),
       );
     });
 
     it('should achieve cache hit ratio targets despite limited memory', async () => {
       await dynamicResourceManager.initialize(mockSkillManager);
-      
+
       // Simulate multiple story requests to test caching
       const requests = Array.from({ length: 10 }, (_, i) => ({
         gradeLevel: 'Grade3' as const,
@@ -202,11 +216,11 @@ describe('Device Tier Performance Validation', () => {
 
       for (const request of requests) {
         totalRequests++;
-        
+
         // Simulate story generation and caching
         const cacheKey = generateCacheKey(request);
         const cachedStory = await storyCache.get(cacheKey);
-        
+
         if (cachedStory) {
           cacheHits++;
         } else {
@@ -227,32 +241,34 @@ describe('Device Tier Performance Validation', () => {
         totalRequests++;
         const cacheKey = generateCacheKey(request);
         const cachedStory = await storyCache.get(cacheKey);
-        
+
         if (cachedStory) {
           cacheHits++;
         }
       }
 
       const cacheHitRatio = (cacheHits / totalRequests) * 100;
-      expect(cacheHitRatio).toBeGreaterThanOrEqual(config.expectedCacheHitRatio);
+      expect(cacheHitRatio).toBeGreaterThanOrEqual(
+        config.expectedCacheHitRatio,
+      );
     });
 
     it('should meet story generation latency targets for low-end devices', async () => {
       await dynamicResourceManager.initialize(mockSkillManager);
-      
+
       const latencies: number[] = [];
       const requestCount = 20; // Test 20 requests for statistical validity
 
       for (let i = 0; i < requestCount; i++) {
         const startTime = Date.now();
-        
+
         // Simulate story generation process
         await simulateStoryGeneration({
           gradeLevel: 'Grade3' as const,
           userInput: `Test story ${i}`,
           context: 'performance test',
         });
-        
+
         const latency = Date.now() - startTime;
         latencies.push(latency);
       }
@@ -276,9 +292,9 @@ describe('Device Tier Performance Validation', () => {
 
     it('should balance performance and resource conservation', async () => {
       await dynamicResourceManager.initialize(mockSkillManager);
-      
+
       const strategy = dynamicResourceManager.getCurrentStrategy();
-      
+
       // Verify balanced strategy
       expect(strategy.name).toBe('Balanced');
       expect(strategy.maxConcurrentOperations).toBe(2);
@@ -290,18 +306,20 @@ describe('Device Tier Performance Validation', () => {
 
     it('should achieve improved cache performance', async () => {
       await dynamicResourceManager.initialize(mockSkillManager);
-      
+
       // Test cache effectiveness with medium memory allocation
       const cacheHitRatio = await measureCacheEffectiveness(config, 15);
-      expect(cacheHitRatio).toBeGreaterThanOrEqual(config.expectedCacheHitRatio);
+      expect(cacheHitRatio).toBeGreaterThanOrEqual(
+        config.expectedCacheHitRatio,
+      );
     });
 
     it('should demonstrate better latency than low-end devices', async () => {
       await dynamicResourceManager.initialize(mockSkillManager);
-      
+
       const avgLatency = await measureAverageLatency(10);
       expect(avgLatency).toBeLessThan(config.expectedLatencyTarget);
-      
+
       // Should be better than low-end baseline
       const lowEndBaseline = performanceBaselines.lowEnd;
       expect(avgLatency).toBeLessThan(lowEndBaseline.apiResponseTime);
@@ -318,9 +336,9 @@ describe('Device Tier Performance Validation', () => {
 
     it('should maximize performance capabilities', async () => {
       await dynamicResourceManager.initialize(mockSkillManager);
-      
+
       const strategy = dynamicResourceManager.getCurrentStrategy();
-      
+
       // Verify performance-focused strategy
       expect(strategy.name).toBe('Performance');
       expect(strategy.maxConcurrentOperations).toBe(4);
@@ -333,33 +351,35 @@ describe('Device Tier Performance Validation', () => {
 
     it('should achieve optimal cache performance', async () => {
       await dynamicResourceManager.initialize(mockSkillManager);
-      
+
       const cacheHitRatio = await measureCacheEffectiveness(config, 20);
-      expect(cacheHitRatio).toBeGreaterThanOrEqual(config.expectedCacheHitRatio);
+      expect(cacheHitRatio).toBeGreaterThanOrEqual(
+        config.expectedCacheHitRatio,
+      );
     });
 
     it('should demonstrate best-in-class latency performance', async () => {
       await dynamicResourceManager.initialize(mockSkillManager);
-      
+
       const avgLatency = await measureAverageLatency(15);
       expect(avgLatency).toBeLessThan(config.expectedLatencyTarget);
-      
+
       // Should be best performance across all tiers
       const midRangeBaseline = performanceBaselines.midRange;
       const lowEndBaseline = performanceBaselines.lowEnd;
-      
+
       expect(avgLatency).toBeLessThan(midRangeBaseline.apiResponseTime);
       expect(avgLatency).toBeLessThan(lowEndBaseline.apiResponseTime);
     });
 
     it('should handle resource abundance efficiently', async () => {
       await dynamicResourceManager.initialize(mockSkillManager);
-      
+
       const memoryConfig = dynamicResourceManager.getMemoryConfig();
-      
+
       // Should allocate more memory for better performance
       expect(memoryConfig.baseMemoryLimit).toBe(200 * 1024 * 1024); // 200MB
-      
+
       // Should use aggressive caching
       const strategy = dynamicResourceManager.getCurrentStrategy();
       expect(strategy.cacheStrategy).toBe('aggressive');
@@ -369,7 +389,10 @@ describe('Device Tier Performance Validation', () => {
 
   describe('Cross-Tier Performance Comparison', () => {
     it('should show progressive performance improvements across tiers', async () => {
-      const tierResults: Record<string, { avgLatency: number; cacheHitRatio: number; memoryEfficiency: number }> = {};
+      const tierResults: Record<
+        string,
+        { avgLatency: number; cacheHitRatio: number; memoryEfficiency: number }
+      > = {};
 
       // Test each tier
       for (const [tierKey, config] of Object.entries(DEVICE_TIER_CONFIGS)) {
@@ -386,12 +409,20 @@ describe('Device Tier Performance Validation', () => {
       }
 
       // Verify progressive improvement
-      expect(tierResults.midRange.avgLatency).toBeLessThan(tierResults.lowEnd.avgLatency);
-      expect(tierResults.highEnd.avgLatency).toBeLessThan(tierResults.midRange.avgLatency);
+      expect(tierResults.midRange.avgLatency).toBeLessThan(
+        tierResults.lowEnd.avgLatency,
+      );
+      expect(tierResults.highEnd.avgLatency).toBeLessThan(
+        tierResults.midRange.avgLatency,
+      );
 
       // Verify cache performance scales with device capability
-      expect(tierResults.midRange.cacheHitRatio).toBeGreaterThanOrEqual(tierResults.lowEnd.cacheHitRatio);
-      expect(tierResults.highEnd.cacheHitRatio).toBeGreaterThanOrEqual(tierResults.midRange.cacheHitRatio);
+      expect(tierResults.midRange.cacheHitRatio).toBeGreaterThanOrEqual(
+        tierResults.lowEnd.cacheHitRatio,
+      );
+      expect(tierResults.highEnd.cacheHitRatio).toBeGreaterThanOrEqual(
+        tierResults.midRange.cacheHitRatio,
+      );
     });
 
     it('should maintain functionality across all tiers', async () => {
@@ -421,7 +452,10 @@ describe('Device Tier Performance Validation', () => {
         await dynamicResourceManager.initialize(mockSkillManager);
 
         // Simulate high memory pressure
-        const getCurrentMemoryUsageSpy = jest.spyOn(dynamicResourceManager as any, 'getCurrentMemoryUsage');
+        const getCurrentMemoryUsageSpy = jest.spyOn(
+          dynamicResourceManager as any,
+          'getCurrentMemoryUsage',
+        );
         getCurrentMemoryUsageSpy.mockResolvedValue(config.totalMemory * 0.9); // 90% memory usage
 
         const startTime = Date.now();
@@ -443,7 +477,7 @@ describe('Device Tier Performance Validation', () => {
         await dynamicResourceManager.applyBatteryOptimizations();
 
         const strategy = dynamicResourceManager.getCurrentStrategy();
-        
+
         // All tiers should apply battery optimizations
         expect(strategy.enableBackgroundTasks).toBe(false);
         expect(strategy.maxConcurrentOperations).toBeLessThanOrEqual(2);
@@ -454,34 +488,56 @@ describe('Device Tier Performance Validation', () => {
   });
 
   // Helper functions
-  async function setupDeviceEnvironment(config: DeviceTierConfig): Promise<void> {
+  async function setupDeviceEnvironment(
+    config: DeviceTierConfig,
+  ): Promise<void> {
     // Mock device info based on configuration
     mockDeviceInfo.getTotalMemory.mockResolvedValue(config.totalMemory);
     mockDeviceInfo.getAvailableMemory.mockResolvedValue(config.availableMemory);
-    mockDeviceInfo.getUsedMemory.mockResolvedValue(config.totalMemory - config.availableMemory);
+    mockDeviceInfo.getUsedMemory.mockResolvedValue(
+      config.totalMemory - config.availableMemory,
+    );
     mockDeviceInfo.getBatteryLevel.mockResolvedValue(config.batteryLevel);
     mockDeviceInfo.getBatteryState.mockResolvedValue('unplugged');
-    mockDeviceInfo.getFreeDiskStorage.mockResolvedValue(10 * 1024 * 1024 * 1024);
+    mockDeviceInfo.getFreeDiskStorage.mockResolvedValue(
+      10 * 1024 * 1024 * 1024,
+    );
 
     // Setup performance optimizer for the device tier
-    const mockPerformanceOptimizer = performanceOptimizer as jest.Mocked<typeof performanceOptimizer>;
-    mockPerformanceOptimizer.getPerformanceLevel.mockReturnValue(config.performanceLevel);
+    const mockPerformanceOptimizer = performanceOptimizer as jest.Mocked<
+      typeof performanceOptimizer
+    >;
+    mockPerformanceOptimizer.getPerformanceLevel.mockReturnValue(
+      config.performanceLevel,
+    );
     mockPerformanceOptimizer.getMetrics.mockReturnValue({
       memoryUsage: config.totalMemory - config.availableMemory,
       batteryLevel: config.batteryLevel,
       networkType: 'wifi',
       devicePerformance: config.performanceLevel,
-      renderTime: config.performanceLevel === 'low' ? 25 : config.performanceLevel === 'medium' ? 15 : 10,
+      renderTime:
+        config.performanceLevel === 'low'
+          ? 25
+          : config.performanceLevel === 'medium'
+          ? 15
+          : 10,
       apiResponseTime: config.expectedLatencyTarget,
     });
   }
 
-  async function establishBaseline(config: DeviceTierConfig): Promise<PerformanceMetrics> {
+  async function establishBaseline(
+    config: DeviceTierConfig,
+  ): Promise<PerformanceMetrics> {
     await setupDeviceEnvironment(config);
-    
+
     return {
       memoryUsage: config.totalMemory - config.availableMemory,
-      renderTime: config.performanceLevel === 'low' ? 25 : config.performanceLevel === 'medium' ? 15 : 10,
+      renderTime:
+        config.performanceLevel === 'low'
+          ? 25
+          : config.performanceLevel === 'medium'
+          ? 15
+          : 10,
       apiResponseTime: config.expectedLatencyTarget,
       cacheHitRatio: 0, // Baseline before optimization
       deviceTier: config.performanceLevel,
@@ -495,14 +551,17 @@ describe('Device Tier Performance Validation', () => {
     return metrics.memoryUsage;
   }
 
-  async function measureCacheEffectiveness(config: DeviceTierConfig, requestCount: number): Promise<number> {
+  async function measureCacheEffectiveness(
+    config: DeviceTierConfig,
+    requestCount: number,
+  ): Promise<number> {
     let hits = 0;
     let total = 0;
 
     for (let i = 0; i < requestCount; i++) {
       total++;
       const cacheKey = `test_story_${i % 5}`; // Create some cache overlap
-      
+
       const cached = await storyCache.get(cacheKey);
       if (cached) {
         hits++;
@@ -533,7 +592,9 @@ describe('Device Tier Performance Validation', () => {
       latencies.push(Date.now() - startTime);
     }
 
-    return latencies.reduce((sum, latency) => sum + latency, 0) / latencies.length;
+    return (
+      latencies.reduce((sum, latency) => sum + latency, 0) / latencies.length
+    );
   }
 
   async function measureMemoryEfficiency(): Promise<number> {
@@ -542,16 +603,27 @@ describe('Device Tier Performance Validation', () => {
     return (currentUsage / memoryConfig.baseMemoryLimit) * 100;
   }
 
-  async function simulateStoryGeneration(request: { gradeLevel: string; userInput: string; context: string }): Promise<void> {
+  async function simulateStoryGeneration(request: {
+    gradeLevel: string;
+    userInput: string;
+    context: string;
+  }): Promise<void> {
     // Simulate realistic story generation latency
     const deviceTier = performanceOptimizer.getPerformanceLevel();
-    const baseLatency = deviceTier === 'low' ? 800 : deviceTier === 'medium' ? 500 : 300;
+    const baseLatency =
+      deviceTier === 'low' ? 800 : deviceTier === 'medium' ? 500 : 300;
     const randomVariation = Math.random() * 200; // Add some realistic variation
-    
-    await new Promise(resolve => setTimeout(resolve, baseLatency + randomVariation));
+
+    await new Promise(resolve =>
+      setTimeout(resolve, baseLatency + randomVariation),
+    );
   }
 
-  function generateCacheKey(request: { gradeLevel: string; userInput: string; context: string }): string {
+  function generateCacheKey(request: {
+    gradeLevel: string;
+    userInput: string;
+    context: string;
+  }): string {
     return `story_${request.gradeLevel}_${request.userInput.slice(0, 10)}`;
   }
 });

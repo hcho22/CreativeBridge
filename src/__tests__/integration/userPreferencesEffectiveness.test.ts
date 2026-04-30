@@ -1,6 +1,6 @@
 /**
  * User Preferences Effectiveness Tests
- * 
+ *
  * Tests personalization effectiveness and learning improvements over time
  */
 
@@ -55,12 +55,17 @@ describe('User Preferences Effectiveness', () => {
           gradeLevel: 'Grade3',
         };
 
-        await userPreferencesService.updatePreferencesFromStoryFeedback(request, response, rating);
+        await userPreferencesService.updatePreferencesFromStoryFeedback(
+          request,
+          response,
+          rating,
+        );
       }
 
-      const recommendations = userPreferencesService.getPersonalizedRecommendations({
-        gradeLevel: 'Grade3',
-      });
+      const recommendations =
+        userPreferencesService.getPersonalizedRecommendations({
+          gradeLevel: 'Grade3',
+        });
 
       // Should now prefer adventure and fantasy themes
       expect(recommendations.recommendedThemes).toContain('adventure');
@@ -89,12 +94,17 @@ describe('User Preferences Effectiveness', () => {
           success: true,
           gradeLevel: 'Grade3',
         };
-        await userPreferencesService.updatePreferencesFromStoryFeedback(request, response, rating);
+        await userPreferencesService.updatePreferencesFromStoryFeedback(
+          request,
+          response,
+          rating,
+        );
       }
 
-      let recommendations = userPreferencesService.getPersonalizedRecommendations({
-        gradeLevel: 'Grade3',
-      });
+      let recommendations =
+        userPreferencesService.getPersonalizedRecommendations({
+          gradeLevel: 'Grade3',
+        });
       expect(recommendations.recommendedThemes).toContain('adventure');
 
       // Phase 2: User shifts to science fiction
@@ -113,7 +123,11 @@ describe('User Preferences Effectiveness', () => {
           success: true,
           gradeLevel: 'Grade3',
         };
-        await userPreferencesService.updatePreferencesFromStoryFeedback(request, response, rating);
+        await userPreferencesService.updatePreferencesFromStoryFeedback(
+          request,
+          response,
+          rating,
+        );
       }
 
       recommendations = userPreferencesService.getPersonalizedRecommendations({
@@ -145,7 +159,11 @@ describe('User Preferences Effectiveness', () => {
           gradeLevel: 'Grade3',
         };
 
-        await userPreferencesService.updatePreferencesFromStoryFeedback(request, response, rating);
+        await userPreferencesService.updatePreferencesFromStoryFeedback(
+          request,
+          response,
+          rating,
+        );
       }
 
       const data = userPreferencesService.getPreferencesData();
@@ -162,7 +180,7 @@ describe('User Preferences Effectiveness', () => {
       const sessionData = [
         // Session 1: Low completion
         { requests: 5, completions: 2 },
-        // Session 2: Better completion  
+        // Session 2: Better completion
         { requests: 4, completions: 3 },
         // Session 3: High completion
         { requests: 3, completions: 3 },
@@ -187,9 +205,15 @@ describe('User Preferences Effectiveness', () => {
 
       const data = userPreferencesService.getPreferencesData();
       const totalRequests = sessionData.reduce((sum, s) => sum + s.requests, 0);
-      const totalCompletions = sessionData.reduce((sum, s) => sum + s.completions, 0);
-      
-      expect(data?.sessionPatterns.completionRate).toBeCloseTo(totalCompletions / totalRequests, 1);
+      const totalCompletions = sessionData.reduce(
+        (sum, s) => sum + s.completions,
+        0,
+      );
+
+      expect(data?.sessionPatterns.completionRate).toBeCloseTo(
+        totalCompletions / totalRequests,
+        1,
+      );
     });
 
     test('should calculate engagement score based on recent activity', async () => {
@@ -213,9 +237,10 @@ describe('User Preferences Effectiveness', () => {
       await userPreferencesService.initialize('Grade3');
 
       // Get initial recommendations (should be low confidence)
-      let recommendations = userPreferencesService.getPersonalizedRecommendations({
-        gradeLevel: 'Grade3',
-      });
+      let recommendations =
+        userPreferencesService.getPersonalizedRecommendations({
+          gradeLevel: 'Grade3',
+        });
       const initialConfidence = recommendations.confidenceScore;
 
       // Build up data through interactions
@@ -235,7 +260,11 @@ describe('User Preferences Effectiveness', () => {
           gradeLevel: 'Grade3',
         };
 
-        await userPreferencesService.updatePreferencesFromStoryFeedback(request, response, 4);
+        await userPreferencesService.updatePreferencesFromStoryFeedback(
+          request,
+          response,
+          4,
+        );
       }
 
       // Get updated recommendations
@@ -243,7 +272,9 @@ describe('User Preferences Effectiveness', () => {
         gradeLevel: 'Grade3',
       });
 
-      expect(recommendations.confidenceScore).toBeGreaterThan(initialConfidence);
+      expect(recommendations.confidenceScore).toBeGreaterThan(
+        initialConfidence,
+      );
       expect(recommendations.confidenceScore).toBeGreaterThan(0.5);
     });
 
@@ -265,16 +296,24 @@ describe('User Preferences Effectiveness', () => {
           gradeLevel: 'Grade3',
         };
 
-        await userPreferencesService.updatePreferencesFromStoryFeedback(request, response, rating);
+        await userPreferencesService.updatePreferencesFromStoryFeedback(
+          request,
+          response,
+          rating,
+        );
       }
 
       const data = userPreferencesService.getPreferencesData();
       expect(data?.learningMetrics.consistencyScore).toBeGreaterThan(0.8);
 
       // Multiple calls should give similar results
-      const rec1 = userPreferencesService.getPersonalizedRecommendations({ gradeLevel: 'Grade3' });
-      const rec2 = userPreferencesService.getPersonalizedRecommendations({ gradeLevel: 'Grade3' });
-      
+      const rec1 = userPreferencesService.getPersonalizedRecommendations({
+        gradeLevel: 'Grade3',
+      });
+      const rec2 = userPreferencesService.getPersonalizedRecommendations({
+        gradeLevel: 'Grade3',
+      });
+
       expect(rec1.recommendedThemes).toEqual(rec2.recommendedThemes);
       expect(rec1.recommendedComplexity).toEqual(rec2.recommendedComplexity);
     });
@@ -296,10 +335,15 @@ describe('User Preferences Effectiveness', () => {
         gradeLevel: 'Grade3',
       };
 
-      await userPreferencesService.updatePreferencesFromStoryFeedback(request, response, 5);
+      await userPreferencesService.updatePreferencesFromStoryFeedback(
+        request,
+        response,
+        5,
+      );
 
       const firstSessionData = userPreferencesService.getPreferencesData();
-      const dragonPreference = firstSessionData?.storyPreferences.themes.adventure;
+      const dragonPreference =
+        firstSessionData?.storyPreferences.themes.adventure;
 
       // Simulate app restart by resetting service and mocking stored data
       (userPreferencesService as any).personalizationData = null;
@@ -311,7 +355,9 @@ describe('User Preferences Effectiveness', () => {
       await userPreferencesService.initialize('Grade3');
 
       const secondSessionData = userPreferencesService.getPreferencesData();
-      expect(secondSessionData?.storyPreferences.themes.adventure).toEqual(dragonPreference);
+      expect(secondSessionData?.storyPreferences.themes.adventure).toEqual(
+        dragonPreference,
+      );
     });
 
     test('should continue learning from previous sessions', async () => {
@@ -364,12 +410,18 @@ describe('User Preferences Effectiveness', () => {
         gradeLevel: 'Grade3',
       };
 
-      await userPreferencesService.updatePreferencesFromStoryFeedback(request, response, 5);
+      await userPreferencesService.updatePreferencesFromStoryFeedback(
+        request,
+        response,
+        5,
+      );
 
       const updatedData = userPreferencesService.getPreferencesData();
-      
+
       // Adventure preference should have increased from previous 0.7
-      expect(updatedData?.storyPreferences.themes.adventure).toBeGreaterThan(0.7);
+      expect(updatedData?.storyPreferences.themes.adventure).toBeGreaterThan(
+        0.7,
+      );
       expect(updatedData?.learningMetrics.sessionCount).toBeGreaterThan(5);
     });
   });
@@ -417,7 +469,7 @@ describe('User Preferences Effectiveness', () => {
 
       const data = userPreferencesService.getPreferencesData();
       expect(data?.interactions.length).toBe(10);
-      
+
       // Should keep most recent interactions
       const lastInteraction = data?.interactions[data.interactions.length - 1];
       expect(lastInteraction?.context.requestIndex).toBe(19);
@@ -443,18 +495,23 @@ describe('User Preferences Effectiveness', () => {
           gradeLevel: 'Grade3',
         };
 
-        await userPreferencesService.updatePreferencesFromStoryFeedback(request, response, rating);
+        await userPreferencesService.updatePreferencesFromStoryFeedback(
+          request,
+          response,
+          rating,
+        );
       }
 
       const data = userPreferencesService.getPreferencesData();
-      
+
       // Consistency score should be low
       expect(data?.learningMetrics.consistencyScore).toBeLessThan(0.3);
-      
+
       // But service should still function
-      const recommendations = userPreferencesService.getPersonalizedRecommendations({
-        gradeLevel: 'Grade3',
-      });
+      const recommendations =
+        userPreferencesService.getPersonalizedRecommendations({
+          gradeLevel: 'Grade3',
+        });
       expect(recommendations.confidenceScore).toBeGreaterThan(0);
     });
 
@@ -471,18 +528,23 @@ describe('User Preferences Effectiveness', () => {
 
       const data = userPreferencesService.getPreferencesData();
       expect(data?.gradeLevel).toBe('Grade5');
-      
+
       // Should still maintain learning metrics
       expect(data?.learningMetrics.sessionCount).toBeGreaterThanOrEqual(1);
     });
 
     test('should provide reasonable fallbacks when no data available', async () => {
       // Don't initialize the service
-      const recommendations = userPreferencesService.getPersonalizedRecommendations({
-        gradeLevel: 'Grade3',
-      });
+      const recommendations =
+        userPreferencesService.getPersonalizedRecommendations({
+          gradeLevel: 'Grade3',
+        });
 
-      expect(recommendations.recommendedThemes).toEqual(['adventure', 'friendship', 'discovery']);
+      expect(recommendations.recommendedThemes).toEqual([
+        'adventure',
+        'friendship',
+        'discovery',
+      ]);
       expect(recommendations.recommendedComplexity).toBe('medium');
       expect(recommendations.confidenceScore).toBeLessThan(0.2);
     });

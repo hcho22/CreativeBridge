@@ -13,15 +13,17 @@ import { GameSession } from '../../types/database';
 jest.mock('react-native-fs', () => ({
   DocumentDirectoryPath: '/mock/documents',
   writeFile: jest.fn(),
-  stat: jest.fn(() => Promise.resolve({ 
-    size: 1024,
-    isFile: () => true,
-    isDirectory: () => false,
-    path: '/mock/documents/test.txt',
-    ctime: new Date(),
-    mtime: new Date(),
-    mode: 0o644
-  })),
+  stat: jest.fn(() =>
+    Promise.resolve({
+      size: 1024,
+      isFile: () => true,
+      isDirectory: () => false,
+      path: '/mock/documents/test.txt',
+      ctime: new Date(),
+      mtime: new Date(),
+      mode: 0o644,
+    }),
+  ),
   exists: jest.fn(() => Promise.resolve(true)),
   readFile: jest.fn(() => Promise.resolve('Test file content')),
   unlink: jest.fn(() => Promise.resolve()),
@@ -44,7 +46,7 @@ jest.mock('react-native', () => ({
 
 describe('Download Flow Integration Tests', () => {
   let storyDownloadService: StoryDownloadService;
-  
+
   beforeEach(() => {
     jest.clearAllMocks();
     storyDownloadService = new StoryDownloadService();
@@ -64,17 +66,33 @@ The mouse and cat became unlikely companions, sharing adventures and proving tha
     created_at: '2024-11-03T10:30:00Z',
     completed_at: '2024-11-03T11:00:00Z',
     contributions: [
-      { content: 'Once upon a time, there was a brave little mouse named Whiskers...', isUserContribution: true },
-      { content: 'Every morning, Whiskers would venture out to explore...', isUserContribution: false },
-      { content: 'One day, Whiskers discovered a magical acorn...', isUserContribution: true },
-      { content: 'With newfound bravery, Whiskers faced the cat...', isUserContribution: false },
-      { content: 'The mouse and cat became unlikely companions...', isUserContribution: true }
+      {
+        content:
+          'Once upon a time, there was a brave little mouse named Whiskers...',
+        isUserContribution: true,
+      },
+      {
+        content: 'Every morning, Whiskers would venture out to explore...',
+        isUserContribution: false,
+      },
+      {
+        content: 'One day, Whiskers discovered a magical acorn...',
+        isUserContribution: true,
+      },
+      {
+        content: 'With newfound bravery, Whiskers faced the cat...',
+        isUserContribution: false,
+      },
+      {
+        content: 'The mouse and cat became unlikely companions...',
+        isUserContribution: true,
+      },
     ],
     sessionStats: {
       userWords: 95,
       totalWords: 185,
-      averageResponseTime: 45000
-    }
+      averageResponseTime: 45000,
+    },
   };
 
   test('complete download flow works correctly', async () => {
@@ -83,24 +101,27 @@ The mouse and cat became unlikely companions, sharing adventures and proving tha
     (RNFS.stat as jest.Mock).mockResolvedValueOnce({
       size: 1024,
       isFile: () => true,
-      isDirectory: () => false
+      isDirectory: () => false,
     });
     (Share.open as jest.Mock).mockResolvedValueOnce({ success: true });
 
     // Step 2: Create download options from completed story
-    const downloadOptions = storyDownloadService.createDownloadOptionsFromContent(
-      mockCompletedStory.id,
-      mockCompletedStory.story_content
-    );
+    const downloadOptions =
+      storyDownloadService.createDownloadOptionsFromContent(
+        mockCompletedStory.id,
+        mockCompletedStory.story_content,
+      );
 
     expect(downloadOptions).toEqual({
       storyId: 'story-session-123',
       content: mockCompletedStory.story_content,
-      title: 'My Story'
+      title: 'My Story',
     });
 
     // Step 3: Validate story content
-    const validation = storyDownloadService.validateStoryContent(downloadOptions.content);
+    const validation = storyDownloadService.validateStoryContent(
+      downloadOptions.content,
+    );
     expect(validation.isValid).toBe(true);
     expect(validation.errors).toHaveLength(0);
 
@@ -114,7 +135,10 @@ The mouse and cat became unlikely companions, sharing adventures and proving tha
     expect(fileName).toMatch(/^Story_\d{6}_\d{6}\.txt$/);
 
     // Step 5: Test file saving through service
-    const saveResult = await storyDownloadService.saveStoryFile(fileContent, fileName);
+    const saveResult = await storyDownloadService.saveStoryFile(
+      fileContent,
+      fileName,
+    );
 
     expect(saveResult.success).toBe(true);
     expect(saveResult.fileName).toBe(fileName);
@@ -124,7 +148,7 @@ The mouse and cat became unlikely companions, sharing adventures and proving tha
     expect(RNFS.writeFile).toHaveBeenCalledWith(
       expect.stringContaining(fileName),
       fileContent,
-      'utf8'
+      'utf8',
     );
 
     expect(Share.open).toHaveBeenCalledWith(
@@ -132,8 +156,8 @@ The mouse and cat became unlikely companions, sharing adventures and proving tha
         title: 'Save Story',
         type: 'text/plain',
         filename: fileName,
-        saveToFiles: true
-      })
+        saveToFiles: true,
+      }),
     );
   });
 
@@ -142,33 +166,38 @@ The mouse and cat became unlikely companions, sharing adventures and proving tha
       {
         name: 'permission-denied',
         error: new Error('EACCES: permission denied'),
-        expectedMessage: 'Permission denied to write file.'
+        expectedMessage: 'Permission denied to write file.',
       },
       {
         name: 'storage-full',
         error: new Error('ENOSPC: no space left on device'),
-        expectedMessage: 'Not enough storage space available.'
+        expectedMessage: 'Not enough storage space available.',
       },
       {
         name: 'file-system-error',
         error: new Error('ENOENT: no such file or directory'),
-        expectedMessage: 'Directory not accessible.'
-      }
+        expectedMessage: 'Directory not accessible.',
+      },
     ];
 
     for (const scenario of errorScenarios) {
       jest.clearAllMocks();
       (RNFS.writeFile as jest.Mock).mockRejectedValueOnce(scenario.error);
 
-      const downloadOptions = storyDownloadService.createDownloadOptionsFromContent(
-        mockCompletedStory.id,
-        mockCompletedStory.story_content
-      );
+      const downloadOptions =
+        storyDownloadService.createDownloadOptionsFromContent(
+          mockCompletedStory.id,
+          mockCompletedStory.story_content,
+        );
 
-      const fileContent = storyDownloadService.generateStoryFile(downloadOptions);
+      const fileContent =
+        storyDownloadService.generateStoryFile(downloadOptions);
       const fileName = storyDownloadService.generateFileName();
 
-      const result = await storyDownloadService.saveStoryFile(fileContent, fileName);
+      const result = await storyDownloadService.saveStoryFile(
+        fileContent,
+        fileName,
+      );
 
       expect(result.success).toBe(false);
       expect(result.error).toBe(scenario.expectedMessage);
@@ -179,14 +208,17 @@ The mouse and cat became unlikely companions, sharing adventures and proving tha
     // Mock successful file creation
     const testFileName = 'Story_110324_143022.txt';
     const testContent = 'Test story content for validation.';
-    
+
     (RNFS.writeFile as jest.Mock).mockResolvedValueOnce(undefined);
     (RNFS.exists as jest.Mock).mockResolvedValueOnce(true);
     (RNFS.readFile as jest.Mock).mockResolvedValueOnce(testContent);
     (Share.open as jest.Mock).mockResolvedValueOnce({ success: true });
 
     // Create and save file
-    const result = await storyDownloadService.saveStoryFile(testContent, testFileName);
+    const result = await storyDownloadService.saveStoryFile(
+      testContent,
+      testFileName,
+    );
     expect(result.success).toBe(true);
 
     // Verify file exists
@@ -200,37 +232,38 @@ The mouse and cat became unlikely companions, sharing adventures and proving tha
     expect(RNFS.writeFile).toHaveBeenCalledWith(
       expect.stringContaining(testFileName),
       testContent,
-      'utf8'
+      'utf8',
     );
   });
 
   test('performance testing for file generation speed', async () => {
     const largeStory = {
       id: 'large-story-123',
-      content: 'This is a large story. '.repeat(2000) // ~48KB story
+      content: 'This is a large story. '.repeat(2000), // ~48KB story
     };
 
     const startTime = Date.now();
-    
+
     // Generate download options and file content
-    const downloadOptions = storyDownloadService.createDownloadOptionsFromContent(
-      largeStory.id,
-      largeStory.content
-    );
-    
+    const downloadOptions =
+      storyDownloadService.createDownloadOptionsFromContent(
+        largeStory.id,
+        largeStory.content,
+      );
+
     const fileContent = storyDownloadService.generateStoryFile(downloadOptions);
     const fileName = storyDownloadService.generateFileName();
-    
+
     const generationTime = Date.now() - startTime;
-    
+
     // File generation should complete within 3 seconds for typical stories
     expect(generationTime).toBeLessThan(3000);
-    
+
     // Verify content is properly formatted
     expect(fileContent).toContain('My Story');
     expect(fileContent).toContain('This is a large story.');
     expect(fileContent.length).toBeGreaterThan(40000); // Should be substantial
-    
+
     // Test file stats
     const stats = storyDownloadService.generateDownloadStats(downloadOptions);
     expect(stats.contentLength).toBeGreaterThan(40000);
@@ -243,24 +276,25 @@ The mouse and cat became unlikely companions, sharing adventures and proving tha
       {
         name: 'Normal story',
         content: 'Once upon a time, there was a magical kingdom...',
-        shouldBeValid: true
+        shouldBeValid: true,
       },
       {
         name: 'Empty story',
         content: '',
         shouldBeValid: false,
-        expectedErrors: ['Story content cannot be empty']
+        expectedErrors: ['Story content cannot be empty'],
       },
       {
         name: 'Very short story',
         content: 'Hi',
         shouldBeValid: false,
-        expectedErrors: ['Story content is too short (minimum 10 characters)']
+        expectedErrors: ['Story content is too short (minimum 10 characters)'],
       },
       {
         name: 'Story with special characters',
-        content: 'A story with émojis 🌟 and spéciál characters like café & résumé!',
-        shouldBeValid: true
+        content:
+          'A story with émojis 🌟 and spéciál characters like café & résumé!',
+        shouldBeValid: true,
       },
       {
         name: 'Multi-paragraph story',
@@ -271,15 +305,17 @@ Once upon a time in a far away land, there lived a young adventurer.
 Chapter 2: The Journey
 
 The adventurer set out on a quest to find the legendary treasure.`,
-        shouldBeValid: true
-      }
+        shouldBeValid: true,
+      },
     ];
 
     testCases.forEach(testCase => {
-      const validation = storyDownloadService.validateStoryContent(testCase.content);
-      
+      const validation = storyDownloadService.validateStoryContent(
+        testCase.content,
+      );
+
       expect(validation.isValid).toBe(testCase.shouldBeValid);
-      
+
       if (testCase.expectedErrors) {
         testCase.expectedErrors.forEach(expectedError => {
           expect(validation.errors).toContain(expectedError);
@@ -297,18 +333,21 @@ The adventurer set out on a quest to find the legendary treasure.`,
     (RNFS.writeFile as jest.Mock).mockResolvedValueOnce(undefined);
     (Share.open as jest.Mock).mockRejectedValueOnce(cancellationError);
 
-    const result = await storyDownloadService.saveStoryFile(testContent, testFileName);
+    const result = await storyDownloadService.saveStoryFile(
+      testContent,
+      testFileName,
+    );
 
     // Should still succeed with cancellation flag
     expect(result.success).toBe(true);
     expect(result.cancelled).toBe(true);
     expect(result.fileName).toBe(testFileName);
-    
+
     // File should still be written locally
     expect(RNFS.writeFile).toHaveBeenCalledWith(
       expect.stringContaining(testFileName),
       testContent,
-      'utf8'
+      'utf8',
     );
   });
 
@@ -325,28 +364,29 @@ Young Emma stumbled upon this magical realm quite by accident.
 
 She had been chasing her runaway kitten when she found herself in a place that couldn't possibly exist.`;
 
-    const downloadOptions = storyDownloadService.createDownloadOptionsFromContent(
-      'formatted-story-123',
-      formattedStory,
-      'The Magic Forest Adventure'
-    );
+    const downloadOptions =
+      storyDownloadService.createDownloadOptionsFromContent(
+        'formatted-story-123',
+        formattedStory,
+        'The Magic Forest Adventure',
+      );
 
     const fileContent = storyDownloadService.generateStoryFile(downloadOptions);
 
     // Verify title is included
     expect(fileContent).toContain('The Magic Forest Adventure');
-    
+
     // Verify chapter headings are preserved
     expect(fileContent).toContain('Chapter 1: The Magic Forest');
     expect(fileContent).toContain('Chapter 2: The Discovery');
-    
+
     // Verify paragraph breaks are maintained
     const lines = fileContent.split('\n');
     expect(lines).toContain(''); // Should have empty lines for paragraph breaks
-    
+
     // Verify no excessive line breaks
     expect(fileContent).not.toContain('\n\n\n\n');
-    
+
     // Verify proper ending
     expect(fileContent.endsWith('\n')).toBe(true);
   });
@@ -354,15 +394,19 @@ She had been chasing her runaway kitten when she found herself in a place that c
   test('download statistics accuracy', async () => {
     const testStory = `This is a test story with exactly twenty two words to verify word counting functionality works correctly.`;
 
-    const downloadOptions = storyDownloadService.createDownloadOptionsFromContent(
-      'stats-test-123',
-      testStory
-    );
+    const downloadOptions =
+      storyDownloadService.createDownloadOptionsFromContent(
+        'stats-test-123',
+        testStory,
+      );
 
     const stats = storyDownloadService.generateDownloadStats(downloadOptions);
 
     // Count words manually: "This is a test story with exactly twenty two words to verify word counting functionality works correctly." = 19 words
-    const manualWordCount = testStory.trim().split(/\s+/).filter(word => word.length > 0).length;
+    const manualWordCount = testStory
+      .trim()
+      .split(/\s+/)
+      .filter(word => word.length > 0).length;
     expect(stats.wordCount).toBe(manualWordCount);
     expect(stats.contentLength).toBe(testStory.length);
     expect(stats.paragraphCount).toBe(1); // Single paragraph
@@ -371,26 +415,26 @@ She had been chasing her runaway kitten when she found herself in a place that c
 
   test('filename generation uniqueness and format', async () => {
     const generatedFilenames = new Set();
-    
+
     // Generate multiple filenames with sufficient delay to ensure uniqueness
     for (let i = 0; i < 3; i++) {
       const fileName = storyDownloadService.generateFileName();
       generatedFilenames.add(fileName);
-      
+
       // Verify format
       expect(fileName).toMatch(/^Story_\d{6}_\d{6}\.txt$/);
-      
+
       // Longer delay to ensure timestamp differences (seconds level)
       await new Promise(resolve => setTimeout(resolve, 1100));
     }
-    
+
     // All filenames should be unique due to timestamp differences
     expect(generatedFilenames.size).toBe(3);
-    
+
     // Test that format is correct
     const testFileName = storyDownloadService.generateFileName();
     expect(testFileName).toMatch(/^Story_\d{6}_\d{6}\.txt$/);
-    
+
     // Test filename components
     const parts = testFileName.replace('.txt', '').split('_');
     expect(parts).toHaveLength(3);
@@ -401,12 +445,14 @@ She had been chasing her runaway kitten when she found herself in a place that c
 
   test('memory efficiency during large file operations', async () => {
     // Create a relatively large story (but not too large for CI)
-    const largeContent = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. '.repeat(1000); // ~56KB
-    
-    const downloadOptions = storyDownloadService.createDownloadOptionsFromContent(
-      'memory-test-123',
-      largeContent
-    );
+    const largeContent =
+      'Lorem ipsum dolor sit amet, consectetur adipiscing elit. '.repeat(1000); // ~56KB
+
+    const downloadOptions =
+      storyDownloadService.createDownloadOptionsFromContent(
+        'memory-test-123',
+        largeContent,
+      );
 
     // Multiple operations to test memory efficiency
     const operations = [
@@ -414,12 +460,12 @@ She had been chasing her runaway kitten when she found herself in a place that c
       () => storyDownloadService.generateStoryFile(downloadOptions),
       () => storyDownloadService.generateDownloadStats(downloadOptions),
       () => storyDownloadService.generatePreview(downloadOptions, 5),
-      () => storyDownloadService.estimateFileSize(downloadOptions.content)
+      () => storyDownloadService.estimateFileSize(downloadOptions.content),
     ];
 
     // All operations should complete without throwing memory errors
     const results = operations.map(operation => operation());
-    
+
     // Verify all operations succeeded
     results.forEach(result => {
       expect(result).toBeTruthy();

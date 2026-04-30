@@ -1,15 +1,15 @@
 /**
  * React Hook for Claude Skills Real-Time Monitoring Dashboard
- * 
+ *
  * Provides real-time metrics and alerts for the monitoring dashboard
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { 
+import {
   claudeSkillsMonitor,
   RealTimeMetrics,
   ClaudeSkillsPerformanceMetrics,
-  PerformanceAlert
+  PerformanceAlert,
 } from '../services/claudeSkillsMonitor';
 import { SkillType } from '../types/claudeSkills';
 
@@ -33,7 +33,7 @@ export interface UseClaudeSkillsDashboardOptions {
  * Hook for accessing Claude Skills monitoring dashboard data
  */
 export function useClaudeSkillsDashboard(
-  options: UseClaudeSkillsDashboardOptions = {}
+  options: UseClaudeSkillsDashboardOptions = {},
 ): DashboardData {
   const {
     refreshInterval = 5000, // 5 seconds default
@@ -43,13 +43,14 @@ export function useClaudeSkillsDashboard(
   } = options;
 
   const [realTimeMetrics, setRealTimeMetrics] = useState<RealTimeMetrics>(
-    claudeSkillsMonitor.getRealTimeMetrics()
+    claudeSkillsMonitor.getRealTimeMetrics(),
   );
-  const [performanceMetrics, setPerformanceMetrics] = useState<ClaudeSkillsPerformanceMetrics>(
-    claudeSkillsMonitor.getCurrentMetrics()
-  );
+  const [performanceMetrics, setPerformanceMetrics] =
+    useState<ClaudeSkillsPerformanceMetrics>(
+      claudeSkillsMonitor.getCurrentMetrics(),
+    );
   const [alerts, setAlerts] = useState<PerformanceAlert[]>(
-    claudeSkillsMonitor.getActiveAlerts()
+    claudeSkillsMonitor.getActiveAlerts(),
   );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -65,7 +66,10 @@ export function useClaudeSkillsDashboard(
       setRealTimeMetrics(realTime);
 
       // Get performance metrics (async, may query database)
-      const perfMetrics = await claudeSkillsMonitor.getPerformanceMetrics(hours, skillType);
+      const perfMetrics = await claudeSkillsMonitor.getPerformanceMetrics(
+        hours,
+        skillType,
+      );
       setPerformanceMetrics(perfMetrics);
 
       // Get active alerts
@@ -119,4 +123,3 @@ export function useClaudeSkillsAlerts() {
     clearResolvedAlerts,
   };
 }
-

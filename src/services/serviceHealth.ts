@@ -1,12 +1,17 @@
 /**
  * Service Health Monitoring System
- * 
+ *
  * Monitors Claude Skills service health and triggers graceful degradation
  * Task 6.3: Service Degradation Handling - Health monitoring component
  */
 
 import { structuredLogger } from '../utils/logger';
-import { SkillManager, SkillError, SkillErrorCode, SkillType } from '../types/claudeSkills';
+import {
+  SkillManager,
+  SkillError,
+  SkillErrorCode,
+  SkillType,
+} from '../types/claudeSkills';
 
 export interface ServiceHealthStatus {
   status: 'healthy' | 'degraded' | 'unavailable' | 'unknown';
@@ -71,7 +76,8 @@ export class ServiceHealthMonitor {
   private serviceMetrics: Map<string, ServiceMetrics> = new Map();
   private healthCheckHistory: Map<string, HealthCheckResult[]> = new Map();
   private monitoringInterval: NodeJS.Timeout | null = null;
-  private degradationListeners: ((event: ServiceDegradationEvent) => void)[] = [];
+  private degradationListeners: ((event: ServiceDegradationEvent) => void)[] =
+    [];
   private isMonitoring: boolean = false;
 
   constructor(skillManager: SkillManager, config?: Partial<HealthCheckConfig>) {
@@ -82,15 +88,15 @@ export class ServiceHealthMonitor {
       degradationThreshold: {
         errorRate: 0.2, // 20% error rate
         responseTimeMs: 3000, // 3 seconds
-        consecutiveFailures: 3
+        consecutiveFailures: 3,
       },
       recoveryThreshold: {
         successRate: 0.8, // 80% success rate
         stabilityWindow: 300000, // 5 minutes
-        consecutiveSuccesses: 5
+        consecutiveSuccesses: 5,
       },
       monitoringWindow: 600000, // 10 minutes
-      ...config
+      ...config,
     };
 
     this.initializeServiceTracking();
@@ -108,7 +114,7 @@ export class ServiceHealthMonitor {
     this.isMonitoring = true;
     structuredLogger.info('Starting service health monitoring', {
       checkInterval: this.config.checkIntervalMs,
-      monitoredServices: Array.from(this.serviceStatus.keys())
+      monitoredServices: Array.from(this.serviceStatus.keys()),
     });
 
     this.monitoringInterval = setInterval(async () => {
@@ -127,7 +133,7 @@ export class ServiceHealthMonitor {
       clearInterval(this.monitoringInterval);
       this.monitoringInterval = null;
     }
-    
+
     this.isMonitoring = false;
     structuredLogger.info('Service health monitoring stopped');
   }
@@ -135,7 +141,9 @@ export class ServiceHealthMonitor {
   /**
    * Get current health status for a service
    */
-  public getServiceHealth(serviceName: string): ServiceHealthStatus | undefined {
+  public getServiceHealth(
+    serviceName: string,
+  ): ServiceHealthStatus | undefined {
     return this.serviceStatus.get(serviceName);
   }
 
@@ -180,7 +188,7 @@ export class ServiceHealthMonitor {
     serviceName: string,
     success: boolean,
     responseTime: number,
-    error?: SkillError | Error
+    error?: SkillError | Error,
   ): void {
     const metrics = this.getOrCreateMetrics(serviceName);
     const status = this.getOrCreateStatus(serviceName);
@@ -196,16 +204,20 @@ export class ServiceHealthMonitor {
       metrics.consecutiveFailures++;
       metrics.lastFailureTime = new Date();
       if (error) {
-        metrics.lastError = error instanceof SkillError ? error : new SkillError({
-          code: SkillErrorCode.SKILL_TIMEOUT,
-          message: error.message,
-          retryable: true
-        });
+        metrics.lastError =
+          error instanceof SkillError
+            ? error
+            : new SkillError({
+                code: SkillErrorCode.SKILL_TIMEOUT,
+                message: error.message,
+                retryable: true,
+              });
       }
     }
 
     // Update response time metrics
-    const totalResponseTime = metrics.averageResponseTime * (metrics.requestCount - 1) + responseTime;
+    const totalResponseTime =
+      metrics.averageResponseTime * (metrics.requestCount - 1) + responseTime;
     metrics.averageResponseTime = totalResponseTime / metrics.requestCount;
 
     // Calculate rates
@@ -222,14 +234,18 @@ export class ServiceHealthMonitor {
   /**
    * Add listener for service degradation events
    */
-  public addDegradationListener(listener: (event: ServiceDegradationEvent) => void): void {
+  public addDegradationListener(
+    listener: (event: ServiceDegradationEvent) => void,
+  ): void {
     this.degradationListeners.push(listener);
   }
 
   /**
    * Remove degradation listener
    */
-  public removeDegradationListener(listener: (event: ServiceDegradationEvent) => void): void {
+  public removeDegradationListener(
+    listener: (event: ServiceDegradationEvent) => void,
+  ): void {
     const index = this.degradationListeners.indexOf(listener);
     if (index > -1) {
       this.degradationListeners.splice(index, 1);
@@ -239,23 +255,28 @@ export class ServiceHealthMonitor {
   /**
    * Manually trigger health check for a specific service
    */
-  public async checkServiceHealth(serviceName: string): Promise<HealthCheckResult> {
+  public async checkServiceHealth(
+    serviceName: string,
+  ): Promise<HealthCheckResult> {
     try {
       structuredLogger.debug('Manual health check started', { serviceName });
-      
+
       const startTime = Date.now();
       const healthCheckPromise = this.performServiceHealthCheck(serviceName);
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Health check timeout')), this.config.timeoutMs);
+        setTimeout(
+          () => reject(new Error('Health check timeout')),
+          this.config.timeoutMs,
+        );
       });
 
       await Promise.race([healthCheckPromise, timeoutPromise]);
-      
+
       const responseTime = Date.now() - startTime;
       const result: HealthCheckResult = {
         success: true,
         responseTime,
-        timestamp: new Date()
+        timestamp: new Date(),
       };
 
       // Record the result
@@ -263,19 +284,23 @@ export class ServiceHealthMonitor {
       this.recordServiceResult(serviceName, true, responseTime);
 
       return result;
-
     } catch (error) {
       const responseTime = Date.now() - Date.now(); // This will be close to timeout
       const result: HealthCheckResult = {
         success: false,
         responseTime,
         error: error as Error,
-        timestamp: new Date()
+        timestamp: new Date(),
       };
 
       // Record the result
       this.recordHealthCheckResult(serviceName, result);
-      this.recordServiceResult(serviceName, false, responseTime, error as Error);
+      this.recordServiceResult(
+        serviceName,
+        false,
+        responseTime,
+        error as Error,
+      );
 
       return result;
     }
@@ -284,7 +309,10 @@ export class ServiceHealthMonitor {
   /**
    * Get health check history for a service
    */
-  public getHealthCheckHistory(serviceName: string, limit?: number): HealthCheckResult[] {
+  public getHealthCheckHistory(
+    serviceName: string,
+    limit?: number,
+  ): HealthCheckResult[] {
     const history = this.healthCheckHistory.get(serviceName) || [];
     return limit ? history.slice(-limit) : [...history];
   }
@@ -298,7 +326,7 @@ export class ServiceHealthMonitor {
       'story_generation',
       'content_prediction',
       'quality_assessment',
-      'personalization'
+      'personalization',
     ];
 
     for (const service of services) {
@@ -310,22 +338,24 @@ export class ServiceHealthMonitor {
   private async performHealthChecks(): Promise<void> {
     try {
       const services = Array.from(this.serviceStatus.keys());
-      
+
       structuredLogger.debug('Performing scheduled health checks', {
         serviceCount: services.length,
-        services
+        services,
       });
 
       // Check all services in parallel
-      const healthCheckPromises = services.map(service => 
+      const healthCheckPromises = services.map(service =>
         this.checkServiceHealth(service).catch(error => {
-          structuredLogger.warn('Health check failed', { service, error: error.message });
+          structuredLogger.warn('Health check failed', {
+            service,
+            error: error.message,
+          });
           return null;
-        })
+        }),
       );
 
       await Promise.allSettled(healthCheckPromises);
-
     } catch (error) {
       structuredLogger.error('Health check cycle failed', {}, error as Error);
     }
@@ -366,7 +396,9 @@ export class ServiceHealthMonitor {
         throw new Error('Claude Skills API in error state');
       }
     } catch (error) {
-      throw new Error(`Claude Skills API health check failed: ${(error as Error).message}`);
+      throw new Error(
+        `Claude Skills API health check failed: ${(error as Error).message}`,
+      );
     }
   }
 
@@ -401,7 +433,11 @@ export class ServiceHealthMonitor {
         throw new Error('Local storage not available');
       }
     } catch (error) {
-      throw new Error(`Personalization service health check failed: ${(error as Error).message}`);
+      throw new Error(
+        `Personalization service health check failed: ${
+          (error as Error).message
+        }`,
+      );
     }
   }
 
@@ -413,7 +449,7 @@ export class ServiceHealthMonitor {
         errorRate: 0,
         successRate: 1,
         uptime: 100,
-        issues: []
+        issues: [],
       });
     }
     return this.serviceStatus.get(serviceName)!;
@@ -428,13 +464,16 @@ export class ServiceHealthMonitor {
         averageResponseTime: 0,
         p95ResponseTime: 0,
         uptimePercentage: 100,
-        consecutiveFailures: 0
+        consecutiveFailures: 0,
       });
     }
     return this.serviceMetrics.get(serviceName)!;
   }
 
-  private updateServiceStatus(serviceName: string, metrics: ServiceMetrics): void {
+  private updateServiceStatus(
+    serviceName: string,
+    metrics: ServiceMetrics,
+  ): void {
     const currentStatus = this.getOrCreateStatus(serviceName);
     const previousStatus = currentStatus.status;
 
@@ -443,28 +482,47 @@ export class ServiceHealthMonitor {
     const issues: string[] = [];
 
     // Check for unavailable status
-    if (metrics.consecutiveFailures >= this.config.degradationThreshold.consecutiveFailures) {
+    if (
+      metrics.consecutiveFailures >=
+      this.config.degradationThreshold.consecutiveFailures
+    ) {
       newStatus = 'unavailable';
       issues.push(`${metrics.consecutiveFailures} consecutive failures`);
     }
     // Check for degraded status
     else if (metrics.errorRate > this.config.degradationThreshold.errorRate) {
       newStatus = 'degraded';
-      issues.push(`Error rate ${(metrics.errorRate * 100).toFixed(1)}% exceeds threshold`);
-    }
-    else if (metrics.averageResponseTime > this.config.degradationThreshold.responseTimeMs) {
+      issues.push(
+        `Error rate ${(metrics.errorRate * 100).toFixed(1)}% exceeds threshold`,
+      );
+    } else if (
+      metrics.averageResponseTime >
+      this.config.degradationThreshold.responseTimeMs
+    ) {
       newStatus = 'degraded';
-      issues.push(`Response time ${metrics.averageResponseTime.toFixed(0)}ms exceeds threshold`);
+      issues.push(
+        `Response time ${metrics.averageResponseTime.toFixed(
+          0,
+        )}ms exceeds threshold`,
+      );
     }
 
     // Check for recovery from degraded/unavailable
-    if ((previousStatus === 'degraded' || previousStatus === 'unavailable') && 
-        metrics.successRate >= this.config.recoveryThreshold.successRate) {
+    if (
+      (previousStatus === 'degraded' || previousStatus === 'unavailable') &&
+      metrics.successRate >= this.config.recoveryThreshold.successRate
+    ) {
       // Additional stability check for recovery
       const recentHistory = this.getHealthCheckHistory(serviceName, 10);
       const recentSuccesses = recentHistory.filter(r => r.success).length;
-      
-      if (recentSuccesses >= Math.min(this.config.recoveryThreshold.consecutiveSuccesses, recentHistory.length)) {
+
+      if (
+        recentSuccesses >=
+        Math.min(
+          this.config.recoveryThreshold.consecutiveSuccesses,
+          recentHistory.length,
+        )
+      ) {
         newStatus = 'healthy';
         issues.length = 0; // Clear issues on recovery
       }
@@ -481,7 +539,12 @@ export class ServiceHealthMonitor {
 
     // Fire degradation event if status changed
     if (previousStatus !== newStatus) {
-      this.fireDegradationEvent(serviceName, previousStatus, newStatus, metrics);
+      this.fireDegradationEvent(
+        serviceName,
+        previousStatus,
+        newStatus,
+        metrics,
+      );
     }
 
     structuredLogger.info('Service status updated', {
@@ -491,11 +554,14 @@ export class ServiceHealthMonitor {
       errorRate: metrics.errorRate,
       successRate: metrics.successRate,
       consecutiveFailures: metrics.consecutiveFailures,
-      responseTime: metrics.averageResponseTime
+      responseTime: metrics.averageResponseTime,
     });
   }
 
-  private recordHealthCheckResult(serviceName: string, result: HealthCheckResult): void {
+  private recordHealthCheckResult(
+    serviceName: string,
+    result: HealthCheckResult,
+  ): void {
     if (!this.healthCheckHistory.has(serviceName)) {
       this.healthCheckHistory.set(serviceName, []);
     }
@@ -512,9 +578,11 @@ export class ServiceHealthMonitor {
   private cleanOldHistory(serviceName: string): void {
     const cutoffTime = new Date(Date.now() - this.config.monitoringWindow);
     const history = this.healthCheckHistory.get(serviceName);
-    
+
     if (history) {
-      const recentHistory = history.filter(result => result.timestamp > cutoffTime);
+      const recentHistory = history.filter(
+        result => result.timestamp > cutoffTime,
+      );
       this.healthCheckHistory.set(serviceName, recentHistory);
     }
   }
@@ -523,7 +591,7 @@ export class ServiceHealthMonitor {
     serviceName: string,
     previousStatus: ServiceHealthStatus['status'],
     newStatus: ServiceHealthStatus['status'],
-    metrics: ServiceMetrics
+    metrics: ServiceMetrics,
   ): void {
     const event: ServiceDegradationEvent = {
       service: serviceName,
@@ -535,9 +603,13 @@ export class ServiceHealthMonitor {
         errorRate: metrics.errorRate,
         averageResponseTime: metrics.averageResponseTime,
         consecutiveFailures: metrics.consecutiveFailures,
-        successRate: metrics.successRate
+        successRate: metrics.successRate,
       },
-      recommendedActions: this.getRecommendedActions(serviceName, newStatus, metrics)
+      recommendedActions: this.getRecommendedActions(
+        serviceName,
+        newStatus,
+        metrics,
+      ),
     };
 
     structuredLogger.info('Service degradation event', {
@@ -545,7 +617,7 @@ export class ServiceHealthMonitor {
       previousStatus,
       newStatus,
       reason: event.reason,
-      recommendedActions: event.recommendedActions
+      recommendedActions: event.recommendedActions,
     });
 
     // Notify all listeners
@@ -553,22 +625,36 @@ export class ServiceHealthMonitor {
       try {
         listener(event);
       } catch (error) {
-        structuredLogger.error('Degradation listener error', { serviceName }, error as Error);
+        structuredLogger.error(
+          'Degradation listener error',
+          { serviceName },
+          error as Error,
+        );
       }
     }
   }
 
-  private getDegradationReason(status: ServiceHealthStatus['status'], metrics: ServiceMetrics): string {
+  private getDegradationReason(
+    status: ServiceHealthStatus['status'],
+    metrics: ServiceMetrics,
+  ): string {
     switch (status) {
       case 'unavailable':
         return `Service unavailable due to ${metrics.consecutiveFailures} consecutive failures`;
       case 'degraded':
         const reasons: string[] = [];
         if (metrics.errorRate > this.config.degradationThreshold.errorRate) {
-          reasons.push(`high error rate (${(metrics.errorRate * 100).toFixed(1)}%)`);
+          reasons.push(
+            `high error rate (${(metrics.errorRate * 100).toFixed(1)}%)`,
+          );
         }
-        if (metrics.averageResponseTime > this.config.degradationThreshold.responseTimeMs) {
-          reasons.push(`slow response time (${metrics.averageResponseTime.toFixed(0)}ms)`);
+        if (
+          metrics.averageResponseTime >
+          this.config.degradationThreshold.responseTimeMs
+        ) {
+          reasons.push(
+            `slow response time (${metrics.averageResponseTime.toFixed(0)}ms)`,
+          );
         }
         return `Service degraded due to ${reasons.join(' and ')}`;
       case 'healthy':
@@ -581,7 +667,7 @@ export class ServiceHealthMonitor {
   private getRecommendedActions(
     serviceName: string,
     status: ServiceHealthStatus['status'],
-    metrics: ServiceMetrics
+    metrics: ServiceMetrics,
   ): string[] {
     const actions: string[] = [];
 
@@ -596,7 +682,10 @@ export class ServiceHealthMonitor {
         actions.push('Enable progressive enhancement');
         actions.push('Reduce service load');
         actions.push('Monitor closely for recovery');
-        if (metrics.averageResponseTime > this.config.degradationThreshold.responseTimeMs) {
+        if (
+          metrics.averageResponseTime >
+          this.config.degradationThreshold.responseTimeMs
+        ) {
           actions.push('Implement request throttling');
         }
         break;
@@ -652,7 +741,10 @@ export class ServiceHealthMonitor {
     // Determine overall status
     let overall: 'healthy' | 'degraded' | 'unavailable';
     if (unavailableCount > 0) {
-      overall = unavailableCount >= Object.keys(services).length / 2 ? 'unavailable' : 'degraded';
+      overall =
+        unavailableCount >= Object.keys(services).length / 2
+          ? 'unavailable'
+          : 'degraded';
     } else if (degradedCount > 0) {
       overall = 'degraded';
     } else {
@@ -664,7 +756,7 @@ export class ServiceHealthMonitor {
       services,
       criticalIssues,
       availableServices,
-      unavailableServices
+      unavailableServices,
     };
   }
 
@@ -676,7 +768,7 @@ export class ServiceHealthMonitor {
     this.serviceStatus.clear();
     this.healthCheckHistory.clear();
     this.initializeServiceTracking();
-    
+
     structuredLogger.info('All service metrics and status reset');
   }
 }

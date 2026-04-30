@@ -1,6 +1,6 @@
 /**
  * User Preferences Privacy and Compliance Tests
- * 
+ *
  * Tests COPPA compliance, data anonymization, and privacy protection
  */
 
@@ -49,7 +49,7 @@ describe('User Preferences Privacy & Compliance', () => {
       expect(interaction?.context).not.toHaveProperty('userEmail');
       expect(interaction?.context).not.toHaveProperty('phoneNumber');
       expect(interaction?.context).not.toHaveProperty('fullName');
-      
+
       // Only anonymized metadata should be present
       expect(interaction?.context).toHaveProperty('hasUserInput');
       expect(interaction?.context).toHaveProperty('userInputLength');
@@ -63,7 +63,7 @@ describe('User Preferences Privacy & Compliance', () => {
       await userPreferencesService.initialize('Grade3');
 
       const data = userPreferencesService.getPreferencesData();
-      
+
       // User ID should be hashed and anonymous
       expect(data?.userId).toBeDefined();
       expect(data?.userId.length).toBe(12); // Hashed to exactly 12 chars
@@ -74,7 +74,14 @@ describe('User Preferences Privacy & Compliance', () => {
       const oldData = {
         userId: 'test-user',
         gradeLevel: 'Grade3',
-        storyPreferences: { themes: {}, characters: {}, settings: {}, tones: {}, complexity: {}, genres: {} },
+        storyPreferences: {
+          themes: {},
+          characters: {},
+          settings: {},
+          tones: {},
+          complexity: {},
+          genres: {},
+        },
         sessionPatterns: {
           averageSessionDuration: 0,
           storiesPerSession: 0,
@@ -106,7 +113,7 @@ describe('User Preferences Privacy & Compliance', () => {
         'user_personalization_data',
         expect.objectContaining({
           createdAt: expect.any(Number),
-        })
+        }),
       );
     });
 
@@ -118,8 +125,13 @@ describe('User Preferences Privacy & Compliance', () => {
       // Set consent to false (revoke)
       await userPreferencesService.setPrivacyConsent(false);
 
-      expect(mockSecureStorage.remove).toHaveBeenCalledWith('user_personalization_data');
-      expect(mockSecureStorage.set).toHaveBeenCalledWith('privacy_consent', false);
+      expect(mockSecureStorage.remove).toHaveBeenCalledWith(
+        'user_personalization_data',
+      );
+      expect(mockSecureStorage.set).toHaveBeenCalledWith(
+        'privacy_consent',
+        false,
+      );
     });
 
     test('should provide data export for user rights', async () => {
@@ -180,7 +192,10 @@ describe('User Preferences Privacy & Compliance', () => {
         sessionId: 'session-12345',
       };
 
-      await userPreferencesService.recordInteraction('story_request', sensitiveContext);
+      await userPreferencesService.recordInteraction(
+        'story_request',
+        sensitiveContext,
+      );
 
       const data = userPreferencesService.getPreferencesData();
       const storedContext = data?.interactions[0]?.context;
@@ -188,8 +203,10 @@ describe('User Preferences Privacy & Compliance', () => {
       // Should only contain safe, anonymized data
       expect(storedContext?.gradeLevel).toBe('Grade3');
       expect(storedContext?.hasUserInput).toBe(true);
-      expect(storedContext?.userInputLength).toBe(sensitiveContext.userInput.length);
-      
+      expect(storedContext?.userInputLength).toBe(
+        sensitiveContext.userInput.length,
+      );
+
       // Should NOT contain sensitive data
       expect(storedContext).not.toHaveProperty('userInput');
       expect(storedContext).not.toHaveProperty('userLocation');
@@ -234,7 +251,7 @@ describe('User Preferences Privacy & Compliance', () => {
           version: '1.0',
           gradeLevel: 'Grade3',
           userId: expect.any(String),
-        })
+        }),
       );
     });
 
@@ -269,7 +286,10 @@ describe('User Preferences Privacy & Compliance', () => {
 
       // Should not throw error and should sanitize data
       await expect(
-        userPreferencesService.recordInteraction('story_request', malformedContext)
+        userPreferencesService.recordInteraction(
+          'story_request',
+          malformedContext,
+        ),
       ).resolves.not.toThrow();
 
       const data = userPreferencesService.getPreferencesData();
@@ -283,7 +303,7 @@ describe('User Preferences Privacy & Compliance', () => {
 
   describe('Privacy Mode Operation', () => {
     test('should operate in minimal mode when privacy not consented', async () => {
-      mockSecureStorage.get.mockImplementation((key) => {
+      mockSecureStorage.get.mockImplementation(key => {
         if (key === 'privacy_consent') return Promise.resolve(false);
         return Promise.resolve(null);
       });
@@ -309,7 +329,7 @@ describe('User Preferences Privacy & Compliance', () => {
     });
 
     test('should not provide personalized recommendations in minimal mode', async () => {
-      mockSecureStorage.get.mockImplementation((key) => {
+      mockSecureStorage.get.mockImplementation(key => {
         if (key === 'privacy_consent') return Promise.resolve(false);
         return Promise.resolve(null);
       });
@@ -317,13 +337,18 @@ describe('User Preferences Privacy & Compliance', () => {
 
       await userPreferencesService.initialize('Grade3');
 
-      const recommendations = userPreferencesService.getPersonalizedRecommendations({
-        gradeLevel: 'Grade3',
-      });
+      const recommendations =
+        userPreferencesService.getPersonalizedRecommendations({
+          gradeLevel: 'Grade3',
+        });
 
       // Should return default recommendations with low confidence
       expect(recommendations.confidenceScore).toBeLessThan(0.2);
-      expect(recommendations.recommendedThemes).toEqual(['adventure', 'friendship', 'discovery']);
+      expect(recommendations.recommendedThemes).toEqual([
+        'adventure',
+        'friendship',
+        'discovery',
+      ]);
     });
   });
 
@@ -345,7 +370,9 @@ describe('User Preferences Privacy & Compliance', () => {
 
       await userPreferencesService.resetPersonalizationData();
 
-      expect(mockSecureStorage.remove).toHaveBeenCalledWith('user_personalization_data');
+      expect(mockSecureStorage.remove).toHaveBeenCalledWith(
+        'user_personalization_data',
+      );
     });
 
     test('should handle storage errors gracefully', async () => {
@@ -353,7 +380,9 @@ describe('User Preferences Privacy & Compliance', () => {
       mockSecureStorage.set.mockResolvedValue(undefined);
 
       // Should not throw error and fallback gracefully
-      await expect(userPreferencesService.initialize('Grade3')).resolves.not.toThrow();
+      await expect(
+        userPreferencesService.initialize('Grade3'),
+      ).resolves.not.toThrow();
 
       const data = userPreferencesService.getPreferencesData();
       expect(data).toBeDefined();

@@ -1,6 +1,6 @@
 /**
  * Claude Skills Integration Test Framework
- * 
+ *
  * Comprehensive integration test framework for Task 2.2
  * Tests skill integration across services and components
  */
@@ -54,13 +54,14 @@ describe('Claude Skills Integration Test Framework', () => {
         mockSkillManager,
         config,
         {
-          buildSkillExecutionPlan: async (request) => {
+          buildSkillExecutionPlan: async request => {
             return {
               skills: [
                 {
                   skillType: 'ContentPredictionSkill',
                   skillId: 'ContentPredictionSkill_mock',
-                  input: SkillTestUtils.createTestInput.ContentPredictionSkill(),
+                  input:
+                    SkillTestUtils.createTestInput.ContentPredictionSkill(),
                   required: false,
                 },
               ],
@@ -70,14 +71,14 @@ describe('Claude Skills Integration Test Framework', () => {
           },
           processSkillResults: async (request, orchestrationResult) => {
             const skillData = orchestrationResult.results.get(
-              'ContentPredictionSkill_mock'
+              'ContentPredictionSkill_mock',
             );
             return {
               result: `Enhanced: ${request.input}`,
               skillData: skillData?.data,
             };
           },
-        }
+        },
       );
 
       const result = await enhancedService.execute({ input: 'test' });
@@ -106,7 +107,7 @@ describe('Claude Skills Integration Test Framework', () => {
         {
           buildSkillExecutionPlan: async () => null,
           processSkillResults: async (req, _) => service1.execute(req),
-        }
+        },
       );
 
       const enhanced2 = SkillEnhancedServiceFactory.wrapService(
@@ -116,7 +117,7 @@ describe('Claude Skills Integration Test Framework', () => {
         {
           buildSkillExecutionPlan: async () => null,
           processSkillResults: async (req, _) => service2.execute(req),
-        }
+        },
       );
 
       const [result1, result2] = await Promise.all([
@@ -166,12 +167,12 @@ describe('Claude Skills Integration Test Framework', () => {
           processSkillResults: async () => {
             throw new Error('Processing failed');
           },
-        }
+        },
       );
 
       // Should fall back to original service
       await expect(
-        enhancedService.execute({ input: 'test' })
+        enhancedService.execute({ input: 'test' }),
       ).rejects.toThrow();
     });
   });
@@ -208,7 +209,7 @@ describe('Claude Skills Integration Test Framework', () => {
             stopOnError: false,
           }),
           processSkillResults: async (req, _) => mockService.execute(req),
-        }
+        },
       );
 
       const startTime = performance.now();
@@ -220,4 +221,3 @@ describe('Claude Skills Integration Test Framework', () => {
     });
   });
 });
-

@@ -13,8 +13,6 @@ import {
   SafeAreaView,
   ScrollView,
   TextInput,
-  KeyboardAvoidingView,
-  Platform,
   Animated,
   Dimensions,
   BackHandler,
@@ -581,91 +579,87 @@ const StorySetupScreen: React.FC<StorySetupScreenProps> = ({ navigation }) => {
   };
 
   const renderCharacterStep = () => (
-    <KeyboardAvoidingView
-      style={styles.keyboardAvoidingView}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+    <ScrollView
+      style={styles.scrollView}
+      contentContainerStyle={styles.scrollViewContent}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      showsVerticalScrollIndicator={false}
+      automaticallyAdjustKeyboardInsets
     >
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollViewContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.optionCardList}>
-          {CHARACTER_OPTIONS.map(option =>
-            renderOptionCard({
-              key: option.value,
-              label: option.value,
-              subtitle: CHARACTER_SUBTITLES[option.value],
-              selected: selectedCharacterType === option.value,
-              onPress: () => handleCharacterTypePress(option.value),
-              meta: CHARACTER_VISUALS[option.value],
-            }),
-          )}
-        </View>
+      <View style={styles.optionCardList}>
+        {CHARACTER_OPTIONS.map(option =>
+          renderOptionCard({
+            key: option.value,
+            label: option.value,
+            subtitle: CHARACTER_SUBTITLES[option.value],
+            selected: selectedCharacterType === option.value,
+            onPress: () => handleCharacterTypePress(option.value),
+            meta: CHARACTER_VISUALS[option.value],
+          }),
+        )}
+      </View>
 
-        {selectedCharacterType === 'Animal' && (
-          <View style={styles.expansionContainer}>
-            <Text style={styles.expansionLabel}>Pick an animal</Text>
-            <View style={styles.optionCardList}>
-              {ANIMAL_OPTIONS.map(option =>
-                renderOptionCard({
-                  key: option.value,
-                  label: option.value,
-                  selected: selectedAnimalType === option.value,
-                  onPress: () => handleAnimalTypePress(option.value),
-                  meta: ANIMAL_VISUALS[option.value],
-                }),
-              )}
-            </View>
-
-            {selectedAnimalType === 'Other' && (
-              <TextInput
-                style={styles.textInput}
-                placeholder="Type of animal..."
-                placeholderTextColor={theme.colors.ink.faint}
-                value={customAnimal}
-                onChangeText={setCustomAnimal}
-                maxLength={30}
-                autoCapitalize="sentences"
-                returnKeyType="done"
-              />
+      {selectedCharacterType === 'Animal' && (
+        <View style={styles.expansionContainer}>
+          <Text style={styles.expansionLabel}>Pick an animal</Text>
+          <View style={styles.optionCardList}>
+            {ANIMAL_OPTIONS.map(option =>
+              renderOptionCard({
+                key: option.value,
+                label: option.value,
+                selected: selectedAnimalType === option.value,
+                onPress: () => handleAnimalTypePress(option.value),
+                meta: ANIMAL_VISUALS[option.value],
+              }),
             )}
           </View>
-        )}
 
-        {selectedCharacterType === 'Custom' && (
-          <View style={styles.expansionContainer}>
-            <Text style={styles.expansionLabel}>Describe your character</Text>
+          {selectedAnimalType === 'Other' && (
             <TextInput
               style={styles.textInput}
-              placeholder="e.g. A shy dragon who collects lost buttons"
+              placeholder="Type of animal..."
               placeholderTextColor={theme.colors.ink.faint}
-              value={customCharacter}
-              onChangeText={setCustomCharacter}
-              maxLength={50}
+              value={customAnimal}
+              onChangeText={setCustomAnimal}
+              maxLength={30}
               autoCapitalize="sentences"
               returnKeyType="done"
             />
-          </View>
-        )}
+          )}
+        </View>
+      )}
 
-        <View style={styles.nameInputContainer}>
-          <Text style={styles.nameInputLabel}>Give them a name (optional)</Text>
+      {selectedCharacterType === 'Custom' && (
+        <View style={styles.expansionContainer}>
+          <Text style={styles.expansionLabel}>Describe your character</Text>
           <TextInput
             style={styles.textInput}
-            placeholder="e.g. Felix the Fox"
+            placeholder="e.g. A shy dragon who collects lost buttons"
             placeholderTextColor={theme.colors.ink.faint}
-            value={characterName}
-            onChangeText={setCharacterName}
-            maxLength={30}
-            autoCapitalize="words"
+            value={customCharacter}
+            onChangeText={setCustomCharacter}
+            maxLength={50}
+            autoCapitalize="sentences"
             returnKeyType="done"
           />
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      )}
+
+      <View style={styles.nameInputContainer}>
+        <Text style={styles.nameInputLabel}>Give them a name (optional)</Text>
+        <TextInput
+          style={styles.textInput}
+          placeholder="e.g. Felix the Fox"
+          placeholderTextColor={theme.colors.ink.faint}
+          value={characterName}
+          onChangeText={setCharacterName}
+          maxLength={30}
+          autoCapitalize="words"
+          returnKeyType="done"
+        />
+      </View>
+    </ScrollView>
   );
 
   // ── Setting Step (Step 2) ──────────────────────────────────────
@@ -687,48 +681,44 @@ const StorySetupScreen: React.FC<StorySetupScreenProps> = ({ navigation }) => {
   };
 
   const renderSettingStep = () => (
-    <KeyboardAvoidingView
-      style={styles.keyboardAvoidingView}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+    <ScrollView
+      style={styles.scrollView}
+      contentContainerStyle={styles.scrollViewContent}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      showsVerticalScrollIndicator={false}
+      automaticallyAdjustKeyboardInsets
     >
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollViewContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.optionCardList}>
-          {SETTING_OPTIONS.map(option =>
-            renderOptionCard({
-              key: option.value,
-              label: SETTING_LABELS[option.value],
-              subtitle: SETTING_SUBTITLES[option.value],
-              selected: selectedSetting === option.value,
-              onPress: () => handleSettingPress(option.value),
-              meta: SETTING_VISUALS[option.value],
-            }),
-          )}
-        </View>
-
-        {selectedSetting === 'Custom' && (
-          <View style={styles.expansionContainer}>
-            <Text style={styles.expansionLabel}>Describe the place</Text>
-            <TextInput
-              ref={customSettingInputRef}
-              style={styles.textInput}
-              placeholder="e.g. An old lighthouse on a cliff full of seabirds"
-              placeholderTextColor={theme.colors.ink.faint}
-              value={customSetting}
-              onChangeText={setCustomSetting}
-              maxLength={50}
-              autoCapitalize="sentences"
-              returnKeyType="done"
-            />
-          </View>
+      <View style={styles.optionCardList}>
+        {SETTING_OPTIONS.map(option =>
+          renderOptionCard({
+            key: option.value,
+            label: SETTING_LABELS[option.value],
+            subtitle: SETTING_SUBTITLES[option.value],
+            selected: selectedSetting === option.value,
+            onPress: () => handleSettingPress(option.value),
+            meta: SETTING_VISUALS[option.value],
+          }),
         )}
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </View>
+
+      {selectedSetting === 'Custom' && (
+        <View style={styles.expansionContainer}>
+          <Text style={styles.expansionLabel}>Describe the place</Text>
+          <TextInput
+            ref={customSettingInputRef}
+            style={styles.textInput}
+            placeholder="e.g. An old lighthouse on a cliff full of seabirds"
+            placeholderTextColor={theme.colors.ink.faint}
+            value={customSetting}
+            onChangeText={setCustomSetting}
+            maxLength={50}
+            autoCapitalize="sentences"
+            returnKeyType="done"
+          />
+        </View>
+      )}
+    </ScrollView>
   );
 
   // ── Starter Options (Step 3) — full-width option cards ─────────
@@ -1074,9 +1064,6 @@ const styles = StyleSheet.create({
   },
 
   // Character / setting step layout.
-  keyboardAvoidingView: {
-    flex: 1,
-  },
   scrollView: {
     flex: 1,
   },

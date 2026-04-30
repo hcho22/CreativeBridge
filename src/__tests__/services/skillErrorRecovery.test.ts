@@ -1,11 +1,15 @@
 /**
  * Skill Error Recovery Tests
- * 
+ *
  * Tests for Task 2.3: Error Recovery Strategies
  */
 
 import { skillErrorRecovery } from '../../services/skillErrorRecovery';
-import { SkillError, SkillErrorCode, SkillType } from '../../types/claudeSkills';
+import {
+  SkillError,
+  SkillErrorCode,
+  SkillType,
+} from '../../types/claudeSkills';
 import { structuredLogger } from '../../utils/logger';
 import { errorHandler } from '../../services/errorHandler';
 
@@ -36,7 +40,7 @@ describe('Skill Error Recovery', () => {
       const result = await skillErrorRecovery.executeWithRecovery(
         operation,
         'ContentPredictionSkill',
-        'skill-123'
+        'skill-123',
       );
 
       expect(result).toEqual({ success: true });
@@ -65,7 +69,7 @@ describe('Skill Error Recovery', () => {
         await skillErrorRecovery.executeWithRecovery(
           operation,
           'ContentPredictionSkill',
-          'skill-123'
+          'skill-123',
         );
       } catch (error) {
         // Expected to fail after max retries
@@ -90,8 +94,8 @@ describe('Skill Error Recovery', () => {
         skillErrorRecovery.executeWithRecovery(
           operation,
           'ContentPredictionSkill',
-          'skill-123'
-        )
+          'skill-123',
+        ),
       ).rejects.toBeDefined();
 
       expect(operation).toHaveBeenCalledTimes(1); // Should not retry
@@ -114,7 +118,7 @@ describe('Skill Error Recovery', () => {
           await skillErrorRecovery.executeWithRecovery(
             operation,
             'ContentPredictionSkill',
-            'test-skill'
+            'test-skill',
           );
         } catch (error) {
           // Expected to fail
@@ -124,7 +128,7 @@ describe('Skill Error Recovery', () => {
       // Circuit breaker should be open
       const state = skillErrorRecovery.getCircuitBreakerState(
         'ContentPredictionSkill',
-        'test-skill'
+        'test-skill',
       );
       expect(state?.isOpen).toBe(true);
     });
@@ -133,8 +137,11 @@ describe('Skill Error Recovery', () => {
       const operation = jest.fn(async () => ({ success: true }));
 
       // Manually open circuit breaker by resetting and failing multiple times
-      skillErrorRecovery.resetCircuitBreaker('ContentPredictionSkill', 'test-skill-2');
-      
+      skillErrorRecovery.resetCircuitBreaker(
+        'ContentPredictionSkill',
+        'test-skill-2',
+      );
+
       for (let i = 0; i < 6; i++) {
         try {
           await skillErrorRecovery.executeWithRecovery(
@@ -146,7 +153,7 @@ describe('Skill Error Recovery', () => {
               };
             },
             'ContentPredictionSkill',
-            'test-skill-2'
+            'test-skill-2',
           );
         } catch (error) {
           // Expected
@@ -158,8 +165,8 @@ describe('Skill Error Recovery', () => {
         skillErrorRecovery.executeWithRecovery(
           operation,
           'ContentPredictionSkill',
-          'test-skill-2'
-        )
+          'test-skill-2',
+        ),
       ).rejects.toBeDefined();
 
       expect(operation).not.toHaveBeenCalled();
@@ -167,7 +174,10 @@ describe('Skill Error Recovery', () => {
 
     test('Circuit breaker closes after successful operations', async () => {
       // Reset circuit breaker
-      skillErrorRecovery.resetCircuitBreaker('ContentPredictionSkill', 'test-skill-3');
+      skillErrorRecovery.resetCircuitBreaker(
+        'ContentPredictionSkill',
+        'test-skill-3',
+      );
 
       // Open circuit breaker
       for (let i = 0; i < 6; i++) {
@@ -181,7 +191,7 @@ describe('Skill Error Recovery', () => {
               };
             },
             'ContentPredictionSkill',
-            'test-skill-3'
+            'test-skill-3',
           );
         } catch (error) {
           // Expected
@@ -193,19 +203,22 @@ describe('Skill Error Recovery', () => {
       const successfulOperation = jest.fn(async () => ({ success: true }));
 
       // Reset and try successful operations
-      skillErrorRecovery.resetCircuitBreaker('ContentPredictionSkill', 'test-skill-3');
+      skillErrorRecovery.resetCircuitBreaker(
+        'ContentPredictionSkill',
+        'test-skill-3',
+      );
 
       for (let i = 0; i < 3; i++) {
         await skillErrorRecovery.executeWithRecovery(
           successfulOperation,
           'ContentPredictionSkill',
-          'test-skill-3'
+          'test-skill-3',
         );
       }
 
       const state = skillErrorRecovery.getCircuitBreakerState(
         'ContentPredictionSkill',
-        'test-skill-3'
+        'test-skill-3',
       );
       expect(state?.isOpen).toBe(false);
     });
@@ -221,7 +234,7 @@ describe('Skill Error Recovery', () => {
         await skillErrorRecovery.executeWithRecovery(
           operation,
           'ContentPredictionSkill',
-          'skill-123'
+          'skill-123',
         );
       } catch (error) {
         expect(error).toBeDefined();
@@ -238,7 +251,7 @@ describe('Skill Error Recovery', () => {
         await skillErrorRecovery.executeWithRecovery(
           operation,
           'ContentPredictionSkill',
-          'skill-123'
+          'skill-123',
         );
       } catch (error: any) {
         expect(error.code).toBe(SkillErrorCode.SKILL_TIMEOUT);
@@ -247,4 +260,3 @@ describe('Skill Error Recovery', () => {
     });
   });
 });
-

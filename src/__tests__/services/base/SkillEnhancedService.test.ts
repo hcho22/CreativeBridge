@@ -1,6 +1,6 @@
 /**
  * Skill Enhanced Service Architecture Tests
- * 
+ *
  * Comprehensive tests for Task 2.1: Skill-Enhanced Service Architecture
  */
 
@@ -9,13 +9,21 @@ import {
   SkillEnhancedServiceFactory,
   SkillEnhancedServiceConfig,
 } from '../../../services/base/SkillEnhancedService';
-import { SkillOrchestrator, SkillExecutionPlan } from '../../../services/base/SkillOrchestrator';
+import {
+  SkillOrchestrator,
+  SkillExecutionPlan,
+} from '../../../services/base/SkillOrchestrator';
 import {
   FallbackStrategyManager,
   OriginalServiceFallbackStrategy,
   CachedResponseFallbackStrategy,
 } from '../../../services/base/FallbackStrategy';
-import { SkillManager, SkillResult, SkillError, SkillErrorCode } from '../../../types/claudeSkills';
+import {
+  SkillManager,
+  SkillResult,
+  SkillError,
+  SkillErrorCode,
+} from '../../../types/claudeSkills';
 
 // Mock dependencies
 jest.mock('../../../services/claudeSkillsMonitor');
@@ -50,7 +58,7 @@ describe('Skill Enhanced Service Architecture', () => {
         {
           buildSkillExecutionPlan: async () => null, // No skills
           processSkillResults: async () => ({ success: false }),
-        }
+        },
       );
 
       const request = { input: 'test' };
@@ -69,7 +77,7 @@ describe('Skill Enhanced Service Architecture', () => {
         {
           buildSkillExecutionPlan: async () => null,
           processSkillResults: async () => ({ success: false }),
-        }
+        },
       );
 
       // Should have same interface
@@ -86,7 +94,7 @@ describe('Skill Enhanced Service Architecture', () => {
         {
           buildSkillExecutionPlan: async () => null,
           processSkillResults: async () => ({ success: false }),
-        }
+        },
       );
 
       const startTime = performance.now();
@@ -132,7 +140,7 @@ describe('Skill Enhanced Service Architecture', () => {
           processSkillResults: async () => {
             throw new Error('Skill failed');
           },
-        }
+        },
       );
 
       const result = await wrappedService.execute({ input: 'test' });
@@ -163,7 +171,7 @@ describe('Skill Enhanced Service Architecture', () => {
           processSkillResults: async () => {
             throw new Error('Processing failed');
           },
-        }
+        },
       );
 
       // Mock skill to fail
@@ -226,7 +234,7 @@ describe('Skill Enhanced Service Architecture', () => {
             processSkillResults: async () => {
               throw new Error('Processing failed');
             },
-          }
+          },
         );
 
         const result = await wrappedService.execute({ input: 'test' });
@@ -253,9 +261,11 @@ describe('Skill Enhanced Service Architecture', () => {
       ];
 
       let callCount = 0;
-      (mockSkillManager.executeSkill as jest.Mock).mockImplementation(async () => {
-        return skillResults[callCount++];
-      });
+      (mockSkillManager.executeSkill as jest.Mock).mockImplementation(
+        async () => {
+          return skillResults[callCount++];
+        },
+      );
 
       const wrappedService = SkillEnhancedServiceFactory.wrapService(
         mockOriginalService,
@@ -284,7 +294,7 @@ describe('Skill Enhanced Service Architecture', () => {
             expect(orchestrationResult.results.size).toBe(2);
             return { success: true, combined: 'result' };
           },
-        }
+        },
       );
 
       const result = await wrappedService.execute({ input: 'test' });
@@ -304,7 +314,7 @@ describe('Skill Enhanced Service Architecture', () => {
             executionTimeMs: 50,
             skillType: 'ContentPredictionSkill' as const,
           };
-        }
+        },
       );
 
       const wrappedService = SkillEnhancedServiceFactory.wrapService(
@@ -332,7 +342,7 @@ describe('Skill Enhanced Service Architecture', () => {
             stopOnError: false,
           }),
           processSkillResults: async () => ({ success: true }),
-        }
+        },
       );
 
       await wrappedService.execute({ input: 'test' });
@@ -376,7 +386,7 @@ describe('Skill Enhanced Service Architecture', () => {
             expect(orchestrationResult.errors.size).toBeGreaterThan(0);
             return { success: true, fallback: true };
           },
-        }
+        },
       );
 
       const result = await wrappedService.execute({ input: 'test' });
@@ -408,7 +418,7 @@ describe('Skill Enhanced Service Architecture', () => {
         {
           buildSkillExecutionPlan: async () => null,
           processSkillResults: async () => ({ success: false, data: '' }),
-        }
+        },
       );
 
       const request: TestRequest = { input: 'test' };
@@ -421,4 +431,3 @@ describe('Skill Enhanced Service Architecture', () => {
     });
   });
 });
-
