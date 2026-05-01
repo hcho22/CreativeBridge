@@ -842,9 +842,10 @@ class IsolatedTextToSpeechService {
       this.isPausedState = false;
 
       // If pause is not supported, log a warning but don't throw
+      const pauseErrorMessage = error instanceof Error ? error.message : '';
       if (
-        error.message?.includes('not supported') ||
-        error.message?.includes('not available')
+        pauseErrorMessage.includes('not supported') ||
+        pauseErrorMessage.includes('not available')
       ) {
         if (__DEV__) {
           console.warn('⚠️ Pause functionality not available on this device');
@@ -885,9 +886,10 @@ class IsolatedTextToSpeechService {
       this.isPausedState = false;
 
       // If resume is not supported, log a warning but don't throw
+      const resumeErrorMessage = error instanceof Error ? error.message : '';
       if (
-        error.message?.includes('not supported') ||
-        error.message?.includes('not available')
+        resumeErrorMessage.includes('not supported') ||
+        resumeErrorMessage.includes('not available')
       ) {
         console.warn('⚠️ Resume functionality not available on this device');
       }
@@ -903,7 +905,7 @@ class IsolatedTextToSpeechService {
         return await module.isSpeaking();
       }
       // If isSpeaking doesn't exist, use our internal state
-      return !this.isPausedState && this.speakerState === 'speaking';
+      return !this.isPausedState && this.isAvailable;
     } catch (error) {
       if (__DEV__) {
         console.warn(

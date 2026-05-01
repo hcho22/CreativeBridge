@@ -212,20 +212,22 @@ class StoryQuestService {
       }
 
       // Transform Story_Quest game sessions to CreativeBridge story format
-      const stories: StoryQuestStory[] = (sessionsData || []).map(session => ({
-        id: session.id,
-        user_id: session.user_id,
-        grade_level: session.grade_level,
-        story_content: session.story_content,
-        final_score: session.final_score || 0,
-        words_written: session.words_written || 0,
-        sentences_completed: session.sentences_completed || 0,
-        challenges_completed: session.challenges_completed || 0,
-        xp_earned: session.xp_earned || 0,
-        created_at: session.created_at,
-        completed_at: session.completed_at,
-        source: 'Story_Quest',
-      }));
+      const stories: StoryQuestStory[] = (sessionsData || []).map(
+        (session: any) => ({
+          id: session.id,
+          user_id: session.user_id,
+          grade_level: session.grade_level,
+          story_content: session.story_content,
+          final_score: session.final_score || 0,
+          words_written: session.words_written || 0,
+          sentences_completed: session.sentences_completed || 0,
+          challenges_completed: session.challenges_completed || 0,
+          xp_earned: session.xp_earned || 0,
+          created_at: session.created_at,
+          completed_at: session.completed_at,
+          source: 'Story_Quest',
+        }),
+      );
 
       return {
         success: true,
@@ -424,7 +426,9 @@ class StoryQuestService {
       };
 
       // Save to CreativeBridge database
-      const { data, error } = await supabase
+      const sb =
+        supabase as unknown as import('@supabase/supabase-js').SupabaseClient;
+      const { data, error } = await sb
         .from('game_sessions')
         .insert(importedStory)
         .select()

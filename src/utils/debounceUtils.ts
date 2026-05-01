@@ -41,7 +41,7 @@ export function debounce<T extends (...args: any[]) => any>(
     abortController,
   } = options;
 
-  function invokeFunc(time: number): ReturnType<T> {
+  function invokeFunc(this: unknown, time: number): ReturnType<T> {
     const args = lastArgs!;
     lastArgs = undefined;
     lastInvokeTime = time;
@@ -148,7 +148,7 @@ export function debounce<T extends (...args: any[]) => any>(
   debounced.flush = flush;
   debounced.pending = pending;
 
-  return debounced as T & {
+  return debounced as unknown as T & {
     cancel: () => void;
     flush: () => void;
     pending: () => boolean;

@@ -7,7 +7,12 @@
  * Part of US-012: Store diversity scores with story metadata
  */
 
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from './supabase';
+
+// Boundary cast: project Database type doesn't satisfy postgrest's GenericSchema
+// for diversity-score tables. Same pattern as feedbackCollectionService.ts.
+const sb = supabase as unknown as SupabaseClient;
 
 /**
  * Checks if an ID is a valid UUID format (Supabase format).
@@ -215,7 +220,7 @@ class DiversityScoreStorageService {
 
         // Use upsert to handle duplicate story_id (unique constraint)
         // If score exists, update it with latest calculation
-        const { error } = await supabase
+        const { error } = await sb
           .from('story_diversity_scores')
           .upsert(record as any, {
             onConflict: 'story_id', // Conflict on unique constraint
@@ -316,7 +321,7 @@ class DiversityScoreStorageService {
     }
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from('story_diversity_scores')
         .select('*')
         .eq('story_id', storyId)
@@ -364,7 +369,7 @@ class DiversityScoreStorageService {
 
     try {
       // Get all story IDs for this session
-      const { data: elements } = await supabase
+      const { data: elements } = await sb
         .from('story_elements')
         .select('story_id')
         .eq('session_id', sessionId);
@@ -377,7 +382,7 @@ class DiversityScoreStorageService {
       const storyIds = Array.from(new Set(elements.map(e => e.story_id)));
 
       // Fetch diversity scores for these stories
-      const { data: scores } = await supabase
+      const { data: scores } = await sb
         .from('story_diversity_scores')
         .select('diversity_score')
         .in('story_id', storyIds);

@@ -7,6 +7,7 @@
 
 import { SkillError, SkillErrorCode, SkillType } from '../types/claudeSkills';
 import { structuredLogger } from '../utils/logger';
+import { errorHandler } from './errorHandler';
 // import { errorHandler, ErrorLevel } from './errorHandler';
 
 export interface RecoveryStrategy {

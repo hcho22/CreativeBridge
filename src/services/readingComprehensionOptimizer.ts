@@ -298,7 +298,7 @@ class ReadingComprehensionOptimizerService {
       sessionId: this.sessionId,
       contentId,
       context: {
-        gradeLevel: context?.gradeLevel || 'Grade3',
+        gradeLevel: context?.gradeLevel || '3-5',
         readingSpeed:
           context?.readingSpeed || this.calculateCurrentReadingSpeed(),
         comprehensionLevel:
@@ -327,10 +327,10 @@ class ReadingComprehensionOptimizerService {
       return this.getDefaultMetrics();
     }
 
+    const sessionContentId = this.currentReadingSession.contentId;
     const recentEvents = this.events.filter(
       e =>
-        e.contentId === this.currentReadingSession.contentId &&
-        Date.now() - e.timestamp < 300000, // Last 5 minutes
+        e.contentId === sessionContentId && Date.now() - e.timestamp < 300000, // Last 5 minutes
     );
 
     const readingSpeed = this.calculateReadingSpeed(recentEvents);
@@ -698,13 +698,16 @@ class ReadingComprehensionOptimizerService {
         component: 'reading_content',
         action: event.type,
         context: {
-          contentId: event.contentId,
-          position: event.context.position.percentageComplete,
-          readingSpeed: event.context.readingSpeed,
+          screenName: 'reading_screen',
+          elementId: event.contentId,
+          gradeLevel: event.context.gradeLevel,
+          accessibilityMode: false,
+          networkCondition: 'good',
         },
         duration:
           event.type === 'reading_pause'
-            ? Date.now() - this.currentReadingSession?.lastActivityTime!
+            ? Date.now() -
+              (this.currentReadingSession?.lastActivityTime ?? Date.now())
             : undefined,
       });
     }
@@ -825,7 +828,7 @@ class ReadingComprehensionOptimizerService {
       100;
 
     const expectedSpeed =
-      this.config.gradeLevelBaselines.Grade3.expectedReadingSpeed; // Default
+      this.config.gradeLevelBaselines['3-5'].expectedReadingSpeed; // Default
 
     return (
       lookups + rereads > events.length * 0.2 ||
@@ -846,7 +849,7 @@ class ReadingComprehensionOptimizerService {
       events.length;
 
     const expectedSpeed =
-      this.config.gradeLevelBaselines.Grade3.expectedReadingSpeed; // Default
+      this.config.gradeLevelBaselines['3-5'].expectedReadingSpeed; // Default
 
     return avgReadingSpeed > expectedSpeed * 1.2 && avgComprehension > 0.8;
   }
@@ -1631,7 +1634,7 @@ class ReadingComprehensionOptimizerService {
       strugglingIndicators: [],
       strengths: [],
       improvementAreas: [],
-      recommendedLevel: 'Grade3',
+      recommendedLevel: '3-5',
     };
   }
 

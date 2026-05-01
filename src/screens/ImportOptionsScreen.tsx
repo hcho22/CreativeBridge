@@ -14,13 +14,13 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useHeaderHeight } from '@react-navigation/elements';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import { FilePickerUtils } from '../utils/filePicker';
 import { PaperBackground, Watercolor } from '../components/common/storybook';
 import { theme } from '../constants/theme';
 
 // Navigation types (will need to be updated when navigation is integrated)
-type ImportOptionsNavigationProp = NativeStackNavigationProp<any>;
+type ImportOptionsNavigationProp = StackNavigationProp<any>;
 
 export interface ImportOptionsScreenProps {
   navigation?: ImportOptionsNavigationProp;

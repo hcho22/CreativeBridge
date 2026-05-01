@@ -1000,7 +1000,7 @@ class InterfaceAdapterService {
         ...baseFeature,
         effectiveness,
         enabled: effectiveness > 0.5,
-      });
+      } as ReadingComprehensionFeature);
     }
 
     return features;
@@ -1133,10 +1133,9 @@ class InterfaceAdapterService {
       retentionIndicator: 0.8, // Default baseline
     };
 
-    structuredLogger.info(
-      'Engagement baseline established',
-      this.engagementBaseline,
-    );
+    structuredLogger.info('Engagement baseline established', {
+      ...this.engagementBaseline,
+    });
   }
 
   private calculateInteractionsPerMinute(): number {
@@ -1217,7 +1216,11 @@ class InterfaceAdapterService {
           await this.applyAdaptationsFromPatterns(analysisResults.patterns);
         }
       } catch (error) {
-        structuredLogger.error('Optimization monitoring failed', {}, error);
+        structuredLogger.error(
+          'Optimization monitoring failed',
+          {},
+          error instanceof Error ? error : new Error(String(error)),
+        );
       }
     }, 5 * 60 * 1000); // Run every 5 minutes
   }

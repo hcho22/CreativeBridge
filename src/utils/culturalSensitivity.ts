@@ -6,7 +6,7 @@
  */
 
 import { structuredLogger } from './logger';
-import { GradeLevel } from '../types/story';
+import type { GradeLevel } from '../types/database';
 
 export interface BiasDetectionResult {
   type:
@@ -247,11 +247,11 @@ const LANGUAGE_COMPLEXITY_TARGETS = {
     vocabularyLevel: 'advanced',
     abstractConcepts: true,
   },
-  Grade3: {
-    maxSyllablesPerWord: 3,
-    maxWordsPerSentence: 12,
-    vocabularyLevel: 'intermediate',
-    abstractConcepts: true, // limited
+  '9-12': {
+    maxSyllablesPerWord: 5,
+    maxWordsPerSentence: 25,
+    vocabularyLevel: 'advanced',
+    abstractConcepts: true,
   },
 };
 

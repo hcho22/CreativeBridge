@@ -124,7 +124,7 @@ class DynamicUICoordinatorService {
   private config: CoordinatorConfig;
   private optimizations: CoordinatedOptimization[] = [];
   private sessionId: string | null = null;
-  private gradeLevel: GradeLevel = 'Grade3';
+  private gradeLevel: GradeLevel = '3-5';
   private coordinationTimer: NodeJS.Timeout | null = null;
   private lastOptimizationTime: number = 0;
   private isInitialized = false;

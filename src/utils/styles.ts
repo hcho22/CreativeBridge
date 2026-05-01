@@ -1,12 +1,16 @@
 import { StyleSheet, TextStyle, ViewStyle } from 'react-native';
-import { theme } from '../constants/theme';
+import { theme as appTheme } from '../constants/theme';
+
+type AppTheme = typeof appTheme;
 
 // Styled component helper functions
 export const createThemedStyles = <T extends StyleSheet.NamedStyles<T>>(
-  styleFactory: (theme: typeof theme) => T,
+  styleFactory: (theme: AppTheme) => T,
 ): T => {
-  return StyleSheet.create(styleFactory(theme));
+  return StyleSheet.create(styleFactory(appTheme));
 };
+
+const theme = appTheme;
 
 // Common styled components using theme
 export const commonStyles = StyleSheet.create({
@@ -251,7 +255,7 @@ export const createButtonTextStyle = (
 
 export const createInputStyle = (
   state: 'default' | 'error' | 'warning' | 'valid' = 'default',
-): ViewStyle => ({
+): TextStyle => ({
   borderWidth:
     state === 'default'
       ? theme.layout.borderWidth

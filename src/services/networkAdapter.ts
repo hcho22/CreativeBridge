@@ -6,7 +6,38 @@
  */
 
 import { structuredLogger } from '../utils/logger';
-// import { StoryRequest, StoryResponse, GradeLevel } from '../types/story';
+import type { StoryRequest } from '../types/story';
+
+/**
+ * Network-adaptation options layered onto a StoryRequest by this adapter.
+ *
+ * These fields are produced and consumed exclusively within networkAdapter.ts
+ * (e.g. compress_data, reduce_quality, cache_aggressive, offline_mode
+ * adaptations). They are passed through `modifiedRequest` for downstream
+ * services to introspect when present, but are not part of the public
+ * `StoryRequest` contract.
+ */
+interface NetworkAdaptationOptions {
+  compression?: boolean;
+  maxLength?: number;
+  qualityLevel?: 'basic' | 'standard' | 'enhanced';
+  simplifiedLanguage?: boolean;
+  preferCache?: boolean;
+  cacheFirst?: boolean;
+  maxCacheAge?: number;
+  offlineOnly?: boolean;
+  useTemplates?: boolean;
+  simplifiedGeneration?: boolean;
+}
+
+/**
+ * StoryRequest decorated with network-adaptation options. Used internally so
+ * adaptation methods can read/write `options` without widening the public
+ * `StoryRequest` type.
+ */
+type AdaptableStoryRequest = StoryRequest & {
+  options?: NetworkAdaptationOptions;
+};
 
 export interface NetworkConditions {
   type: 'wifi' | 'cellular' | 'offline' | 'unknown';
@@ -101,7 +132,9 @@ export interface OfflineCapability {
 }
 
 export class NetworkAdapterService {
-  private currentConditions: NetworkConditions;
+  // Definite assignment: initializeNetworkConditions() runs in the constructor
+  // and unconditionally assigns this field. TS cannot trace that helper call.
+  private currentConditions!: NetworkConditions;
   private adaptationStrategies: Map<string, AdaptationStrategy> = new Map();
   private connectionHistory: ConnectionHistory[] = [];
   private activeAdaptations: Set<string> = new Set();
@@ -896,12 +929,13 @@ export class NetworkAdapterService {
     request: StoryRequest,
     conditions: NetworkConditions,
   ): Promise<AdaptedRequest> {
-    const modifiedRequest = {
-      ...request,
+    const adaptable = request as AdaptableStoryRequest;
+    const modifiedRequest: AdaptableStoryRequest = {
+      ...adaptable,
       options: {
-        ...request.options,
+        ...adaptable.options,
         compression: true,
-        maxLength: Math.min(request.options?.maxLength || 500, 300),
+        maxLength: Math.min(adaptable.options?.maxLength || 500, 300),
       },
     };
 
@@ -922,13 +956,14 @@ export class NetworkAdapterService {
     request: StoryRequest,
     conditions: NetworkConditions,
   ): Promise<AdaptedRequest> {
-    const modifiedRequest = {
-      ...request,
+    const adaptable = request as AdaptableStoryRequest;
+    const modifiedRequest: AdaptableStoryRequest = {
+      ...adaptable,
       options: {
-        ...request.options,
+        ...adaptable.options,
         qualityLevel: 'basic',
         simplifiedLanguage: true,
-        maxLength: Math.min(request.options?.maxLength || 500, 200),
+        maxLength: Math.min(adaptable.options?.maxLength || 500, 200),
       },
     };
 
@@ -949,10 +984,11 @@ export class NetworkAdapterService {
     request: StoryRequest,
     conditions: NetworkConditions,
   ): Promise<AdaptedRequest> {
-    const modifiedRequest = {
-      ...request,
+    const adaptable = request as AdaptableStoryRequest;
+    const modifiedRequest: AdaptableStoryRequest = {
+      ...adaptable,
       options: {
-        ...request.options,
+        ...adaptable.options,
         preferCache: true,
         cacheFirst: true,
         maxCacheAge: 3600000, // 1 hour
@@ -976,10 +1012,11 @@ export class NetworkAdapterService {
     request: StoryRequest,
     conditions: NetworkConditions,
   ): Promise<AdaptedRequest> {
-    const modifiedRequest = {
-      ...request,
+    const adaptable = request as AdaptableStoryRequest;
+    const modifiedRequest: AdaptableStoryRequest = {
+      ...adaptable,
       options: {
-        ...request.options,
+        ...adaptable.options,
         offlineOnly: true,
         useTemplates: true,
         simplifiedGeneration: true,

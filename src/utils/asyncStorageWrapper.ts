@@ -41,7 +41,10 @@ class AsyncStorageWrapper implements AsyncStorageInterface {
         // Verify the native module is actually available
         try {
           await AsyncStorageModule.default.getAllKeys();
-          this.nativeAsyncStorage = AsyncStorageModule.default;
+          // Library's AsyncStorageStatic is structurally compatible with our
+          // local AsyncStorageInterface but uses different generic signatures.
+          this.nativeAsyncStorage =
+            AsyncStorageModule.default as unknown as AsyncStorageInterface;
           this.degraded = false;
           console.log('🗄️ [AsyncStorageWrapper] Using native AsyncStorage');
         } catch (testError) {

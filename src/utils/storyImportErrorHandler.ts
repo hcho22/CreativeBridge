@@ -187,10 +187,13 @@ export class StoryImportErrorHandler {
   static async checkNetworkConnectivity(): Promise<boolean> {
     try {
       // Simple connectivity check - in a real app you might use @react-native-community/netinfo
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
       const response = await fetch('https://httpbin.org/status/200', {
         method: 'HEAD',
-        timeout: 5000,
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
       return response.ok;
     } catch {
       return false;

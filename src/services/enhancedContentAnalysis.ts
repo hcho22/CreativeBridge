@@ -35,7 +35,7 @@ interface VisualConcept {
   visualWeight: number;
 }
 
-interface EnhancedContentAnalysis {
+export interface EnhancedContentAnalysis {
   contentType: ContentType;
   abstractConcepts: AbstractConcept[];
   semanticThemes: SemanticTheme[];

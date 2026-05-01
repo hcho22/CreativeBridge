@@ -115,7 +115,7 @@ class SecureStorageService {
         `${this.options.service}:${key}`,
       );
 
-      if (!credentials || credentials === false) {
+      if (!credentials) {
         return null;
       }
 
@@ -208,17 +208,17 @@ class SecureStorageService {
    */
   async removeSecure(key: string): Promise<boolean> {
     try {
-      const result = await Keychain.resetInternetCredentials(
-        `${this.options.service}:${key}`,
-      );
+      // react-native-keychain v8+ returns void on success; absence of an
+      // exception indicates the keychain entry was removed.
+      await Keychain.resetInternetCredentials(`${this.options.service}:${key}`);
       await AsyncStorage.removeItem(`${this.metadataPrefix}${key}`);
 
       structuredLogger.debug('Secure data removed', {
         key: this.hashKey(key),
-        success: result,
+        success: true,
       });
 
-      return result;
+      return true;
     } catch (error) {
       structuredLogger.error(
         'Failed to remove secure data',

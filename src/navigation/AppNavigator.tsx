@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import {
@@ -89,7 +89,7 @@ const HomeStackNavigator: React.FC = () => {
             androidFallbackColor={
               theme.glass.surfaces.navigationHeader.androidFallbackColor
             }
-            style={StyleSheet.absoluteFill}
+            style={StyleSheet.absoluteFill as ViewStyle}
           />
         ),
         headerTintColor: '#333',

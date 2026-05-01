@@ -476,7 +476,10 @@ export const uploadFromUrl = action({
     // Step 2: Upload to Convex storage
     // In Convex actions, we use ctx.storage.store() for direct uploads
     const storageId = await ctx.storage.store(
-      new Blob([imageData], { type: contentType }),
+      new Blob([new Uint8Array(imageData) as unknown as Blob], {
+        type: contentType,
+        lastModified: Date.now(),
+      }),
     );
 
     console.log(`  ✓ Uploaded to Convex storage: ${storageId}`);

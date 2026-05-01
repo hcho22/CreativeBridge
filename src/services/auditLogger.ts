@@ -1,5 +1,12 @@
+import { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { Platform, Dimensions } from 'react-native';
+
+// Boundary cast: Supabase generated types collapse to `never` for tables/RPCs
+// not present in the local Database type definition. This file only writes to
+// `audit_logs` and the `register_device` RPC, so we widen at the boundary
+// rather than polluting Database typings.
+const sb = supabase as unknown as SupabaseClient;
 
 export enum EventType {
   // Authentication Events
@@ -61,8 +68,6 @@ export enum EventType {
   ROLLOUT_ROLLED_BACK = 'ROLLOUT_ROLLED_BACK',
 
   // Monitoring Events
-  SYSTEM_HEALTH_CHECK = 'SYSTEM_HEALTH_CHECK',
-  ALERT_TRIGGERED = 'ALERT_TRIGGERED',
   API_COST_RECORDED = 'API_COST_RECORDED',
   BUDGET_ALERT = 'BUDGET_ALERT',
 
@@ -213,7 +218,7 @@ class AuditLogger {
       };
 
       // Log to Supabase
-      const { error } = await supabase.from('audit_logs').insert(logData);
+      const { error } = await sb.from('audit_logs').insert(logData);
 
       if (error) {
         // Fallback to console in development, silent fail in production
@@ -418,7 +423,7 @@ class AuditLogger {
     }
 
     try {
-      const { error } = await supabase.rpc('register_device', {
+      const { error } = await sb.rpc('register_device', {
         p_user_id: userId,
         p_device_id: this.deviceFingerprint!.sessionFingerprint,
         p_device_name: 'Anonymous Device',

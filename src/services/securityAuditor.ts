@@ -6,7 +6,7 @@
  */
 
 import { structuredLogger } from '../utils/logger';
-import { claudeSkillsConfig } from './claudeSkillsConfig';
+import { ClaudeSkillsConfigFactory } from '../config/claudeSkillsConfig';
 import { secureStorage } from '../utils/secureStorage';
 
 export interface SecurityAuditReport {
@@ -255,7 +255,7 @@ class SecurityAuditorService {
     };
 
     // Check for HTTP endpoints in configuration
-    const config = await claudeSkillsConfig.getConfiguration();
+    const config = await ClaudeSkillsConfigFactory.createConfig();
     const configString = JSON.stringify(config);
 
     const httpMatches = configString.match(/http:\/\//g);

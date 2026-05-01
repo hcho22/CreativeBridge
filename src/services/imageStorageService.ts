@@ -19,7 +19,7 @@ import {
   getConvexClient as getCentralizedConvexClient,
   isConvexReady,
 } from './convex';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 // Upload result interface
 export interface UploadImageResult {

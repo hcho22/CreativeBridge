@@ -108,7 +108,10 @@ export class ClaudeSkillsConfigManager {
     } catch (error) {
       return {
         success: false,
-        errors: [error.message || 'Failed to enable skills'],
+        errors: [
+          (error instanceof Error ? error.message : String(error)) ||
+            'Failed to enable skills',
+        ],
       };
     }
   }
@@ -160,7 +163,10 @@ export class ClaudeSkillsConfigManager {
     } catch (error) {
       return {
         success: false,
-        errors: [error.message || 'Failed to disable skills'],
+        errors: [
+          (error instanceof Error ? error.message : String(error)) ||
+            'Failed to disable skills',
+        ],
       };
     }
   }
@@ -215,7 +221,10 @@ export class ClaudeSkillsConfigManager {
     } catch (error) {
       return {
         success: false,
-        errors: [error.message || 'Failed to update security configuration'],
+        errors: [
+          (error instanceof Error ? error.message : String(error)) ||
+            'Failed to update security configuration',
+        ],
       };
     }
   }
@@ -250,7 +259,10 @@ export class ClaudeSkillsConfigManager {
     } catch (error) {
       return {
         success: false,
-        errors: [error.message || 'Failed to update cache configuration'],
+        errors: [
+          (error instanceof Error ? error.message : String(error)) ||
+            'Failed to update cache configuration',
+        ],
       };
     }
   }
@@ -285,7 +297,10 @@ export class ClaudeSkillsConfigManager {
     } catch (error) {
       return {
         success: false,
-        errors: [error.message || 'Failed to update monitoring configuration'],
+        errors: [
+          (error instanceof Error ? error.message : String(error)) ||
+            'Failed to update monitoring configuration',
+        ],
       };
     }
   }
@@ -375,11 +390,20 @@ export class ClaudeSkillsConfigManager {
           changes,
         };
       }
+
+      // Validation skipped — return success with no warnings/changes computed
+      return {
+        success: true,
+        updatedConfig,
+      };
     } catch (error) {
       console.error('Configuration update failed:', error);
       return {
         success: false,
-        errors: [error.message || 'Configuration update failed'],
+        errors: [
+          (error instanceof Error ? error.message : String(error)) ||
+            'Configuration update failed',
+        ],
       };
     }
   }
@@ -415,8 +439,10 @@ export class ClaudeSkillsConfigManager {
       Object.keys(request.securityUpdates).length > 0
     ) {
       changes.securityChanges = Object.keys(request.securityUpdates).map(
-        key =>
-          `${key}: ${beforeConfig.securityConfig[key]} -> ${afterConfig.securityConfig[key]}`,
+        key => {
+          const sk = key as keyof typeof beforeConfig.securityConfig;
+          return `${key}: ${beforeConfig.securityConfig[sk]} -> ${afterConfig.securityConfig[sk]}`;
+        },
       );
     }
 
@@ -521,7 +547,10 @@ export class ClaudeSkillsConfigManager {
     } catch (error) {
       return {
         success: false,
-        errors: [error.message || 'Rollback failed'],
+        errors: [
+          (error instanceof Error ? error.message : String(error)) ||
+            'Rollback failed',
+        ],
       };
     }
   }
@@ -553,7 +582,10 @@ export class ClaudeSkillsConfigManager {
     } catch (error) {
       return {
         isValid: false,
-        issues: [error.message || 'Configuration validation failed'],
+        issues: [
+          (error instanceof Error ? error.message : String(error)) ||
+            'Configuration validation failed',
+        ],
         warnings: [],
         environment: 'unknown',
       };
@@ -643,7 +675,10 @@ export class ClaudeSkillsConfigManager {
     } catch (error) {
       return {
         success: false,
-        errors: [error.message || 'Configuration import failed'],
+        errors: [
+          (error instanceof Error ? error.message : String(error)) ||
+            'Configuration import failed',
+        ],
       };
     }
   }

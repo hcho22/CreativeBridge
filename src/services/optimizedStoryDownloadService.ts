@@ -32,6 +32,7 @@ export interface OptimizedDownloadOptions extends StoryDownloadOptions {
   enableBackgroundProcessing?: boolean;
   onProgress?: (progress: DownloadProgress) => void;
   chunkSize?: number; // For large file processing
+  fileName?: string;
 }
 
 export class OptimizedStoryDownloadService {
@@ -64,7 +65,7 @@ export class OptimizedStoryDownloadService {
     }
 
     // For large files, process in chunks to reduce memory pressure
-    if (content.length > this.LARGE_FILE_THRESHOLD) {
+    if (content.length > OptimizedStoryDownloadService.LARGE_FILE_THRESHOLD) {
       return this.generateLargeFileInChunks(content, title || '', chunkSize);
     }
 
@@ -128,7 +129,10 @@ export class OptimizedStoryDownloadService {
     } = options;
 
     // Start performance tracking
-    const fileSize = new Blob([storyContent], { type: 'text/plain' }).size;
+    // Blob options omitted: only `.size` is read, which is independent of
+    // the `type` field. RN's BlobOptions requires both `type` and
+    // `lastModified` (no optionals), so the simplest typed call is no opts.
+    const fileSize = new Blob([storyContent]).size;
     downloadPerformanceMonitor.startTracking(operationId, {
       operation: 'optimized_download',
       fileSize,
@@ -155,7 +159,8 @@ export class OptimizedStoryDownloadService {
 
       // Check if we should use background processing
       const shouldUseBackground =
-        enableBackgroundProcessing && fileSize > this.LARGE_FILE_THRESHOLD;
+        enableBackgroundProcessing &&
+        fileSize > OptimizedStoryDownloadService.LARGE_FILE_THRESHOLD;
 
       let result: DownloadResult;
 
@@ -229,7 +234,7 @@ export class OptimizedStoryDownloadService {
     // Apply compression if enabled
     const finalContent =
       options.enableCompression &&
-      fileContent.length > this.COMPRESSION_THRESHOLD
+      fileContent.length > OptimizedStoryDownloadService.COMPRESSION_THRESHOLD
         ? await this.compressContent(fileContent)
         : fileContent;
 
@@ -269,7 +274,8 @@ export class OptimizedStoryDownloadService {
           // Apply compression for large files
           const finalContent =
             options.enableCompression !== false &&
-            fileContent.length > this.COMPRESSION_THRESHOLD
+            fileContent.length >
+              OptimizedStoryDownloadService.COMPRESSION_THRESHOLD
               ? await this.compressContent(fileContent)
               : fileContent;
 
@@ -518,7 +524,7 @@ export class OptimizedStoryDownloadService {
    * Handle download errors with fallback
    */
   private async handleDownloadError(
-    error: any,
+    error: unknown,
     options: OptimizedDownloadOptions & { userId: string; sessionId: string },
   ): Promise<DownloadResult> {
     // Try to queue the download for later retry
@@ -612,9 +618,14 @@ export class OptimizedStoryDownloadService {
     content: string,
     enableCompression: boolean = false,
   ): number {
-    const baseSize = new Blob([content], { type: 'text/plain' }).size;
+    // Same rationale as in downloadStoryWithOptimization: only `.size` is
+    // read, so options are omitted to satisfy RN's BlobOptions typing.
+    const baseSize = new Blob([content]).size;
 
-    if (enableCompression && baseSize > this.COMPRESSION_THRESHOLD) {
+    if (
+      enableCompression &&
+      baseSize > OptimizedStoryDownloadService.COMPRESSION_THRESHOLD
+    ) {
       // Estimate compression ratio (typically 60-80% reduction for text)
       return Math.round(baseSize * 0.3);
     }

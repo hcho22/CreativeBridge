@@ -3,7 +3,13 @@
 
 // import { DocumentPickerResponse } from 'react-native-document-picker';
 import RNFS from 'react-native-fs';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from './supabase';
+
+// Boundary cast: project Database type doesn't include the imported_stories
+// RPC functions, so .rpc() resolves Args to never. Same pattern as
+// feedbackCollectionService.ts.
+const sb = supabase as unknown as SupabaseClient;
 import type {
   ImportableStory,
   SearchableStory,
@@ -148,14 +154,11 @@ export class StoryImportService {
     offset: number = 0,
   ): Promise<DatabaseStoryResult> {
     try {
-      const { data, error } = await supabase.rpc(
-        'get_user_importable_stories',
-        {
-          p_user_id: userId,
-          p_limit: limit,
-          p_offset: offset,
-        },
-      );
+      const { data, error } = await sb.rpc('get_user_importable_stories', {
+        p_user_id: userId,
+        p_limit: limit,
+        p_offset: offset,
+      });
 
       if (error) {
         console.error('Error fetching user stories:', error);
@@ -200,7 +203,7 @@ export class StoryImportService {
         };
       }
 
-      const { data, error } = await supabase.rpc('search_user_stories', {
+      const { data, error } = await sb.rpc('search_user_stories', {
         p_user_id: userId,
         p_search_term: searchTerm.trim(),
         p_limit: limit,

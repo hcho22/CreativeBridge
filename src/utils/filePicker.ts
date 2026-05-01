@@ -68,7 +68,7 @@ export class FilePickerUtils {
         };
       }
 
-      const file = result[0];
+      const file = result[0] as DocumentPickerResponse;
       console.log('📁 File picked:', {
         name: file.name,
         type: file.type,

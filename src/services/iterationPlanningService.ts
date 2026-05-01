@@ -740,10 +740,10 @@ class IterationPlanningService {
     performanceMetrics: PerformanceMetrics,
     adoptionData: GradeLevelAdoption[],
   ): RiskAssessment {
-    const riskFactors = [];
-    const technicalRisks = [];
-    const businessRisks = [];
-    const userAdoptionRisks = [];
+    const riskFactors: RiskAssessment['riskFactors'] = [];
+    const technicalRisks: string[] = [];
+    const businessRisks: string[] = [];
+    const userAdoptionRisks: string[] = [];
 
     // Technical risks
     if (performanceMetrics.successRate < 85) {
@@ -1030,7 +1030,9 @@ class IterationPlanningService {
 
   private async saveIterationPlan(plan: IterationPlan): Promise<void> {
     try {
-      const { error } = await supabase.from('iteration_plans').insert({
+      const sb =
+        supabase as unknown as import('@supabase/supabase-js').SupabaseClient;
+      const { error } = await sb.from('iteration_plans').insert({
         id: plan.id,
         plan_name: plan.planName,
         version: plan.version,

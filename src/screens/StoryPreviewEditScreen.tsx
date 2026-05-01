@@ -10,14 +10,14 @@ import {
 } from '@react-navigation/native';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import { StoryPreviewEdit } from '../components/story/StoryPreviewEdit';
 import type { HomeStackParamList } from '../navigation/AppNavigator';
 import type { GameSession } from '../types/database';
 import { PaperBackground } from '../components/common/storybook';
 import { theme } from '../constants/theme';
 
-type StoryPreviewEditNavigationProp = NativeStackNavigationProp<
+type StoryPreviewEditNavigationProp = StackNavigationProp<
   HomeStackParamList,
   'StoryPreviewEdit'
 >;
@@ -43,7 +43,9 @@ export const StoryPreviewEditScreen: React.FC<StoryPreviewEditScreenProps> = ({
   const activeNavigation = navigation || nav;
   const activeRoute = route || currentRoute;
 
-  const [story, setStory] = useState<GameSession>(activeRoute.params?.story);
+  const [story, setStory] = useState<GameSession>(
+    activeRoute.params?.story as unknown as GameSession,
+  );
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const handleBack = () => {

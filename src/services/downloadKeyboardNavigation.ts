@@ -68,7 +68,10 @@ export class DownloadKeyboardNavigationService {
     this.isActive = false;
 
     if (Platform.OS === 'web') {
-      document.removeEventListener('keydown', this.handleWebKeyDown);
+      (globalThis as { document?: EventTarget }).document?.removeEventListener(
+        'keydown',
+        this.handleWebKeyDown,
+      );
     }
 
     console.log('⌨️ Keyboard navigation service cleaned up');
@@ -457,7 +460,10 @@ export class DownloadKeyboardNavigationService {
     if (Platform.OS !== 'web') return;
 
     this.handleWebKeyDown = this.handleWebKeyDown.bind(this);
-    document.addEventListener('keydown', this.handleWebKeyDown);
+    (globalThis as { document?: EventTarget }).document?.addEventListener(
+      'keydown',
+      this.handleWebKeyDown,
+    );
   }
 
   private setupNativeKeyboardHandlers(): void {

@@ -1,8 +1,13 @@
 import React from 'react';
-import FastImage, { FastImageProps } from 'react-native-fast-image';
-import { StyleSheet, ViewStyle, ImageStyle } from 'react-native';
+import {
+  Image,
+  ImageProps,
+  StyleSheet,
+  ViewStyle,
+  ImageStyle,
+} from 'react-native';
 
-interface OptimizedImageProps extends Omit<FastImageProps, 'style'> {
+interface OptimizedImageProps extends Omit<ImageProps, 'style'> {
   style?: ViewStyle | ImageStyle;
   fallbackColor?: string;
 }
@@ -13,17 +18,19 @@ const OptimizedImage: React.FC<OptimizedImageProps> = React.memo(
     style,
     fallbackColor = '#f0f0f0',
     resizeMode = 'cover',
-    priority = 'normal',
-    cache = 'immutable',
     ...props
   }) => {
     return (
-      <FastImage
+      <Image
         source={source}
-        style={[styles.image, { backgroundColor: fallbackColor }, style]}
+        style={
+          [
+            styles.image,
+            { backgroundColor: fallbackColor },
+            style,
+          ] as ImageStyle
+        }
         resizeMode={resizeMode}
-        priority={priority}
-        cache={cache}
         {...props}
       />
     );

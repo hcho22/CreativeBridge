@@ -249,7 +249,7 @@ class EngagementOptimizerService {
       screen,
       component,
       context: {
-        gradeLevel: context.gradeLevel || 'Grade3',
+        gradeLevel: context.gradeLevel || '3-5',
         userExperience: context.userExperience || 0.5,
         timeOfDay: context.timeOfDay || this.getTimeOfDay(),
         sessionPosition: context.sessionPosition || this.getSessionPosition(),
@@ -381,16 +381,16 @@ class EngagementOptimizerService {
         o => o.id === optimizationId,
       );
       return {
-        overall: optimization?.effectiveness || 0,
+        overall: optimization?.effectiveness ?? 0,
         byType: optimization
-          ? { [optimization.type]: optimization.effectiveness }
+          ? { [optimization.type]: optimization.effectiveness ?? 0 }
           : {},
         recentOptimizations: optimization
           ? [
               {
                 id: optimization.id,
                 type: optimization.type,
-                effectiveness: optimization.effectiveness,
+                effectiveness: optimization.effectiveness ?? 0,
                 appliedAt: optimization.appliedAt!,
               },
             ]

@@ -3,9 +3,18 @@
  * Comprehensive system for collecting user feedback on image generation feature
  */
 
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { auditLogger, EventType, EventCategory, Severity } from './auditLogger';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// The project's Supabase Database generic resolves to `never` for table rows
+// (see AuthContext.tsx note: "Supabase client lacks typed schema in this
+// project"). Until the schema typing is regenerated, cast to an untyped client
+// at the boundary so chained operations type-check correctly. Behavior is
+// unchanged at runtime — this only affects compile-time inference. The
+// user_feedback row/status type aliases live in src/types/database.ts.
+const sb = supabase as unknown as SupabaseClient;
 
 export interface UserFeedback {
   id?: string;
@@ -145,7 +154,7 @@ class FeedbackCollectionService {
       });
 
       // Try to submit immediately
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from('user_feedback')
         .insert(enrichedFeedback)
         .select()
@@ -307,7 +316,7 @@ class FeedbackCollectionService {
     try {
       const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-      const { data: feedback, error } = await supabase
+      const { data: feedback, error } = await sb
         .from('user_feedback')
         .select('*')
         .gte('created_at', startDate.toISOString());
@@ -390,7 +399,7 @@ class FeedbackCollectionService {
    */
   async getRecentFeedback(limit: number = 20): Promise<UserFeedback[]> {
     try {
-      const { data: feedback, error } = await supabase
+      const { data: feedback, error } = await sb
         .from('user_feedback')
         .select('*')
         .order('created_at', { ascending: false })
@@ -417,7 +426,7 @@ class FeedbackCollectionService {
     adminNotes?: string,
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const { error } = await supabase
+      const { error } = await sb
         .from('user_feedback')
         .update({
           status,
@@ -489,7 +498,7 @@ class FeedbackCollectionService {
 
     for (const feedback of toSubmit) {
       try {
-        const { error } = await supabase.from('user_feedback').insert(feedback);
+        const { error } = await sb.from('user_feedback').insert(feedback);
 
         if (error) {
           // Re-add to pending if still failing
@@ -591,9 +600,16 @@ class FeedbackCollectionService {
   }
 
   private calculateAverageSeverity(issues: any[]): string {
-    const severityMap = { low: 1, medium: 2, high: 3, critical: 4 };
+    const severityMap: Record<'low' | 'medium' | 'high' | 'critical', number> =
+      { low: 1, medium: 2, high: 3, critical: 4 };
     const severities = issues
-      .filter(i => i.severity)
+      .filter(
+        (i): i is { severity: 'low' | 'medium' | 'high' | 'critical' } =>
+          i?.severity === 'low' ||
+          i?.severity === 'medium' ||
+          i?.severity === 'high' ||
+          i?.severity === 'critical',
+      )
       .map(i => severityMap[i.severity] || 2);
 
     if (severities.length === 0) return 'medium';
@@ -639,7 +655,7 @@ class FeedbackCollectionService {
         endDate.getTime() - days * 24 * 60 * 60 * 1000,
       );
 
-      const { count, error } = await supabase
+      const { count, error } = await sb
         .from('user_feedback')
         .select('*', { count: 'exact', head: true })
         .gte('created_at', startDate.toISOString())

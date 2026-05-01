@@ -225,24 +225,26 @@ export class ClaudeSkillsCredentialRotationService {
         await this.unlockRotation();
       }
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       console.error('Automatic rotation failed:', error);
 
       // Log failure
       await this.logRotationEvent('ROTATION_FAILED', {
-        error: error.message,
+        error: errorMessage,
         automatic: !newApiKey,
       });
 
       // Create failure notification
       await this.createRotationNotification({
         type: 'failed',
-        message: `API key rotation failed: ${error.message}`,
+        message: `API key rotation failed: ${errorMessage}`,
         action: 'rotate_now',
       });
 
       return {
         success: false,
-        error: error.message || 'Rotation failed',
+        error: errorMessage || 'Rotation failed',
       };
     }
   }
@@ -315,9 +317,11 @@ export class ClaudeSkillsCredentialRotationService {
 
       return result;
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: error.message || 'Emergency rotation failed',
+        error: errorMessage || 'Emergency rotation failed',
       };
     }
   }
@@ -371,7 +375,9 @@ export class ClaudeSkillsCredentialRotationService {
 
   private static validateApiKeyFormat(apiKey: string): boolean {
     // Basic validation - adjust based on actual Claude Skills API key format
-    return apiKey && apiKey.length >= 10 && /^[a-zA-Z0-9_-]+$/.test(apiKey);
+    return (
+      Boolean(apiKey) && apiKey.length >= 10 && /^[a-zA-Z0-9_-]+$/.test(apiKey)
+    );
   }
 
   private static async hashApiKey(apiKey: string): Promise<string> {
@@ -570,9 +576,11 @@ export class ClaudeSkillsCredentialRotationService {
         warnings,
       };
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       return {
         isHealthy: false,
-        issues: [error.message || 'Rotation system validation failed'],
+        issues: [errorMessage || 'Rotation system validation failed'],
         warnings: [],
       };
     }

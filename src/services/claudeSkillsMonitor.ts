@@ -402,7 +402,10 @@ class ClaudeSkillsMonitor {
     const cacheKey = `metrics_${hours}h_${skillType || 'all'}`;
     const cached = this.metricsCache.get(cacheKey);
 
-    if (cached && Date.now() - cached.timestamp < this.CACHE_TIMEOUT) {
+    if (
+      cached &&
+      Date.now() - cached.timestamp < ClaudeSkillsMonitor.CACHE_TIMEOUT
+    ) {
       return cached.metrics;
     }
 
@@ -838,7 +841,7 @@ class ClaudeSkillsMonitor {
   private async persistEvents(): Promise<void> {
     try {
       await AsyncStorage.setItem(
-        this.EVENTS_STORAGE_KEY,
+        ClaudeSkillsMonitor.EVENTS_STORAGE_KEY,
         JSON.stringify(this.executionEvents.slice(-500)), // Keep last 500 in storage
       );
     } catch (error) {
@@ -851,7 +854,9 @@ class ClaudeSkillsMonitor {
    */
   private async loadPersistedEvents(): Promise<void> {
     try {
-      const eventsJson = await AsyncStorage.getItem(this.EVENTS_STORAGE_KEY);
+      const eventsJson = await AsyncStorage.getItem(
+        ClaudeSkillsMonitor.EVENTS_STORAGE_KEY,
+      );
       if (eventsJson) {
         this.executionEvents = JSON.parse(eventsJson);
       }
@@ -866,7 +871,7 @@ class ClaudeSkillsMonitor {
   private async persistMetrics(): Promise<void> {
     try {
       await AsyncStorage.setItem(
-        this.STORAGE_KEY,
+        ClaudeSkillsMonitor.STORAGE_KEY,
         JSON.stringify(this.metrics),
       );
     } catch (error) {
@@ -879,7 +884,9 @@ class ClaudeSkillsMonitor {
    */
   private async loadPersistedMetrics(): Promise<void> {
     try {
-      const metricsJson = await AsyncStorage.getItem(this.STORAGE_KEY);
+      const metricsJson = await AsyncStorage.getItem(
+        ClaudeSkillsMonitor.STORAGE_KEY,
+      );
       if (metricsJson) {
         const loaded = JSON.parse(metricsJson);
         this.metrics = { ...this.getDefaultMetrics(), ...loaded };
@@ -895,7 +902,7 @@ class ClaudeSkillsMonitor {
   private async persistAlerts(): Promise<void> {
     try {
       await AsyncStorage.setItem(
-        this.ALERTS_STORAGE_KEY,
+        ClaudeSkillsMonitor.ALERTS_STORAGE_KEY,
         JSON.stringify(this.activeAlerts),
       );
     } catch (error) {
@@ -908,7 +915,9 @@ class ClaudeSkillsMonitor {
    */
   private async loadPersistedAlerts(): Promise<void> {
     try {
-      const alertsJson = await AsyncStorage.getItem(this.ALERTS_STORAGE_KEY);
+      const alertsJson = await AsyncStorage.getItem(
+        ClaudeSkillsMonitor.ALERTS_STORAGE_KEY,
+      );
       if (alertsJson) {
         this.activeAlerts = JSON.parse(alertsJson);
       }
@@ -963,9 +972,9 @@ class ClaudeSkillsMonitor {
     this.metricsCache.clear();
 
     await Promise.all([
-      AsyncStorage.removeItem(this.STORAGE_KEY),
-      AsyncStorage.removeItem(this.EVENTS_STORAGE_KEY),
-      AsyncStorage.removeItem(this.ALERTS_STORAGE_KEY),
+      AsyncStorage.removeItem(ClaudeSkillsMonitor.STORAGE_KEY),
+      AsyncStorage.removeItem(ClaudeSkillsMonitor.EVENTS_STORAGE_KEY),
+      AsyncStorage.removeItem(ClaudeSkillsMonitor.ALERTS_STORAGE_KEY),
     ]);
   }
 }

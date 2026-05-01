@@ -52,7 +52,7 @@ export function useABTesting(
 
       const userContext: UserContext = {
         userId: user.id,
-        gradeLevel: userProfile.grade_level,
+        gradeLevel: userProfile.preferred_grade_level,
         totalXp: userProfile.total_xp || 0,
       };
 

@@ -2,13 +2,9 @@
 // Enhanced secure configuration management for Claude Skills SDK integration
 // Task 1.2: Authentication & Configuration System
 
-import {
-  SkillConfig,
-  SkillType,
-  PerformanceMode,
-} from '@claude/skills-react-native';
+import { SkillConfig, SkillType, PerformanceMode } from '../types/claudeSkills';
 import { Environment } from './environment';
-import Keychain, { Options, Result } from 'react-native-keychain';
+import Keychain, { Options } from 'react-native-keychain';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface ClaudeSkillsConfig extends SkillConfig {
@@ -78,9 +74,7 @@ export class ClaudeSkillsCredentialManager {
       service: this.KEYCHAIN_SERVICE,
       accessControl: Keychain.ACCESS_CONTROL.BIOMETRY_CURRENT_SET,
       accessible: Keychain.ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-      authenticatePrompt: 'Authenticate to access Claude Skills',
-      showModal: true,
-      kSecAccessGroup: undefined,
+      authenticationPrompt: 'Authenticate to access Claude Skills',
     };
 
     if (!requireBiometric) {
@@ -120,7 +114,7 @@ export class ClaudeSkillsCredentialManager {
     } catch (error) {
       console.error('Failed to store Claude Skills API key:', error);
       await this.logSecurityEvent('API_KEY_STORE_FAILED', {
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
       });
       throw new Error('Failed to securely store API credentials');
     }
@@ -169,7 +163,7 @@ export class ClaudeSkillsCredentialManager {
       console.error('Failed to retrieve Claude Skills API key:', error);
       await this.incrementFailedAttempts();
       await this.logSecurityEvent('API_KEY_RETRIEVAL_FAILED', {
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
       });
       return null;
     }
@@ -186,7 +180,7 @@ export class ClaudeSkillsCredentialManager {
     } catch (error) {
       console.error('Failed to clear Claude Skills API key:', error);
       await this.logSecurityEvent('API_KEY_CLEAR_FAILED', {
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -229,7 +223,7 @@ export class ClaudeSkillsCredentialManager {
     } catch (error) {
       console.error('Failed to rotate Claude Skills API key:', error);
       await this.logSecurityEvent('API_KEY_ROTATION_FAILED', {
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
       });
       throw new Error('Failed to rotate API credentials');
     }
@@ -368,7 +362,7 @@ export class ClaudeSkillsCredentialManager {
   // Security audit logging
   private static async logSecurityEvent(
     event: string,
-    details: any = {},
+    details: Record<string, unknown> = {},
   ): Promise<void> {
     const logEntry = {
       timestamp: new Date().toISOString(),
@@ -1020,7 +1014,7 @@ export class ClaudeSkillsEnvironmentManager {
     } catch (error) {
       return {
         isValid: false,
-        issues: [error.message],
+        issues: [error instanceof Error ? error.message : String(error)],
       };
     }
   }
@@ -1056,14 +1050,6 @@ export class ClaudeSkillsConfigNotificationManager {
     });
   }
 }
-
-// Export all components
-export {
-  ClaudeSkillsConfigFactory,
-  ClaudeSkillsCredentialManager,
-  ClaudeSkillsConfigNotificationManager,
-  ClaudeSkillsEnvironmentManager,
-};
 
 // Default export
 export default ClaudeSkillsConfigFactory;

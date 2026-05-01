@@ -17,7 +17,10 @@ describe('Performance Tests: Concurrent Upload Load Testing', () => {
   const generateMockBlob = (sizeInMB: number = 2): Blob => {
     const sizeInBytes = sizeInMB * 1024 * 1024;
     const buffer = new ArrayBuffer(sizeInBytes);
-    return new Blob([buffer], { type: 'image/png' });
+    return new Blob([new Uint8Array(buffer) as unknown as Blob], {
+      type: 'image/png',
+      lastModified: Date.now(),
+    });
   };
 
   // Cleanup helper

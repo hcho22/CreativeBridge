@@ -6,7 +6,7 @@
  */
 
 import { structuredLogger } from '../utils/logger';
-// import { ServiceHealthMonitor, ServiceHealthStatus, ServiceMetrics } from './serviceHealth';
+import { ServiceHealthMonitor, ServiceHealthStatus } from './serviceHealth';
 import {
   AutomaticFallbackManager,
   SystemDegradationStatus,
@@ -1195,7 +1195,7 @@ export class ServiceRestorationManager {
     // Calculate final metrics
     const systemHealth = this.healthMonitor.getSystemHealth();
     execution.metrics.systemStabilityScore =
-      systemHealth.overall === 'normal' ? 1 : 0.7;
+      systemHealth.overall === 'healthy' ? 1 : 0.7;
     execution.metrics.userImpactScore = 0.2; // Low impact after successful restoration
 
     // Move to history

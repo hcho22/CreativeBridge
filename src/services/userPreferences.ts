@@ -8,7 +8,7 @@
 import { secureStorage } from '../utils/secureStorage';
 import { structuredLogger } from '../utils/logger';
 import { GradeLevel } from '../types/database';
-// import { StoryRequest, StoryResponse } from '../types/story';
+import type { StoryRequest, StoryResponse } from '../types/story';
 
 // User behavior tracking interfaces
 export interface UserInteraction {
@@ -610,20 +610,20 @@ class UserPreferencesService {
       const maxAge = this.config.dataRetentionDays * 24 * 60 * 60 * 1000;
       const validGradeLevels = ['K-2', '3-5', '6-8', '9-12'];
 
-      return (
+      return Boolean(
         data.version === '1.0' &&
-        data.userId &&
-        typeof data.userId === 'string' &&
-        data.userId.length > 0 &&
-        data.gradeLevel &&
-        validGradeLevels.includes(data.gradeLevel) &&
-        data.storyPreferences &&
-        data.learningMetrics &&
-        data.sessionPatterns &&
-        data.qualityPreferences &&
-        typeof data.qualityPreferences.adaptiveThresholdsEnabled ===
-          'boolean' &&
-        Date.now() - data.updatedAt < maxAge
+          data.userId &&
+          typeof data.userId === 'string' &&
+          data.userId.length > 0 &&
+          data.gradeLevel &&
+          validGradeLevels.includes(data.gradeLevel) &&
+          data.storyPreferences &&
+          data.learningMetrics &&
+          data.sessionPatterns &&
+          data.qualityPreferences &&
+          typeof data.qualityPreferences.adaptiveThresholdsEnabled ===
+            'boolean' &&
+          Date.now() - data.updatedAt < maxAge,
       );
     } catch (error) {
       return false;

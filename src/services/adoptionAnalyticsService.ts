@@ -3,8 +3,13 @@
  * Analyzes image generation feature adoption patterns across different grade levels
  */
 
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { auditLogger, EventType, EventCategory, Severity } from './auditLogger';
+
+// Boundary cast: project Database type doesn't satisfy postgrest's GenericSchema.
+// Same pattern as feedbackCollectionService.ts.
+const sb = supabase as unknown as SupabaseClient;
 
 export interface GradeLevelAdoption {
   gradeLevel: string;
@@ -126,7 +131,7 @@ class AdoptionAnalyticsService {
       console.log('📊 Analyzing grade level adoption for', days, 'days');
 
       // Get all users with their grade levels
-      const { data: users, error: usersError } = await supabase
+      const { data: users, error: usersError } = await sb
         .from('user_profiles')
         .select('id, preferred_grade_level, created_at')
         .gte('created_at', startDate);
@@ -137,7 +142,7 @@ class AdoptionAnalyticsService {
       }
 
       // Get all image generation events
-      const { data: events, error: eventsError } = await supabase
+      const { data: events, error: eventsError } = await sb
         .from('image_generation_events')
         .select('user_id, story_grade_level, generation_status, created_at')
         .gte('created_at', startDate);
@@ -228,7 +233,7 @@ class AdoptionAnalyticsService {
       console.log('🔍 Analyzing user journey for grade level:', gradeLevel);
 
       // Get users of this grade level
-      const { data: users, error: usersError } = await supabase
+      const { data: users, error: usersError } = await sb
         .from('user_profiles')
         .select('id, created_at, preferred_grade_level')
         .eq('preferred_grade_level', gradeLevel);
@@ -241,7 +246,7 @@ class AdoptionAnalyticsService {
       const userIds = users.map(u => u.id);
 
       // Get their image generation events
-      const { data: events, error: eventsError } = await supabase
+      const { data: events, error: eventsError } = await sb
         .from('image_generation_events')
         .select('user_id, generation_status, created_at')
         .in('user_id', userIds)
@@ -605,7 +610,7 @@ class AdoptionAnalyticsService {
       dayEnd.setHours(23, 59, 59, 999);
 
       // Get events for this day
-      const { data: dayEvents } = await supabase
+      const { data: dayEvents } = await sb
         .from('image_generation_events')
         .select('user_id, story_grade_level')
         .gte('created_at', dayStart.toISOString())

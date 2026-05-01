@@ -20,7 +20,7 @@ export interface PRDSuccessCriteria {
   category:
     | 'performance'
     | 'quality'
-    | 'user_experience'
+    | 'userExperience'
     | 'technical'
     | 'business';
   description: string;
@@ -123,7 +123,7 @@ const PRD_SUCCESS_CRITERIA: PRDSuccessCriteria[] = [
   // User Experience Criteria
   {
     id: 'UX_001',
-    category: 'user_experience',
+    category: 'userExperience',
     description: 'Session completion improvement',
     target: '45% improvement',
     measurement: 'Session completion rate comparison',
@@ -131,7 +131,7 @@ const PRD_SUCCESS_CRITERIA: PRDSuccessCriteria[] = [
   },
   {
     id: 'UX_002',
-    category: 'user_experience',
+    category: 'userExperience',
     description: 'User engagement score',
     target: '>0.75 average',
     measurement: 'Engagement analytics metrics',
@@ -139,7 +139,7 @@ const PRD_SUCCESS_CRITERIA: PRDSuccessCriteria[] = [
   },
   {
     id: 'UX_003',
-    category: 'user_experience',
+    category: 'userExperience',
     description: 'Navigation efficiency',
     target: '>80% optimal path adherence',
     measurement: 'Navigation flow analysis',
@@ -147,7 +147,7 @@ const PRD_SUCCESS_CRITERIA: PRDSuccessCriteria[] = [
   },
   {
     id: 'UX_004',
-    category: 'user_experience',
+    category: 'userExperience',
     description: 'Reading comprehension support effectiveness',
     target: '>70% improvement in struggling readers',
     measurement: 'Reading analytics assessment',
@@ -838,7 +838,7 @@ class PRDSuccessCriteriaValidatorService {
               `Improve ${criteria.description.toLowerCase()} through enhanced validation and testing`,
             );
             break;
-          case 'user_experience':
+          case 'userExperience':
             recommendations.push(
               `Enhance user experience for ${criteria.description.toLowerCase()} with targeted optimizations`,
             );

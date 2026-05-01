@@ -6,8 +6,15 @@
  * and automated reporting for data-driven improvements.
  */
 
+import { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Boundary cast: Supabase generated types collapse to `never` for tables
+// not present in the local Database type definition. The `analytics_events`
+// and `analytics_reports` tables are not in the local Database typings, so
+// we widen at the boundary rather than polluting Database typings.
+const sb = supabase as unknown as SupabaseClient;
 
 // US-013: Anonymization salt — in production, load from environment variable
 const ANALYTICS_HASH_SALT = 'cb-analytics-v1';
@@ -334,7 +341,7 @@ class AnalyticsService {
     userId?: string,
   ): Promise<UsageMetrics> {
     try {
-      let query = supabase
+      let query = sb
         .from('analytics_events')
         .select('*')
         .gte('timestamp', startDate)
@@ -354,7 +361,9 @@ class AnalyticsService {
         return this.getDefaultUsageMetrics();
       }
 
-      return this.calculateUsageMetrics(events || []);
+      return this.calculateUsageMetrics(
+        (events as AnalyticsEvent[] | null) ?? [],
+      );
     } catch (error) {
       console.error('Get usage metrics error:', error);
       return this.getDefaultUsageMetrics();
@@ -374,7 +383,7 @@ class AnalyticsService {
 
       // US-013: Query by hashed userId
       const hashedId = hashUserId(userId);
-      const { data: events, error } = await supabase
+      const { data: events, error } = await sb
         .from('analytics_events')
         .select('*')
         .eq('userId', hashedId)
@@ -385,7 +394,10 @@ class AnalyticsService {
         return this.getDefaultUserEngagement(hashedId);
       }
 
-      return this.calculateUserEngagement(hashedId, events || []);
+      return this.calculateUserEngagement(
+        hashedId,
+        (events as AnalyticsEvent[] | null) ?? [],
+      );
     } catch (error) {
       console.error('Get user engagement metrics error:', error);
       return this.getDefaultUserEngagement(hashUserId(userId));
@@ -400,7 +412,7 @@ class AnalyticsService {
     endDate: string,
   ): Promise<PerformanceMetrics> {
     try {
-      const { data: events, error } = await supabase
+      const { data: events, error } = await sb
         .from('analytics_events')
         .select('*')
         .eq('type', 'performance')
@@ -412,7 +424,9 @@ class AnalyticsService {
         return this.getDefaultPerformanceMetrics();
       }
 
-      return this.calculatePerformanceMetrics(events || []);
+      return this.calculatePerformanceMetrics(
+        (events as AnalyticsEvent[] | null) ?? [],
+      );
     } catch (error) {
       console.error('Get performance metrics error:', error);
       return this.getDefaultPerformanceMetrics();
@@ -476,7 +490,7 @@ class AnalyticsService {
     offset: number = 0,
   ): Promise<AnalyticsEvent[]> {
     try {
-      const { data: events, error } = await supabase
+      const { data: events, error } = await sb
         .from('analytics_events')
         .select('*')
         .eq('type', eventType)
@@ -488,7 +502,7 @@ class AnalyticsService {
         return [];
       }
 
-      return events || [];
+      return (events as AnalyticsEvent[] | null) ?? [];
     } catch (error) {
       console.error('Get events error:', error);
       return [];
@@ -507,7 +521,7 @@ class AnalyticsService {
         Date.now() - 7 * 24 * 60 * 60 * 1000,
       ).toISOString();
 
-      const { data: events, error } = await supabase
+      const { data: rawEvents, error } = await sb
         .from('analytics_events')
         .select('*')
         .in('type', ['story_import', 'story_continuation'])
@@ -517,9 +531,11 @@ class AnalyticsService {
         return { importSuccessRate: 0, continuationSuccessRate: 0 };
       }
 
-      const importEvents = events?.filter(e => e.type === 'story_import') || [];
-      const continuationEvents =
-        events?.filter(e => e.type === 'story_continuation') || [];
+      const events = (rawEvents as AnalyticsEvent[] | null) ?? [];
+      const importEvents = events.filter(e => e.type === 'story_import');
+      const continuationEvents = events.filter(
+        e => e.type === 'story_continuation',
+      );
 
       const importSuccessRate =
         importEvents.length > 0
@@ -583,7 +599,7 @@ class AnalyticsService {
       // Attempt to upload to database
       const eventsToUpload = [...this.localEventQueue];
 
-      const { error } = await supabase
+      const { error } = await sb
         .from('analytics_events')
         .insert(eventsToUpload);
 
@@ -957,7 +973,7 @@ class AnalyticsService {
 
   private async saveReport(report: AnalyticsReport): Promise<void> {
     try {
-      const { error } = await supabase.from('analytics_reports').insert(report);
+      const { error } = await sb.from('analytics_reports').insert(report);
 
       if (error) {
         console.warn('Failed to save report to database:', error.message);

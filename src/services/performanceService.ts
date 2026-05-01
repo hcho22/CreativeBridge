@@ -12,13 +12,35 @@
 import { supabase } from './supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+/**
+ * Local row shape used by this deprecated service.
+ *
+ * NOTE: This service queries an `updated_at` column on `game_sessions` that is
+ * not present in the canonical `GameSession` interface (`src/types/database.ts`).
+ * Because this file is `@deprecated`, we type the row locally rather than
+ * mutate the shared schema. Consumers should migrate to
+ * `src/services/performanceMonitor.ts`.
+ */
+interface GameSessionRow {
+  id: string;
+  user_id: string;
+  story_content?: string | null;
+  imported_story_content?: string | null;
+  story_source?: string | null;
+  story_metadata?: { title?: string } | Record<string, unknown> | null;
+  created_at: string;
+  updated_at?: string | null;
+  grade_level?: string | null;
+  original_creation_date?: string | null;
+}
+
 // Types for performance optimization
 export interface PaginationOptions {
   page: number;
   pageSize: number;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
-  filters?: Record<string, any>;
+  filters?: Record<string, unknown>;
 }
 
 export interface StoryPreview {
@@ -38,7 +60,7 @@ export interface FullStory {
   story_content: string;
   imported_story_content?: string;
   story_source: string;
-  story_metadata?: any;
+  story_metadata?: Record<string, unknown> | null;
   user_id: string;
   created_at: string;
   updated_at: string;
@@ -78,7 +100,7 @@ export interface DatabaseIndexSuggestion {
 }
 
 class PerformanceService {
-  private cache = new Map<string, CacheEntry<any>>();
+  private cache = new Map<string, CacheEntry<unknown>>();
   private metrics: PerformanceMetrics = {
     cacheHitRate: 0,
     averageLoadTime: 0,
@@ -162,7 +184,11 @@ class PerformanceService {
       query = query.range(offset, offset + pageSize - 1);
 
       const queryStartTime = Date.now();
-      const { data: stories, error } = await query;
+      const { data: rawStories, error } = await query;
+      // Cast through `unknown` because this deprecated service selects an
+      // `updated_at` column not present in the canonical schema, which causes
+      // supabase-js to widen the row type to `never`. See `GameSessionRow`.
+      const stories = rawStories as unknown as GameSessionRow[] | null;
       const queryDuration = Date.now() - queryStartTime;
 
       if (error) {
@@ -182,17 +208,25 @@ class PerformanceService {
           story.story_content || story.imported_story_content || '';
         const wordCount = content
           .split(/\s+/)
-          .filter(word => word.length > 0).length;
+          .filter((word: string) => word.length > 0).length;
+
+        const metadataTitle =
+          typeof story.story_metadata === 'object' &&
+          story.story_metadata !== null &&
+          typeof (story.story_metadata as { title?: unknown }).title ===
+            'string'
+            ? (story.story_metadata as { title: string }).title
+            : undefined;
 
         return {
           id: story.id,
           preview: this.generatePreview(content),
-          title: story.story_metadata?.title || this.extractTitle(content),
+          title: metadataTitle || this.extractTitle(content),
           source: story.story_source || 'CreativeBridge',
           created_at: story.created_at,
-          updated_at: story.updated_at,
+          updated_at: story.updated_at ?? story.created_at,
           word_count: wordCount,
-          grade_level: story.grade_level,
+          grade_level: story.grade_level ?? undefined,
           user_id: story.user_id,
         };
       });
@@ -227,7 +261,7 @@ class PerformanceService {
       }
 
       // Fetch minimal data for preview
-      const { data: story, error } = await supabase
+      const { data: rawStory, error } = await supabase
         .from('game_sessions')
         .select(
           `
@@ -245,6 +279,9 @@ class PerformanceService {
         .eq('id', storyId)
         .single();
 
+      // See note on `GameSessionRow` for why this cast is needed.
+      const story = rawStory as unknown as GameSessionRow | null;
+
       if (error || !story) {
         this.recordMetrics(startTime, false);
         return null;
@@ -253,17 +290,24 @@ class PerformanceService {
       const content = story.story_content || story.imported_story_content || '';
       const wordCount = content
         .split(/\s+/)
-        .filter(word => word.length > 0).length;
+        .filter((word: string) => word.length > 0).length;
+
+      const metadataTitle =
+        typeof story.story_metadata === 'object' &&
+        story.story_metadata !== null &&
+        typeof (story.story_metadata as { title?: unknown }).title === 'string'
+          ? (story.story_metadata as { title: string }).title
+          : undefined;
 
       const preview: StoryPreview = {
         id: story.id,
         preview: this.generatePreview(content),
-        title: story.story_metadata?.title || this.extractTitle(content),
+        title: metadataTitle || this.extractTitle(content),
         source: story.story_source || 'CreativeBridge',
         created_at: story.created_at,
-        updated_at: story.updated_at,
+        updated_at: story.updated_at ?? story.created_at,
         word_count: wordCount,
-        grade_level: story.grade_level,
+        grade_level: story.grade_level ?? undefined,
         user_id: story.user_id,
       };
 
@@ -297,11 +341,14 @@ class PerformanceService {
       }
 
       // Fetch complete story data
-      const { data: story, error } = await supabase
+      const { data: rawStory, error } = await supabase
         .from('game_sessions')
         .select('*')
         .eq('id', storyId)
         .single();
+
+      // See note on `GameSessionRow` for why this cast is needed.
+      const story = rawStory as unknown as GameSessionRow | null;
 
       if (error || !story) {
         this.recordMetrics(startTime, false);
@@ -311,14 +358,15 @@ class PerformanceService {
       const fullStory: FullStory = {
         id: story.id,
         story_content: story.story_content || '',
-        imported_story_content: story.imported_story_content,
+        imported_story_content: story.imported_story_content ?? undefined,
         story_source: story.story_source || 'CreativeBridge',
-        story_metadata: story.story_metadata,
+        story_metadata:
+          (story.story_metadata as Record<string, unknown> | null) ?? undefined,
         user_id: story.user_id,
         created_at: story.created_at,
-        updated_at: story.updated_at,
-        original_creation_date: story.original_creation_date,
-        grade_level: story.grade_level,
+        updated_at: story.updated_at ?? story.created_at,
+        original_creation_date: story.original_creation_date ?? undefined,
+        grade_level: story.grade_level ?? undefined,
       };
 
       // Cache with higher priority for full stories
@@ -419,7 +467,7 @@ class PerformanceService {
     }
   }
 
-  private calculateEvictionScore(entry: CacheEntry<any>): number {
+  private calculateEvictionScore(entry: CacheEntry<unknown>): number {
     const now = Date.now();
     const age = now - entry.timestamp;
     const timeSinceAccess = now - entry.lastAccessed;
@@ -434,7 +482,7 @@ class PerformanceService {
     return accessBonus + recencyBonus + ageBonus - sizepenalty;
   }
 
-  private estimateDataSize(data: any): number {
+  private estimateDataSize(data: unknown): number {
     // Rough estimation of data size in bytes
     try {
       return new Blob([JSON.stringify(data)]).size;
@@ -697,7 +745,7 @@ class PerformanceService {
   /**
    * Persistent cache for offline support
    */
-  async saveToPersistentCache(key: string, data: any): Promise<void> {
+  async saveToPersistentCache(key: string, data: unknown): Promise<void> {
     try {
       const cacheData = {
         data,
@@ -714,7 +762,7 @@ class PerformanceService {
     }
   }
 
-  async loadFromPersistentCache(key: string): Promise<any | null> {
+  async loadFromPersistentCache(key: string): Promise<unknown | null> {
     try {
       const cached = await AsyncStorage.getItem(`perf_cache_${key}`);
       if (!cached) return null;

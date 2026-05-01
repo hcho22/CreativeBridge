@@ -90,8 +90,11 @@ export interface EngagementCorrelationData {
   };
 }
 
-// Quality standards by grade level
-const QUALITY_STANDARDS: Record<GradeLevel, QualityStandards> = {
+// Quality standards by grade level. Keyed by grade-level strings; the lookup
+// callers fall back when a key is absent, so we use a string-indexed map
+// rather than a strict `Record<GradeLevel, ...>` (which would also need to
+// account for the legacy `Grade3` key carried for backwards compatibility).
+const QUALITY_STANDARDS: Record<string, QualityStandards> = {
   'K-2': {
     gradeLevel: 'K-2',
     minimumScores: {
@@ -185,8 +188,11 @@ const QUALITY_STANDARDS: Record<GradeLevel, QualityStandards> = {
       avoidedConcepts: ['adult themes', 'inappropriate content'],
     },
   },
+  // Legacy `Grade3` key retained for backwards compatibility with older
+  // persisted gradeLevel values; the cast bypasses the GradeLevel union
+  // because this entry is only reachable via string-keyed lookup.
   Grade3: {
-    gradeLevel: 'Grade3',
+    gradeLevel: 'Grade3' as GradeLevel,
     minimumScores: {
       overallScore: 85,
       educationalValue: 80,
@@ -323,24 +329,35 @@ export class ContentQualityService {
     try {
       structuredLogger.debug('Validating contextual content consistency');
 
-      const contextAnalysis = await this.skillManager.executeSkill(
-        'ContentValidationSkill',
-        {
-          content: story.story,
-          request,
-          previousContext,
-          validationType: 'contextual',
-        },
-      );
+      const contextAnalysis = await this.skillManager.executeSkill<{
+        contextConsistency?: unknown;
+        inconsistencies?: unknown;
+      }>('ContentValidationSkill', {
+        content: story.story,
+        request,
+        previousContext,
+        validationType: 'contextual',
+      });
 
       if (!contextAnalysis.success) {
         throw new Error('Contextual validation skill failed');
       }
 
+      const data = contextAnalysis.data ?? {};
+      const contextConsistency =
+        typeof data.contextConsistency === 'number'
+          ? data.contextConsistency
+          : 0;
+      const issues = Array.isArray(data.inconsistencies)
+        ? (data.inconsistencies.filter(
+            (i): i is string => typeof i === 'string',
+          ) as string[])
+        : [];
+
       const result = {
-        valid: contextAnalysis.data.contextConsistency >= 0.8,
-        contextConsistency: contextAnalysis.data.contextConsistency,
-        issues: contextAnalysis.data.inconsistencies || [],
+        valid: contextConsistency >= 0.8,
+        contextConsistency,
+        issues,
       };
 
       structuredLogger.debug('Contextual validation complete', result);
@@ -348,6 +365,7 @@ export class ContentQualityService {
     } catch (error) {
       structuredLogger.warn(
         'Contextual validation failed, using fallback',
+        {},
         error as Error,
       );
 
@@ -376,29 +394,38 @@ export class ContentQualityService {
         targetGradeLevel,
       });
 
-      const gradeAssessment = await this.skillManager.executeSkill(
-        'GradeLevelAssessmentSkill',
-        {
-          content: story.story,
-          targetGradeLevel,
-          assessmentCriteria: [
-            'vocabulary_complexity',
-            'sentence_structure',
-            'concept_difficulty',
-            'content_maturity',
-            'reading_level',
-          ],
-        },
-      );
+      const gradeAssessment = await this.skillManager.executeSkill<{
+        appropriateness?: unknown;
+        adjustments?: unknown;
+      }>('GradeLevelAssessmentSkill', {
+        content: story.story,
+        targetGradeLevel,
+        assessmentCriteria: [
+          'vocabulary_complexity',
+          'sentence_structure',
+          'concept_difficulty',
+          'content_maturity',
+          'reading_level',
+        ],
+      });
 
       if (!gradeAssessment.success) {
         throw new Error('Grade level assessment skill failed');
       }
 
+      const data = gradeAssessment.data ?? {};
+      const appropriateness =
+        typeof data.appropriateness === 'number' ? data.appropriateness : 0;
+      const adjustments = Array.isArray(data.adjustments)
+        ? (data.adjustments.filter(
+            (a): a is string => typeof a === 'string',
+          ) as string[])
+        : [];
+
       const result = {
-        appropriate: gradeAssessment.data.appropriateness >= 0.9,
+        appropriate: appropriateness >= 0.9,
         confidence: gradeAssessment.confidence || 0.8,
-        suggestedAdjustments: gradeAssessment.data.adjustments || [],
+        suggestedAdjustments: adjustments,
       };
 
       structuredLogger.debug('Grade-level assessment complete', {
@@ -410,6 +437,7 @@ export class ContentQualityService {
     } catch (error) {
       structuredLogger.warn(
         'Grade-level assessment failed, using fallback',
+        {},
         error as Error,
       );
 
@@ -442,29 +470,44 @@ export class ContentQualityService {
     try {
       structuredLogger.debug('Evaluating narrative coherence');
 
-      const coherenceAssessment = await this.skillManager.executeSkill(
-        'NarrativeCoherenceSkill',
-        {
-          content: story.story,
-          gradeLevel: request.gradeLevel,
-          evaluationAspects: [
-            'character_consistency',
-            'plot_progression',
-            'setting_continuity',
-            'cause_effect_relationships',
-            'resolution_quality',
-          ],
-        },
-      );
+      const coherenceAssessment = await this.skillManager.executeSkill<{
+        coherenceScore?: unknown;
+        issues?: unknown;
+        improvements?: unknown;
+      }>('NarrativeCoherenceSkill', {
+        content: story.story,
+        gradeLevel: request.gradeLevel,
+        evaluationAspects: [
+          'character_consistency',
+          'plot_progression',
+          'setting_continuity',
+          'cause_effect_relationships',
+          'resolution_quality',
+        ],
+      });
 
       if (!coherenceAssessment.success) {
         throw new Error('Narrative coherence assessment skill failed');
       }
 
+      const data = coherenceAssessment.data ?? {};
+      const coherenceScoreRaw =
+        typeof data.coherenceScore === 'number' ? data.coherenceScore : 0;
+      const flowIssues = Array.isArray(data.issues)
+        ? (data.issues.filter(
+            (i): i is string => typeof i === 'string',
+          ) as string[])
+        : [];
+      const improvements = Array.isArray(data.improvements)
+        ? (data.improvements.filter(
+            (i): i is string => typeof i === 'string',
+          ) as string[])
+        : [];
+
       const result = {
-        coherenceScore: coherenceAssessment.data.coherenceScore * 100,
-        flowIssues: coherenceAssessment.data.issues || [],
-        improvements: coherenceAssessment.data.improvements || [],
+        coherenceScore: coherenceScoreRaw * 100,
+        flowIssues,
+        improvements,
       };
 
       structuredLogger.debug('Narrative coherence evaluation complete', {
@@ -476,6 +519,7 @@ export class ContentQualityService {
     } catch (error) {
       structuredLogger.warn(
         'Narrative coherence evaluation failed, using fallback',
+        {},
         error as Error,
       );
 
@@ -1125,7 +1169,7 @@ export class ContentQualityService {
   }
 
   private getTargetWordsPerSentence(gradeLevel: GradeLevel): number {
-    const targets: Record<GradeLevel, number> = {
+    const targets: Record<string, number> = {
       'K-2': 8,
       '3-5': 12,
       '6-8': 16,

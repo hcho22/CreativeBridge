@@ -9,7 +9,7 @@
  */
 
 import { structuredLogger } from '../utils/logger';
-import { behaviorAnalytics } from './behaviorAnalytics';
+import { behaviorAnalytics, InteractionContext } from './behaviorAnalytics';
 import { GradeLevel } from '../types/database';
 
 export interface UIPerformanceMetric {
@@ -218,7 +218,7 @@ class UIPerformanceMonitorService {
       sessionId: this.sessionId!,
       deviceInfo: this.getDeviceInfo(),
       context: {
-        gradeLevel: context.gradeLevel || 'Grade3',
+        gradeLevel: context.gradeLevel || '3-5',
         userEngagementLevel: context.userEngagementLevel || 0.5,
         previousMetrics: context.previousMetrics || [],
       },
@@ -251,7 +251,7 @@ class UIPerformanceMonitorService {
       sessionId: this.sessionId!,
       deviceInfo: this.getDeviceInfo(),
       context: {
-        gradeLevel: context.gradeLevel || 'Grade3',
+        gradeLevel: context.gradeLevel || '3-5',
         userEngagementLevel: context.userEngagementLevel || 0.5,
         previousMetrics: context.previousMetrics || [],
       },
@@ -265,7 +265,7 @@ class UIPerformanceMonitorService {
       behaviorAnalytics.recordInteraction({
         component,
         action: `interaction_delay_${interactionType}`,
-        context: { delay, screen },
+        context: { screenName: screen } as InteractionContext,
         duration: delay,
       });
     }
@@ -293,7 +293,7 @@ class UIPerformanceMonitorService {
       sessionId: this.sessionId!,
       deviceInfo: this.getDeviceInfo(),
       context: {
-        gradeLevel: context.gradeLevel || 'Grade3',
+        gradeLevel: context.gradeLevel || '3-5',
         userEngagementLevel: context.userEngagementLevel || 0.5,
         previousMetrics: [...(context.previousMetrics || []), scrollDistance],
       },
@@ -324,7 +324,7 @@ class UIPerformanceMonitorService {
       sessionId: this.sessionId!,
       deviceInfo: this.getDeviceInfo(),
       context: {
-        gradeLevel: context.gradeLevel || 'Grade3',
+        gradeLevel: context.gradeLevel || '3-5',
         userEngagementLevel: context.userEngagementLevel || 0.5,
         previousMetrics: context.previousMetrics || [],
       },

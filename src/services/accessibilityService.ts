@@ -21,6 +21,7 @@ export interface AccessibilityConfig {
 
 export class AccessibilityService {
   private isScreenReaderEnabled: boolean = false;
+  private screenReaderSubscription: { remove: () => void } | null = null;
   private config: AccessibilityConfig = {
     enableVoiceOver: true,
     enableHaptics: true,
@@ -39,7 +40,7 @@ export class AccessibilityService {
         await AccessibilityInfo.isScreenReaderEnabled();
 
       // Listen for screen reader changes
-      AccessibilityInfo.addEventListener(
+      this.screenReaderSubscription = AccessibilityInfo.addEventListener(
         'screenReaderChanged',
         this.handleScreenReaderChange.bind(this),
       );
@@ -58,10 +59,9 @@ export class AccessibilityService {
    * Cleanup accessibility service
    */
   cleanup(): void {
-    AccessibilityInfo.removeEventListener(
-      'screenReaderChanged',
-      this.handleScreenReaderChange,
-    );
+    // RN 0.65+ removed AccessibilityInfo.removeEventListener; subscriptions
+    // returned by addEventListener now expose .remove() instead.
+    this.screenReaderSubscription?.remove();
   }
 
   /**

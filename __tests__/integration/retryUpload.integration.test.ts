@@ -23,7 +23,8 @@ describe('Integration Test: Retry Upload Flow', () => {
   const TEST_USER_ID = 'test-user-retry';
   const TEST_SESSION_ID = 'test-session-retry';
   const MOCK_REPLICATE_URL = 'https://replicate.delivery/test-image.png';
-  const MOCK_SUPABASE_URL = 'https://supabase.co/storage/story-images/image.png';
+  const MOCK_SUPABASE_URL =
+    'https://supabase.co/storage/story-images/image.png';
 
   let mockSessionState: any;
 
@@ -58,7 +59,10 @@ describe('Integration Test: Retry Upload Flow', () => {
     console.log('🧪 Test 1: Manual retry success');
 
     // Mock successful image download
-    const mockImageBlob = new Blob(['fake-image-data'], { type: 'image/png' });
+    const mockImageBlob = new Blob(['fake-image-data'], {
+      type: 'image/png',
+      lastModified: 0,
+    });
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
       blob: () => Promise.resolve(mockImageBlob),
@@ -85,7 +89,7 @@ describe('Integration Test: Retry Upload Flow', () => {
     // Perform retry
     const result = await imageStorageService.retryFailedUpload(
       TEST_SESSION_ID,
-      TEST_USER_ID
+      TEST_USER_ID,
     );
 
     // Verify success
@@ -119,12 +123,17 @@ describe('Integration Test: Retry Upload Flow', () => {
       attemptTimestamps.push(Date.now());
 
       if (attemptCount < 3) {
-        return Promise.reject(new Error(`Network error on attempt ${attemptCount}`));
+        return Promise.reject(
+          new Error(`Network error on attempt ${attemptCount}`),
+        );
       }
 
       return Promise.resolve({
         ok: true,
-        blob: () => Promise.resolve(new Blob(['image-data'], { type: 'image/png' })),
+        blob: () =>
+          Promise.resolve(
+            new Blob(['image-data'], { type: 'image/png', lastModified: 0 }),
+          ),
         headers: {
           get: (name: string) => (name === 'content-length' ? '1024' : null),
         },
@@ -148,7 +157,7 @@ describe('Integration Test: Retry Upload Flow', () => {
     const uploadPromise = imageStorageService.uploadImageToSupabase(
       MOCK_REPLICATE_URL,
       TEST_SESSION_ID,
-      TEST_USER_ID
+      TEST_USER_ID,
     );
 
     // Fast-forward through retry delays
@@ -166,7 +175,9 @@ describe('Integration Test: Retry Upload Flow', () => {
 
     console.log('  ✅ Exponential backoff worked correctly');
     console.log(`     - Total attempts: ${attemptCount}`);
-    console.log(`     - Final result: ${result.success ? 'success' : 'failed'}`);
+    console.log(
+      `     - Final result: ${result.success ? 'success' : 'failed'}`,
+    );
   });
 
   /**
@@ -189,7 +200,7 @@ describe('Integration Test: Retry Upload Flow', () => {
     const uploadPromise = imageStorageService.uploadImageToSupabase(
       MOCK_REPLICATE_URL,
       TEST_SESSION_ID,
-      TEST_USER_ID
+      TEST_USER_ID,
     );
 
     // Fast-forward through all retry attempts
@@ -265,7 +276,10 @@ describe('Integration Test: Retry Upload Flow', () => {
       }
       return Promise.resolve({
         ok: true,
-        blob: () => Promise.resolve(new Blob(['data'], { type: 'image/png' })),
+        blob: () =>
+          Promise.resolve(
+            new Blob(['data'], { type: 'image/png', lastModified: 0 }),
+          ),
         headers: { get: () => '1024' },
       });
     });
@@ -287,7 +301,7 @@ describe('Integration Test: Retry Upload Flow', () => {
     const uploadPromise = imageStorageService.uploadImageToSupabase(
       MOCK_REPLICATE_URL,
       TEST_SESSION_ID,
-      TEST_USER_ID
+      TEST_USER_ID,
     );
 
     // Fast-forward through retries
@@ -311,7 +325,9 @@ describe('Integration Test: Retry Upload Flow', () => {
     console.log('  ✅ Database updated throughout retry process');
     console.log(`     - Total DB updates: ${dbUpdates.length}`);
     console.log(`     - Status updates: ${statusUpdates.length}`);
-    console.log(`     - Final attempts count: ${mockSessionState.image_upload_attempts}`);
+    console.log(
+      `     - Final attempts count: ${mockSessionState.image_upload_attempts}`,
+    );
   });
 
   /**
@@ -335,7 +351,12 @@ describe('Integration Test: Retry Upload Flow', () => {
     (global.fetch as jest.Mock).mockImplementation((url: string) => {
       // Determine which session based on call order
       const callCount = (global.fetch as jest.Mock).mock.calls.length;
-      const sessionKey = callCount % 3 === 1 ? session1 : callCount % 3 === 2 ? session2 : session3;
+      const sessionKey =
+        callCount % 3 === 1
+          ? session1
+          : callCount % 3 === 2
+          ? session2
+          : session3;
 
       sessionStates[sessionKey].attempts++;
 
@@ -344,7 +365,10 @@ describe('Integration Test: Retry Upload Flow', () => {
         sessionStates[sessionKey].success = true;
         return Promise.resolve({
           ok: true,
-          blob: () => Promise.resolve(new Blob(['data1'], { type: 'image/png' })),
+          blob: () =>
+            Promise.resolve(
+              new Blob(['data1'], { type: 'image/png', lastModified: 0 }),
+            ),
           headers: { get: () => '1024' },
         });
       }
@@ -354,7 +378,10 @@ describe('Integration Test: Retry Upload Flow', () => {
         sessionStates[sessionKey].success = true;
         return Promise.resolve({
           ok: true,
-          blob: () => Promise.resolve(new Blob(['data2'], { type: 'image/png' })),
+          blob: () =>
+            Promise.resolve(
+              new Blob(['data2'], { type: 'image/png', lastModified: 0 }),
+            ),
           headers: { get: () => '1024' },
         });
       }
@@ -378,9 +405,21 @@ describe('Integration Test: Retry Upload Flow', () => {
 
     // Start concurrent retries
     const promises = [
-      imageStorageService.uploadImageToSupabase(MOCK_REPLICATE_URL, session1, TEST_USER_ID),
-      imageStorageService.uploadImageToSupabase(MOCK_REPLICATE_URL, session2, TEST_USER_ID),
-      imageStorageService.uploadImageToSupabase(MOCK_REPLICATE_URL, session3, TEST_USER_ID),
+      imageStorageService.uploadImageToSupabase(
+        MOCK_REPLICATE_URL,
+        session1,
+        TEST_USER_ID,
+      ),
+      imageStorageService.uploadImageToSupabase(
+        MOCK_REPLICATE_URL,
+        session2,
+        TEST_USER_ID,
+      ),
+      imageStorageService.uploadImageToSupabase(
+        MOCK_REPLICATE_URL,
+        session3,
+        TEST_USER_ID,
+      ),
     ];
 
     // Fast-forward through all retries
@@ -396,9 +435,21 @@ describe('Integration Test: Retry Upload Flow', () => {
     expect(results[2].success).toBe(false); // Session 3 failed
 
     console.log('  ✅ Concurrent retries handled independently');
-    console.log(`     - Session 1: ${results[0].success ? 'success' : 'failed'} (${results[0].attempts} attempts)`);
-    console.log(`     - Session 2: ${results[1].success ? 'success' : 'failed'} (${results[1].attempts} attempts)`);
-    console.log(`     - Session 3: ${results[2].success ? 'success' : 'failed'} (${results[2].attempts} attempts)`);
+    console.log(
+      `     - Session 1: ${results[0].success ? 'success' : 'failed'} (${
+        results[0].attempts
+      } attempts)`,
+    );
+    console.log(
+      `     - Session 2: ${results[1].success ? 'success' : 'failed'} (${
+        results[1].attempts
+      } attempts)`,
+    );
+    console.log(
+      `     - Session 3: ${results[2].success ? 'success' : 'failed'} (${
+        results[2].attempts
+      } attempts)`,
+    );
   });
 
   /**
@@ -409,7 +460,10 @@ describe('Integration Test: Retry Upload Flow', () => {
     console.log('🧪 Test 6: File size validation on retry');
 
     // Mock fetch to return oversized image
-    const oversizedBlob = new Blob(['x'.repeat(11 * 1024 * 1024)], { type: 'image/png' }); // 11MB
+    const oversizedBlob = new Blob(['x'.repeat(11 * 1024 * 1024)], {
+      type: 'image/png',
+      lastModified: 0,
+    }); // 11MB
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       blob: () => Promise.resolve(oversizedBlob),
@@ -422,7 +476,7 @@ describe('Integration Test: Retry Upload Flow', () => {
     const result = await imageStorageService.uploadImageToSupabase(
       MOCK_REPLICATE_URL,
       TEST_SESSION_ID,
-      TEST_USER_ID
+      TEST_USER_ID,
     );
 
     // Should fail due to size
@@ -450,7 +504,10 @@ describe('Integration Test: Retry Upload Flow', () => {
       }
       return Promise.resolve({
         ok: true,
-        blob: () => Promise.resolve(new Blob(['data'], { type: 'image/png' })),
+        blob: () =>
+          Promise.resolve(
+            new Blob(['data'], { type: 'image/png', lastModified: 0 }),
+          ),
         headers: { get: () => '1024' },
       });
     });
@@ -470,7 +527,7 @@ describe('Integration Test: Retry Upload Flow', () => {
     const uploadPromise = imageStorageService.uploadImageToSupabase(
       MOCK_REPLICATE_URL,
       TEST_SESSION_ID,
-      TEST_USER_ID
+      TEST_USER_ID,
     );
 
     // Fast-forward
@@ -487,7 +544,9 @@ describe('Integration Test: Retry Upload Flow', () => {
     console.log('  ✅ Attempt counter tracked accurately');
     console.log(`     - Fetch calls: ${fetchCallCount}`);
     console.log(`     - Result attempts: ${result.attempts}`);
-    console.log(`     - DB attempts: ${mockSessionState.image_upload_attempts}`);
+    console.log(
+      `     - DB attempts: ${mockSessionState.image_upload_attempts}`,
+    );
   });
 
   // Helper: Setup Supabase mocks

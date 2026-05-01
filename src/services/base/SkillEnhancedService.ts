@@ -207,7 +207,9 @@ export abstract class SkillEnhancedService<TRequest, TResponse>
     orchestrationResult: any,
   ): Promise<TResponse> {
     // Build fallback context
-    const firstError = Array.from(orchestrationResult.errors.values())[0];
+    const firstError = Array.from(orchestrationResult.errors.values())[0] as
+      | SkillError
+      | undefined;
     const context: FallbackContext = {
       originalRequest: request,
       error: firstError,
@@ -236,7 +238,15 @@ export abstract class SkillEnhancedService<TRequest, TResponse>
   /**
    * Get fallback reason from error
    */
-  protected getFallbackReason(error?: SkillError): 'skill_error' {
+  protected getFallbackReason(
+    error?: SkillError,
+  ):
+    | 'skill_error'
+    | 'skill_timeout'
+    | 'network_error'
+    | 'skill_rate_limited'
+    | 'skill_unavailable'
+    | 'configuration_error' {
     if (!error) {
       return 'skill_error';
     }

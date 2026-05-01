@@ -1,6 +1,15 @@
-import { supabase } from './supabase';
-import { auditLogger, EventType } from './auditLogger';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { supabase as supabaseBase } from './supabase';
+import { auditLogger, EventType, EventCategory, Severity } from './auditLogger';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+/**
+ * The project's Supabase `Database` generic resolves to `never` for the typed
+ * `from()` chain (insert/update/select), so we cast to an untyped
+ * `SupabaseClient` here. Mirrors the pattern in feedbackCollectionService.ts,
+ * twoFactorAuth.ts, and costTrackingService.ts. Type-only — no runtime change.
+ */
+const supabase = supabaseBase as unknown as SupabaseClient;
 
 export interface SessionConfig {
   maxSessionDuration: number; // in minutes
@@ -124,8 +133,8 @@ class SessionManager {
       await auditLogger.logEvent({
         userId,
         eventType: EventType.LOGIN,
-        eventCategory: 'AUTH',
-        severity: 'LOW',
+        eventCategory: EventCategory.AUTH,
+        severity: Severity.LOW,
         description: 'New session created',
         metadata: {
           sessionId,
@@ -255,8 +264,8 @@ class SessionManager {
       await auditLogger.logEvent({
         userId: this.sessionInfo.userId,
         eventType: EventType.LOGIN,
-        eventCategory: 'AUTH',
-        severity: 'LOW',
+        eventCategory: EventCategory.AUTH,
+        severity: Severity.LOW,
         description: 'Session extended',
         metadata: {
           sessionId: this.sessionInfo.sessionId,
@@ -292,8 +301,8 @@ class SessionManager {
       await auditLogger.logEvent({
         userId: this.sessionInfo.userId,
         eventType: EventType.LOGOUT,
-        eventCategory: 'AUTH',
-        severity: 'LOW',
+        eventCategory: EventCategory.AUTH,
+        severity: Severity.LOW,
         description: 'Session ended by user',
         metadata: {
           sessionId: this.sessionInfo.sessionId,
@@ -337,8 +346,8 @@ class SessionManager {
       await auditLogger.logEvent({
         userId: this.sessionInfo.userId,
         eventType: EventType.TWO_FA_ENABLED,
-        eventCategory: 'SECURITY',
-        severity: 'LOW',
+        eventCategory: EventCategory.SECURITY,
+        severity: Severity.LOW,
         description: '2FA verified for session',
         metadata: {
           sessionId: this.sessionInfo.sessionId,
@@ -420,8 +429,8 @@ class SessionManager {
       await auditLogger.logEvent({
         userId: this.sessionInfo.userId,
         eventType: EventType.SESSION_EXPIRED,
-        eventCategory: 'AUTH',
-        severity: 'MEDIUM',
+        eventCategory: EventCategory.AUTH,
+        severity: Severity.MEDIUM,
         description: `Session expired: ${reason}`,
         metadata: {
           sessionId: this.sessionInfo.sessionId,

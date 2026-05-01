@@ -37,7 +37,11 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
           ? 'rgba(240, 255, 240, 0.90)'
           : challengeBoxConfig.androidFallbackColor
       }
-      style={[styles.glassContainer, isCompleted && styles.completedContainer]}
+      style={
+        isCompleted
+          ? { ...styles.glassContainer, ...styles.completedContainer }
+          : styles.glassContainer
+      }
     >
       <View style={styles.header}>
         <Text style={styles.emoji}>{challenge.emoji}</Text>

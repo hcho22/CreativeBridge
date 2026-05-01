@@ -6,7 +6,8 @@
  */
 
 import { storyAgentService } from './storyAgent';
-// import { StoryRequest, StoryResponse, GradeLevel } from '../types/story';
+import type { StoryRequest, StoryResponse } from '../types/story';
+import type { GradeLevel } from '../types/database';
 import {
   SkillEnhancedServiceFactory,
   SkillEnhancedServiceConfig,

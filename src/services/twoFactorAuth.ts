@@ -1,5 +1,6 @@
-import { supabase } from './supabase';
-import { auditLogger, EventType } from './auditLogger';
+import { supabase as baseSupabase } from './supabase';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { auditLogger, EventType, EventCategory, Severity } from './auditLogger';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export enum TwoFAMethod {
@@ -7,6 +8,54 @@ export enum TwoFAMethod {
   EMAIL = 'EMAIL',
   SMS = 'SMS',
 }
+
+/**
+ * Row shape for the `user_2fa` Supabase table.
+ *
+ * NOTE: `user_2fa` is not yet declared in the generated `Database` type
+ * (`src/types/database.ts`). Until that schema is regenerated to include this
+ * table, we declare a minimal local schema that satisfies Supabase's
+ * `GenericSchema` constraint, then re-cast the imported client to that schema.
+ * No runtime behavior changes — only the static types differ.
+ */
+// `type` (not `interface`) so that `User2FARow` satisfies Supabase's
+// `Record<string, unknown>` constraint on `GenericTable.Row` — interfaces
+// are not assignable to index signatures because they may be augmented.
+type User2FARow = {
+  user_id: string;
+  method: TwoFAMethod;
+  secret_key: string | null;
+  backup_codes: string[] | null;
+  recovery_email?: string | null;
+  recovery_phone?: string | null;
+  is_enabled: boolean;
+  setup_completed_at?: string | null;
+  last_used_at?: string | null;
+  updated_at: string;
+};
+
+type User2FASchema = {
+  public: {
+    Tables: {
+      user_2fa: {
+        Row: User2FARow;
+        Insert: User2FARow;
+        Update: Partial<User2FARow>;
+        Relationships: [];
+      };
+    };
+    // Empty objects (rather than `Record<string, never>`) so that
+    // Supabase's `keyof Schema['Functions']` resolves to `never` instead of
+    // `string`. Otherwise its `ComputedField` resolver treats every column as
+    // a computed field and `select('*')` returns `{}`.
+    Views: Record<string, never>;
+    Functions: {};
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
+  };
+};
+
+const supabase = baseSupabase as unknown as SupabaseClient<User2FASchema>;
 
 export interface TwoFASetup {
   method: TwoFAMethod;
@@ -28,8 +77,10 @@ export interface TwoFAConfig {
   isEnabled: boolean;
   secret?: string;
   backupCodes: string[];
-  recoveryEmail?: string;
-  recoveryPhone?: string;
+  // `string | null` because the underlying DB column is nullable; preserves
+  // runtime behavior of passing null through from the row unchanged.
+  recoveryEmail?: string | null;
+  recoveryPhone?: string | null;
 }
 
 class TwoFactorAuthService {
@@ -79,8 +130,8 @@ class TwoFactorAuthService {
       await auditLogger.logEvent({
         userId,
         eventType: EventType.TWO_FA_ENABLED,
-        eventCategory: 'SECURITY',
-        severity: 'MEDIUM',
+        eventCategory: EventCategory.SECURITY,
+        severity: Severity.MEDIUM,
         description: `2FA setup initiated for method: ${method}`,
         metadata: {
           method,
@@ -100,8 +151,8 @@ class TwoFactorAuthService {
       await auditLogger.logEvent({
         userId,
         eventType: EventType.TWO_FA_FAILED,
-        eventCategory: 'SECURITY',
-        severity: 'HIGH',
+        eventCategory: EventCategory.SECURITY,
+        severity: Severity.HIGH,
         description: `2FA setup failed: ${
           error instanceof Error ? error.message : 'Unknown error'
         }`,
@@ -155,8 +206,8 @@ class TwoFactorAuthService {
         await auditLogger.logEvent({
           userId,
           eventType: EventType.TWO_FA_ENABLED,
-          eventCategory: 'SECURITY',
-          severity: 'LOW',
+          eventCategory: EventCategory.SECURITY,
+          severity: Severity.LOW,
           description: '2FA setup completed successfully',
           metadata: { method: config.method },
         });
@@ -166,8 +217,8 @@ class TwoFactorAuthService {
         await auditLogger.logEvent({
           userId,
           eventType: EventType.TWO_FA_FAILED,
-          eventCategory: 'SECURITY',
-          severity: 'MEDIUM',
+          eventCategory: EventCategory.SECURITY,
+          severity: Severity.MEDIUM,
           description: '2FA setup verification failed',
           metadata: { method: config.method, reason: 'Invalid code' },
         });
@@ -178,8 +229,8 @@ class TwoFactorAuthService {
       await auditLogger.logEvent({
         userId,
         eventType: EventType.TWO_FA_FAILED,
-        eventCategory: 'SECURITY',
-        severity: 'HIGH',
+        eventCategory: EventCategory.SECURITY,
+        severity: Severity.HIGH,
         description: `2FA setup verification error: ${
           error instanceof Error ? error.message : 'Unknown error'
         }`,
@@ -238,8 +289,8 @@ class TwoFactorAuthService {
         await auditLogger.logEvent({
           userId,
           eventType: EventType.TWO_FA_ENABLED,
-          eventCategory: 'SECURITY',
-          severity: 'LOW',
+          eventCategory: EventCategory.SECURITY,
+          severity: Severity.LOW,
           description: '2FA verification successful',
           metadata: {
             method: verification.method,
@@ -250,8 +301,8 @@ class TwoFactorAuthService {
         await auditLogger.logEvent({
           userId,
           eventType: EventType.TWO_FA_FAILED,
-          eventCategory: 'SECURITY',
-          severity: 'MEDIUM',
+          eventCategory: EventCategory.SECURITY,
+          severity: Severity.MEDIUM,
           description: '2FA verification failed',
           metadata: {
             method: verification.method,
@@ -266,8 +317,8 @@ class TwoFactorAuthService {
       await auditLogger.logEvent({
         userId,
         eventType: EventType.TWO_FA_FAILED,
-        eventCategory: 'SECURITY',
-        severity: 'HIGH',
+        eventCategory: EventCategory.SECURITY,
+        severity: Severity.HIGH,
         description: `2FA verification error: ${
           error instanceof Error ? error.message : 'Unknown error'
         }`,
@@ -299,8 +350,8 @@ class TwoFactorAuthService {
       await auditLogger.logEvent({
         userId,
         eventType: EventType.TWO_FA_DISABLED,
-        eventCategory: 'SECURITY',
-        severity: 'MEDIUM',
+        eventCategory: EventCategory.SECURITY,
+        severity: Severity.MEDIUM,
         description: '2FA disabled by user',
         metadata: {},
       });
@@ -310,8 +361,8 @@ class TwoFactorAuthService {
       await auditLogger.logEvent({
         userId,
         eventType: EventType.TWO_FA_FAILED,
-        eventCategory: 'SECURITY',
-        severity: 'HIGH',
+        eventCategory: EventCategory.SECURITY,
+        severity: Severity.HIGH,
         description: `Failed to disable 2FA: ${
           error instanceof Error ? error.message : 'Unknown error'
         }`,
@@ -345,8 +396,8 @@ class TwoFactorAuthService {
       await auditLogger.logEvent({
         userId,
         eventType: EventType.TWO_FA_ENABLED,
-        eventCategory: 'SECURITY',
-        severity: 'LOW',
+        eventCategory: EventCategory.SECURITY,
+        severity: Severity.LOW,
         description: 'Backup codes regenerated',
         metadata: { backupCodeCount: backupCodes.length },
       });
@@ -356,8 +407,8 @@ class TwoFactorAuthService {
       await auditLogger.logEvent({
         userId,
         eventType: EventType.TWO_FA_FAILED,
-        eventCategory: 'SECURITY',
-        severity: 'MEDIUM',
+        eventCategory: EventCategory.SECURITY,
+        severity: Severity.MEDIUM,
         description: `Failed to regenerate backup codes: ${
           error instanceof Error ? error.message : 'Unknown error'
         }`,
@@ -396,7 +447,7 @@ class TwoFactorAuthService {
 
       const code = this.generateVerificationCode();
       const expiresAt = new Date(
-        Date.now() + this.CODE_VALIDITY_MINUTES * 60 * 1000,
+        Date.now() + TwoFactorAuthService.CODE_VALIDITY_MINUTES * 60 * 1000,
       );
 
       // Store code temporarily (in a real app, you'd use a temporary storage)
@@ -430,8 +481,8 @@ class TwoFactorAuthService {
       await auditLogger.logEvent({
         userId,
         eventType: EventType.TWO_FA_ENABLED,
-        eventCategory: 'SECURITY',
-        severity: 'LOW',
+        eventCategory: EventCategory.SECURITY,
+        severity: Severity.LOW,
         description: `2FA code sent via ${method}`,
         metadata: { method },
       });
@@ -441,8 +492,8 @@ class TwoFactorAuthService {
       await auditLogger.logEvent({
         userId,
         eventType: EventType.TWO_FA_FAILED,
-        eventCategory: 'SECURITY',
-        severity: 'MEDIUM',
+        eventCategory: EventCategory.SECURITY,
+        severity: Severity.MEDIUM,
         description: `Failed to send 2FA code: ${
           error instanceof Error ? error.message : 'Unknown error'
         }`,

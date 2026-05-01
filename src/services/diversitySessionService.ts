@@ -16,6 +16,33 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
 
+/**
+ * Row / Insert shapes for the `user_sessions` table. The shared `Database`
+ * type in `src/types/database.ts` does not satisfy postgrest-js's
+ * `GenericSchema` constraint (its Row types lack the implicit
+ * `Record<string, unknown>` index signature), so `supabase.from(
+ * 'user_sessions')` resolves Row / Insert to `never`. We declare the shape
+ * locally and apply it at the response boundary. Type-only — no runtime
+ * change.
+ */
+interface UserSessionRow {
+  id: string;
+  session_token: string;
+  user_id: string | null;
+  created_at: string;
+  expires_at: string;
+  metadata: Record<string, unknown> | null;
+}
+
+interface UserSessionInsert {
+  id?: string;
+  session_token: string;
+  user_id: string | null;
+  created_at?: string;
+  expires_at: string;
+  metadata?: Record<string, unknown>;
+}
+
 const STORAGE_KEY = '@CreativeBridge:diversitySessionToken';
 const SESSION_DURATION_HOURS = 24;
 
@@ -115,8 +142,13 @@ async function validateSession(
       return null;
     }
 
+    // postgrest-js infers `data` as `never` because our Database type doesn't
+    // satisfy GenericSchema (see header). Cast at the boundary to the locally
+    // declared row shape.
+    const row = data as unknown as UserSessionRow;
+
     // Check if session has expired
-    const expiresAt = new Date(data.expires_at);
+    const expiresAt = new Date(row.expires_at);
     const now = new Date();
 
     if (now > expiresAt) {
@@ -126,12 +158,12 @@ async function validateSession(
 
     // Session is valid
     return {
-      id: data.id,
-      sessionToken: data.session_token,
-      userId: data.user_id,
-      createdAt: new Date(data.created_at),
+      id: row.id,
+      sessionToken: row.session_token,
+      userId: row.user_id,
+      createdAt: new Date(row.created_at),
       expiresAt,
-      metadata: data.metadata as Record<string, unknown> | undefined,
+      metadata: row.metadata ?? undefined,
     };
   } catch (error) {
     console.error('Session validation error:', error);
@@ -157,15 +189,20 @@ async function createNewSession(
     now.getTime() + SESSION_DURATION_HOURS * 60 * 60 * 1000,
   );
 
+  const insertPayload: UserSessionInsert = {
+    session_token: sessionToken,
+    user_id: options.userId || null,
+    created_at: now.toISOString(),
+    expires_at: expiresAt.toISOString(),
+    metadata: options.metadata || {},
+  };
+
   const { data, error } = await supabase
     .from('user_sessions')
-    .insert({
-      session_token: sessionToken,
-      user_id: options.userId || null,
-      created_at: now.toISOString(),
-      expires_at: expiresAt.toISOString(),
-      metadata: options.metadata || {},
-    })
+    // postgrest-js infers Insert as `never` because our Database type doesn't
+    // satisfy GenericSchema (see header). Cast at the call boundary to keep
+    // the strongly-typed payload defined above.
+    .insert(insertPayload as unknown as never)
     .select()
     .single();
 
@@ -175,13 +212,16 @@ async function createNewSession(
     );
   }
 
+  // Same `never` issue on the returned row — cast at the boundary.
+  const row = data as unknown as UserSessionRow;
+
   return {
-    id: data.id,
-    sessionToken: data.session_token,
-    userId: data.user_id,
-    createdAt: new Date(data.created_at),
-    expiresAt: new Date(data.expires_at),
-    metadata: data.metadata as Record<string, unknown> | undefined,
+    id: row.id,
+    sessionToken: row.session_token,
+    userId: row.user_id,
+    createdAt: new Date(row.created_at),
+    expiresAt: new Date(row.expires_at),
+    metadata: row.metadata ?? undefined,
   };
 }
 

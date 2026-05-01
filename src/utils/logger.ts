@@ -30,6 +30,11 @@ export interface LogContext {
   operation?: string;
   component?: string;
   metadata?: Record<string, any>;
+  // Diagnostic call sites pass 100+ ad-hoc keys (strategyId, gradeLevel,
+  // cacheKey, ...). Keep the named fields above for the typed consumers in
+  // this file; widen the rest via an index signature so callers don't need
+  // to nest every detail under `metadata`.
+  [key: string]: unknown;
 }
 
 export interface StructuredLogEntry {

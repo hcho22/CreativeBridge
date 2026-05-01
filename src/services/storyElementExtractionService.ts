@@ -706,3 +706,5 @@ Extract characters, settings, objects, and plot patterns. Return valid JSON only
 export const storyElementExtractionService =
   new StoryElementExtractionService();
 export default StoryElementExtractionService;
+
+export type ExtractedElements = StoryElements;

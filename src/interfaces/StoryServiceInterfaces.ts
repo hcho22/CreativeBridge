@@ -100,7 +100,13 @@ export class ComprehensiveStoryService implements StoryGenerationService {
     const cached = this.getCachedStory(cacheKey);
     if (cached) {
       this.analyticsService.trackPerformance('cache_hit', { cacheKey });
-      return { ...cached, metadata: { ...cached.metadata, fromCache: true } };
+      return {
+        ...cached,
+        metadata: {
+          ...cached.metadata,
+          fromCache: true,
+        } as StoryResponse['metadata'],
+      };
     }
 
     this.analyticsService.trackPerformance('cache_miss', { cacheKey });
@@ -168,7 +174,13 @@ export class ComprehensiveStoryService implements StoryGenerationService {
     const cached = this.getCachedStory(cacheKey);
     if (cached) {
       this.analyticsService.trackPerformance('cache_hit', { cacheKey });
-      return { ...cached, metadata: { ...cached.metadata, fromCache: true } };
+      return {
+        ...cached,
+        metadata: {
+          ...cached.metadata,
+          fromCache: true,
+        } as StoryResponse['metadata'],
+      };
     }
 
     this.analyticsService.trackPerformance('cache_miss', { cacheKey });

@@ -228,7 +228,7 @@ export const AppleSignInButton: React.FC<AppleSignInButtonProps> = ({
         showSuccess && styles.buttonSuccess,
         style,
       ]}
-      onPress={handlePress}
+      onPress={() => handlePress()}
       disabled={isDisabled}
       activeOpacity={0.7}
       accessibilityRole="button"
@@ -314,10 +314,8 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   buttonText: {
-    fontSize: theme.typography.fontSize.md,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text,
     ...theme.typography.textStyles.button,
+    color: theme.colors.text,
   },
   buttonTextDisabled: {
     color: theme.colors.textDisabled,

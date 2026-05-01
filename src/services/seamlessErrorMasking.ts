@@ -110,7 +110,7 @@ export class SeamlessErrorMaskingService {
   ): Promise<ErrorMaskingStrategy> {
     try {
       structuredLogger.info('Determining error masking strategy', {
-        errorType: error instanceof SkillError ? error.code : 'unknown',
+        errorType: 'code' in error ? error.code : 'unknown',
         userId: userProfile.userId,
         ageGroup: userProfile.ageGroup,
         expectationLevel: userProfile.expectationLevel,
@@ -350,8 +350,10 @@ export class SeamlessErrorMaskingService {
     userVisibility: 'hidden' | 'subtle' | 'noticeable' | 'obvious';
     timeToRecover: number;
   } {
-    const isSkillError = error instanceof SkillError;
-    const errorCode = isSkillError ? error.code : 'UNKNOWN_ERROR';
+    const isSkillError = 'code' in error;
+    const errorCode = isSkillError
+      ? (error as SkillError).code
+      : 'UNKNOWN_ERROR';
     const attemptNumber = recoveryContext.attemptNumber;
 
     let severity: 'low' | 'medium' | 'high' | 'critical' = 'medium';
@@ -398,8 +400,10 @@ export class SeamlessErrorMaskingService {
 
     // Adjust based on attempt number
     if (attemptNumber > 1) {
-      if (severity === 'low') severity = 'medium';
-      else if (severity === 'medium') severity = 'high';
+      // Note: severity 'low' is unreachable here (initial value 'medium', and
+      // all switch branches above set 'medium'/'high'/'critical'). Promotion
+      // path begins at 'medium'.
+      if (severity === 'medium') severity = 'high';
 
       if (recoverability === 'easy') recoverability = 'moderate';
       else if (recoverability === 'moderate') recoverability = 'difficult';
