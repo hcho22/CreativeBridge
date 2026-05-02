@@ -79,8 +79,10 @@ yarn-error.log
 .env.local
 .env.*.local
 
-# Convex generated files
-convex/_generated/
+# Convex generated files — intentionally tracked (US-008) so CI can
+# typecheck convex/ source without needing CONVEX_DEPLOYMENT credentials.
+# Developers regenerate via `npx convex dev`; commit any drift.
+# convex/_generated/
 
 # iOS Pods
 ios/Pods/
