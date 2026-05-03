@@ -1,3 +1,4 @@
+ 
 /**
  * Generated `api` utility.
  *
@@ -7,25 +8,25 @@
  * @module
  */
 
-import type * as adminAnalytics from '../adminAnalytics.js';
-import type * as ai from '../ai.js';
-import type * as auth from '../auth.js';
-import type * as consent from '../consent.js';
-import type * as crons from '../crons.js';
-import type * as dataRetention from '../dataRetention.js';
-import type * as gameSessions from '../gameSessions.js';
-import type * as http from '../http.js';
-import type * as imageGeneration from '../imageGeneration.js';
-import type * as migration from '../migration.js';
-import type * as onboarding from '../onboarding.js';
-import type * as storage from '../storage.js';
-import type * as userProfiles from '../userProfiles.js';
+import type * as adminAnalytics from "../adminAnalytics.js";
+import type * as ai from "../ai.js";
+import type * as auth from "../auth.js";
+import type * as consent from "../consent.js";
+import type * as crons from "../crons.js";
+import type * as dataRetention from "../dataRetention.js";
+import type * as gameSessions from "../gameSessions.js";
+import type * as http from "../http.js";
+import type * as imageGeneration from "../imageGeneration.js";
+import type * as migration from "../migration.js";
+import type * as onboarding from "../onboarding.js";
+import type * as storage from "../storage.js";
+import type * as userProfiles from "../userProfiles.js";
 
 import type {
   ApiFromModules,
   FilterApi,
   FunctionReference,
-} from 'convex/server';
+} from "convex/server";
 
 declare const fullApi: ApiFromModules<{
   adminAnalytics: typeof adminAnalytics;
@@ -53,7 +54,7 @@ declare const fullApi: ApiFromModules<{
  */
 export declare const api: FilterApi<
   typeof fullApi,
-  FunctionReference<any, 'public'>
+  FunctionReference<any, "public">
 >;
 
 /**
@@ -66,7 +67,7 @@ export declare const api: FilterApi<
  */
 export declare const internal: FilterApi<
   typeof fullApi,
-  FunctionReference<any, 'internal'>
+  FunctionReference<any, "internal">
 >;
 
 export declare const components: {};
