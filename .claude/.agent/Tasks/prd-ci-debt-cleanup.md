@@ -368,25 +368,31 @@ Each implementation story is followed by its paired validation story. Validation
 
 **Description:** As a maintainer, I want the TypeScript step to fail builds on new type errors, so the gate is real again.
 
-**Status: ✅ CODE-SIDE COMPLETE (2026-05-01).** US-007 prerequisite met (`tsc --noEmit` exits 0 with 0 errors); workflow file is in target state with no edits required; gate behavior verified locally via type-error injection + revert. Three PR-level criteria are now ready for the user to execute (see "User actions to close" below) — they require pushing branches/PRs and observing GitHub Actions runs, which only the user can do.
+**Status: ✅ CI-VALIDATED (2026-05-02).** US-007 prerequisite met (`tsc --noEmit` exits 0 with 0 errors); workflow file is in target state; gate behavior verified locally via type-error injection + revert; **and confirmed exit-0 in CI on PR #30 commit `70e48de`.** Only the failure-path validation and merge/revert decision for PR #30 remain.
 
 **Acceptance Criteria:**
 
-- [x] Confirm `npx tsc --noEmit` exits 0 locally and in CI — **LOCAL: MET** (0 errors, exit 0). CI confirmation will land on the user's next PR.
+- [x] Confirm `npx tsc --noEmit` exits 0 locally and in CI — **MET** locally (0 errors) and in CI (PR #30 / commit `70e48de` / run `25243012184`, "TypeScript type check" step: SUCCESS).
 - [x] Edit `.github/workflows/ci.yml`:
   - Step name "TypeScript type check" — _already in place on `main`; the shipped workflow never carried an "(advisory)" suffix_
   - `continue-on-error: true` — _already absent on `main`; nothing to remove_
   - Command is `npx tsc --noEmit` — _unchanged; matches PRD spec_
 - [x] **Local gate-behavior validation** (additional verification beyond PRD criteria): Injected `export const x: number = 'string';` in a temp file → `tsc --noEmit` exited with code **2** and reported `error TS2322: Type 'string' is not assignable to type 'number'`. Removed the temp file → tsc exited **0**. The gate fires correctly on bad code and clears on clean code.
-- [ ] Open a no-op PR; confirm tsc step exits 0 in CI — _user-side PR action; ready to execute (no code blockers remain)_
+- [x] Open a no-op PR; confirm tsc step exits 0 in CI — **MET via PR #30** (bundled with US-007 fixes per user direction; not a literal no-op, but exercises the same CI path).
 - [ ] Intentionally introduce a type error on a side commit (e.g., `const x: number = "string";`); confirm CI fails the build — _user-side validation; locally pre-validated above_
 - [ ] Revert the test commit before merging — _user-side PR action_
 
+**Bonus deliverable (CI infrastructure fix, 2026-05-02):** PR #30 surfaced a previously-hidden CI gap — `convex/_generated/` was gitignored, so CI's tsc graph couldn't resolve `import { api } from '../convex/_generated/api'` chains. Tried two approaches:
+
+1. **First attempt (commit `de031d4`)**: added a `Generate Convex types` step before tsc. **Failed in CI** because `npx convex codegen` requires `CONVEX_DEPLOYMENT` env var, which isn't available as a CI secret (and exposing one would create a writable production credential surface for every PR).
+2. **Final fix (commit `70e48de`)**: tracked `convex/_generated/` in the repo (5 files, ~400 lines, no secrets), reverted the codegen step, and added a `.gitignore` comment explaining the rationale. **Worked.** This is the standard pattern when CI lacks deployment credentials.
+
 **User actions to close US-008** (estimated 5 min total, no code work needed):
 
-1. **No-op PR validation** — open any small PR (e.g., a docs typo fix or whitespace change) and confirm GitHub Actions's "TypeScript type check" step is green. Close or merge as desired.
-2. **Failure-path validation** — on a throwaway branch, add a one-liner like `export const __gate_test: number = 'string';` to any file in `src/`, push, and observe CI fail at the "TypeScript type check" step with exit code ≠ 0. Then delete the branch (or revert the commit if pushed to a real PR).
-3. After both pass, mark US-008 fully complete in this file.
+1. **Failure-path validation** — on a throwaway branch off `fix/ts-clear-all-errors` (or a fresh branch off `main` after PR #30 merges), add a one-liner like `export const __gate_test: number = 'string';` to any file in `src/`, push, and observe CI fail at the "TypeScript type check" step with exit code ≠ 0. Then delete the branch (or revert the commit if pushed to a real PR).
+2. **Decide on PR #30**: it bundles US-007 (571 TS errors cleared) + US-008 infra fix (tracked `_generated/`). Merge to lock in both. After merge, mark US-008 fully complete in this file.
+
+**Out-of-scope observation surfaced by PR #30 CI run:** the "Run tests" step hit the 15-minute job timeout on `70e48de` (started 03:45:28Z, cancelled 04:00:44Z). This is unrelated to US-008's tsc gate, but suggests Jest is too slow / hangs in CI. Worth a separate ticket to investigate (likely candidates: open handles in test teardown, missing `--maxWorkers` cap, or a slow integration test).
 
 **Implementation notes (2026-05-01 — code-side complete):**
 
