@@ -12,7 +12,8 @@ import {
   ContentPredictionResult,
   ContentPrediction,
 } from '../types/claudeSkills';
-// import { StoryRequest, StoryResponse, GradeLevel } from '../types/story';
+import type { StoryRequest } from '../types/story';
+import type { GradeLevel } from '../types/database';
 import { structuredLogger } from '../utils/logger';
 import { storyAnalytics } from './storyAnalytics';
 
@@ -253,7 +254,7 @@ class ContentPredictionService {
           confidence: this.calculatePredictionConfidence(
             enhancedPredictions,
             context,
-          ),
+          ).overall,
         };
       } else {
         structuredLogger.logSkillOperationComplete(

@@ -92,7 +92,12 @@ class TextToSpeechService {
           throw new Error('TTS module methods not available');
         }
       } catch (importError) {
-        console.warn('⚠️ TTS not available:', importError.message);
+        console.warn(
+          '⚠️ TTS not available:',
+          importError instanceof Error
+            ? importError.message
+            : String(importError),
+        );
         this.isAvailable = false;
         this.Tts = null;
       }

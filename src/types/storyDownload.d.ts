@@ -9,23 +9,31 @@ export interface StoryDownloadOptions {
 }
 
 // Story Download History Record (matches story_download_history table)
+// Optional fields accept `null` because the underlying Postgres columns are
+// nullable and the RPC projections return `null` (not `undefined`) when empty.
 export interface StoryDownloadHistoryRecord {
   id: string;
   user_id: string;
-  story_session_id?: string;
+  story_session_id?: string | null;
   file_name: string;
   file_path: string;
-  story_title?: string;
-  story_word_count?: number;
-  story_character_count?: number;
-  story_grade_level?: string;
+  file_size_bytes?: number | null;
+  download_status?: string;
+  story_title?: string | null;
+  story_word_count?: number | null;
+  story_character_count?: number | null;
+  story_grade_level?: string | null;
   story_source: string;
   download_method: string;
-  app_version?: string;
+  device_platform?: string;
+  app_version?: string | null;
+  error_type?: string | null;
+  error_message?: string | null;
   created_at: string;
-  completed_at?: string;
+  completed_at?: string | null;
   retry_count: number;
   file_exists: boolean;
+  last_validated_at?: string | null;
   metadata: Record<string, any>;
 }
 
@@ -44,8 +52,28 @@ export interface CreateDownloadRecordParams {
   metadata?: Record<string, any>;
 }
 
+export type DownloadStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'success'
+  | 'failed'
+  | 'cancelled';
+
+export type DownloadErrorType =
+  | 'permission_denied'
+  | 'storage_full'
+  | 'file_system_error'
+  | 'network_error'
+  | 'timeout'
+  | 'user_cancelled'
+  | 'unknown';
+
 export interface UpdateDownloadRecordParams {
   record_id: string;
+  status?: DownloadStatus;
+  file_size_bytes?: number;
+  error_type?: DownloadErrorType;
+  error_message?: string;
   file_exists?: boolean;
   retry_count?: number;
   metadata?: Record<string, any>;
@@ -53,10 +81,36 @@ export interface UpdateDownloadRecordParams {
 
 export interface DownloadAnalytics {
   total_downloads: number;
-  downloads_today: number;
-  downloads_this_week: number;
-  downloads_this_month: number;
-  most_common_method: string;
+  successful_downloads: number;
+  failed_downloads: number;
+  cancelled_downloads: number;
+  total_file_size_mb: number;
+  avg_file_size_kb: number;
+  most_common_error_type: string | null;
+  files_still_existing: number;
+  most_popular_grade_level: string | null;
+  ios_downloads: number;
+  android_downloads: number;
+}
+
+// Row returned by the get_user_download_history RPC. Field set is the
+// projection produced server-side and is narrower than StoryDownloadHistoryRecord.
+export interface UserDownloadHistoryRow {
+  record_id: string;
+  story_session_id?: string | null;
+  file_name: string;
+  file_path: string;
+  file_size_bytes: number | null;
+  download_status: string;
+  story_title: string | null;
+  story_word_count: number | null;
+  story_grade_level: string | null;
+  story_source: string;
+  download_method: string;
+  error_type: string | null;
+  file_exists: boolean;
+  created_at: string;
+  completed_at: string | null;
 }
 
 export interface DownloadResult {

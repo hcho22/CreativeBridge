@@ -6,7 +6,8 @@
  */
 
 import { structuredLogger } from '../utils/logger';
-// import { StoryRequest, StoryResponse, GradeLevel } from '../types/story';
+import type { StoryRequest } from '../types/story';
+import type { GradeLevel } from '../types/database';
 import {
   StoryContext,
   ContextualFallbackResult,
@@ -65,7 +66,7 @@ export class StoryAwareFallbackGenerator {
       'K-2': 0.7,
       '3-5': 0.75,
       '6-8': 0.8,
-      Grade3: 0.75,
+      '9-12': 0.75,
     };
   }
 
@@ -234,7 +235,7 @@ export class StoryAwareFallbackGenerator {
         } catch (error) {
           structuredLogger.warn(
             `Failed to pre-generate fallback for ${scenario}`,
-            error as Error,
+            { error: error instanceof Error ? error.message : String(error) },
           );
         }
       }
@@ -396,7 +397,7 @@ export class StoryAwareFallbackGenerator {
         'A crucial moment arrived that would change everything.',
         'An unexpected revelation shifted their understanding.',
       ],
-      Grade3: [
+      '9-12': [
         'The story continued with new discoveries.',
         'An interesting challenge presented itself.',
         'Something surprising was about to happen.',
@@ -793,7 +794,7 @@ export class StoryAwareFallbackGenerator {
       'K-2': 15,
       '3-5': 25,
       '6-8': 35,
-      Grade3: 20,
+      '9-12': 20,
     };
 
     return lengthMap[gradeLevel] || 25;
@@ -807,7 +808,7 @@ export class StoryAwareFallbackGenerator {
       'K-2': 4.5,
       '3-5': 5.5,
       '6-8': 6.5,
-      Grade3: 5.0,
+      '9-12': 5.0,
     };
 
     const target = targetLength[gradeLevel] || 5.5;

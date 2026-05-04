@@ -357,16 +357,18 @@ class StoryAgentService {
 
       // Truncate long stories to fit AI context window (US-006: U-6.4)
       if (request.storySoFar) {
-        const originalLength = request.storySoFar.length;
+        const originalStorySoFar = request.storySoFar;
+        const originalLength = originalStorySoFar.length;
+        const truncated = truncateStoryForContext(originalStorySoFar);
         request = {
           ...request,
-          storySoFar: truncateStoryForContext(request.storySoFar),
+          storySoFar: truncated,
         };
-        if (request.storySoFar.length < originalLength) {
+        if (truncated.length < originalLength) {
           console.log(
             `📏 Story truncated: ${originalLength} → ${
-              request.storySoFar.length
-            } chars (~${estimateTokens(request.storySoFar)} tokens)`,
+              truncated.length
+            } chars (~${estimateTokens(truncated)} tokens)`,
           );
         }
       }

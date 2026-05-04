@@ -244,7 +244,7 @@ class FeatureFlagService {
         metadata: {
           flagKey,
           userId: userContext.userId,
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
         },
         context: {
           timestamp: new Date(),

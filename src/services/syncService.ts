@@ -480,8 +480,8 @@ class SyncService {
       try {
         if (conflict.resolutionStrategy === 'auto_latest') {
           const latest =
-            conflict.remoteVersion.metadata?.updatedAt >
-            conflict.localVersion.metadata?.updatedAt
+            (conflict.remoteVersion.metadata?.updatedAt ?? 0) >
+            (conflict.localVersion.metadata?.updatedAt ?? 0)
               ? conflict.remoteVersion
               : conflict.localVersion;
 

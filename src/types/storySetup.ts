@@ -6,13 +6,8 @@
  * Display labels may vary by grade level (e.g., Horror → "Spooky" for K-2),
  * but the stored value always uses these canonical labels.
  */
-export type StoryGenre =
-  | 'Mystery'
-  | 'Fantasy'
-  | 'Comedy'
-  | 'Horror'
-  | 'Fiction'
-  | 'Fairy Tale';
+export type { StoryGenre } from './database';
+import type { StoryGenre } from './database';
 
 /**
  * Character type options. "Animal" and "Custom" trigger inline expansion

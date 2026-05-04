@@ -6,7 +6,8 @@
  */
 
 import { structuredLogger } from '../utils/logger';
-// import { StoryRequest, StoryResponse, GradeLevel, StoryAnalysis } from '../types/story';
+import type { StoryRequest } from '../types/story';
+import type { GradeLevel } from '../types/database';
 import {
   SkillManager,
   SkillError,
@@ -243,7 +244,7 @@ export class ContextualFallbackService {
       // Grade level appropriateness challenges
       const gradeLevelRisk = this.assessGradeLevelRisk(
         request.gradeLevel,
-        currentContext,
+        currentContext ?? null,
       );
       if (gradeLevelRisk > 0) {
         riskFactors.push({
@@ -289,7 +290,9 @@ export class ContextualFallbackService {
         recommendedPreventiveStrategy: recommendedStrategy,
       };
     } catch (error) {
-      structuredLogger.warn('Failure risk prediction failed', error as Error);
+      structuredLogger.warn('Failure risk prediction failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
 
       return {
         riskScore: 50, // Medium risk when prediction fails
@@ -315,7 +318,7 @@ export class ContextualFallbackService {
   ): Promise<ContextualFallbackResult> {
     try {
       structuredLogger.info('Initiating context-aware error recovery', {
-        errorType: error instanceof SkillError ? error.code : 'unknown',
+        errorType: 'code' in error ? error.code : 'unknown',
         attemptNumber: recoveryContext.attemptNumber,
         hasStoryContext: !!recoveryContext.storyContext,
         consecutiveFailures:
@@ -433,7 +436,9 @@ export class ContextualFallbackService {
         delayResponse: true,
       };
     } catch (error) {
-      structuredLogger.warn('Error masking failed', error as Error);
+      structuredLogger.warn('Error masking failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
 
       return {
         userMessage: null,
@@ -767,7 +772,7 @@ export class ContextualFallbackService {
     error: SkillError | Error,
     context: ErrorRecoveryContext,
   ): Promise<void> {
-    const errorType = error instanceof SkillError ? error.code : 'unknown';
+    const errorType = 'code' in error ? error.code : 'unknown';
     const pattern = `${errorType}_${
       context.storyContext?.gradeLevel || 'unknown'
     }`;
@@ -794,7 +799,7 @@ export class ContextualFallbackService {
     error: SkillError | Error,
     context: ErrorRecoveryContext,
   ): string {
-    const errorType = error instanceof SkillError ? error.code : 'unknown';
+    const errorType = 'code' in error ? error.code : 'unknown';
     const hasContext = !!context.storyContext;
     const isHighFailure = context.attemptNumber > 2;
 

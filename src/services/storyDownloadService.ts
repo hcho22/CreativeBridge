@@ -140,7 +140,9 @@ export class StoryDownloadService {
   estimateFileSize(content: string): number {
     // UTF-8 encoding: most characters are 1 byte, some are 2-4 bytes
     // This is a conservative estimate
-    return new Blob([content], { type: 'text/plain' }).size;
+    // RN's BlobOptions requires both `type` and `lastModified`; we only need
+    // .size which is independent of options, so omit them.
+    return new Blob([content]).size;
   }
 
   /**
@@ -344,8 +346,8 @@ export class StoryDownloadService {
     try {
       const finalFileName = fileName || this.generateFileName();
 
-      // Check if RNFS is in simulation mode
-      if (RNFS.isSimulationMode) {
+      // Check if RNFS is in simulation mode (getter on the singleton instance)
+      if (RNFS.default.isSimulationMode) {
         console.log(
           '📁 [StoryDownload] RNFS in simulation mode - sharing content directly',
         );

@@ -28,13 +28,11 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useRoute, RouteProp } from '@react-navigation/native';
-import {
-  BottomTabNavigationProp,
-  useBottomTabBarHeight,
-} from '@react-navigation/bottom-tabs';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import { useAuth } from '../context/AuthContext';
 import { useSafeClerkAuth } from '../hooks/useSafeClerkAuth';
-import { TabParamList, HomeStackParamList } from '../navigation/AppNavigator';
+import { HomeStackParamList } from '../navigation/AppNavigator';
 import { storyAgentService } from '../services/storyAgent';
 import { storyGenerationService } from '../services/storyGenerationService';
 import { apiClient } from '../services/api';
@@ -83,7 +81,7 @@ import { useMutation } from 'convex/react';
 import { getConvexClient, api, isConvexReady } from '../services/convex';
 import type { Id } from '../../convex/_generated/dataModel';
 
-type HomeScreenNavigationProp = BottomTabNavigationProp<TabParamList, 'Home'>;
+type HomeScreenNavigationProp = StackNavigationProp<HomeStackParamList, 'Home'>;
 
 interface HomeScreenProps {
   navigation: HomeScreenNavigationProp;
@@ -1629,7 +1627,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         [
           {
             text: 'Complete Profile',
-            onPress: () => navigation.navigate('Profile'),
+            onPress: () => navigation.navigate('Profile' as never),
           },
         ],
       );
@@ -1647,7 +1645,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         [
           {
             text: 'Complete Profile',
-            onPress: () => navigation.navigate('Profile'),
+            onPress: () => navigation.navigate('Profile' as never),
           },
         ],
       );
@@ -2591,7 +2589,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         );
       }
     },
-    [saveStoryWithLocationPicker],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [], // saveStoryWithLocationPicker defined later — circular dep, see comment in handleDownloadStory
   );
 
   const saveStoryWithLocationPicker = useCallback(
@@ -2784,8 +2783,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         ]);
       }
     },
-    [showDownloadTroubleshooting],
-  ); // saveStoryWithLocationPicker not used in this callback
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [], // showDownloadTroubleshooting defined later — circular dep
+  );
 
   const showDownloadTroubleshooting = useCallback((errorDetails: string) => {
     let troubleshootingSteps = '';

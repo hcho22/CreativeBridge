@@ -6,7 +6,13 @@
  * and optimized performance for large datasets.
  */
 
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from './supabase';
+
+// Boundary cast: project Database type doesn't satisfy postgrest's GenericSchema
+// for the 'search_history' table. Untyped client widens query results to `any`,
+// matching the runtime contract. Same pattern as feedbackCollectionService.ts.
+const sb = supabase as unknown as SupabaseClient;
 
 // Types for advanced search functionality
 export interface SearchResult {
@@ -337,9 +343,7 @@ class AdvancedSearchService {
       };
 
       // Check if search_history table exists, if not we'll track in memory
-      const { error } = await supabase
-        .from('search_history')
-        .insert(historyEntry);
+      const { error } = await sb.from('search_history').insert(historyEntry);
 
       if (error && !error.message.includes('does not exist')) {
         console.error('Failed to save search history:', error);
@@ -357,7 +361,7 @@ class AdvancedSearchService {
     limit: number = 20,
   ): Promise<SearchHistory[]> {
     try {
-      const { data: history, error } = await supabase
+      const { data: history, error } = await sb
         .from('search_history')
         .select('*')
         .eq('user_id', userId)
@@ -381,7 +385,7 @@ class AdvancedSearchService {
    */
   async getSearchAnalytics(userId?: string): Promise<SearchAnalytics> {
     try {
-      let query = supabase.from('search_history').select('*');
+      let query = sb.from('search_history').select('*');
 
       if (userId) {
         query = query.eq('user_id', userId);

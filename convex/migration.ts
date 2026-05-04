@@ -2152,7 +2152,10 @@ export const migrateStorageImages = action({
 
           // Step 2: Upload to Convex storage
           const storageId = await ctx.storage.store(
-            new Blob([imageData], { type: contentType }),
+            new Blob([new Uint8Array(imageData) as unknown as Blob], {
+              type: contentType,
+              lastModified: Date.now(),
+            }),
           );
           console.log(`  ✓ Uploaded to Convex: ${storageId}`);
 

@@ -54,7 +54,7 @@ class SecureApiKeyManager {
   /**
    * Safely mask an API key for logging purposes
    */
-  private maskApiKey(key: string | undefined): string {
+  public maskApiKey(key: string | undefined): string {
     if (!key || key.length === 0) {
       return '[MISSING_KEY]';
     }

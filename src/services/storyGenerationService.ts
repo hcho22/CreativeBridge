@@ -335,7 +335,7 @@ class StoryGenerationService {
 
     console.log('📝 Generated enhanced continuation request', {
       contextLength: enhancedContext.length,
-      challenge: request.challenge.substring(0, 100) + '...',
+      challenge: (request.challenge ?? '').substring(0, 100) + '...',
     });
 
     return this.generateStory(request);
@@ -1848,23 +1848,6 @@ Continue the story with 1-3 sentences. Keep your response under 200 words.`;
     );
     const keyLocation = locationMatch ? locationMatch[1] : null;
 
-    console.log('🔍 Character extraction:', {
-      characterName,
-      animalType,
-      keyObject,
-      keyLocation,
-      userInputPreview: userInput.substring(0, 150),
-      fullContextLength: fullContext.length,
-      characterMatches: characterMatches ? characterMatches.slice(-3) : null,
-      foundKeywords: {
-        hasDialogue,
-        hasAction,
-        hasEmotion,
-        hasMovement,
-        hasDecision,
-      },
-    });
-
     // Analyze user's specific contribution for dialogue and actions
     const hasDialogue = /[""]|said|asked|replied|whispered|called|shouted/.test(
       inputLower,
@@ -1885,6 +1868,23 @@ Continue the story with 1-3 sentences. Keep your response under 200 words.`;
       /\b(should|decide|choice|together|agree|think|consider)\b/.test(
         inputLower,
       );
+
+    console.log('🔍 Character extraction:', {
+      characterName,
+      animalType,
+      keyObject,
+      keyLocation,
+      userInputPreview: userInput.substring(0, 150),
+      fullContextLength: fullContext.length,
+      characterMatches: characterMatches ? characterMatches.slice(-3) : null,
+      foundKeywords: {
+        hasDialogue,
+        hasAction,
+        hasEmotion,
+        hasMovement,
+        hasDecision,
+      },
+    });
 
     // For complex dialogue and fantasy scenes (like Celeste's prophecy)
     if (hasDialogue && (keyObject || keyLocation)) {

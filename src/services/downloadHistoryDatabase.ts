@@ -3,13 +3,98 @@
  * Provides CRUD operations for story download history tracking
  */
 
+import type { PostgrestSingleResponse } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import {
   StoryDownloadHistoryRecord,
   CreateDownloadRecordParams,
   UpdateDownloadRecordParams,
   DownloadAnalytics,
+  UserDownloadHistoryRow,
+  DownloadStatus,
+  DownloadErrorType,
 } from '../types/storyDownload';
+
+// Typed RPC signatures for the download-history Postgres functions.
+// The shared `Database` type in `src/types/database.ts` does not yet satisfy
+// Supabase's `GenericSchema` constraint (the `Row` types lack the implicit
+// index signature postgrest-js requires), so `supabase.rpc(...)` falls back to
+// `Args = never` for every callsite. Rather than reshape every table type in
+// the project, we declare local function signatures here and reach the rpc
+// method via a narrow typed alias. This keeps the strong types at the
+// callsites without introducing `any` and without altering runtime behavior.
+interface DownloadRpcFunctions {
+  create_story_download_record: {
+    Args: {
+      p_user_id: string;
+      p_story_session_id: string | null;
+      p_file_name: string;
+      p_file_path: string;
+      p_story_title: string | null;
+      p_story_word_count: number | null;
+      p_story_character_count: number | null;
+      p_story_grade_level: string | null;
+      p_story_source: string;
+      p_download_method: string;
+      p_app_version: string | null;
+      p_metadata: Record<string, unknown>;
+    };
+    Returns: string;
+  };
+  update_story_download_record: {
+    Args: {
+      p_record_id: string;
+      p_status: DownloadStatus | undefined;
+      p_file_size_bytes: number | null;
+      p_error_type: DownloadErrorType | null;
+      p_error_message: string | null;
+      p_retry_count: number | null;
+    };
+    Returns: boolean;
+  };
+  validate_download_file_existence: {
+    Args: {
+      p_record_id: string;
+      p_file_exists: boolean;
+    };
+    Returns: boolean;
+  };
+  get_user_download_history: {
+    Args: {
+      p_user_id: string;
+      p_limit: number;
+      p_offset: number;
+      p_include_failed: boolean;
+    };
+    Returns: UserDownloadHistoryRow[];
+  };
+  get_download_analytics: {
+    Args: {
+      p_user_id: string | null;
+      p_start_date: string | null;
+      p_end_date: string | null;
+    };
+    Returns: DownloadAnalytics[];
+  };
+  cleanup_orphaned_download_records: {
+    Args: {
+      p_user_id: string;
+      p_days_old: number;
+    };
+    Returns: number;
+  };
+}
+
+type DownloadRpc = <FnName extends keyof DownloadRpcFunctions>(
+  fn: FnName,
+  args: DownloadRpcFunctions[FnName]['Args'],
+) => PromiseLike<
+  PostgrestSingleResponse<DownloadRpcFunctions[FnName]['Returns']>
+>;
+
+// Narrow typed view of supabase.rpc for download-history calls. The runtime
+// callable is the same instance method; only the signature is replaced.
+const rpc: DownloadRpc = supabase.rpc.bind(supabase) as unknown as DownloadRpc;
 
 export class DownloadHistoryDatabase {
   /**
@@ -19,23 +104,20 @@ export class DownloadHistoryDatabase {
     params: CreateDownloadRecordParams,
   ): Promise<string> {
     try {
-      const { data, error } = await supabase.rpc(
-        'create_story_download_record',
-        {
-          p_user_id: params.user_id,
-          p_story_session_id: params.story_session_id || null,
-          p_file_name: params.file_name,
-          p_file_path: params.file_path,
-          p_story_title: params.story_title || null,
-          p_story_word_count: params.story_word_count || null,
-          p_story_character_count: params.story_character_count || null,
-          p_story_grade_level: params.story_grade_level || null,
-          p_story_source: params.story_source || 'New',
-          p_download_method: params.download_method || 'share_sheet',
-          p_app_version: params.app_version || null,
-          p_metadata: params.metadata || {},
-        },
-      );
+      const { data, error } = await rpc('create_story_download_record', {
+        p_user_id: params.user_id,
+        p_story_session_id: params.story_session_id || null,
+        p_file_name: params.file_name,
+        p_file_path: params.file_path,
+        p_story_title: params.story_title || null,
+        p_story_word_count: params.story_word_count || null,
+        p_story_character_count: params.story_character_count || null,
+        p_story_grade_level: params.story_grade_level || null,
+        p_story_source: params.story_source || 'New',
+        p_download_method: params.download_method || 'share_sheet',
+        p_app_version: params.app_version || null,
+        p_metadata: params.metadata || {},
+      });
 
       if (error) {
         console.error('❌ Failed to create download record:', error);
@@ -57,17 +139,14 @@ export class DownloadHistoryDatabase {
     params: UpdateDownloadRecordParams,
   ): Promise<boolean> {
     try {
-      const { data, error } = await supabase.rpc(
-        'update_story_download_record',
-        {
-          p_record_id: params.record_id,
-          p_status: params.status,
-          p_file_size_bytes: params.file_size_bytes || null,
-          p_error_type: params.error_type || null,
-          p_error_message: params.error_message || null,
-          p_retry_count: params.retry_count || null,
-        },
-      );
+      const { data, error } = await rpc('update_story_download_record', {
+        p_record_id: params.record_id,
+        p_status: params.status,
+        p_file_size_bytes: params.file_size_bytes || null,
+        p_error_type: params.error_type || null,
+        p_error_message: params.error_message || null,
+        p_retry_count: params.retry_count || null,
+      });
 
       if (error) {
         console.error('❌ Failed to update download record:', error);
@@ -93,13 +172,10 @@ export class DownloadHistoryDatabase {
     fileExists: boolean,
   ): Promise<boolean> {
     try {
-      const { data, error } = await supabase.rpc(
-        'validate_download_file_existence',
-        {
-          p_record_id: recordId,
-          p_file_exists: fileExists,
-        },
-      );
+      const { data, error } = await rpc('validate_download_file_existence', {
+        p_record_id: recordId,
+        p_file_exists: fileExists,
+      });
 
       if (error) {
         console.error('❌ Failed to validate file existence:', error);
@@ -124,7 +200,7 @@ export class DownloadHistoryDatabase {
     includeFailed: boolean = true,
   ): Promise<StoryDownloadHistoryRecord[]> {
     try {
-      const { data, error } = await supabase.rpc('get_user_download_history', {
+      const { data, error } = await rpc('get_user_download_history', {
         p_user_id: userId,
         p_limit: limit,
         p_offset: offset,
@@ -179,7 +255,7 @@ export class DownloadHistoryDatabase {
     endDate?: Date,
   ): Promise<DownloadAnalytics> {
     try {
-      const { data, error } = await supabase.rpc('get_download_analytics', {
+      const { data, error } = await rpc('get_download_analytics', {
         p_user_id: userId || null,
         p_start_date: startDate?.toISOString() || null,
         p_end_date: endDate?.toISOString() || null,
@@ -245,13 +321,10 @@ export class DownloadHistoryDatabase {
     daysOld: number = 30,
   ): Promise<number> {
     try {
-      const { data, error } = await supabase.rpc(
-        'cleanup_orphaned_download_records',
-        {
-          p_user_id: userId,
-          p_days_old: daysOld,
-        },
-      );
+      const { data, error } = await rpc('cleanup_orphaned_download_records', {
+        p_user_id: userId,
+        p_days_old: daysOld,
+      });
 
       if (error) {
         console.error('❌ Failed to cleanup orphaned records:', error);

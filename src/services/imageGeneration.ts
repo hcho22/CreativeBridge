@@ -15,6 +15,7 @@ import type {
   ErrorType,
   ServiceUsed,
 } from './supabase';
+import type { GameSessionUpdate } from '../types/database';
 
 // Configuration constants
 const IMAGE_GENERATION_COST = 1000; // XP cost for generating an image
@@ -751,7 +752,7 @@ const UNSAFE_CONTENT_PATTERNS = {
 };
 
 // Safe alternatives for filtered content
-const CONTENT_REPLACEMENTS = {
+const CONTENT_REPLACEMENTS: Record<string, string> = {
   fight: 'play',
   battle: 'game',
   war: 'adventure',
@@ -910,7 +911,7 @@ class ReplicateClient {
     } catch (error) {
       const responseTime = Date.now() - startTime;
 
-      if (error.name === 'AbortError') {
+      if (error instanceof Error && error.name === 'AbortError') {
         console.error(
           `❌ Replicate API request timed out after ${responseTime}ms (limit: ${timeout}ms)`,
         );
@@ -1012,7 +1013,9 @@ class ReplicateClient {
 
         attempts++;
       } catch (error) {
-        if (error.message.includes('timeout')) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes('timeout')) {
           console.warn(
             `⚠️ Polling request timed out, retrying... (attempt ${
               attempts + 1
@@ -1102,7 +1105,12 @@ class ReplicateClient {
         remainingTimeout,
       );
 
-      const output = completedPrediction.output;
+      // Replicate's runtime payload is typed as `string[]` but defensively the
+      // service has historically also handled a `string` shape. Widen the
+      // local type to keep the existing runtime guards exhaustive without
+      // changing behavior.
+      const output: string[] | string | undefined =
+        completedPrediction.output as string[] | string | undefined;
       if (
         !output ||
         (Array.isArray(output) && output.length === 0) ||
@@ -1659,12 +1667,16 @@ class ImageGenerationService {
       missingKeywords: validation.missingKeywords.slice(0, 5), // Log first 5 for brevity
     });
 
-    // Log to error logger for persistent tracking
+    // Log to error logger for persistent tracking.
+    // Note: 'validation_failure' / 'image_generation' are domain-specific and
+    // not yet part of errorLogger's enum. Cast preserves the literal values
+    // for runtime parity. Tracked under CI Debt Cleanup follow-up.
+    type LogErrorFn = typeof errorLogger.logError;
     errorLogger
       .logError(
-        'validation_failure',
+        'validation_failure' as Parameters<LogErrorFn>[0],
         'medium',
-        'image_generation',
+        'image_generation' as Parameters<LogErrorFn>[2],
         `Prompt validation failed for ${tier} at grade level ${gradeLevel}`,
         {
           tier,
@@ -7530,7 +7542,10 @@ class ImageGenerationService {
     }
 
     // PRIORITY 3: COLLABORATION/FRIENDSHIP ELEMENTS
-    if (analysis.storyThemes?.collaborativeElements.length > 0) {
+    if (
+      analysis.storyThemes?.collaborativeElements &&
+      analysis.storyThemes.collaborativeElements.length > 0
+    ) {
       const collaborativeAction = analysis.storyThemes.collaborativeElements[0];
       addIfUnique(`characters ${collaborativeAction}`, 7);
       console.log(`🤝 Adding collaborative element: ${collaborativeAction}`);
@@ -7942,6 +7957,7 @@ class ImageGenerationService {
       api_response_time?: number;
       image_url?: string;
       prompt_used?: string;
+      metadata?: Record<string, unknown>;
     },
   ): Promise<void> {
     console.log(`📝 Updating image generation event ${eventId} with:`, updates);
@@ -8026,9 +8042,16 @@ class ImageGenerationService {
       console.log('🔄 Starting background Supabase upload...');
 
       // Set status to pending in database
+      const pendingUpdate: GameSessionUpdate = {
+        image_upload_status: 'pending',
+      };
+      // Cast to never works around upstream supabase-js inferring `Relation$1`
+      // as `never` when the Database schema is provided via interface.
+      // Tracking: known supabase-js typing limitation with schemas defined as
+      // `interface` rather than the generated `Database` type. (CB-CI-DEBT)
       await supabase
         .from('game_sessions')
-        .update({ image_upload_status: 'pending' })
+        .update(pendingUpdate as never)
         .eq('id', sessionId);
 
       // Upload to Supabase with retry logic
@@ -8038,8 +8061,13 @@ class ImageGenerationService {
         userId,
       );
 
-      // Update database with upload result
-      const updateData: any = {
+      // Update database with upload result.
+      // image_upload_error accepts `null` at runtime (clears the column in
+      // Supabase) even though the schema type only allows `string | undefined`.
+      // Use a record with the broader value type to keep the runtime payload.
+      const updateData: GameSessionUpdate & {
+        image_upload_error?: string | null;
+      } = {
         image_upload_attempts: uploadResult.attempts,
       };
 
@@ -8056,7 +8084,7 @@ class ImageGenerationService {
 
       await supabase
         .from('game_sessions')
-        .update(updateData)
+        .update(updateData as never)
         .eq('id', sessionId);
     } catch (error) {
       console.error('❌ Background Supabase upload error:', error);
@@ -9906,9 +9934,13 @@ class ImageGenerationService {
 
     // Extract characters using patterns
     characterPatterns.forEach(pattern => {
-      let match;
+      let match: RegExpExecArray | null;
       while ((match = pattern.exec(content)) !== null) {
-        const characterName = match[1] || match[2] || match[3] || match[0];
+        // Capture into a const so TS retains non-null narrowing inside
+        // closures (e.g. `keywords.some(...)` below).
+        const matched = match;
+        const characterName =
+          matched[1] || matched[2] || matched[3] || matched[0];
 
         if (
           characterName &&
@@ -9917,10 +9949,10 @@ class ImageGenerationService {
         ) {
           // Determine character type
           let characterType: 'human' | 'animal' | 'fantasy' = 'animal'; // Default for children's stories
-          if (/\b(boy|girl|man|woman|child|person|human)\b/i.test(match[0])) {
+          if (/\b(boy|girl|man|woman|child|person|human)\b/i.test(matched[0])) {
             characterType = 'human';
           } else if (
-            /\b(fairy|elf|wizard|dragon|unicorn|phoenix)\b/i.test(match[0])
+            /\b(fairy|elf|wizard|dragon|unicorn|phoenix)\b/i.test(matched[0])
           ) {
             characterType = 'fantasy';
           }
@@ -9930,7 +9962,9 @@ class ImageGenerationService {
             'other';
           for (const [roleType, keywords] of Object.entries(roleKeywords)) {
             if (
-              keywords.some(keyword => match[0].toLowerCase().includes(keyword))
+              keywords.some(keyword =>
+                matched[0].toLowerCase().includes(keyword),
+              )
             ) {
               role = roleType as 'friend' | 'helper' | 'companion' | 'guide';
               break;
@@ -9961,7 +9995,7 @@ class ImageGenerationService {
             name: characterName,
             type: characterType,
             role,
-            description: match[0],
+            description: matched[0],
             importance,
             relationshipToProtagonist:
               relationshipContext || `Appears as ${role} in the story`,
@@ -11055,9 +11089,9 @@ class ImageGenerationService {
       /(happy|joyful|excited|magical|whimsical|peaceful|adventurous)/gi,
     ];
 
-    const moods = [];
+    const moods: string[] = [];
     moodPatterns.forEach(pattern => {
-      let match;
+      let match: RegExpExecArray | null;
       while ((match = pattern.exec(content)) !== null) {
         moods.push(match[1]);
       }
@@ -11335,7 +11369,17 @@ class ImageGenerationService {
    * Narrative Sequence Understanding Engine
    */
   private analyzeNarrativeSequence(content: string, entities: any) {
-    const sequences = [];
+    type NarrativeSequenceItem = {
+      sequenceType: string;
+      actionType: string;
+      sentenceIndex: number;
+      sentence: string;
+      characters: string[];
+      objects: string[];
+      weight: number;
+      confidence: number;
+    };
+    const sequences: NarrativeSequenceItem[] = [];
 
     // Break content into sentences for sequential analysis
     const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 10);
@@ -11425,9 +11469,11 @@ class ImageGenerationService {
     sequences.sort((a, b) => a.sentenceIndex - b.sentenceIndex);
 
     // Identify the primary sequence (highest weight)
+    // Note: when sequences is empty, the initial value is `{}` (typed via cast),
+    // matching the legacy behavior where downstream consumers tolerate missing fields.
     const primarySequence = sequences.reduce(
       (prev, curr) => (curr.weight > prev.weight ? curr : prev),
-      sequences[0] || {},
+      sequences[0] || ({} as NarrativeSequenceItem),
     );
 
     return {
@@ -11442,7 +11488,39 @@ class ImageGenerationService {
    * Multiple Character Coordination System
    */
   private coordinateMultipleCharacters(entities: any, narrativeAnalysis: any) {
-    const coordination = {
+    type CharacterEntity = {
+      name?: string;
+      type?: string;
+      description?: string;
+      confidence: number;
+      mentions: number;
+    };
+    type CharacterInteraction = {
+      participants: string[];
+      context: string;
+      confidence: number;
+    };
+    type SceneComposition = {
+      sceneType: string;
+      actionType: string;
+      focusCharacters: string[];
+      keyObjects: string[];
+      mood: string;
+    };
+    type PromptStructure = {
+      characterDescription: string;
+      sceneAction: string;
+      objectElements: string;
+      settingContext: string;
+      moodDescription: string;
+    };
+    const coordination: {
+      primaryCharacter: CharacterEntity | null;
+      secondaryCharacters: CharacterEntity[];
+      characterInteractions: CharacterInteraction[];
+      sceneComposition: SceneComposition | null;
+      promptStructure: PromptStructure | null;
+    } = {
       primaryCharacter: null,
       secondaryCharacters: [],
       characterInteractions: [],
@@ -11698,7 +11776,15 @@ class ImageGenerationService {
   /**
    * Build Human Character Description
    */
-  private buildHumanCharacterDescription(name: string, details: any): string {
+  private buildHumanCharacterDescription(
+    name: string,
+    details: {
+      physicalFeatures: string[];
+      clothing: string[];
+      personality: string[];
+      actions: string[];
+    },
+  ): string {
     let description = `a young ${
       name.includes('boy') || name.includes('Boy') ? 'boy' : 'girl'
     }`;

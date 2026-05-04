@@ -6,7 +6,8 @@
  */
 
 import { structuredLogger } from '../utils/logger';
-// import { StoryRequest, StoryResponse, GradeLevel } from '../types/story';
+import type { StoryRequest, StoryResponse } from '../types/story';
+import type { GradeLevel } from '../types/database';
 import { SkillManager } from '../types/claudeSkills';
 import { CulturalSensitivityValidator } from '../utils/culturalSensitivity';
 
@@ -219,8 +220,8 @@ const EDUCATIONAL_STANDARDS: Record<GradeLevel, EducationalStandards> = {
       'religious_intolerance',
     ],
   },
-  Grade3: {
-    gradeLevel: 'Grade3',
+  '9-12': {
+    gradeLevel: '9-12',
     commonCoreAligned: true,
     cognitiveLevel: 'concrete',
     vocabularyComplexity: 45,
@@ -464,7 +465,7 @@ export class EducationalOptimizerService {
     } catch (error) {
       structuredLogger.warn(
         'Educational standards assessment failed, using fallback',
-        error as Error,
+        { error: error instanceof Error ? error.message : String(error) },
       );
 
       // Fallback assessment based on content analysis
@@ -537,7 +538,7 @@ export class EducationalOptimizerService {
     } catch (error) {
       structuredLogger.warn(
         'Learning style adaptation failed, using fallback',
-        error as Error,
+        { error: error instanceof Error ? error.message : String(error) },
       );
 
       // Fallback adaptation based on simple text enhancement
@@ -690,7 +691,11 @@ export class EducationalOptimizerService {
     );
 
     // Assess learning style adaptations if provided
-    let learningStyleAdaptations = {
+    let learningStyleAdaptations: {
+      adaptationsApplied: string[];
+      estimatedEngagementImprovement: number;
+      learningObjectiveAlignment: number;
+    } = {
       adaptationsApplied: [],
       estimatedEngagementImprovement: 0,
       learningObjectiveAlignment: standardsAssessment.commonCoreAlignment,

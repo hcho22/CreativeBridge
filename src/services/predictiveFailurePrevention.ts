@@ -6,13 +6,28 @@
  */
 
 import { structuredLogger } from '../utils/logger';
-// import { StoryRequest, StoryResponse, GradeLevel } from '../types/story';
+import type { StoryRequest } from '../types/story';
+import type { GradeLevel } from '../types/database';
 import {
   SkillManager,
   SkillError,
   SkillErrorCode,
 } from '../types/claudeSkills';
 import { FailurePrediction, StoryContext } from './contextualFallback';
+
+/**
+ * Type guard for SkillError. SkillError is an interface (not a class), so
+ * `instanceof` cannot be used; check for its discriminating shape instead.
+ */
+function isSkillError(error: unknown): error is SkillError {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    'retryable' in error &&
+    typeof (error as { code: unknown }).code === 'string'
+  );
+}
 
 interface FailurePattern {
   id: string;
@@ -90,8 +105,8 @@ interface FailurePredictionModel {
 export class PredictiveFailurePreventionService {
   private skillManager: SkillManager;
   private failurePatterns: Map<string, FailurePattern> = new Map();
-  private systemHealth: SystemHealth;
-  private predictionModel: FailurePredictionModel;
+  private systemHealth!: SystemHealth;
+  private predictionModel!: FailurePredictionModel;
   private activePreventions: Map<string, PreventiveAction[]> = new Map();
   private healthCheckInterval: NodeJS.Timeout | null = null;
   private preventionMetrics: {
@@ -351,8 +366,7 @@ export class PredictiveFailurePreventionService {
   ): Promise<void> {
     try {
       structuredLogger.info('Learning from failure', {
-        errorType:
-          actualError instanceof SkillError ? actualError.code : 'unknown',
+        errorType: isSkillError(actualError) ? actualError.code : 'unknown',
         hadPrediction: !!prediction,
         preventiveMeasuresUsed: preventiveMeasures?.length || 0,
       });
@@ -737,8 +751,9 @@ export class PredictiveFailurePreventionService {
     error: SkillError | Error,
     request: StoryRequest,
   ): Promise<void> {
-    const errorType =
-      error instanceof SkillError ? error.code : ('unknown' as any);
+    const errorType: SkillErrorCode | 'unknown' = isSkillError(error)
+      ? error.code
+      : 'unknown';
     const key = `${errorType}_${request.gradeLevel}_${
       request.storySoFar?.length || 0
     }`;

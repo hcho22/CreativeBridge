@@ -1,7 +1,13 @@
 // Database type definitions for CreativeBridge
 // Matches the Supabase database schema from setup_user_profiles_table.sql
 
-import { StoryDownloadHistoryRecord } from './storyDownload';
+import {
+  StoryDownloadHistoryRecord,
+  DownloadAnalytics,
+  DownloadStatus,
+  DownloadErrorType,
+  UserDownloadHistoryRow,
+} from './storyDownload';
 
 // Grade level options
 export type GradeLevel = 'K-2' | '3-5' | '6-8' | '9-12';
@@ -130,7 +136,17 @@ export interface GameSession {
   supabase_image_url?: string; // Permanent backup in Supabase Storage
   image_upload_status?: ImageUploadStatus; // Upload status tracking
   image_upload_attempts?: number; // Number of upload attempts (max 3)
-  image_upload_error?: string; // Last error message for debugging
+  image_upload_error?: string | null; // Last error message for debugging
+}
+
+// User Session interface - matches user_sessions table (diversity tracking)
+export interface UserSession {
+  id: string;
+  session_token: string;
+  user_id: string | null;
+  created_at: string;
+  expires_at: string;
+  metadata: Record<string, unknown>;
 }
 
 // Leaderboard interfaces - match database views
@@ -152,6 +168,55 @@ export interface LeaderboardStreakEntry {
   rank: number;
 }
 
+// user_feedback table (Supabase) — type aliases used by feedbackCollectionService
+// for narrowing reads/updates. The Supabase Database typing in this project
+// resolves to `never` (see AuthContext.tsx note), so these are not registered
+// in the Database interface; they are used directly via casts in the service.
+export type UserFeedbackType =
+  | 'bug_report'
+  | 'feature_request'
+  | 'rating'
+  | 'general'
+  | 'image_quality';
+
+export type UserFeedbackCategory =
+  | 'image_generation'
+  | 'ui_ux'
+  | 'performance'
+  | 'xp_system'
+  | 'general';
+
+export type UserFeedbackSeverity = 'low' | 'medium' | 'high' | 'critical';
+
+export type UserFeedbackStatus =
+  | 'new'
+  | 'acknowledged'
+  | 'in_progress'
+  | 'resolved'
+  | 'closed';
+
+export type UserFeedbackRow = {
+  id: string;
+  user_id: string;
+  session_id?: string | null;
+  feedback_type: UserFeedbackType;
+  category: UserFeedbackCategory;
+  severity?: UserFeedbackSeverity | null;
+  rating?: number | null;
+  title: string;
+  description: string;
+  steps_to_reproduce?: string | null;
+  expected_behavior?: string | null;
+  actual_behavior?: string | null;
+  image_generation_event_id?: string | null;
+  device_info?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown> | null;
+  status: UserFeedbackStatus;
+  admin_notes?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+};
+
 // Supabase Database interface
 export interface Database {
   public: {
@@ -164,6 +229,7 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Omit<UserProfile, 'id' | 'created_at' | 'updated_at'>>;
+        Relationships: [];
       };
       game_sessions: {
         Row: GameSession;
@@ -177,6 +243,7 @@ export interface Database {
           story_metadata?: Record<string, any>;
         };
         Update: Partial<Omit<GameSession, 'id' | 'created_at' | 'user_id'>>;
+        Relationships: [];
       };
       image_generation_events: {
         Row: ImageGenerationEvent;
@@ -191,6 +258,17 @@ export interface Database {
         Update: Partial<
           Omit<ImageGenerationEvent, 'id' | 'created_at' | 'user_id'>
         >;
+        Relationships: [];
+      };
+      user_sessions: {
+        Row: UserSession;
+        Insert: Omit<UserSession, 'id' | 'created_at' | 'metadata'> & {
+          id?: string;
+          created_at?: string;
+          metadata?: Record<string, unknown>;
+        };
+        Update: Partial<Omit<UserSession, 'id' | 'created_at'>>;
+        Relationships: [];
       };
       story_download_history: {
         Row: StoryDownloadHistoryRecord;
@@ -213,14 +291,17 @@ export interface Database {
         Update: Partial<
           Omit<StoryDownloadHistoryRecord, 'id' | 'created_at' | 'user_id'>
         >;
+        Relationships: [];
       };
     };
     Views: {
       leaderboard_xp: {
         Row: LeaderboardXpEntry;
+        Relationships: [];
       };
       leaderboard_streaks: {
         Row: LeaderboardStreakEntry;
+        Relationships: [];
       };
     };
     Functions: {
@@ -352,6 +433,66 @@ export interface Database {
           p_user_id: string;
         };
         Returns: OnboardingStatus[];
+      };
+      // Story download history functions
+      create_story_download_record: {
+        Args: {
+          p_user_id: string;
+          p_story_session_id: string | null;
+          p_file_name: string;
+          p_file_path: string;
+          p_story_title: string | null;
+          p_story_word_count: number | null;
+          p_story_character_count: number | null;
+          p_story_grade_level: string | null;
+          p_story_source: string;
+          p_download_method: string;
+          p_app_version: string | null;
+          p_metadata: Record<string, any>;
+        };
+        Returns: string;
+      };
+      update_story_download_record: {
+        Args: {
+          p_record_id: string;
+          p_status?: DownloadStatus;
+          p_file_size_bytes?: number | null;
+          p_error_type?: DownloadErrorType | null;
+          p_error_message?: string | null;
+          p_retry_count?: number | null;
+        };
+        Returns: boolean;
+      };
+      validate_download_file_existence: {
+        Args: {
+          p_record_id: string;
+          p_file_exists: boolean;
+        };
+        Returns: boolean;
+      };
+      get_user_download_history: {
+        Args: {
+          p_user_id: string;
+          p_limit?: number;
+          p_offset?: number;
+          p_include_failed?: boolean;
+        };
+        Returns: UserDownloadHistoryRow[];
+      };
+      get_download_analytics: {
+        Args: {
+          p_user_id?: string | null;
+          p_start_date?: string | null;
+          p_end_date?: string | null;
+        };
+        Returns: DownloadAnalytics[];
+      };
+      cleanup_orphaned_download_records: {
+        Args: {
+          p_user_id: string;
+          p_days_old?: number;
+        };
+        Returns: number;
       };
     };
   };
@@ -545,6 +686,11 @@ export interface ImageGenerationEvent {
   error_type?: ErrorType;
   service_used: ServiceUsed;
   api_response_time?: number;
+  // Cost tracking columns (used by costTrackingService). Optional because
+  // legacy rows may not have them populated.
+  api_response_time_ms?: number;
+  api_cost?: number;
+  cost_recorded_at?: string;
   image_url?: string;
   story_grade_level?: string;
   story_word_count?: number;

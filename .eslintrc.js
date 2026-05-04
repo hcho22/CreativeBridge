@@ -26,4 +26,20 @@ module.exports = {
       },
     ],
   },
+  overrides: [
+    {
+      files: [
+        '**/*.test.{js,jsx,ts,tsx}',
+        '**/__tests__/**',
+        '**/*.setup.{js,ts}',
+        'jest.*.{js,ts}',
+        'jest.config.{js,ts}',
+      ],
+      env: { jest: true, node: true },
+    },
+    {
+      files: ['scripts/**'],
+      env: { node: true },
+    },
+  ],
 };

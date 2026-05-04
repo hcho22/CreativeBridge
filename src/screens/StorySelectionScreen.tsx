@@ -5,7 +5,7 @@ import React from 'react';
 import { View, Text, StyleSheet, StatusBar, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useHeaderHeight } from '@react-navigation/elements';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import { useAuth } from '../context/AuthContext';
 import { StorySelectionModal } from '../components/story/StorySelectionModal';
 import type { GameSession } from '../types/database';
@@ -13,7 +13,7 @@ import type { HomeStackParamList } from '../navigation/AppNavigator';
 import { PaperBackground } from '../components/common/storybook';
 import { theme } from '../constants/theme';
 
-type StorySelectionNavigationProp = NativeStackNavigationProp<
+type StorySelectionNavigationProp = StackNavigationProp<
   HomeStackParamList,
   'StorySelection'
 >;
@@ -40,7 +40,10 @@ export const StorySelectionScreen: React.FC<StorySelectionScreenProps> = ({
 
     try {
       console.log('🚀 Attempting navigation to StoryPreviewEdit...');
-      activeNavigation.navigate('StoryPreviewEdit', { story });
+      activeNavigation.navigate('StoryPreviewEdit', {
+        story:
+          story as unknown as HomeStackParamList['StoryPreviewEdit']['story'],
+      });
       console.log('✅ Navigation command executed');
     } catch (error) {
       console.error('❌ Navigation error:', error);

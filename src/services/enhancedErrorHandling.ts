@@ -126,14 +126,16 @@ export class EnhancedErrorHandlingService {
         );
 
         // Log error with retry information
+        const normalizedError =
+          error instanceof Error ? error : new Error(String(error));
         await this.logError({
-          type: this.categorizeError(error),
-          message: error.message,
+          type: this.categorizeError(normalizedError),
+          message: error instanceof Error ? error.message : String(error),
           context: {
             operation: operationName,
             attempt,
             ...context,
-            stackTrace: error.stack,
+            stackTrace: error instanceof Error ? error.stack : undefined,
           },
           canRetry: attempt < maxRetries,
           retryCount: attempt - 1,
@@ -609,13 +611,10 @@ export class EnhancedErrorHandlingService {
     // This would integrate with the existing download service
     const { storyDownloadService } = await import('./storyDownloadService');
 
-    await storyDownloadService.downloadStory({
-      storyContent: download.storyContent,
-      fileName: download.fileName,
-      options: {
-        userId: download.userId,
-      },
-    });
+    await storyDownloadService.saveStoryFile(
+      download.storyContent,
+      download.fileName,
+    );
   }
 
   private async processQueueInBackground(): Promise<void> {
@@ -777,7 +776,8 @@ export class EnhancedErrorHandlingService {
 
       const tempFiles = await RNFS.readDir(tempDir);
       for (const file of tempFiles) {
-        if (file.name.startsWith('story_') || file.name.includes('download')) {
+        const name = file.name ?? '';
+        if (name.startsWith('story_') || name.includes('download')) {
           await RNFS.unlink(file.path);
         }
       }

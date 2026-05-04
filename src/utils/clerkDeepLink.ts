@@ -75,9 +75,10 @@ export function parseClerkCallbackURL(url: string): ParsedClerkCallback | null {
     const params: ClerkCallbackParams = {};
 
     // Parse query string
-    if (parsed.queryParams) {
-      Object.keys(parsed.queryParams).forEach(key => {
-        const value = parsed.queryParams[key];
+    const queryParams = parsed.queryParams;
+    if (queryParams) {
+      Object.keys(queryParams).forEach(key => {
+        const value = queryParams[key];
         if (value) {
           params[key] = Array.isArray(value) ? value[0] : value;
         }

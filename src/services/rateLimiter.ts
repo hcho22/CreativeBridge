@@ -1,5 +1,10 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from './supabase';
-import { auditLogger } from './auditLogger';
+import { auditLogger, EventCategory, Severity } from './auditLogger';
+
+// Boundary cast: project Database type doesn't include the check_rate_limit RPC.
+// Same pattern as feedbackCollectionService.ts.
+const sb = supabase as unknown as SupabaseClient;
 
 export enum ActionType {
   LOGIN_ATTEMPT = 'LOGIN_ATTEMPT',
@@ -67,7 +72,7 @@ class RateLimiter {
     };
 
     try {
-      const { data, error } = await supabase.rpc('check_rate_limit', {
+      const { data, error } = await sb.rpc('check_rate_limit', {
         p_identifier: identifier,
         p_action_type: actionType,
         p_window_minutes: fullConfig.windowMinutes,
@@ -115,8 +120,8 @@ class RateLimiter {
         // For failed attempts, we might want additional logging
         await auditLogger.logEvent({
           eventType: 'RATE_LIMIT_ATTEMPT' as any,
-          eventCategory: 'SECURITY',
-          severity: 'LOW',
+          eventCategory: EventCategory.SECURITY,
+          severity: Severity.LOW,
           description: `Rate limit attempt recorded for ${actionType}`,
           metadata: {
             identifier,
@@ -208,8 +213,8 @@ class RateLimiter {
 
       await auditLogger.logEvent({
         eventType: 'RATE_LIMIT_CLEARED' as any,
-        eventCategory: 'SECURITY',
-        severity: 'MEDIUM',
+        eventCategory: EventCategory.SECURITY,
+        severity: Severity.MEDIUM,
         description: `Rate limit cleared for ${actionType}`,
         metadata: {
           identifier,

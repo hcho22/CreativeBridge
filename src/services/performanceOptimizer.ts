@@ -5,7 +5,7 @@
 // Performance Optimizer Service
 // Mobile performance and battery usage optimization
 
-import { Platform, Dimensions, DeviceInfo } from 'react-native';
+import { Platform, Dimensions } from 'react-native';
 import { InteractionManager } from 'react-native';
 
 export interface PerformanceMetrics {

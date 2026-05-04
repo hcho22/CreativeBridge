@@ -292,16 +292,17 @@ class ApiClient {
 
   private async makeRequest(
     url: string,
-    options: RequestInit = {},
+    options: RequestInit & { timeout?: number } = {},
   ): Promise<Response> {
-    const timeoutId = setTimeout(() => {
-      throw new Error('Request timeout');
-    }, options.timeout || this.config.timeout);
+    const { timeout: requestedTimeout, ...fetchOptions } = options;
+    const timeoutMs = requestedTimeout || this.config.timeout;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const response = await fetch(url, {
-        ...options,
-        signal: AbortSignal.timeout(this.config.timeout),
+        ...fetchOptions,
+        signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
@@ -351,8 +352,8 @@ class ApiClient {
   }
 
   private isRetryableError(error: any): boolean {
-    if (error instanceof ApiError) {
-      return error.retryable;
+    if (error && typeof error === 'object' && 'retryable' in error) {
+      return Boolean((error as ApiError).retryable);
     }
 
     if (error instanceof Error) {
@@ -563,7 +564,11 @@ class ApiClient {
   }
 
   public isOnline(): boolean {
-    return navigator.onLine;
+    // React Native doesn't expose navigator.onLine; default to true and let
+    // request failures surface real connectivity issues. Callers wanting
+    // accurate state should use NetInfo.
+    const nav = (globalThis as { navigator?: { onLine?: boolean } }).navigator;
+    return nav?.onLine ?? true;
   }
 
   public clearRequestQueue(): void {

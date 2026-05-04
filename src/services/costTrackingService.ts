@@ -3,17 +3,84 @@
  * Tracks image generation API costs, usage patterns, and provides optimization insights
  */
 
-import { supabase } from './supabase';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { supabase as supabaseBase } from './supabase';
 import { auditLogger, EventType, EventCategory, Severity } from './auditLogger';
-import { ServiceUsed, GenerationStatus } from '../types/database';
+import {
+  ServiceUsed,
+  GenerationStatus,
+  ImageGenerationEvent,
+} from '../types/database';
+
+/**
+ * The supabase typed query builder requires Row/Insert/Update types that
+ * structurally satisfy `Record<string, unknown>`. The shared
+ * {@link ImageGenerationEvent} is declared as an `interface`, which does NOT
+ * implicitly satisfy that index-signature constraint, causing supabase's
+ * generic Schema parameter to collapse to `never` and every typed query
+ * (`.update`, `.select`, etc.) to be unusable in this service.
+ *
+ * To fix that locally without touching the shared type, we re-express the
+ * row/insert/update shapes here as type aliases (which TS allows assigning to
+ * `Record<string, unknown>`) and narrow this service's supabase client to a
+ * local Database type. Type-only narrowing — no runtime change.
+ */
+type ImageGenerationEventRow = {
+  [K in keyof ImageGenerationEvent]: ImageGenerationEvent[K];
+};
+
+type ImageGenerationEventInsert = Omit<
+  ImageGenerationEventRow,
+  'id' | 'created_at' | 'completed_at'
+> & {
+  id?: string;
+  created_at?: string;
+  completed_at?: string;
+};
+
+type ImageGenerationEventUpdate = Partial<
+  Omit<ImageGenerationEventRow, 'id' | 'created_at' | 'user_id'>
+>;
+
+interface CostTrackingDatabase {
+  public: {
+    Tables: {
+      image_generation_events: {
+        Row: ImageGenerationEventRow;
+        Insert: ImageGenerationEventInsert;
+        Update: ImageGenerationEventUpdate;
+        Relationships: [];
+      };
+    };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+  };
+}
+
+const supabase =
+  supabaseBase as unknown as SupabaseClient<CostTrackingDatabase>;
+
+/**
+ * Cost-tracking-specific service identifiers. The runtime in this service
+ * predates the canonical {@link ServiceUsed} union in `types/database.ts`
+ * (which uses model-id strings such as `'replicate'` / `'backup_service'`),
+ * so we keep a local alias for the buckets this service aggregates into.
+ */
+export type CostServiceKey = 'replicate_primary' | 'replicate_backup';
+
+/**
+ * Cost-tracking-specific status buckets. Mirrors {@link GenerationStatus}
+ * but adds `'in_progress'` which this service tracks for in-flight requests.
+ */
+export type CostGenerationStatus = GenerationStatus | 'in_progress';
 
 export interface CostMetrics {
   totalCost: number;
   totalRequests: number;
   averageCostPerRequest: number;
-  costByService: Record<ServiceUsed, number>;
-  costByStatus: Record<GenerationStatus, number>;
-  requestsByService: Record<ServiceUsed, number>;
+  costByService: Record<CostServiceKey, number>;
+  costByStatus: Record<CostGenerationStatus, number>;
+  requestsByService: Record<CostServiceKey, number>;
   dailyCosts: Array<{
     date: string;
     cost: number;
@@ -29,7 +96,7 @@ export interface OptimizationInsights {
   recommendations: string[];
   potentialSavings: number;
   servicePerformanceComparison: Array<{
-    service: ServiceUsed;
+    service: CostServiceKey;
     avgCost: number;
     successRate: number;
     avgResponseTime: number;
@@ -73,7 +140,7 @@ class CostTrackingService {
   private static instance: CostTrackingService;
 
   // Service-specific cost rates (per request)
-  private readonly SERVICE_COSTS: Record<ServiceUsed, number> = {
+  private readonly SERVICE_COSTS: Record<CostServiceKey, number> = {
     replicate_primary: 0.023, // Example cost per generation
     replicate_backup: 0.02, // Backup service might be slightly cheaper
   };
@@ -318,7 +385,7 @@ class CostTrackingService {
         Date.now() - days * 24 * 60 * 60 * 1000,
       ).toISOString();
 
-      const { data: events, error } = await supabase
+      const { data, error } = await supabase
         .from('image_generation_events')
         .select('*')
         .gte('created_at', startDate)
@@ -329,9 +396,14 @@ class CostTrackingService {
         return [];
       }
 
+      // The chained `.not()` filter on a `select('*')` collapses the row type
+      // to `{}` in supabase-js's generic inference; re-widen back to the row
+      // shape we declared on this service's narrowed Database.
+      const events = (data ?? []) as ImageGenerationEventRow[];
+
       const serviceGroups = new Map<ServiceUsed, any[]>();
 
-      (events || []).forEach(event => {
+      events.forEach(event => {
         const service = event.service_used as ServiceUsed;
         if (!serviceGroups.has(service)) {
           serviceGroups.set(service, []);
@@ -447,7 +519,11 @@ class CostTrackingService {
     status: GenerationStatus,
     metadata?: Record<string, any>,
   ): number {
-    let baseCost = this.SERVICE_COSTS[service] || 0.025; // Default cost
+    // SERVICE_COSTS is keyed by the cost-service buckets, not the canonical
+    // ServiceUsed strings. Look up via a string-keyed view so unknown services
+    // safely fall back to the default cost (preserving prior behavior).
+    const costsByName: Record<string, number> = this.SERVICE_COSTS;
+    let baseCost = costsByName[service] || 0.025; // Default cost
 
     // Failed requests might have reduced cost (depending on provider billing)
     if (status === 'failed' || status === 'timeout') {
@@ -469,17 +545,17 @@ class CostTrackingService {
       totalRequests > 0 ? totalCost / totalRequests : 0;
 
     // Group by service
-    const costByService: Record<ServiceUsed, number> = {
+    const costByService: Record<CostServiceKey, number> = {
       replicate_primary: 0,
       replicate_backup: 0,
     };
-    const requestsByService: Record<ServiceUsed, number> = {
+    const requestsByService: Record<CostServiceKey, number> = {
       replicate_primary: 0,
       replicate_backup: 0,
     };
 
     // Group by status
-    const costByStatus: Record<GenerationStatus, number> = {
+    const costByStatus: Record<CostGenerationStatus, number> = {
       pending: 0,
       in_progress: 0,
       success: 0,
@@ -489,8 +565,8 @@ class CostTrackingService {
     };
 
     events.forEach(event => {
-      const service = event.service_used as ServiceUsed;
-      const status = event.generation_status as GenerationStatus;
+      const service = event.service_used as CostServiceKey;
+      const status = event.generation_status as CostGenerationStatus;
       const cost = event.api_cost || 0;
 
       if (service && costByService.hasOwnProperty(service)) {
@@ -633,17 +709,17 @@ class CostTrackingService {
   }
 
   private analyzeServicePerformance(events: any[]): Array<{
-    service: ServiceUsed;
+    service: CostServiceKey;
     avgCost: number;
     successRate: number;
     avgResponseTime: number;
     costEfficiencyRating: number;
   }> {
-    const serviceGroups = new Map<ServiceUsed, any[]>();
+    const serviceGroups = new Map<CostServiceKey, any[]>();
 
     events.forEach(event => {
       if (event.service_used) {
-        const service = event.service_used as ServiceUsed;
+        const service = event.service_used as CostServiceKey;
         if (!serviceGroups.has(service)) {
           serviceGroups.set(service, []);
         }

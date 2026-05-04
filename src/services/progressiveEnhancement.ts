@@ -11,7 +11,27 @@ import {
   SkillError,
   SkillErrorCode,
 } from '../types/claudeSkills';
-// import { StoryRequest, StoryResponse, GradeLevel } from '../types/story';
+import type { StoryRequest, StoryResponse } from '../types/story';
+import type { GradeLevel } from '../types/database';
+
+/**
+ * Structural type guard for SkillError.
+ *
+ * SkillError is declared as an interface (plain object shape), not a class,
+ * so `instanceof SkillError` is not valid at runtime. Mirrors the guard in
+ * `serviceHealth.ts`.
+ */
+function isSkillError(error: unknown): error is SkillError {
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+  const candidate = error as Partial<SkillError>;
+  return (
+    typeof candidate.code === 'string' &&
+    typeof candidate.message === 'string' &&
+    typeof candidate.retryable === 'boolean'
+  );
+}
 
 export interface RetryStrategy {
   maxAttempts: number;
@@ -118,7 +138,7 @@ export class ProgressiveEnhancementService {
   private retryStrategies: Map<string, RetryStrategy> = new Map();
   private fallbackChains: Map<string, FallbackChain> = new Map();
   private circuitBreakers: Map<string, CircuitBreakerState> = new Map();
-  private networkMonitor: NetworkConditions;
+  private networkMonitor!: NetworkConditions;
   private degradationMetrics: {
     totalRequests: number;
     successfulRequests: number;
@@ -143,8 +163,8 @@ export class ProgressiveEnhancementService {
   /**
    * Execute request with progressive enhancement and retry logic
    */
-  public async executeWithEnhancement<T>(
-    operation: () => Promise<T>,
+  public async executeWithEnhancement(
+    operation: () => Promise<StoryResponse>,
     operationId: string,
     request: StoryRequest,
     options: {
@@ -153,7 +173,7 @@ export class ProgressiveEnhancementService {
       preserveUserExperience?: boolean;
     } = {},
   ): Promise<{
-    result?: T;
+    result?: StoryResponse;
     fallbackUsed: boolean;
     retryAttempts: number;
     degradationLevel: number;
@@ -334,7 +354,7 @@ export class ProgressiveEnhancementService {
             attempt > 1
               ? this.calculateRetryDelay(attempt - 1, retryStrategy, attempts)
               : 0,
-          error: lastError instanceof SkillError ? lastError : undefined,
+          error: isSkillError(lastError) ? lastError : undefined,
           success: false,
           responseTime,
           networkConditions: { ...this.networkMonitor },
@@ -451,7 +471,7 @@ export class ProgressiveEnhancementService {
     }
 
     // Check skill-specific error codes
-    if (error instanceof SkillError) {
+    if (isSkillError(error)) {
       return strategy.retryableErrors.includes(error.code);
     }
 
@@ -656,7 +676,7 @@ export class ProgressiveEnhancementService {
    * Generate emergency content as last resort
    */
   private generateEmergencyContent(request: StoryRequest): StoryResponse {
-    const templates = {
+    const templates: Partial<Record<GradeLevel, string[]>> = {
       'K-2': [
         "Let's continue this adventure! What would you like to happen next?",
         'The story continues in an exciting way. What happens next?',
@@ -674,18 +694,14 @@ export class ProgressiveEnhancementService {
       ],
     };
 
-    const gradeTemplates = templates[request.gradeLevel] || templates['3-5'];
+    const gradeTemplates = templates[request.gradeLevel] || templates['3-5']!;
     const selectedTemplate =
       gradeTemplates[Math.floor(Math.random() * gradeTemplates.length)];
 
     return {
-      content: selectedTemplate,
-      metadata: {
-        gradeLevel: request.gradeLevel,
-        generationType: 'emergency_fallback',
-        timestamp: new Date(),
-        fallbackUsed: true,
-      },
+      story: selectedTemplate,
+      success: true,
+      gradeLevel: request.gradeLevel,
     };
   }
 
@@ -1086,13 +1102,9 @@ export class ProgressiveEnhancementService {
     await new Promise(resolve => setTimeout(resolve, 1200));
 
     return {
-      content: 'The adventure continues with an exciting turn of events...',
-      metadata: {
-        generationType: 'enhanced_fallback',
-        timestamp: new Date(),
-        fallbackUsed: true,
-        gradeLevel: 'K-2', // This would be determined from request
-      },
+      story: 'The adventure continues with an exciting turn of events...',
+      success: true,
+      gradeLevel: 'K-2', // This would be determined from request
     };
   }
 
@@ -1101,26 +1113,18 @@ export class ProgressiveEnhancementService {
     await new Promise(resolve => setTimeout(resolve, 600));
 
     return {
-      content: "What happens next in this story? Let's find out together!",
-      metadata: {
-        generationType: 'standard_fallback',
-        timestamp: new Date(),
-        fallbackUsed: true,
-        gradeLevel: 'K-2',
-      },
+      story: "What happens next in this story? Let's find out together!",
+      success: true,
+      gradeLevel: 'K-2',
     };
   }
 
   private async generateBasicContent(): Promise<StoryResponse> {
     // Immediate basic response
     return {
-      content: "Let's continue this story! What would you like to happen next?",
-      metadata: {
-        generationType: 'basic_fallback',
-        timestamp: new Date(),
-        fallbackUsed: true,
-        gradeLevel: 'K-2',
-      },
+      story: "Let's continue this story! What would you like to happen next?",
+      success: true,
+      gradeLevel: 'K-2',
     };
   }
 

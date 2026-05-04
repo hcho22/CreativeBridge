@@ -552,7 +552,7 @@ class ErrorHandler {
         try {
           // Create a mock recovery result for the masking service
           const mockRecoveryResult = {
-            story: enhancementResult.result?.content || '',
+            story: enhancementResult.result?.story || '',
             preservedContext: enhancementResult.degradationLevel < 50,
             contextPreservationScore: Math.max(
               0,

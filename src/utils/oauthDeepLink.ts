@@ -35,9 +35,10 @@ export function parseOAuthCallbackURL(url: string): ParsedOAuthURL | null {
 
     // Extract query parameters
     const params: OAuthCallbackParams = {};
-    if (parsed.queryParams) {
-      Object.keys(parsed.queryParams).forEach(key => {
-        const value = parsed.queryParams[key];
+    const queryParams = parsed.queryParams;
+    if (queryParams) {
+      Object.keys(queryParams).forEach(key => {
+        const value = queryParams[key];
         if (typeof value === 'string') {
           params[key as keyof OAuthCallbackParams] = value;
         }

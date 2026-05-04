@@ -6,7 +6,11 @@
  */
 
 import { structuredLogger } from '../utils/logger';
-import { behaviorAnalytics, BehaviorPattern } from './behaviorAnalytics';
+import {
+  behaviorAnalytics,
+  BehaviorPattern,
+  InteractionContext,
+} from './behaviorAnalytics';
 import { engagementOptimizer } from './engagementOptimizer';
 import { GradeLevel } from '../types/database';
 
@@ -285,7 +289,7 @@ class NavigationOptimizerService {
       navigationMethod,
       duration,
       context: {
-        gradeLevel: context.gradeLevel || 'Grade3',
+        gradeLevel: context.gradeLevel || '3-5',
         userExperience: context.userExperience || 0.5,
         sessionPosition: context.sessionPosition || this.getSessionPosition(),
         previousScreens: context.previousScreens || this.getPreviousScreens(),
@@ -295,7 +299,8 @@ class NavigationOptimizerService {
 
     this.events.push(event);
     this.updateUserJourney(event);
-    this.analyzeNavigationPattern(event);
+    // Pattern analysis is performed lazily via getNavigationPatterns(); the
+    // previous per-event analyzeNavigationPattern() call was never implemented.
 
     // Update current state
     if (type === 'screen_enter') {
@@ -309,10 +314,9 @@ class NavigationOptimizerService {
         component: 'navigation',
         action: `${type}_${navigationMethod}`,
         context: {
-          fromScreen,
-          toScreen,
-          duration,
-        },
+          screenName: toScreen,
+        } as InteractionContext,
+        duration,
       });
     }
 

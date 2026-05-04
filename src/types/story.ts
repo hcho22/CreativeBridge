@@ -3,6 +3,10 @@
 
 import { GradeLevel } from './database';
 
+// Re-export GradeLevel so consumers can pull it from this module alongside the
+// story request/response types they already import from here.
+export type { GradeLevel };
+
 export interface StoryResponse {
   story: string;
   success: boolean;

@@ -108,7 +108,7 @@ class DynamicResourceManager {
   private memoryConfig: AdaptiveMemoryConfig;
   private batteryConfig: BatteryOptimizationConfig;
   private isInitialized = false;
-  private conditionCheckInterval: NodeJS.Timer | null = null;
+  private conditionCheckInterval: ReturnType<typeof setInterval> | null = null;
   private lastClaudeOptimization = 0;
   private optimizationCooldown = 30000; // 30 seconds
 
@@ -195,9 +195,15 @@ class DynamicResourceManager {
       ] = await Promise.allSettled([
         this.getMemoryInfo(),
         DeviceInfo.getBatteryLevel(),
-        DeviceInfo.getBatteryState(),
+        // Battery state is part of the power state object in current
+        // react-native-device-info; extract it from getPowerState().
+        DeviceInfo.getPowerState().then(s => s.batteryState ?? 'unknown'),
         DeviceInfo.getPowerState(),
-        DeviceInfo.getAvailableMemory(),
+        // getAvailableMemory was removed; compute as total - used.
+        Promise.all([
+          DeviceInfo.getTotalMemory(),
+          DeviceInfo.getUsedMemory(),
+        ]).then(([t, u]) => Math.max(0, t - u)),
         DeviceInfo.getTotalMemory(),
         DeviceInfo.getUsedMemory(),
         DeviceInfo.getFreeDiskStorage(),
@@ -736,9 +742,10 @@ class DynamicResourceManager {
     const totalMemory = await DeviceInfo.getTotalMemory().catch(
       () => 4 * 1024 * 1024 * 1024,
     );
-    const availableMemory = await DeviceInfo.getAvailableMemory().catch(
+    const usedMemory = await DeviceInfo.getUsedMemory().catch(
       () => 2 * 1024 * 1024 * 1024,
     );
+    const availableMemory = Math.max(0, totalMemory - usedMemory);
     const batteryLevel = await DeviceInfo.getBatteryLevel().catch(() => 1.0);
 
     return {
@@ -759,10 +766,14 @@ class DynamicResourceManager {
   }
 
   private async getMemoryInfo() {
+    const [used, total] = await Promise.all([
+      DeviceInfo.getUsedMemory(),
+      DeviceInfo.getTotalMemory(),
+    ]);
     return {
-      used: await DeviceInfo.getUsedMemory(),
-      total: await DeviceInfo.getTotalMemory(),
-      available: await DeviceInfo.getAvailableMemory(),
+      used,
+      total,
+      available: Math.max(0, total - used),
     };
   }
 

@@ -9,7 +9,13 @@
  * Part of: US-015 - Create API endpoint for recent elements debugging
  */
 
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from './supabase';
+
+// Boundary cast: project Database type doesn't include diversity-debug RPC
+// functions and tables, so chains resolve to never. Same pattern as
+// feedbackCollectionService.ts.
+const sb = supabase as unknown as SupabaseClient;
 
 /**
  * Element information returned by debugging endpoint
@@ -129,7 +135,7 @@ class DiversityDebugService {
       }
 
       // Call Supabase RPC function
-      const { data, error } = await supabase.rpc(
+      const { data, error } = await sb.rpc(
         'get_recent_elements_for_debugging',
         {
           p_session_id: sessionId,
@@ -180,7 +186,7 @@ class DiversityDebugService {
       }
 
       // Call Supabase RPC function
-      const { data, error } = await supabase.rpc('get_diversity_score_debug', {
+      const { data, error } = await sb.rpc('get_diversity_score_debug', {
         p_story_id: storyId,
       });
 
@@ -229,7 +235,7 @@ class DiversityDebugService {
       }
 
       // Query session to check ownership
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from('user_sessions')
         .select('user_id, expires_at')
         .eq('id', sessionId)

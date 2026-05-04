@@ -164,14 +164,17 @@ export class DownloadPerformanceMonitor {
         relevantMetrics.length;
       const memoryEfficiency = Math.max(
         0,
-        1 - averageMemoryDelta / this.HIGH_MEMORY_THRESHOLD,
+        1 -
+          averageMemoryDelta / DownloadPerformanceMonitor.HIGH_MEMORY_THRESHOLD,
       );
 
       const slowOperations = relevantMetrics.filter(
-        m => m.duration > this.SLOW_OPERATION_THRESHOLD,
+        m => m.duration > DownloadPerformanceMonitor.SLOW_OPERATION_THRESHOLD,
       );
       const memoryHogOperations = relevantMetrics.filter(
-        m => Math.abs(m.memoryDelta) > this.HIGH_MEMORY_THRESHOLD,
+        m =>
+          Math.abs(m.memoryDelta) >
+          DownloadPerformanceMonitor.HIGH_MEMORY_THRESHOLD,
       );
 
       const recommendations = this.generateRecommendations({
@@ -242,14 +245,14 @@ export class DownloadPerformanceMonitor {
   async cleanupOldMetrics(): Promise<void> {
     try {
       const metrics = await this.getStoredMetrics();
-      if (metrics.length > this.MAX_STORED_METRICS) {
+      if (metrics.length > DownloadPerformanceMonitor.MAX_STORED_METRICS) {
         // Keep only the most recent metrics
         const recentMetrics = metrics
           .sort((a, b) => b.startTime - a.startTime)
-          .slice(0, this.MAX_STORED_METRICS);
+          .slice(0, DownloadPerformanceMonitor.MAX_STORED_METRICS);
 
         await AsyncStorage.setItem(
-          this.METRICS_STORAGE_KEY,
+          DownloadPerformanceMonitor.METRICS_STORAGE_KEY,
           JSON.stringify(recentMetrics),
         );
         console.log(
@@ -290,15 +293,18 @@ export class DownloadPerformanceMonitor {
       existingMetrics.push(metrics);
 
       // Limit storage size
-      if (existingMetrics.length > this.MAX_STORED_METRICS) {
+      if (
+        existingMetrics.length > DownloadPerformanceMonitor.MAX_STORED_METRICS
+      ) {
         existingMetrics.splice(
           0,
-          existingMetrics.length - this.MAX_STORED_METRICS,
+          existingMetrics.length -
+            DownloadPerformanceMonitor.MAX_STORED_METRICS,
         );
       }
 
       await AsyncStorage.setItem(
-        this.METRICS_STORAGE_KEY,
+        DownloadPerformanceMonitor.METRICS_STORAGE_KEY,
         JSON.stringify(existingMetrics),
       );
     } catch (error) {
@@ -311,7 +317,9 @@ export class DownloadPerformanceMonitor {
    */
   private async getStoredMetrics(): Promise<PerformanceMetrics[]> {
     try {
-      const data = await AsyncStorage.getItem(this.METRICS_STORAGE_KEY);
+      const data = await AsyncStorage.getItem(
+        DownloadPerformanceMonitor.METRICS_STORAGE_KEY,
+      );
       return data ? JSON.parse(data) : [];
     } catch (error) {
       console.error('❌ Failed to retrieve performance metrics:', error);
@@ -333,18 +341,23 @@ export class DownloadPerformanceMonitor {
     console.log(`   Memory Delta: ${memoryDeltaMB}MB`);
     console.log(`   Success: ${metrics.success ? '✅' : '❌'}`);
 
-    if (metrics.duration > this.SLOW_OPERATION_THRESHOLD) {
+    if (
+      metrics.duration > DownloadPerformanceMonitor.SLOW_OPERATION_THRESHOLD
+    ) {
       console.warn(
         `⚠️ Slow operation detected: ${durationSeconds}s > ${
-          this.SLOW_OPERATION_THRESHOLD / 1000
+          DownloadPerformanceMonitor.SLOW_OPERATION_THRESHOLD / 1000
         }s threshold`,
       );
     }
 
-    if (Math.abs(metrics.memoryDelta) > this.HIGH_MEMORY_THRESHOLD) {
+    if (
+      Math.abs(metrics.memoryDelta) >
+      DownloadPerformanceMonitor.HIGH_MEMORY_THRESHOLD
+    ) {
       console.warn(
         `⚠️ High memory usage detected: ${memoryDeltaMB}MB > ${
-          this.HIGH_MEMORY_THRESHOLD / (1024 * 1024)
+          DownloadPerformanceMonitor.HIGH_MEMORY_THRESHOLD / (1024 * 1024)
         }MB threshold`,
       );
     }
@@ -362,7 +375,10 @@ export class DownloadPerformanceMonitor {
   }): string[] {
     const recommendations: string[] = [];
 
-    if (analytics.averageDownloadTime > this.SLOW_OPERATION_THRESHOLD) {
+    if (
+      analytics.averageDownloadTime >
+      DownloadPerformanceMonitor.SLOW_OPERATION_THRESHOLD
+    ) {
       recommendations.push(
         'Consider implementing background processing for large files',
       );

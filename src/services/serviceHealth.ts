@@ -13,6 +13,25 @@ import {
   SkillType,
 } from '../types/claudeSkills';
 
+/**
+ * Structural type guard for SkillError.
+ *
+ * SkillError is declared as an interface (plain object shape), not a class,
+ * so `instanceof SkillError` is not valid at runtime. Use this guard to
+ * decide whether a thrown value already conforms to the SkillError contract.
+ */
+function isSkillError(error: unknown): error is SkillError {
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+  const candidate = error as Partial<SkillError>;
+  return (
+    typeof candidate.code === 'string' &&
+    typeof candidate.message === 'string' &&
+    typeof candidate.retryable === 'boolean'
+  );
+}
+
 export interface ServiceHealthStatus {
   status: 'healthy' | 'degraded' | 'unavailable' | 'unknown';
   lastChecked: Date;
@@ -30,6 +49,10 @@ export interface ServiceMetrics {
   averageResponseTime: number;
   p95ResponseTime: number;
   uptimePercentage: number;
+  /** Fraction of successful requests (successCount / requestCount), 0-1. */
+  successRate: number;
+  /** Fraction of failed requests (errorCount / requestCount), 0-1. */
+  errorRate: number;
   lastError?: SkillError;
   consecutiveFailures: number;
   lastSuccessTime?: Date;
@@ -204,14 +227,13 @@ export class ServiceHealthMonitor {
       metrics.consecutiveFailures++;
       metrics.lastFailureTime = new Date();
       if (error) {
-        metrics.lastError =
-          error instanceof SkillError
-            ? error
-            : new SkillError({
-                code: SkillErrorCode.SKILL_TIMEOUT,
-                message: error.message,
-                retryable: true,
-              });
+        metrics.lastError = isSkillError(error)
+          ? error
+          : {
+              code: SkillErrorCode.SKILL_TIMEOUT,
+              message: error.message,
+              retryable: true,
+            };
       }
     }
 
@@ -392,7 +414,7 @@ export class ServiceHealthMonitor {
     // Try to get skill status as a health check
     try {
       const status = this.skillManager.getSkillStatus('health_check');
-      if (status === 'error') {
+      if (status === 'failed' || status === 'timeout') {
         throw new Error('Claude Skills API in error state');
       }
     } catch (error) {
@@ -428,8 +450,14 @@ export class ServiceHealthMonitor {
     // Check personalization service health
     // This might check local storage or cache availability
     try {
-      // Simple health check - verify we can access storage
-      if (typeof window !== 'undefined' && !window.localStorage) {
+      // Simple health check - verify we can access storage.
+      // React Native doesn't have a DOM `window`, so reference it via
+      // `globalThis` with a narrow structural type to avoid `any` and to
+      // preserve the original web-fallback semantics.
+      const maybeWindow = (
+        globalThis as { window?: { localStorage?: unknown } }
+      ).window;
+      if (typeof maybeWindow !== 'undefined' && !maybeWindow.localStorage) {
         throw new Error('Local storage not available');
       }
     } catch (error) {
@@ -464,6 +492,8 @@ export class ServiceHealthMonitor {
         averageResponseTime: 0,
         p95ResponseTime: 0,
         uptimePercentage: 100,
+        successRate: 1,
+        errorRate: 0,
         consecutiveFailures: 0,
       });
     }

@@ -15,7 +15,8 @@ import {
   contentPredictionService,
   StoryContextAnalysis,
 } from './contentPrediction';
-// import { StoryRequest, StoryResponse, GradeLevel } from '../types/story';
+import type { StoryRequest, StoryResponse } from '../types/story';
+import type { GradeLevel } from '../types/database';
 import { ContentPrediction } from '../types/claudeSkills';
 import { structuredLogger } from '../utils/logger';
 import DeviceInfo from 'react-native-device-info';

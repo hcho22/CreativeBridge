@@ -190,6 +190,7 @@ class ABTestingService {
           {
             id: 'control',
             name: 'Control',
+            description: 'Baseline behavior with Claude Skills disabled',
             allocation: 50,
             config: {
               claudeSkillsEnabled: false,
@@ -198,6 +199,8 @@ class ABTestingService {
           {
             id: 'treatment',
             name: 'Quality Assessment Enabled',
+            description:
+              'Claude Skills quality assessment enabled for content evaluation',
             allocation: 50,
             config: {
               claudeSkillsEnabled: true,
@@ -776,7 +779,9 @@ class ABTestingService {
 
     // Persist to database
     try {
-      await supabase.from('analytics_events').insert({
+      const sb =
+        supabase as unknown as import('@supabase/supabase-js').SupabaseClient;
+      await sb.from('analytics_events').insert({
         type: 'ab_test',
         subtype: event.eventType,
         userId: event.userId,
@@ -849,7 +854,10 @@ class ABTestingService {
   private async persistAssignments(): Promise<void> {
     try {
       const assignments = Array.from(this.userAssignments.values());
-      await AsyncStorage.setItem(this.STORAGE_KEY, JSON.stringify(assignments));
+      await AsyncStorage.setItem(
+        ABTestingService.STORAGE_KEY,
+        JSON.stringify(assignments),
+      );
     } catch (error) {
       console.error('Failed to persist assignments:', error);
     }
@@ -861,7 +869,9 @@ class ABTestingService {
   private async loadPersistedData(): Promise<void> {
     try {
       // Load assignments
-      const assignmentsJson = await AsyncStorage.getItem(this.STORAGE_KEY);
+      const assignmentsJson = await AsyncStorage.getItem(
+        ABTestingService.STORAGE_KEY,
+      );
       if (assignmentsJson) {
         const assignments: UserAssignment[] = JSON.parse(assignmentsJson);
         assignments.forEach(assignment => {
@@ -873,7 +883,9 @@ class ABTestingService {
       }
 
       // Load experiments
-      const experimentsJson = await AsyncStorage.getItem(this.EXPERIMENTS_KEY);
+      const experimentsJson = await AsyncStorage.getItem(
+        ABTestingService.EXPERIMENTS_KEY,
+      );
       if (experimentsJson) {
         const experiments: ExperimentConfig[] = JSON.parse(experimentsJson);
         experiments.forEach(exp => {
@@ -892,7 +904,7 @@ class ABTestingService {
     try {
       const experiments = Array.from(this.experiments.values());
       await AsyncStorage.setItem(
-        this.EXPERIMENTS_KEY,
+        ABTestingService.EXPERIMENTS_KEY,
         JSON.stringify(experiments),
       );
     } catch (error) {

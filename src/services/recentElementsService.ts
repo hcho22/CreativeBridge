@@ -7,8 +7,16 @@
  * Part of the Story Diversity Tracking System (US-006)
  */
 
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { diversityPerformanceMonitoringService } from './diversityPerformanceMonitoringService';
+
+// The project's Supabase Database generic resolves to `never` for table rows
+// (see AuthContext.tsx note: "Supabase client lacks typed schema in this
+// project"). Until the schema typing is regenerated, cast to an untyped client
+// at the boundary so chained operations type-check correctly. Behavior is
+// unchanged at runtime — this only affects compile-time inference.
+const sb = supabase as unknown as SupabaseClient;
 
 /**
  * Checks if a session ID is a valid UUID format (Supabase format).
@@ -172,7 +180,7 @@ class RecentElementsService {
       // Query story_elements table for recent elements in this session
       // Ordered by created_at DESC to get most recent first
       // Using index: idx_story_elements_session_id_created_at
-      const { data: elements, error } = await supabase
+      const { data: elements, error } = await sb
         .from('story_elements')
         .select(
           'id, story_id, session_id, element_type, element_text, embedding_vector, created_at',

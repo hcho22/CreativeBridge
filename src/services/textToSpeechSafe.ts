@@ -4,6 +4,26 @@
 import { Platform } from 'react-native';
 import { GradeLevel } from '../types';
 
+// Narrow `unknown` errors thrown from native modules / Promise.race timeouts
+// to a printable string without using `any` or widening.
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'message' in error &&
+    typeof (error as { message: unknown }).message === 'string'
+  ) {
+    return (error as { message: string }).message;
+  }
+  try {
+    return String(error);
+  } catch {
+    return 'Unknown error';
+  }
+}
+
 export interface SpeechOptions {
   rate?: number;
   pitch?: number;
@@ -58,7 +78,7 @@ class SafeTextToSpeechService {
 
       this.isInitialized = true;
     } catch (error) {
-      console.warn('❌ TTS initialization failed:', error.message);
+      console.warn('❌ TTS initialization failed:', getErrorMessage(error));
       this.isAvailable = false;
       this.isInitialized = true;
     }
@@ -86,7 +106,7 @@ class SafeTextToSpeechService {
       // Only require if we know it's safe
       return require('react-native-tts');
     } catch (error) {
-      console.warn('Could not load TTS module:', error.message);
+      console.warn('Could not load TTS module:', getErrorMessage(error));
       return null;
     }
   }
@@ -122,14 +142,14 @@ class SafeTextToSpeechService {
           quality: voice.quality || 'normal',
         }));
       } catch (voicesError) {
-        console.warn('Could not load voices:', voicesError.message);
+        console.warn('Could not load voices:', getErrorMessage(voicesError));
         this.availableVoices = [];
       }
 
       // Set default settings
       await this.setDefaultSettings();
     } catch (initError) {
-      console.warn('TTS module init failed:', initError.message);
+      console.warn('TTS module init failed:', getErrorMessage(initError));
       this.isAvailable = false;
       this.Tts = null;
     }
@@ -188,7 +208,7 @@ class SafeTextToSpeechService {
       console.log('🔊 Speaking:', cleanText.substring(0, 50) + '...');
       await this.Tts.speak(cleanText);
     } catch (error) {
-      console.error('❌ Speech failed:', error.message);
+      console.error('❌ Speech failed:', getErrorMessage(error));
     }
   }
 
@@ -199,7 +219,7 @@ class SafeTextToSpeechService {
     try {
       await this.Tts.stop();
     } catch (error) {
-      console.error('Stop failed:', error.message);
+      console.error('Stop failed:', getErrorMessage(error));
     }
   }
 
@@ -210,7 +230,7 @@ class SafeTextToSpeechService {
     try {
       await this.Tts.pause();
     } catch (error) {
-      console.error('Pause failed:', error.message);
+      console.error('Pause failed:', getErrorMessage(error));
     }
   }
 
@@ -221,7 +241,7 @@ class SafeTextToSpeechService {
     try {
       await this.Tts.resume();
     } catch (error) {
-      console.error('Resume failed:', error.message);
+      console.error('Resume failed:', getErrorMessage(error));
     }
   }
 
@@ -232,7 +252,7 @@ class SafeTextToSpeechService {
     try {
       return await this.Tts.isSpeaking();
     } catch (error) {
-      console.error('isSpeaking check failed:', error.message);
+      console.error('isSpeaking check failed:', getErrorMessage(error));
       return false;
     }
   }
@@ -251,7 +271,7 @@ class SafeTextToSpeechService {
     try {
       await this.Tts.setDefaultVoice(voiceId);
     } catch (error) {
-      console.error('setVoice failed:', error.message);
+      console.error('setVoice failed:', getErrorMessage(error));
     }
   }
 
@@ -336,7 +356,10 @@ class SafeTextToSpeechService {
         this.Tts.addEventListener('tts-error', callbacks.onError);
       }
     } catch (error) {
-      console.warn('Could not set up TTS event listeners:', error.message);
+      console.warn(
+        'Could not set up TTS event listeners:',
+        getErrorMessage(error),
+      );
     }
   }
 
@@ -350,7 +373,7 @@ class SafeTextToSpeechService {
       this.Tts.removeAllListeners('tts-cancel');
       this.Tts.removeAllListeners('tts-error');
     } catch (error) {
-      console.warn('Could not remove TTS listeners:', error.message);
+      console.warn('Could not remove TTS listeners:', getErrorMessage(error));
     }
   }
 
@@ -365,7 +388,7 @@ class SafeTextToSpeechService {
         this.currentOptions.language || 'en-US',
       );
     } catch (error) {
-      console.error('setDefaultSettings failed:', error.message);
+      console.error('setDefaultSettings failed:', getErrorMessage(error));
     }
   }
 
@@ -388,7 +411,7 @@ class SafeTextToSpeechService {
         await this.Tts.setDefaultVoice(settings.voice);
       }
     } catch (error) {
-      console.error('applySpeechSettings failed:', error.message);
+      console.error('applySpeechSettings failed:', getErrorMessage(error));
     }
   }
 

@@ -14,7 +14,8 @@ export interface ErrorLogEntry {
     | 'rate_limit'
     | 'content_safety'
     | 'insufficient_xp'
-    | 'system_error';
+    | 'system_error'
+    | 'validation_failure';
   severity: 'low' | 'medium' | 'high' | 'critical';
   service:
     | 'replicate'
@@ -22,7 +23,8 @@ export interface ErrorLogEntry {
     | 'backup_service'
     | 'xp_system'
     | 'database'
-    | 'queue_manager';
+    | 'queue_manager'
+    | 'image_generation';
   message: string;
   errorDetails: Record<string, any>;
   userId?: string;
