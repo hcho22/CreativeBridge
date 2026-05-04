@@ -449,15 +449,43 @@ Each implementation story is followed by its paired validation story. Validation
 
 **Description:** As a maintainer, I want to know why CI takes 22+ minutes for tests that finish in 65s locally, so the fix targets the actual cause rather than just bumping timeouts.
 
+**Status: ✅ CODE-COMPLETE (2026-05-04) — ships via [PR #32](https://github.com/hcho22/CreativeBridge/pull/32).** Diagnosed slowness pattern, added global mocks for `openai`, `replicate`, and `convex/react` to `jest.setup.js` on a separate branch (`chore/us-009-jest-global-mocks`, off `main`). Local re-run validated no regressions. **CI-side wall-time gain will be measured under US-010 once PR #32 can run a clean CI cycle** (currently blocked by the 571 pre-US-007 TS errors on `main` — needs PR #30 to merge first, then PR #32 rebased onto post-#30 main).
+
 **Acceptance Criteria:**
 
-- [ ] Reproduce CI conditions locally: `npm test -- --watchAll=false --maxWorkers=2 --testTimeout=5000`
-- [ ] Capture which tests hit the per-test timeout vs. complete normally
-- [ ] Inspect `jest.setup.js`, `src/__tests__/setup.ts`, `src/__tests__/setupAfterEnv.ts` for missing global mocks
-- [ ] Identify candidates that likely make real network calls in CI: any service using `fetch`, `convex`, `clerk`, `openai`, `replicate`
-- [ ] Add global jest mocks for these in `jest.setup.js` (or a dedicated setup file). Each mock returns deterministic stub data.
-- [ ] Re-run tests locally; confirm wall time drops or stays similar (won't validate the CI-side gain until US-010)
-- [ ] No assertions changed in actual test files; only setup files modified
+- [x] Reproduce CI conditions locally: `npm test -- --watchAll=false --maxWorkers=2 --testTimeout=5000` — **MET**: ran with these flags, wall time **204.25s** (3m24s), JSON results saved to `/tmp/us009-jest-results.json` (5.2MB).
+- [x] Capture which tests hit the per-test timeout vs. complete normally — **MET**: **26 timeouts** identified across these clusters (per-test 5s cap):
+  - 6 in `story/errorHandling.test.ts` (request-timeout, retry-with-jitter, smart-retry tests)
+  - 4 in `services/replicateAPI.test.ts` (image-generation flow tests)
+  - 4 in `bugfixes/regression.test.ts` (retry-with-exponential-backoff, max-retry-attempts, slow-network)
+  - 3 in `services/skillErrorRecovery.test.ts` (circuit-breaker open/close)
+  - 3 in `services/progressiveEnhancement.test.ts` (circuit-breaker, success-rate, cascading-failures)
+  - 2 in `services/storyContentExtraction.test.ts`
+  - Plus singletons in performance, security, and acceptance suites
+  - **Pattern:** the timeouts cluster around tests that intentionally exercise retry/backoff/circuit-breaker behavior. With production retry config (3 attempts × 1s+2s+4s = 7s minimum), they exceed the 5s per-test cap by design.
+- [x] Inspect `jest.setup.js`, `src/__tests__/setup.ts`, `src/__tests__/setupAfterEnv.ts` for missing global mocks — **MET**. Already mocked globally: `fetch`, `@clerk/clerk-expo`, `@supabase/supabase-js`, AsyncStorage, navigation, voice, expo-av, expo-file-system, device-info, permissions, camera-roll, react-native modules. **Missing:** `openai`, `replicate`, `convex/react`.
+- [x] Identify candidates that likely make real network calls in CI — **MET**. Source-code grep for SDK imports + transitive dependency analysis:
+  - `openai` (^6.0.0) — used transitively via `storyAgent`, `embeddingGenerationService`
+  - `replicate` (^1.2.0) — used transitively via `imageGeneration`
+  - `convex` (^1.31.7) — `convex/react` hooks used by 10+ source files (HomeScreen, ParentDashboardScreen, AuthContext, etc.); component tests rendering these would crash without a Provider
+  - No `axios`/`got`/`node-fetch`/`undici` anywhere — all HTTP goes through globally-mocked `fetch`
+  - No `@anthropic-ai/sdk` import; Claude is reached via fetch
+- [x] Add global jest mocks for these in `jest.setup.js` — **MET**. Added three mocks at the bottom of `jest.setup.js`:
+  - `jest.mock('openai', ...)` — `OpenAI` constructor returns `chat.completions.create`, `embeddings.create`, `images.generate` stubs returning deterministic shapes (1536-dim zero embedding, single-choice chat response, mock URL).
+  - `jest.mock('replicate', ...)` — `Replicate` constructor returns `run`, `predictions.{create,get,cancel}` stubs returning a succeeded prediction with mock image URL.
+  - `jest.mock('convex/react', ...)` — `useQuery` → `undefined`, `useMutation`/`useAction` → no-op resolved promises, `ConvexProvider`/`Authenticated`/`Unauthenticated`/`AuthLoading` → render-children passthroughs.
+  - **Override compatibility verified**: 8 tests already mock `convex/react` per-file and 2 tests already mock `openai` per-file — Jest correctly applies per-file mocks over the setup-file globals, so existing custom stubs are preserved.
+- [x] Re-run tests locally; confirm wall time drops or stays similar — **MET**: **202.57s** (3m23s) — within 0.8% of pre-mock 204.25s baseline (statistical noise). Test deltas: **+1 pass, -1 fail** (one previously-failing test now passes due to new mocks; no regressions). Results saved to `/tmp/us009-jest-results-after.json`.
+- [x] No assertions changed in actual test files; only setup files modified — **MET**: `git diff --stat HEAD -- src/ __tests__/` shows zero test-file changes; only `jest.setup.js` modified.
+
+**Implementation notes (2026-05-04):**
+
+- **Why local wall time barely moved**: locally, the SDK constructors don't fail (they don't strictly require env vars at instantiation time) and `convex/react` hooks are only invoked when components render inside a Provider — so very few local tests were hitting real network paths to begin with. The 200s local wall time is dominated by intentionally-slow retry-testing tests (~130s of explicit retries/timeouts), not unmocked network calls.
+- **Why CI should benefit much more (to be validated in US-010)**: CI runs on a fresh Node process with no DNS cache, no `.env` shadowing, and no API keys. Without the global SDK mocks, any test that transitively imports a service which constructs `new OpenAI()` or `new Replicate()` may incur real DNS/network overhead at module-load time. Multiplied across 309 test files with `--maxWorkers=2`, this could plausibly account for the 22m+ CI wall time vs. 65s historical local baseline.
+- **Mocks are deterministic and minimally-shaped** — they return the smallest valid response for the SDK's typed surface area, not a fully-realistic dataset. Per US-010: "failing test count may stay roughly the same — that's expected at this phase, the goal here is speed, not pass rate." Tests that need richer stubs can override per-file (8 tests already do this for `convex/react`).
+- **Top 10 slowest test files (BEFORE mocks)**: errorHandling.test.ts (33s), concurrentUploads.performance.test.ts (30s), progressiveEnhancement.test.ts (29s), skillErrorRecovery.test.ts (24s), StorySelectionModal.test.tsx (24s), imageStorageService.test.ts (24s), replicateAPI.test.ts (21s), regression.test.ts (21s), storyElementExtractionService.test.ts (21s), imageStorageSecurity.test.ts (20s).
+
+**Ready for US-010**: open a PR with the `jest.setup.js` change, capture CI test-step wall time from the GitHub Actions log, and confirm it drops below 12 min.
 
 ### US-010: Validate Phase 3a — confirm CI test wall time improvement
 
