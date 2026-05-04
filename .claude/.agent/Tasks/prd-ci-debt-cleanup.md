@@ -491,13 +491,23 @@ Each implementation story is followed by its paired validation story. Validation
 
 **Description:** As a maintainer, I want measurable proof that the global mocks reduce CI test runtime.
 
+**Status: ✅ COMPLETE (2026-05-04).** US-009's global mocks dropped CI test wall time from a 22m+ historical baseline to **~285 seconds (4m 45s)**, reproduced stably across two consecutive CI runs on commit `70c1fe9`. All five acceptance criteria met. **A separate open-handles issue** (Jest hangs ~7 minutes after completion) was surfaced as a side-finding — not a US-010 blocker, but it's why the overall job still cancels at the 15-min cap; queued as a follow-up ticket.
+
 **Acceptance Criteria:**
 
-- [ ] Open a PR with the US-009 changes
-- [ ] Capture CI test step wall time from the GitHub Actions log
-- [ ] Confirm wall time is <12 min (down from 22m+); ideally <10 min
-- [ ] Failing test count may stay roughly the same — that's expected at this phase, the goal here is speed, not pass rate
-- [ ] Document the new wall time in the PR description
+- [x] Open a PR with the US-009 changes — **MET**: [PR #32](https://github.com/hcho22/CreativeBridge/pull/32) (`chore/us-009-jest-global-mocks` → `main`). After PR #30 merged (commit `141d12d` on main), this branch was rebased onto post-#30 main (commit `28bdb46` → `70c1fe9`) and marked ready-for-review.
+- [x] Capture CI test step wall time from the GitHub Actions log — **MET**: ran `gh run view 25347773236 --log` and extracted the `Time:` line from Jest's summary. Run 1: `Time: 282.014 s`. Run 2 (re-run via `gh run rerun`): `Time: 286.496 s`.
+- [x] Confirm wall time is <12 min (down from 22m+); ideally <10 min — **MET by a wide margin**: **4m 45s** (≈285s ± 1.6%), 60% under the 12-min bound and 53% under the < 10-min stretch goal. Wall time gain vs 22m+ historical baseline: roughly **−18 min in CI**.
+- [x] Failing test count may stay roughly the same — that's expected at this phase — **MET**: 478 failed (Run 1) / 475 failed (Run 2) out of 3078 total in CI, vs ~784 failing locally; the lower CI fail count reflects 19 additional suite-level load failures (172 vs 153 locally) that swallow their inner test cases. Speed was the primary goal, not pass rate.
+- [x] Document the new wall time in the PR description — **MET**: PR #32's body now contains a "✅ US-010 wall-time measurement" section with the run IDs, both wall-time captures, and the open-handles disclosure.
+
+**Implementation notes (2026-05-04 — US-010 measurement):**
+
+- **Why the prior 5 CI runs on PR #30 looked like "tests are still slow"**: those runs all showed `Run tests: cancelled` at the 15-min job cap, with no step-level duration distinguishing slow tests from a post-test hang. The cancellation aliased two failure modes that look identical from the rollup. The breakthrough was reading the cancelled-run log itself, where Jest emits `Time: 282s ... Jest did not exit one second after the test run has completed` just before the hang.
+- **The 22m+ historical baseline was likely over-attributed to slow tests**: with US-009's mocks, actual test execution finishes in 282–286s. Some of the historical 22m+ wall time was almost certainly the same open-handles hang plus a higher (now-reverted) `timeout-minutes: 25` cap. That doesn't diminish US-009's value — fewer real network calls is structurally better — but it reframes the residual problem as "Jest doesn't exit," not "tests are slow."
+- **Step-level breakdown (Run 1 / Run 2)**: install deps 139s/118s, tsc 16s/14s, ESLint 21s/22s, Prettier 20s/20s, Run tests cancelled at 709s/734s (after Jest already finished at 282s/286s).
+
+**Recommended follow-up (out of scope for US-010):** add a US-010.5 or a separate ticket for the open-handles cleanup. Cheapest path: append `--forceExit` to the npm test command in `.github/workflows/ci.yml`. Proper path: run locally with `npm test -- --detectOpenHandles` to surface the offenders, then close them in source. The open-handles fix would drop CI from 915s to ~500s (a separate ~7-minute saving) and let the job exit `success`/`failure` cleanly instead of `cancelled`.
 
 ---
 
