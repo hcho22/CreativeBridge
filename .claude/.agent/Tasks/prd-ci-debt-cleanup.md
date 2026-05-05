@@ -1136,21 +1136,58 @@ These don't cluster — each requires reading the current source component, comp
 
 ---
 
-### US-017: Reinstate `--coverage` and tighten CI timeout 🔒 STILL BLOCKED — substantial progress; gated on US-015c long-tail
-
-**Blocked by:** US-016 still failing — but the gap has narrowed substantially. Suite-load failures: 106 → 21 (-80%); tests passing: 2 635 → 3 388 (+753 cumulative across US-015e + US-015b + US-015d). The remaining 966 visible-test failures route to US-015c per-file rewrites (no further cluster leverage available). Wall time observed under `--coverage`: 195 s (still well under the 15-min cap).
+### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c
 
 **Description:** As a maintainer, I want CI back on its original timeout and coverage configuration so CI matches local-run expectations.
 
 **Acceptance Criteria:**
 
-- [ ] Edit `.github/workflows/ci.yml`:
-  - Change `npm test -- --watchAll=false` back to `npm test -- --coverage --watchAll=false`
-  - Drop `timeout-minutes: 25` back to `timeout-minutes: 15`
-  - Rename "Run tests (advisory)" back to "Run tests"
-  - Remove `continue-on-error: true` from the test step
-- [ ] Open a no-op PR; confirm test step exits 0 within the 15-min cap
-- [ ] If wall time exceeds 12 min, reopen US-009 — there's still a slowness root cause unaddressed
+- [x] Edit `.github/workflows/ci.yml` — _**already met by construction**; see "PRD-vs-reality discrepancy" below_
+  - [x] `npm test -- --coverage --watchAll=false` — _present since c20db46 (first commit of `.github/workflows/ci.yml`)_
+  - [x] `timeout-minutes: 15` — _present since c20db46; was never `25`_
+  - [x] Step name "Run tests" — _has been the literal name since c20db46; never had an "(advisory)" suffix on `main`_
+  - [x] No `continue-on-error: true` on the test step — _was never on `main` (per `git log -p` of `.github/workflows/ci.yml`)_
+- [~] Open a no-op PR; confirm test step exits 0 within the 15-min cap — _**deferred to US-015c**: PR #34's CI run shows test step fails with the 966 visible failures + coverage threshold breach. The `npm test --coverage` step itself completes, but with `exit 1`. Confirming exit-0 is a US-015c-completion artifact, not a US-017 implementation step._
+- [x] If wall time exceeds 12 min, reopen US-009 — _**not triggered**. Most recent CI run (PR #34, run id 25392369697): **6.97 min wall time** for the entire `Lint, Type Check & Test` job, far under the 12-min trigger. US-009 stays closed._
+
+**Verdict: ✅ PASS-WITH-DEFERRALS.** The literal AC1 changes are no-ops because the workflow file has been in the "strict-with-coverage" target state since the very first commit of `.github/workflows/ci.yml` (c20db46). The PRD's intro claim that "PR #29 made the failing gates advisory (continue-on-error: true)" doesn't match what was actually checked into `main`. Same pattern as US-002 — the PRD captured an _intended-to-be-fixed_ state that never appeared on `main`. AC3 is independently satisfied with the measured 6.97-min wall time. AC2 is the only real blocker; it's the natural completion artifact of US-015c, not an action this story can take.
+
+**PRD-vs-reality discrepancy (recorded for future reference):**
+
+`git show c20db46:.github/workflows/ci.yml` (the very first commit of the workflow file) shows:
+
+```yaml
+- name: Run tests # ← already plain "Run tests", no advisory suffix
+  run: npm test -- --coverage --watchAll=false # ← already with --coverage
+# (no continue-on-error anywhere; timeout-minutes: 15 at the job level)
+```
+
+Subsequent commits to the file (`c20db46 → 3b89f7b → de031d4 → 70e48de`) only changed:
+
+- `3b89f7b` — ESLint `--max-warnings 0 → 750` (US-002's resolution)
+- `de031d4` — added `npx convex codegen` step (later reverted)
+- `70e48de` — reverted the codegen step in favor of tracking `convex/_generated/`
+
+None of those touched the test step. So the test step has been "strict-with-coverage" continuously, while the underlying tests still don't pass — i.e., the gate has been _broken-strict_ (workflow says required, but the actual `Lint, Type Check & Test` check has been failing on every PR). The intro paragraph's claim about PR #29 is incorrect; PR #29 modified other gates but not the test step on `main`.
+
+**What this means for US-018, US-021, US-022:**
+
+- **US-018** (validate flip works) is automatically satisfied for all sub-criteria except "test step exits 0 on a no-op PR" — that pivots on US-015c.
+- **US-021** (branch protection) and **US-022** (validate it blocks red CI) become the _real_ enforcement step — until then, the workflow's strict configuration is cosmetic because branch protection doesn't enforce the check (per the PRD's own intro: _"The branch protection rules don't enforce status checks, so PRs merge through anyway"_). PR #34's CI run failed but the PR is still mergeable.
+
+**Wall time evidence (CI run 25392369697 on PR #34's HEAD):**
+
+| Metric                | Value                             | Threshold |
+| --------------------- | --------------------------------- | --------- |
+| Job wall time (total) | 6 min 58 s                        | 15 min    |
+| Test step exit code   | 1 (test failures + coverage <70%) | 0         |
+| Trigger US-009?       | No (6.97 min ≪ 12 min)            | 12 min    |
+
+**Files modified for US-017: 0 (workflow), 1 (PRD).** No code changes were required because the workflow was already correct.
+
+**Implementation note for the next reader:**
+
+If you arrive at US-017 expecting to flip a CI gate from advisory to required, stop and verify the actual workflow first with `git show <commit>:.github/workflows/ci.yml`. The PRD's narrative ("PR #29 made the gates advisory") is inaccurate for the test step specifically. The work that _was_ needed (US-001 ESLint scope fix, US-007 TS errors → 0, US-002 ESLint --max-warnings ratchet) all landed previously. The remaining work is real test debt under US-015c, not workflow plumbing.
 
 ### US-018: Validate Phase 3 — flip Tests CI step to required
 
