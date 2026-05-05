@@ -1094,11 +1094,76 @@ The local re-run shows 6 of these tests now pass; the other 2 may still flake un
 
 ---
 
-### US-015c: Long-tail visible-test sweep ⏳ PARTIAL — top-file triage shows pure stale-test rot
+### US-015c: Long-tail visible-test sweep ⏳ PARTIAL — first per-file batch landed (78 cleared); remainder structural
 
 **Description:** As a maintainer, I want the 722 visible-test long-tail (real-assertion + scattered mock-div + catch-all) cleared per-file. Per the PRD this is the "longest tail" and needs case-by-case work.
 
-**Verdict: ⏳ PARTIAL — triage complete, cluster-level work exhausted, remainder is per-file.**
+**Verdict: ⏳ PARTIAL** — triage complete, **first per-file batch landed (78 fails cleared, 1 suite fully green)**, cluster-level leverage on the remainder is now exhausted; what's left is genuinely structural per-file rewrites.
+
+**Batch 1 results (this PR — chore/us-015c-test-debt-longtail):**
+
+| Cluster                               | Files                                                                                           | Approach                                                                                                | Fails cleared                                               | Status      |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ----------- |
+| **A: Missing `useConvexAuth`**        | `clerkAuthFlows.test.tsx`, `e2eMigrationFlow.test.tsx`, `authContext.test.tsx`                  | Add `useConvexAuth` to per-file `convex/react` mock + `consent.recordTermsConsent` to `services/convex` | **73** (97 → 24)                                            | ✅ cleared  |
+| **C: Missing `Platform.Version`**     | `jest.setup.js` (global) — fix surfaces in `auditLogger.test.ts` + 2 incidental                 | Add `Version: '15.0'` to RN `Platform` mock                                                             | **5** (auditLogger 3, concurrentUploads 1, serviceHealth 1) | ✅ cleared  |
+| **B: `clerkSignUpFlow.test.tsx`**     | structural — entire sign-up flow redesigned (toggle label, form fields, button text)            | Investigated, attempted text-rename, reverted: needs full rewrite, not in scope                         | 0                                                           | ⏳ deferred |
+| **D: `StorySelectionModal.test.tsx`** | structural — `{count}{' '}{noun}` JSX pattern splits text across nodes; `getByText` exact match | Investigated — needs production source change to template-string OR per-test regex rewrite              | 0                                                           | ⏳ deferred |
+
+**Cluster A root cause (a useful diagnostic to remember):** When a per-file `jest.mock('convex/react', ...)` exists, it _replaces_ the global `jest.setup.js` mock entirely — it doesn't extend it. The 3 fixed files all had inline mocks pre-dating `useConvexAuth`'s introduction in `AuthContext.tsx:38` and `ConsentPendingScreen.tsx:24`. Adding the symbol to each per-file mock cleared 73 fails in one diff.
+
+**Cluster C root cause:** `jest.setup.js`'s `Platform` mock (line 285–289) was missing `Version`, so `auditLogger.ts:169` crashed when constructing the device fingerprint via `Platform.Version.toString()`. The fix has incidental positive impact on 2 other files that touch Platform.Version transitively.
+
+**Cumulative deltas (post-batch-1):**
+
+| Metric                        | Before (post-#36 main) | After (this PR) | Δ       |
+| ----------------------------- | ---------------------- | --------------- | ------- |
+| Failed test suites            | 145                    | 145             | 0\*     |
+| Passing test suites           | 162                    | 163             | **+1**  |
+| Visible failed tests          | 962                    | 889             | **−73** |
+| Visible passing tests         | 3 392                  | 3 465           | **+73** |
+| Local wall time (no coverage) | 189 s                  | 186 s           | −3 s    |
+
+\* The 145-suite failure count is unchanged because the 2 marginal flake-induced regressions (claudeSkillsMonitor: 3→4, predictiveCacheIntegration: 1→2) landed in already-failing suites — both unrelated to this PR's changes (timing-sensitive `toBeCloseTo`, dynamic-import ESM error). One whole suite (`authContext.test.tsx`, 19 fails) went **fully green** and moved to the passing column. No new failing suites introduced.
+
+**Files modified for US-015c batch 1: 4 (test/test-infra only), 0 production source.**
+
+- `jest.setup.js` (1 line added — `Platform.Version: '15.0'`)
+- `src/__tests__/auth/clerkAuthFlows.test.tsx` (per-file mock additions)
+- `src/__tests__/integration/e2eMigrationFlow.test.tsx` (per-file mock additions)
+- `src/__tests__/security/authContext.test.tsx` (per-file mock additions)
+
+**Remaining surface (post-batch-1, projected work for batch 2+):**
+
+The per-file work that remains in the long-tail breaks into three failure mechanisms, each with different effort cost:
+
+1. **Structural test rewrites (~270 fails across ~12 top-file targets)** — when a screen or component has been substantively redesigned (sign-up flow, story selection list, image displays), the test's render-and-interact path no longer maps to current production. Estimate: 1–3 hours per file. Examples: `clerkSignUpFlow.test.tsx` (21), `StorySelectionModal.test.tsx` (24), `StoryImageDisplay.test.tsx` (22), `EnhancedStoryImageDisplay.test.tsx` (20).
+2. **Per-test mock-divergence (~400 fails)** — services and integration tests where the mock data shape diverged from the live API. Each fail is roughly one mock-arg fix. Examples: `imageStorageSecurity.test.ts` (22), `imageStorageService.test.ts` (18), `syncIntegration.test.ts` (18). 5–15 minutes per fix.
+3. **JSX text-node concatenation gotchas (~80 fails)** — `{count}{' '}{noun}` patterns in source split text across React nodes; `getByText` exact-match misses. Two paths: (a) one-line production source change to template literal `{`${count} ${noun}`}` (cheap, but US-015's no-production-source rule disallows), or (b) regex matchers in tests (per-test cost). Recommend a separate sub-story to relax FR-9 specifically for this pattern, since the production change is genuinely cleaner.
+
+**Suggested next moves for US-015c batch 2:**
+
+- **Quickest leverage**: take `e2eMigrationFlow.test.tsx`'s remaining 17 fails (already-investigated, just per-test data-shape work) — small and cohesive.
+- **Highest leverage cluster left**: the ~7 service-mock-divergence files in the 18-22 range (imageStorageSecurity/Service, syncIntegration, etc.) — same pattern across files, can batch.
+- **Decide before doing**: the structural-rewrite files (clerkSignUpFlow, StorySelectionModal, StoryImageDisplay) likely cost 8–12 hours combined and need product/design-aware judgment about which assertions remain semantically valid. Consider whether to delete-and-recreate vs. patch.
+
+**Updated top-12 ranking (post-batch-1):**
+
+| Tests | File                                                          | Pattern                                                                     | Status                |
+| ----: | ------------------------------------------------------------- | --------------------------------------------------------------------------- | --------------------- |
+|    24 | `src/__tests__/components/StorySelectionModal.test.tsx`       | split-text-node JSX `{count}{' '}{noun}` + UI-label staleness               | ⏳ batch 2            |
+|    22 | `src/__tests__/components/StoryImageDisplay.test.tsx`         | UI-label staleness ("Unable to find testID: story-image", loading text)     | ⏳ batch 2            |
+|    22 | `src/__tests__/security/imageStorageSecurity.test.ts`         | mock-div (8× toBeTruthy, 4× toContain, 3× toMatch, etc.)                    | ⏳ batch 2            |
+|    22 | `src/__tests__/story/errorHandling.test.ts`                   | post-US-015d timeout fix; remaining 22 are real assertion failures          | ⏳ batch 2            |
+|    21 | `src/__tests__/integration/clerkSignUpFlow.test.tsx`          | structural — full rewrite (cluster B investigation, see above)              | ⏳ batch 3 (rewrite)  |
+|    20 | `src/__tests__/components/EnhancedStoryImageDisplay.test.tsx` | UI-label staleness                                                          | ⏳ batch 2            |
+|    18 | `src/__tests__/services/imageStorageService.test.ts`          | mock-div                                                                    | ⏳ batch 2            |
+|    18 | `src/__tests__/integration/syncIntegration.test.ts`           | mock-div                                                                    | ⏳ batch 2            |
+|    17 | `src/__tests__/integration/e2eMigrationFlow.test.tsx`         | post-cluster-A; remaining 17 are per-test data-shape (gameSessions/totalXp) | ⏳ batch 2 (cohesive) |
+|    17 | `src/__tests__/components/auth/GoogleSignInButton.test.tsx`   | DevMenu TurboModule                                                         | ⏳ batch 2            |
+|    17 | `src/__tests__/screens/SettingsScreen.genre.test.tsx`         | (newly visible after US-015b)                                               | ⏳ batch 2            |
+|    16 | `src/__tests__/security/auditLogger.test.ts`                  | post-cluster-C; remaining 13 are mock-arg-shape divergence                  | ⏳ batch 2            |
+
+The clerkAuthFlows row dropped out of the top-12 entirely (52 → 7).
 
 **Triage finding:** The top-failure files are dominated by "Unable to find element with text X" assertions — UI test rot from production label/copy changes. Sample (`StorySelectionModal.test.tsx`, 24 fails):
 
