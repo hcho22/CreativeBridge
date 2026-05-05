@@ -5,6 +5,7 @@
 module.exports = {
   OPENAI_API_KEY: 'sk-test-mock-key',
   OPENAI_MODEL: '',
+  OPENAI_ORG_ID: '',
   SUPABASE_URL: 'https://mock.supabase.co',
   SUPABASE_ANON_KEY: 'mock-anon-key',
   CLERK_PUBLISHABLE_KEY: '',
