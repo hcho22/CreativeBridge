@@ -8,28 +8,34 @@ import { HomeScreen, SettingsScreen, ProfileScreen } from '../../screens';
 import { mockSupabase } from '../mocks/supabaseMock';
 import { createMockUser, createMockUserProfile } from '../utils/testUtils';
 
-// Mock dependencies
+// Mock dependencies — factory bodies use jest.requireActual so the helper
+// modules resolve at factory-execution time (the surrounding import bindings
+// may still be in TDZ when transitive imports trigger these factories first).
 jest.mock('../../services/supabase', () => ({
-  supabase: mockSupabase,
+  supabase: jest.requireActual('../mocks/supabaseMock').mockSupabase,
 }));
 
-jest.mock('../../context/StableAuthContext', () => ({
-  useEnhancedAuth: () => ({
-    user: createMockUser(),
-    userProfile: createMockUserProfile(),
-    session: { access_token: 'mock-token' },
-    loading: false,
-    emailConfirmed: true,
-    securityLevel: 'MEDIUM',
-    requiresTwoFA: false,
-    suspiciousActivity: false,
-    sessionInfo: {
-      sessionId: 'session-123',
-      isActive: true,
-      expiresAt: new Date(Date.now() + 3600000),
-    },
-  }),
-}));
+jest.mock('../../context/StableAuthContext', () => {
+  const { createMockUser, createMockUserProfile } =
+    jest.requireActual('../utils/testUtils');
+  return {
+    useEnhancedAuth: () => ({
+      user: createMockUser(),
+      userProfile: createMockUserProfile(),
+      session: { access_token: 'mock-token' },
+      loading: false,
+      emailConfirmed: true,
+      securityLevel: 'MEDIUM',
+      requiresTwoFA: false,
+      suspiciousActivity: false,
+      sessionInfo: {
+        sessionId: 'session-123',
+        isActive: true,
+        expiresAt: new Date(Date.now() + 3600000),
+      },
+    }),
+  };
+});
 
 jest.mock('../../services/reactotron', () => ({
   log: jest.fn(),

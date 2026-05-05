@@ -303,6 +303,16 @@ jest.mock('react-native', () => ({
     removeEventListener: jest.fn(),
     currentState: 'active',
   },
+  // @react-navigation/elements probes UIManager.getViewManagerConfig at module-init
+  // to decide whether to use native MaskedView. Return null so it falls back to JS.
+  UIManager: {
+    getViewManagerConfig: jest.fn(() => null),
+    hasViewManagerConfig: jest.fn(() => false),
+    getConstants: jest.fn(() => ({})),
+  },
+  NativeModules: {
+    DevSettings: { addMenuItem: jest.fn(), reload: jest.fn() },
+  },
   Keyboard: {
     addListener: jest.fn(() => ({ remove: jest.fn() })),
     removeListener: jest.fn(),

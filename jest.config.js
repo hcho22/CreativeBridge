@@ -45,6 +45,11 @@ module.exports = {
     '^@env$': '<rootDir>/src/__tests__/__mocks__/@env',
   },
   testTimeout: 10000,
+  // Recycle a jest worker once it crosses the threshold so the 37-test
+  // StoryPreviewEdit.test.tsx (and any other heavy render-tree suite) can finish
+  // without SIGTERM from RSS exhaustion. Only matters when many tests in one file
+  // accumulate state beyond what afterEach cleanup releases.
+  workerIdleMemoryLimit: '512MB',
   // Global setup for security tests
   globals: {
     __DEV__: true,

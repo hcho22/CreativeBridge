@@ -1,6 +1,36 @@
 // Global test setup
 import 'react-native-gesture-handler/jestSetup';
 
+// `expo-modules-core` reads `globalThis.expo.{EventEmitter,NativeModule,SharedRef,SharedObject}`
+// at module-init time. On native these are installed by the expo-modules JSI bridge;
+// in jest they don't exist, so any import chain that touches expo-modules-core
+// (expo-secure-store, expo-haptics, expo-clipboard, etc.) explodes with
+// `TypeError: Cannot read properties of undefined (reading 'EventEmitter')`.
+// Stub the global with no-op classes so module-init succeeds — actual native
+// behaviour is mocked separately at the per-package level when tests need it.
+class StubExpoEventEmitter {
+  addListener() {
+    return { remove: () => {} };
+  }
+  removeListener() {}
+  removeAllListeners() {}
+  removeSubscription() {}
+  emit() {}
+  listenerCount() {
+    return 0;
+  }
+}
+class StubExpoNativeModule {}
+class StubExpoSharedRef {}
+class StubExpoSharedObject {}
+(globalThis as any).expo = (globalThis as any).expo || {
+  EventEmitter: StubExpoEventEmitter,
+  NativeModule: StubExpoNativeModule,
+  SharedRef: StubExpoSharedRef,
+  SharedObject: StubExpoSharedObject,
+  modules: {},
+};
+
 // Mock react-native modules
 jest.mock('react-native', () => {
   const RN = jest.requireActual('react-native');
@@ -35,6 +65,16 @@ jest.mock('react-native', () => {
         addMenuItem: jest.fn(),
         reload: jest.fn(),
       },
+    },
+    // @react-navigation/elements probes UIManager.getViewManagerConfig at module-init
+    // to decide whether to render the native MaskedView. Under jest the property is
+    // undefined and reading it throws; return null so the elements module falls back
+    // to the JS implementation cleanly.
+    UIManager: {
+      ...(RN.UIManager || {}),
+      getViewManagerConfig: jest.fn(() => null),
+      hasViewManagerConfig: jest.fn(() => false),
+      getConstants: jest.fn(() => ({})),
     },
   };
 });
@@ -123,6 +163,34 @@ jest.mock('expo-file-system/legacy', () => ({
   EncodingType: {
     Base64: 'base64',
     UTF8: 'utf8',
+  },
+}));
+
+// Mock expo-secure-store (used by sensitiveStorage; native bridge unavailable
+// under jest, so module-init crashes with `Cannot find native module 'ExpoSecureStore'`).
+jest.mock('expo-secure-store', () => ({
+  getItemAsync: jest.fn().mockResolvedValue(null),
+  setItemAsync: jest.fn().mockResolvedValue(undefined),
+  deleteItemAsync: jest.fn().mockResolvedValue(undefined),
+  isAvailableAsync: jest.fn().mockResolvedValue(true),
+  WHEN_UNLOCKED: 'WHEN_UNLOCKED',
+  WHEN_UNLOCKED_THIS_DEVICE_ONLY: 'WHEN_UNLOCKED_THIS_DEVICE_ONLY',
+  AFTER_FIRST_UNLOCK: 'AFTER_FIRST_UNLOCK',
+  AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 'AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY',
+  ALWAYS: 'ALWAYS',
+  ALWAYS_THIS_DEVICE_ONLY: 'ALWAYS_THIS_DEVICE_ONLY',
+}));
+
+// Mock expo-haptics (UI feedback API; native bridge unavailable under jest)
+jest.mock('expo-haptics', () => ({
+  impactAsync: jest.fn().mockResolvedValue(undefined),
+  notificationAsync: jest.fn().mockResolvedValue(undefined),
+  selectionAsync: jest.fn().mockResolvedValue(undefined),
+  ImpactFeedbackStyle: { Light: 'light', Medium: 'medium', Heavy: 'heavy' },
+  NotificationFeedbackType: {
+    Success: 'success',
+    Warning: 'warning',
+    Error: 'error',
   },
 }));
 
