@@ -95,60 +95,75 @@ jest.mock('expo-linking', () => ({
   canOpenURL: jest.fn(() => Promise.resolve(true)),
 }));
 
-// Mock Supabase
-jest.mock('@supabase/supabase-js', () => ({
-  createClient: jest.fn(() => ({
-    auth: {
-      getUser: jest.fn(() =>
-        Promise.resolve({
-          data: { user: null },
-          error: null,
-        }),
-      ),
-      signInWithPassword: jest.fn(() =>
-        Promise.resolve({
-          data: { user: null },
-          error: null,
-        }),
-      ),
-      signOut: jest.fn(() => Promise.resolve({ error: null })),
-    },
-    from: jest.fn(() => ({
-      select: jest.fn(() => ({
-        eq: jest.fn(() => ({
-          single: jest.fn(() =>
-            Promise.resolve({
-              data: null,
-              error: null,
-            }),
+// Mock Supabase. The PostgREST query builder is chainable with many methods
+// (.eq, .neq, .not, .order, .limit, .range, .single, .maybeSingle, etc.) and
+// each returns the builder; only terminal methods resolve. To avoid brittle
+// per-method nesting, the builder is a Proxy that responds to *any* method
+// access by returning itself (chainable) and is `then`-able so `await
+// supabase.from(...).select().eq(...)` resolves to { data: null, error: null }.
+jest.mock('@supabase/supabase-js', () => {
+  const makeChain = () => {
+    const target = function () {};
+    target.then = resolve => resolve({ data: null, error: null });
+    target.catch = () => target;
+    target.finally = () => target;
+    return new Proxy(target, {
+      get(t, prop) {
+        if (prop === 'then' || prop === 'catch' || prop === 'finally') {
+          return t[prop];
+        }
+        // any other prop returns a callable that returns the chain
+        return jest.fn(() => makeChain());
+      },
+      apply() {
+        return makeChain();
+      },
+    });
+  };
+  return {
+    createClient: jest.fn(() => ({
+      auth: {
+        getUser: jest.fn(() =>
+          Promise.resolve({ data: { user: null }, error: null }),
+        ),
+        signInWithPassword: jest.fn(() =>
+          Promise.resolve({ data: { user: null }, error: null }),
+        ),
+        signOut: jest.fn(() => Promise.resolve({ error: null })),
+      },
+      from: jest.fn(() => makeChain()),
+      rpc: jest.fn(() => Promise.resolve({ data: null, error: null })),
+      storage: {
+        from: jest.fn(() => ({
+          upload: jest.fn(() =>
+            Promise.resolve({ data: { path: 'mock/path' }, error: null }),
           ),
-        })),
-      })),
-      insert: jest.fn(() => ({
-        select: jest.fn(() => ({
-          single: jest.fn(() =>
-            Promise.resolve({
-              data: null,
-              error: null,
-            }),
+          update: jest.fn(() =>
+            Promise.resolve({ data: { path: 'mock/path' }, error: null }),
           ),
-        })),
-      })),
-      update: jest.fn(() => ({
-        eq: jest.fn(() => ({
-          select: jest.fn(() => ({
-            single: jest.fn(() =>
-              Promise.resolve({
-                data: null,
-                error: null,
-              }),
-            ),
+          download: jest.fn(() => Promise.resolve({ data: null, error: null })),
+          remove: jest.fn(() => Promise.resolve({ data: null, error: null })),
+          list: jest.fn(() => Promise.resolve({ data: [], error: null })),
+          getPublicUrl: jest.fn(() => ({
+            data: { publicUrl: 'https://mock/file.png' },
           })),
+          createSignedUrl: jest.fn(() =>
+            Promise.resolve({
+              data: { signedUrl: 'https://mock/signed.png' },
+              error: null,
+            }),
+          ),
+          createSignedUrls: jest.fn(() =>
+            Promise.resolve({ data: [], error: null }),
+          ),
+          move: jest.fn(() => Promise.resolve({ data: null, error: null })),
+          copy: jest.fn(() => Promise.resolve({ data: null, error: null })),
         })),
-      })),
+        listBuckets: jest.fn(() => Promise.resolve({ data: [], error: null })),
+      },
     })),
-  })),
-}));
+  };
+});
 
 // Mock fetch for API calls
 global.fetch = jest.fn(() =>
@@ -162,6 +177,93 @@ global.fetch = jest.fn(() =>
       }),
   }),
 );
+
+// US-009: Global mocks for external service SDKs. These prevent the real
+// SDK constructors from running env / network probes on import, and give
+// tests a deterministic stub when they touch these clients indirectly.
+// Per-test jest.mock(...) calls in individual files still override these.
+
+// Mock OpenAI SDK (used by storyAgent, embeddingGenerationService, etc.)
+jest.mock('openai', () => {
+  const chatResponse = {
+    choices: [
+      {
+        message: {
+          role: 'assistant',
+          content: '{"ok": true}',
+        },
+        finish_reason: 'stop',
+        index: 0,
+      },
+    ],
+    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+  };
+  const embeddingResponse = {
+    data: [{ embedding: new Array(1536).fill(0), index: 0 }],
+    usage: { prompt_tokens: 1, total_tokens: 1 },
+  };
+  const MockOpenAI = jest.fn().mockImplementation(() => ({
+    chat: {
+      completions: { create: jest.fn().mockResolvedValue(chatResponse) },
+    },
+    embeddings: { create: jest.fn().mockResolvedValue(embeddingResponse) },
+    images: {
+      generate: jest
+        .fn()
+        .mockResolvedValue({ data: [{ url: 'https://mock/image.png' }] }),
+    },
+  }));
+  return { __esModule: true, default: MockOpenAI, OpenAI: MockOpenAI };
+});
+
+// Mock Replicate SDK (used by imageGeneration service)
+jest.mock('replicate', () => {
+  const mockPrediction = {
+    id: 'mock-pred-id',
+    status: 'succeeded',
+    output: ['https://mock/image.png'],
+    error: null,
+    created_at: '2026-01-01T00:00:00Z',
+    completed_at: '2026-01-01T00:00:01Z',
+  };
+  const MockReplicate = jest.fn().mockImplementation(() => ({
+    run: jest.fn().mockResolvedValue(['https://mock/image.png']),
+    predictions: {
+      create: jest.fn().mockResolvedValue(mockPrediction),
+      get: jest.fn().mockResolvedValue(mockPrediction),
+      cancel: jest.fn().mockResolvedValue(mockPrediction),
+    },
+  }));
+  return { __esModule: true, default: MockReplicate };
+});
+
+// Mock convex/react hooks. Without this, any component test that renders a
+// component using useQuery/useMutation throws because there's no
+// ConvexProvider in the test tree. Tests that need different behavior can
+// override per-file with jest.mock('convex/react', ...).
+jest.mock('convex/react', () => ({
+  useQuery: jest.fn(() => undefined),
+  useMutation: jest.fn(() => jest.fn().mockResolvedValue(null)),
+  useAction: jest.fn(() => jest.fn().mockResolvedValue(null)),
+  useConvex: jest.fn(() => ({
+    query: jest.fn().mockResolvedValue(null),
+    mutation: jest.fn().mockResolvedValue(null),
+    action: jest.fn().mockResolvedValue(null),
+  })),
+  useConvexAuth: jest.fn(() => ({ isLoading: false, isAuthenticated: false })),
+  ConvexProvider: ({ children }) => children,
+  ConvexReactClient: jest.fn().mockImplementation(() => ({
+    setAuth: jest.fn(),
+    clearAuth: jest.fn(),
+    close: jest.fn(),
+    mutation: jest.fn().mockResolvedValue(null),
+    query: jest.fn().mockResolvedValue(null),
+    action: jest.fn().mockResolvedValue(null),
+  })),
+  Authenticated: ({ children }) => children,
+  Unauthenticated: ({ children }) => children,
+  AuthLoading: ({ children }) => children,
+}));
 
 // Mock React Native modules individually
 jest.mock('react-native', () => ({

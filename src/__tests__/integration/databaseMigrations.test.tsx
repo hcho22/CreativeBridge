@@ -13,19 +13,26 @@ import type {
   ImageGenerationEventUpdate,
 } from '../../types/database';
 
-// Mock Supabase client for testing database operations
-const mockSupabaseClient = {
-  from: jest.fn(),
-  rpc: jest.fn(),
-  auth: {
-    uid: jest.fn(() => 'test-user-id'),
-  },
-};
-
-// Mock the supabase module
+// Mock the supabase module — define the mock client INSIDE the factory.
+// jest.mock is hoisted above any `const` declarations, so a closure-captured
+// outer `const mockSupabaseClient = {...}` is in the temporal dead zone when
+// the factory runs and resolves to undefined. Alias the imported (mocked)
+// `supabase` as `mockSupabaseClient` for the existing test code below.
 jest.mock('../../services/supabase', () => ({
-  supabase: mockSupabaseClient,
+  supabase: {
+    from: jest.fn(),
+    rpc: jest.fn(),
+    auth: {
+      uid: jest.fn(() => 'test-user-id'),
+    },
+  },
 }));
+
+const mockSupabaseClient = supabase as unknown as {
+  from: jest.Mock;
+  rpc: jest.Mock;
+  auth: { uid: jest.Mock };
+};
 
 describe('Database Migrations Integration Tests', () => {
   beforeEach(() => {
