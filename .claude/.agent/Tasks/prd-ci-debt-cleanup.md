@@ -515,16 +515,39 @@ Each implementation story is followed by its paired validation story. Validation
 
 **Description:** As a maintainer, I want a structured report grouping each failure by likely cause so the fix work has a roadmap rather than ad-hoc whack-a-mole.
 
+**Status: ✅ COMPLETE (2026-05-04).** Triage report shipped at [`.claude/.agent/Tasks/ci-test-triage.md`](./ci-test-triage.md). Headline counts: **104 mock divergence (13.4%) / 652 real assertion (83.8%) / 22 flake-timeout (2.8%)**, summing to the 778 failing tests. Local jest wall time was 65.7s (matches the PRD's stated baseline).
+
 **Acceptance Criteria:**
 
-- [ ] Run `npm test -- --watchAll=false --json --outputFile=/tmp/jest-results.json --bail=0` locally
-- [ ] Parse the JSON into a categorized markdown report at `.claude/.agent/Tasks/ci-test-triage.md`
-- [ ] Each failure assigned to one of:
-  - **Mock divergence** — failure is `expect(X).toEqual(Y)` where mock returns Y but source now expects different shape
-  - **Real assertion failure** — production code behavior changed; either real regression or stale expectation
-  - **Flake / timeout** — exceeded jest's per-test timeout, or non-deterministic
-- [ ] Report includes per-category counts and a top-20 file list
-- [ ] No source or test code modified at this stage — categorization only
+- [x] Run `npm test -- --watchAll=false --json --outputFile=/tmp/jest-results.json --bail=0` locally — **MET**: ran in 65.743s. Output: `Tests: 778 failed, 19 skipped, 3110 passed, 3907 total`. Test Suites: 152 failed, 156 passed, 1 skipped (308 of 309 ran).
+- [x] Parse the JSON into a categorized markdown report at `.claude/.agent/Tasks/ci-test-triage.md` — **MET**: 17 KB markdown report, 5 sections (headline counts, PRD bucket categorization, top-20 files, suite-load side-finding, per-bucket samples).
+- [x] Each failure assigned to one of `Mock divergence` / `Real assertion failure` / `Flake / timeout` — **MET**: 778 categorized; sums to 100%.
+- [x] Report includes per-category counts and a top-20 file list — **MET**: counts in section "Categorization of the 778 failing tests"; top-20 in "Top 20 files by inner-test failure count".
+- [x] No source or test code modified at this stage — categorization only — **MET**: only documentation files added (`.claude/.agent/Tasks/ci-test-triage.md`) and the PRD updated.
+
+**Implementation notes (2026-05-04):**
+
+- **Categorization heuristic** (intentionally simple per US-012's 10-sample / ≤2-miscategorized grading):
+  - **Flake / timeout**: failure first-line matches `Exceeded timeout of Nms`.
+  - **Mock divergence**: failure first-line matches `TypeError: Cannot read properties of (undefined|null)` / `is not a function` / `is not iterable` / `Cannot destructure property` — the runtime signature of a mock returning the wrong shape.
+  - **Real assertion failure**: everything else (covers `.toEqual` / `.toBe` value mismatches without an upstream TypeError). Some of these may be mock-divergence in disguise; the conservative bucket is "real" so US-013's Mocks-First sweep doesn't grab them by accident.
+- **Side finding — 50 suite-load failures (not counted in the 778)**: 152 failed suites = 102 with inner-test failures + 50 that crashed at import. These don't fit any of the 3 PRD buckets. Categorized further by cause:
+  - `transform-error` (Jest unexpected token) — likely TS/JSX `transformIgnorePatterns` gap.
+  - `convex-mock-conflict` — `_server.internalMutation is not a function` — global `convex/react` mock from US-009 conflicts with files that also mock `convex/server` or import directly from generated server.
+  - `missing-module` — typo (`@react-native-netinfo/netinfo` instead of `@react-native-community/netinfo`).
+  - Recommendation: address suite-load failures **before** US-013's Mocks-First sweep — fixing one suite-load may unmask additional inner failures that should then be re-categorized.
+- **Top-5 files by inner-test failure count** (full top-20 in the triage report):
+  1. `src/__tests__/components/StoryPreviewEdit.test.tsx` (37)
+  2. `src/__tests__/integration/finalStoryDownloadIntegration.test.ts` (26)
+  3. `src/__tests__/components/StorySelectionModal.test.tsx` (24)
+  4. `src/__tests__/components/StoryImageDisplay.test.tsx` (22)
+  5. `src/__tests__/story/errorHandling.test.ts` (22)
+
+**Implications for US-013 (Mocks-First) and US-015 (case-by-case)**:
+
+- US-013's tractable scope = **104 mock-divergence failures**. At an estimated ~5 min each, that's ~9 hours of work.
+- US-015's scope = **652 real-assertion failures + 22 flake-timeouts** = 674 cases. The flake-timeout cluster overlaps heavily with retry/circuit-breaker tests that exist by design — many can be marked `.skip` or rewritten to use fake timers rather than chased as bugs.
+- The 50 suite-load failures should be sequenced before US-013 to avoid re-triage churn.
 
 ### US-012: Validate Phase 3b — review categorization output
 
