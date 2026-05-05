@@ -11,7 +11,7 @@ import { uiPerformanceMonitor } from '../../services/uiPerformanceMonitor';
 import { engagementOptimizer } from '../../services/engagementOptimizer';
 import { navigationOptimizer } from '../../services/navigationOptimizer';
 import { readingComprehensionOptimizer } from '../../services/readingComprehensionOptimizer';
-import { behaviorAnalyticsService } from '../../services/behaviorAnalytics';
+import { behaviorAnalytics } from '../../services/behaviorAnalytics';
 import { interfaceAdapter } from '../../services/interfaceAdapter';
 import { storyAnalytics } from '../../services/storyAnalytics';
 import { userPreferencesService } from '../../services/userPreferences';
@@ -136,7 +136,7 @@ describe('Comprehensive Performance Validation', () => {
     // Initialize all services for testing
     await Promise.all([
       dynamicUICoordinator.initialize(testSessionId, 'Grade3', 'Home'),
-      behaviorAnalyticsService.initialize('Grade3'),
+      behaviorAnalytics.initialize('Grade3'),
       interfaceAdapter.initialize(),
     ]);
   });
@@ -145,7 +145,7 @@ describe('Comprehensive Performance Validation', () => {
     // Cleanup all services
     await Promise.all([
       dynamicUICoordinator.shutdown(),
-      behaviorAnalyticsService.shutdown(),
+      behaviorAnalytics.shutdown(),
       interfaceAdapter.shutdown(),
     ]);
   });

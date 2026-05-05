@@ -152,7 +152,6 @@ describe('Final Story Download Integration Tests', () => {
     jest.clearAllMocks();
 
     // Reset all services
-    await enhancedErrorHandling.initialize();
     await accessibilityService.initialize();
     hapticFeedbackService.initialize();
     downloadKeyboardNavigation.initialize();

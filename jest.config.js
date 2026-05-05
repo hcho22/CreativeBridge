@@ -6,7 +6,7 @@ module.exports = {
     '<rootDir>/src/__tests__/setupAfterEnv.ts',
   ],
   transformIgnorePatterns: [
-    'node_modules/(?!(react-native|@react-native|@react-navigation|react-native-vector-icons|@react-native-voice|@supabase|react-native-device-info|@react-native-async-storage|@react-native-community|react-native-url-polyfill|@clerk|expo-web-browser|expo-linking)/)',
+    'node_modules/(?!(react-native|@react-native|@react-navigation|react-native-vector-icons|@react-native-voice|@supabase|react-native-device-info|@react-native-async-storage|@react-native-community|react-native-url-polyfill|@clerk|expo|expo-.*|@expo|@expo/.*)/)',
   ],
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
