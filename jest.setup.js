@@ -324,8 +324,13 @@ jest.mock('react-native', () => ({
   Button: 'Button',
   SafeAreaView: 'SafeAreaView',
   Image: 'Image',
+  ImageBackground: 'ImageBackground',
   Modal: 'Modal',
   FlatList: 'FlatList',
+  SectionList: 'SectionList',
+  KeyboardAvoidingView: 'KeyboardAvoidingView',
+  RefreshControl: 'RefreshControl',
+  StatusBar: 'StatusBar',
   Linking: {
     openURL: jest.fn(() => Promise.resolve(true)),
     canOpenURL: jest.fn(() => Promise.resolve(true)),

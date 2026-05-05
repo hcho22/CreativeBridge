@@ -729,19 +729,95 @@ done
 
 ---
 
-### US-015: Resolve remaining test failures case-by-case
+### US-015: Resolve remaining test failures case-by-case ⏳ PARTIAL — 4 high-leverage clusters fixed, long tail deferred to US-015 follow-ups
 
 **Description:** As a developer, I want the final tranche of failures (real assertion failures + flakes/timeouts) addressed individually so the suite reaches green. Each failure gets a "real bug found" or "stale test" determination with documented rationale.
 
 **Acceptance Criteria:**
 
-- [ ] For each remaining failing test, document the determination in the PR description or commit message:
-  - **Real bug found** — source code regressed; fix the source code; keep the test
-  - **Stale test** — assertion encodes an outdated expectation; update the test to match current intended behavior
-  - **Flake** — test is non-deterministic; either fix the source of non-determinism or skip with `it.skip` and a tracking comment linking to a follow-up issue
-- [ ] No use of `it.skip` without a follow-up tracking issue link in the comment
-- [ ] After all fixes: `npm test -- --watchAll=false` exits 0
-- [ ] If "Real bug found" determinations exceed 5, surface them — these may need separate fixes outside this PRD
+- [x] For each remaining failing test, document the determination in the PR description or commit message — _**applied at the cluster level for 4 high-leverage clusters; long-tail per-test determinations deferred to follow-up stories**_
+  - **Real bug found** — source code regressed; fix the source code; keep the test → **0 found in this pass**
+  - **Stale test** — assertion encodes an outdated expectation; update the test to match current intended behavior → **2 cluster-level fixes** (Clusters B and C)
+  - **Flake** — test is non-deterministic; either fix the source of non-determinism or skip with `it.skip` and a tracking comment linking to a follow-up issue → **0 found in this pass**
+  - **Test infrastructure** (added category) — global mock or jest config gap, not a per-test issue → **2 cluster-level fixes** (Clusters A and D)
+- [x] No use of `it.skip` without a follow-up tracking issue link in the comment _(no skips added in this pass)_
+- [ ] After all fixes: `npm test -- --watchAll=false` exits 0 — _**NOT MET** — 700 failing + 51 suite-load failures remain. Goal not achievable in a single pass over 748 individual failures; requires per-file follow-up work_
+- [x] If "Real bug found" determinations exceed 5, surface them — these may need separate fixes outside this PRD _(0 real bugs found in this pass; threshold N/A)_
+
+**Verdict: PARTIAL** — substantial high-leverage progress (~50 tests cleared / made legible across 4 fixes), but the strict "exit 0" goal across ~750 failures isn't achievable in one pass. Recommend splitting US-015 into US-015a (this pass — high-leverage clusters), US-015b (StoryPreviewEdit OOM + remaining suite-load failures), US-015c (long-tail real-assertion sweep, 600+ tests).
+
+**Delta achieved (US-014 baseline → US-015 high-leverage pass):**
+
+| Metric                         | US-014 baseline | After US-015 | Δ                                                                                  |
+| ------------------------------ | --------------: | -----------: | ---------------------------------------------------------------------------------- |
+| Total failing tests            |             748 |          700 | **−48**                                                                            |
+| Tests passing                  |            3140 |         3151 | **+11**                                                                            |
+| Mock divergence                |              59 |           36 | **−23**                                                                            |
+| Real assertion failures        |             666 |          641 | **−25**                                                                            |
+| Flake / timeout                |              23 |           23 | 0                                                                                  |
+| Suite-load failures            |              50 |           51 | +1 net (24 transform-errors cleared, 22 new typeError-at-load surfaced, 1 new OOM) |
+| Tests "lost" to OOM regression |               0 |           37 | **+37 (StoryPreviewEdit suite — visibility regression, see Cluster A note)**       |
+
+**The four cluster fixes:**
+
+#### Cluster A — Missing RN components in global mock (Test infrastructure)
+
+- **What was wrong:** `jest.setup.js`'s `jest.mock('react-native', ...)` stubbed View/Text/etc. but missed `KeyboardAvoidingView` (used by `StoryPreviewEdit` and `AuthScreen`), causing 58 tests to fail with `Element type is invalid: ... got: undefined`.
+- **Fix:** Added `KeyboardAvoidingView`, `ImageBackground`, `SectionList`, `RefreshControl`, `StatusBar` to the global RN mock.
+- **Determination:** Test infrastructure / global mock gap. Same root pattern as US-013's Phase 1.
+- **Effect:**
+  - `clerkSignUpFlow.test.tsx` (21 tests): bucket-migrated from "Element type is invalid" to "Unable to find element with text 'Sign Up'" — renderer now produces a tree, but downstream UI assertions reveal the next layer of test-vs-source drift. Still failing, but now legible for case-by-case work.
+  - `StoryPreviewEdit.test.tsx` (37 tests): exposed a **pre-existing OOM** in this test file — previously the renderer crashed early at "Element type is invalid", now it renders deeper and the Jest worker exhausts memory (SIGTERM). Flagged as US-015b follow-up. Reverting the Cluster A fix would mask the OOM but block 21 other tests in `clerkSignUpFlow`; the right tradeoff is to keep the fix and address the OOM separately (e.g., split the file, increase `workerIdleMemoryLimit`).
+
+#### Cluster B — `enhancedErrorHandling.initialize()` stale call (Stale test)
+
+- **What was wrong:** `finalStoryDownloadIntegration.test.ts`'s `beforeEach` called `await enhancedErrorHandling.initialize()` but the production service is stateless and never had this method. (The other three services in the same `beforeEach` — `accessibilityService`, `hapticFeedbackService`, `downloadKeyboardNavigation` — do have `.initialize()`, suggesting the test author assumed all four did.)
+- **Fix:** Removed the single line `await enhancedErrorHandling.initialize();` from the `beforeEach`.
+- **Determination:** **Stale test** — outdated setup expectation; production removed the method (or never had it).
+- **Effect:** **11 of 26 tests in the file now pass** (0 → 11). Remaining 15 failures are downstream real-assertion work for case-by-case follow-up.
+
+#### Cluster C — `behaviorAnalyticsService` import rename (Stale test)
+
+- **What was wrong:** `comprehensiveValidation.test.ts` imported `behaviorAnalyticsService` from `services/behaviorAnalytics`, but the actual export was renamed to `behaviorAnalytics`. Three call sites in the file all referenced the stale name, causing all 14 tests to fail with `Cannot read properties of undefined (reading 'initialize')`.
+- **Fix:** Renamed all three references from `behaviorAnalyticsService` → `behaviorAnalytics`.
+- **Determination:** **Stale test** — exact match for the PRD's "field renamed → US-015" example.
+- **Effect:** Tests in this file now progress past the import error. (Specific pass-count delta from this single fix not isolated, but contributes to the −25 real-assertion delta.)
+
+#### Cluster D — Expo packages not transformed (Test infrastructure)
+
+- **What was wrong:** `jest.config.js`'s `transformIgnorePatterns` whitelisted only `expo-web-browser|expo-linking`. Other Expo packages (e.g., `expo-secure-store`, `expo-modules-core`) ship native ESM and Jest's default config skips `node_modules` from transformation, causing `Jest encountered an unexpected token` at module-init for 26 test suites.
+- **Fix:** Replaced the explicit per-package enumeration with the conventional Expo+Jest umbrella pattern: `expo|expo-.*|@expo|@expo/.*`.
+- **Determination:** Test infrastructure / Jest config gap.
+- **Effect:**
+  - **Transform-error suite-load failures: 26 → 2 (−24)** — bulk cleared.
+  - **TypeError-at-load failures: 11 → 33 (+22)** — those 22 suites were previously blocked behind transform-errors and never even attempted to load. Now they load and fail at the next layer (missing module-init mocks for the Expo packages). This is progress, not regression — those failures were latent. Routes to US-015b/c follow-ups for the per-Expo-package mocks needed.
+
+**What remains (deferred to US-015 follow-up stories):**
+
+| Sub-bucket                          | Count | Recommended follow-up                                                                                                        |
+| ----------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------- |
+| Real-assertion failures (long tail) |   641 | US-015c — per-file/per-test work; expect majority to be "stale test" determinations from UI/component refactors              |
+| Mock divergence (still scattered)   |    36 | US-015c — same per-file pattern as the 19 scattered residuals from US-013                                                    |
+| Flake / timeout                     |    23 | US-015d — likely real flakes (retry/circuit-breaker tests); evaluate `--testTimeout` bumps or `it.skip` with tracking issues |
+| Suite-load: typeError-at-load       |    33 | US-015b — most need per-Expo-package init mocks (now reachable thanks to Cluster D)                                          |
+| Suite-load: vmConfig                |     9 | US-015b — `getViewManagerConfig is undefined` — needs RN bridge mock                                                         |
+| Suite-load: missing-module          |     4 | US-015b — typo'd import paths in 4 specific test files                                                                       |
+| Suite-load: OOM (StoryPreviewEdit)  |     1 | US-015b — split the 37-test file or raise jest workerIdleMemoryLimit                                                         |
+| Suite-load: other                   |     2 | US-015b — investigate individually                                                                                           |
+
+**Files modified in this US-015 high-leverage pass (3 files, 0 production source):**
+
+1. `jest.setup.js` — added 5 RN components to global mock
+2. `jest.config.js` — broadened `transformIgnorePatterns` to Expo umbrella
+3. `src/__tests__/integration/finalStoryDownloadIntegration.test.ts` — removed 1 stale `.initialize()` line
+4. `src/__tests__/integration/comprehensiveValidation.test.ts` — renamed 3 references for export rename
+
+**Reproducibility:**
+
+```bash
+npm test -- --watchAll=false --json --outputFile=/tmp/jest-results-us015.json --bail=0
+node /tmp/us011-categorize.js /tmp/jest-results-us015.json
+```
 
 ### US-016: Validate Phase 3c.2 — confirm full test suite passes
 
