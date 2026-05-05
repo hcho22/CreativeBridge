@@ -1,9 +1,11 @@
 import { rateLimiter, ActionType } from '../../services/rateLimiter';
 import { mockSupabase } from '../mocks/supabaseMock';
 
-// Mock dependencies
+// Mock dependencies — use requireActual inside the factory so the supabaseMock
+// module resolves at factory-execution time (the surrounding import binding may
+// still be in TDZ when transitive imports trigger this factory first).
 jest.mock('../../services/supabase', () => ({
-  supabase: mockSupabase,
+  supabase: jest.requireActual('../mocks/supabaseMock').mockSupabase,
 }));
 
 jest.mock('../../services/auditLogger', () => ({

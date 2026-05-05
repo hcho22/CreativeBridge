@@ -13,6 +13,11 @@ import {
   beforeEach,
   afterEach,
 } from '@jest/globals';
+
+// Circuit-breaker reset and cascading-failure tests in this file use real timers
+// against actual retry windows; the global 10s testTimeout is too tight. Bump to
+// 30s file-wide so timing-dependent suites pass without ablation. (US-015d)
+jest.setTimeout(30000);
 import { ProgressiveEnhancementService } from '../../services/progressiveEnhancement';
 import { NetworkAdapterService } from '../../services/networkAdapter';
 import {

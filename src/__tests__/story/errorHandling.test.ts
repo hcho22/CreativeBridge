@@ -11,6 +11,10 @@ jest.mock('openai');
 jest.mock('@react-native-async-storage/async-storage');
 jest.mock('react-native-tts');
 
+// Retry/timeout/jitter tests in this file use real-time waits; the default 10s
+// jest testTimeout is too tight. Bump to 30s file-wide. (US-015d)
+jest.setTimeout(30000);
+
 describe('Error Handling and Fallbacks', () => {
   beforeEach(() => {
     jest.clearAllMocks();

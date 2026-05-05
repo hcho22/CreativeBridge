@@ -7,12 +7,17 @@ import {
 import { mockSupabase } from '../mocks/supabaseMock';
 import mockDeviceInfo from '../mocks/deviceInfoMock';
 
-// Mock dependencies
+// Mock dependencies — use requireActual inside the factory so the supabaseMock
+// module resolves at factory-execution time (avoids TDZ when transitive imports
+// trigger this factory before the test-file's own imports have initialized).
 jest.mock('../../services/supabase', () => ({
-  supabase: mockSupabase,
+  supabase: jest.requireActual('../mocks/supabaseMock').mockSupabase,
 }));
 
-jest.mock('../../services/deviceInfo', () => mockDeviceInfo);
+jest.mock(
+  '../../services/deviceInfo',
+  () => jest.requireActual('../mocks/deviceInfoMock').default,
+);
 
 jest.mock('react-native', () => ({
   Platform: {
