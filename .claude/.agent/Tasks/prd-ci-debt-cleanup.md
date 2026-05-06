@@ -1351,28 +1351,36 @@ The third category is by far the dominant pattern — and the cheapest to fix. T
 
 **Files modified for US-019 batch 1: 3 (1 PRD + 2 source). 0 production logic changes — all unused-var cleanup.**
 
-### US-019.5: Ratchet ESLint warning budget per batch ✅ COMPLETE (initial ratchet 750 → 717)
+### US-019.5: Ratchet ESLint warning budget per batch ✅ COMPLETE (initial ratchet 750 → 715, after correction)
 
-**Description:** As a maintainer, I want the ESLint `--max-warnings` budget tightened to the empirical floor after every US-019 batch, so each batch's gain is locked in and any new warning anywhere in the codebase fails CI immediately. This is a bridge story between US-019 (long-running, multi-batch) and US-020 (final flip to zero).
+**Description:** As a maintainer, I want the ESLint `--max-warnings` budget tightened to the empirical floor **as observed in CI** after every US-019 batch, so each batch's gain is locked in and any new warning anywhere in the codebase fails CI immediately. This is a bridge story between US-019 (long-running, multi-batch) and US-020 (final flip to zero).
 
-**Why this exists:** US-020's AC requires `--max-warnings 0`, which cannot pass while US-019 is in progress (currently 717 warnings). Without a ratchet, the soft budget at 750 silently allows up to 33 new warnings to land while US-019 batches continue — exactly the entropy this PRD is trying to stop. The ratchet pattern keeps the budget pinned to the floor.
+**Why this exists:** US-020's AC requires `--max-warnings 0`, which cannot pass while US-019 is in progress. Without a ratchet, the soft budget at 750 silently allowed up to 35 new warnings to land while US-019 batches continue — exactly the entropy this PRD is trying to stop. The ratchet pattern keeps the budget pinned to the floor.
 
-**Policy:**
+**Local↔CI count divergence (discovered during PR #44 verification, 2026-05-06):**
 
-- After each US-019 batch lands on `main`, immediately open a follow-up PR that updates `.github/workflows/ci.yml`'s `--max-warnings <N>` to match the new floor (`npx eslint . 2>&1 | tail -1`).
-- The ratchet PR is a single-line change. It does not modify source code; it cannot regress lint quality.
+The first ratchet attempt set `--max-warnings 717` based on a local count of `npx eslint .` (717 warnings on `c8fe035`, before scratch). But on push, CI reported only 715 warnings. The +1 unused-var scratch commit then yielded 716 warnings in CI, which was still ≤ 717 — so the gate did NOT fail, defeating the test.
+
+**Root cause:** Local `npx eslint .` walks untracked files in the working tree (e.g., `tmp/babel-diff.js`, scratch artifacts in `tmp/*.json`, `convex/.expo/*`, etc.) that are absent from CI's fresh `git clone` checkout. Net: local sees ~2 more warnings than CI on the same commit.
+
+**Policy (refined):**
+
+- **The ratchet ceiling is set from CI's empirical floor, NOT local's.** After each US-019 batch lands on `main`, run CI once on a no-op PR (or read the latest run on `main`) to capture the new CI baseline. Use that number as the ratchet target.
+- The ratchet PR is a single-line change to `.github/workflows/ci.yml`. It does not modify source code; it cannot regress lint quality.
 - The ratchet is a one-way valve: budgets only ever decrease. Increasing the budget requires a justification PR.
+- **Local UX trade-off:** with the ratchet pinned to CI's floor, `npx eslint . --max-warnings <N>` may exit 1 locally on a clean repo because of the local-only files. This is acceptable because (a) developers don't typically run `--max-warnings` locally — the pre-commit hook runs `eslint --fix`, not the budget gate, and (b) CI is the enforcement point. To eliminate the local↔CI gap, extend `.eslintignore` to cover `tmp/`, `*.expo/`, and other scratch dirs (deferred to a future cleanup story).
 
 **Acceptance Criteria for the initial ratchet (PR #44):**
 
-- [x] `.github/workflows/ci.yml` updated: `--max-warnings 750` → `--max-warnings 717`
-- [x] Locally verified: `npx eslint . --max-warnings 717` exits 0
-- [x] Locally verified: `npx eslint . --max-warnings 716` exits 1 (gate has teeth at the new ceiling)
-- [x] PRD updated with ratchet record + per-batch policy
+- [x] `.github/workflows/ci.yml` updated: `--max-warnings 750` → `--max-warnings 715` (after correction from 717)
+- [x] CI verified: `Run ESLint` step exits 0 on clean branch (no scratch present)
+- [x] CI verified: `Run ESLint` step exits 1 on scratch branch (one extra unused-var present) — proves the gate has teeth
+- [x] Scratch commit reverted before merge
+- [x] PRD updated with ratchet record, local↔CI gap finding, and per-batch policy
 
-**Verdict:** ✅ COMPLETE. The post-batch-1 floor (717) is now the CI ceiling. Future US-019 batches each owe a ratchet commit.
+**Verdict:** ✅ COMPLETE (after the 717→715 correction). The CI floor (715) is now the CI ceiling. Future US-019 batches each owe a ratchet commit set from CI's post-merge floor.
 
-**Files modified: 2 (PRD + ci.yml). 0 production source changes. 1-line CI workflow edit.**
+**Files modified: 2 (PRD + ci.yml). 0 production source changes. 2 single-line CI workflow edits (the original 750→717 and the correction 717→715).**
 
 ---
 
