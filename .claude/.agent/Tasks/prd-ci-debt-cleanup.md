@@ -1351,14 +1351,43 @@ The third category is by far the dominant pattern — and the cheapest to fix. T
 
 **Files modified for US-019 batch 1: 3 (1 PRD + 2 source). 0 production logic changes — all unused-var cleanup.**
 
-### US-020: Validate Phase 5 — flip ESLint to `--max-warnings 0`
+### US-019.5: Ratchet ESLint warning budget per batch ✅ COMPLETE (initial ratchet 750 → 717)
+
+**Description:** As a maintainer, I want the ESLint `--max-warnings` budget tightened to the empirical floor after every US-019 batch, so each batch's gain is locked in and any new warning anywhere in the codebase fails CI immediately. This is a bridge story between US-019 (long-running, multi-batch) and US-020 (final flip to zero).
+
+**Why this exists:** US-020's AC requires `--max-warnings 0`, which cannot pass while US-019 is in progress (currently 717 warnings). Without a ratchet, the soft budget at 750 silently allows up to 33 new warnings to land while US-019 batches continue — exactly the entropy this PRD is trying to stop. The ratchet pattern keeps the budget pinned to the floor.
+
+**Policy:**
+
+- After each US-019 batch lands on `main`, immediately open a follow-up PR that updates `.github/workflows/ci.yml`'s `--max-warnings <N>` to match the new floor (`npx eslint . 2>&1 | tail -1`).
+- The ratchet PR is a single-line change. It does not modify source code; it cannot regress lint quality.
+- The ratchet is a one-way valve: budgets only ever decrease. Increasing the budget requires a justification PR.
+
+**Acceptance Criteria for the initial ratchet (PR #44):**
+
+- [x] `.github/workflows/ci.yml` updated: `--max-warnings 750` → `--max-warnings 717`
+- [x] Locally verified: `npx eslint . --max-warnings 717` exits 0
+- [x] Locally verified: `npx eslint . --max-warnings 716` exits 1 (gate has teeth at the new ceiling)
+- [x] PRD updated with ratchet record + per-batch policy
+
+**Verdict:** ✅ COMPLETE. The post-batch-1 floor (717) is now the CI ceiling. Future US-019 batches each owe a ratchet commit.
+
+**Files modified: 2 (PRD + ci.yml). 0 production source changes. 1-line CI workflow edit.**
+
+---
+
+### US-020: Validate Phase 5 — flip ESLint to `--max-warnings 0` ⛔ BLOCKED ON US-019
 
 **Description:** As a maintainer, I want the ESLint gate strict so that any new warning fails CI.
+
+**Status (2026-05-06):** BLOCKED. US-020's first AC requires `npx eslint . --max-warnings 0` to exit 0, which is impossible while US-019 is in progress (717 warnings remain after batch 1). This story can only close after US-019 batches 2-8 reach zero. In the meantime, US-019.5 (ratchet) holds the line.
+
+**Unblock criteria:** `npx eslint .` from repo root reports `0 problems` on `main`.
 
 **Acceptance Criteria:**
 
 - [ ] Edit `.github/workflows/ci.yml`:
-  - Change `npx eslint .` to `npx eslint . --max-warnings 0`
+  - Change `npx eslint . --max-warnings <N>` to `npx eslint . --max-warnings 0`
 - [ ] Open a no-op PR; confirm ESLint step exits 0
 - [ ] Intentionally introduce a warning on a side commit (e.g., declare an unused variable); confirm CI fails the build
 - [ ] Revert the test commit before merging
