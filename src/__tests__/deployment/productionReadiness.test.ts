@@ -24,20 +24,9 @@ jest.mock('fs', () => ({
 }));
 
 describe('Production Deployment Readiness', () => {
-  let deploymentConfig: any;
   let monitoringConfig: any;
-  let rollbackSystem: any;
 
   beforeAll(async () => {
-    // Initialize deployment configuration
-    deploymentConfig = {
-      environment: 'production',
-      claudeSkillsEnabled: false,
-      rolloutStrategy: 'gradual',
-      healthChecks: true,
-      monitoringEnabled: true,
-    };
-
     // Initialize monitoring configuration
     monitoringConfig = {
       dashboards: [
@@ -63,17 +52,6 @@ describe('Production Deployment Readiness', () => {
         highFrequency: '7d',
         mediumFrequency: '30d',
         lowFrequency: '90d',
-      },
-    };
-
-    // Mock rollback system
-    rollbackSystem = {
-      isInitialized: true,
-      thresholds: {
-        criticalErrorRate: 0.05,
-        claudeSkillsFailureRate: 0.2,
-        responseTimeP95: 5000,
-        memoryUsageThreshold: 0.95,
       },
     };
   });
@@ -467,7 +445,7 @@ describe('Production Deployment Readiness', () => {
     };
   }
 
-  async function mockServiceStartup(service: string): Promise<any> {
+  async function mockServiceStartup(_service: string): Promise<any> {
     return {
       status: 'running',
       healthCheck: 'passing',
@@ -483,14 +461,17 @@ describe('Production Deployment Readiness', () => {
     };
   }
 
-  async function mockUpdateFeatureFlag(flag: string, value: any): Promise<any> {
+  async function mockUpdateFeatureFlag(
+    _flag: string,
+    _value: any,
+  ): Promise<any> {
     return {
       success: true,
       propagationTime: Math.random() * 30000, // Random propagation time up to 30 seconds
     };
   }
 
-  async function mockHealthCheck(endpoint: string): Promise<any> {
+  async function mockHealthCheck(_endpoint: string): Promise<any> {
     return {
       status: 200,
       responseTime: Math.random() * 5000, // Random response time up to 5 seconds
@@ -498,7 +479,7 @@ describe('Production Deployment Readiness', () => {
     };
   }
 
-  async function mockCollectMetric(metric: string): Promise<any> {
+  async function mockCollectMetric(_metric: string): Promise<any> {
     return {
       value: Math.random() * 100,
       timestamp: Date.now(),
@@ -520,7 +501,7 @@ describe('Production Deployment Readiness', () => {
     };
   }
 
-  async function mockDashboardCheck(dashboard: string): Promise<any> {
+  async function mockDashboardCheck(_dashboard: string): Promise<any> {
     return {
       accessible: true,
       loadTime: Math.random() * 10000, // Random load time up to 10 seconds
@@ -558,7 +539,7 @@ describe('Production Deployment Readiness', () => {
     };
   }
 
-  async function mockRollbackTrigger(trigger: any): Promise<any> {
+  async function mockRollbackTrigger(_trigger: any): Promise<any> {
     return {
       triggered: true,
       rollbackStarted: true,
@@ -566,7 +547,7 @@ describe('Production Deployment Readiness', () => {
     };
   }
 
-  async function mockExecuteRollback(type: string): Promise<any> {
+  async function mockExecuteRollback(_type: string): Promise<any> {
     return {
       dataIntegrityMaintained: true,
       noDataLoss: true,
@@ -575,7 +556,7 @@ describe('Production Deployment Readiness', () => {
     };
   }
 
-  async function mockServiceRestoration(service: string): Promise<any> {
+  async function mockServiceRestoration(_service: string): Promise<any> {
     return {
       restored: true,
       functionalityVerified: true,
@@ -687,7 +668,7 @@ describe('Production Deployment Readiness', () => {
     };
   }
 
-  async function mockPlatformCompatibility(platform: string): Promise<any> {
+  async function mockPlatformCompatibility(_platform: string): Promise<any> {
     return {
       compatible: true,
       performanceAcceptable: true,
@@ -695,7 +676,7 @@ describe('Production Deployment Readiness', () => {
     };
   }
 
-  async function mockDeviceTierOptimization(tier: string): Promise<any> {
+  async function mockDeviceTierOptimization(_tier: string): Promise<any> {
     return {
       optimizationActive: true,
       performanceAcceptable: true,
@@ -703,7 +684,7 @@ describe('Production Deployment Readiness', () => {
     };
   }
 
-  async function mockThirdPartyIntegration(integration: string): Promise<any> {
+  async function mockThirdPartyIntegration(_integration: string): Promise<any> {
     return {
       connected: true,
       secure: true,
