@@ -152,7 +152,7 @@ const ConsentPendingScreen: React.FC<ConsentPendingScreenProps> = ({
           <ActivityIndicator
             color={theme.colors.accents.foxglove}
             size="large"
-            style={{ marginBottom: 24 }}
+            style={styles.loadingIndicator}
           />
         ) : consentUrl ? (
           <>
@@ -230,6 +230,9 @@ const styles = StyleSheet.create({
   },
   content: {
     alignItems: 'center',
+  },
+  loadingIndicator: {
+    marginBottom: 24,
   },
   ornamentWrap: {
     marginVertical: 12,

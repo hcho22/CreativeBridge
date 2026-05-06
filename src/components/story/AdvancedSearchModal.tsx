@@ -451,7 +451,7 @@ const AdvancedSearchModal: React.FC<Props> = ({
         renderItem={SearchResultItem}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.resultsList}
-        ItemSeparatorComponent={() => <View style={styles.resultSeparator} />}
+        ItemSeparatorComponent={ResultSeparator}
       />
     );
   }, [
@@ -524,6 +524,10 @@ function debounce<T extends (...args: any[]) => any>(
     timeout = setTimeout(() => func(...args), wait);
   };
 }
+
+// Module-level component to satisfy react/no-unstable-nested-components.
+// Closure captures only styles.resultSeparator (also module-level).
+const ResultSeparator = () => <View style={styles.resultSeparator} />;
 
 const styles = StyleSheet.create({
   container: {

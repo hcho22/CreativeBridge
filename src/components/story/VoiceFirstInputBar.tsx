@@ -271,6 +271,7 @@ export function voiceFirstReducer(
       // Exhaustiveness check — if a new action is added to the union but not
       // handled above, TypeScript will flag this line at compile time.
       const _exhaustive: never = action;
+      // eslint-disable-next-line no-void -- exhaustiveness pattern: 'void' prevents TS noUnusedLocals from collapsing the never-typed assertion
       void _exhaustive;
       return state;
     }

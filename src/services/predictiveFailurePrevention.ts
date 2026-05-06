@@ -701,6 +701,7 @@ export class PredictiveFailurePreventionService {
             // Implementation would optimize network settings
             // This could involve adjusting timeouts, retries, etc.
             return true;
+            // eslint-disable-next-line no-unreachable -- catch is a stub for the future impl above; once real I/O is added, this becomes reachable
           } catch {
             return false;
           }

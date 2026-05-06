@@ -380,7 +380,7 @@ describe('Task 6.5: Security Testing - Image Storage', () => {
         const sanitized = sanitize(malicious);
 
         // Should not start with / or contain drive letters
-        expect(sanitized).not.toMatch(/^[\/\\]/);
+        expect(sanitized).not.toMatch(/^[/\\]/);
         expect(sanitized).not.toContain(':\\');
         expect(sanitized).toMatch(/^[a-zA-Z0-9-]*$/);
       });

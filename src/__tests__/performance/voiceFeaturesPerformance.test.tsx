@@ -168,6 +168,7 @@ jest.mock('../../context/AuthContext', () => ({
 //   - update "transcription appears immediately" latency target from
 //     <50ms to a realistic Whisper round-trip (~1–3s)
 // See PRD US-013 / `prd-voice-first-input-bar.md` for acceptance criteria.
+// eslint-disable-next-line jest/no-disabled-tests -- FR-8-compliant skip with tracking comment above
 describe.skip('Voice Features Performance Testing (STALE after Whisper migration)', () => {
   beforeEach(() => {
     jest.clearAllMocks();

@@ -118,6 +118,7 @@ const INJECTION_PATTERNS: { pattern: RegExp; replacement: string }[] = [
  * to hide injections or confuse tokenizers.
  */
 const CONTROL_CHAR_PATTERN =
+  // eslint-disable-next-line no-control-regex -- intentional: regex must match control chars to strip them from prompts
   /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F\u200B-\u200F\u2028-\u202F\uFEFF\uFFF9-\uFFFB]/g;
 
 /**

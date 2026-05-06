@@ -10,7 +10,9 @@ module.exports = {
     '@typescript-eslint/no-shadow': 'warn',
     'react-hooks/exhaustive-deps': 'warn',
     'react-hooks/rules-of-hooks': 'warn',
-    'no-catch-shadow': 'warn',
+    // Deprecated by ESLint (legacy IE8 rule, not applicable to modern engines).
+    // Forced 'off' because @react-native preset still enables it.
+    'no-catch-shadow': 'off',
     'no-unreachable': 'warn',
 
     // COPPA US-012: Prevent PII from leaking into logs.

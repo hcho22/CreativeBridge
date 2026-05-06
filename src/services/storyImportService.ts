@@ -1,3 +1,4 @@
+/* eslint-disable no-control-regex -- intentional: this service sanitizes imported content, regexes must match control chars to strip/detect them */
 // Story Import Service
 // Handles importing stories from files and database sources
 

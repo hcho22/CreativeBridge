@@ -407,7 +407,7 @@ describe('US-006: Regression — Game Ends Only After Both Players Complete Roun
 
       // No round exceeds MAX_ROUNDS
       displayedRounds.forEach(display => {
-        const roundNum = parseInt(display.split(' ')[1].split('/')[0]);
+        const roundNum = parseInt(display.split(' ')[1].split('/')[0], 10);
         expect(roundNum).toBeLessThanOrEqual(MAX_ROUNDS);
         expect(roundNum).toBeGreaterThanOrEqual(1);
       });

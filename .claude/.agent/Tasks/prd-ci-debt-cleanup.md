@@ -1345,11 +1345,41 @@ The third category is by far the dominant pattern — and the cheapest to fix. T
 | 5     | `no-bitwise` cluster (36)                  | Likely all in image-hash / bit-manipulation code; either rule-disable inline or scope rule by file pattern |            36 |                                    1 hour |
 | 6     | `@typescript-eslint/no-shadow` (34)        | Rename inner-scope vars to avoid shadowing                                                                 |            34 |                                   2 hours |
 | 7     | Long-tail per-file unused-vars (~482)      | Same pattern; can be parallelized across multiple agents/PRs                                               |          ~482 |                                8-12 hours |
-| 8     | All-other-rules cleanup (~50)              | One-off per rule                                                                                           |           ~50 |                                   2 hours |
+| 8     | All-other-rules cleanup (~50)              | One-off per rule                                                                                           | ✅ 40 cleared |                             ~1 hour spent |
 
 **Why batch 2 onward should NOT all be one PR:** the batch-1 PR shows that even small per-file changes need careful review (catch any side-effect-bearing code that was being called for effect, not value). 50-line PRs are reviewable; 700-line ones aren't. Each batch should land independently.
 
 **Files modified for US-019 batch 1: 3 (1 PRD + 2 source). 0 production logic changes — all unused-var cleanup.**
+
+#### US-019 batch 8 verdict ✅ COMPLETE — 40 warnings cleared (717 → 677 local; CI delta TBD on PR merge)
+
+**What landed:**
+
+- **`radix` (7 cleared):** added `, 10` arg to all `parseInt()` calls. Mechanical, zero-behavior-change.
+- **`no-control-regex` (6 cleared):** sanitization regexes intentionally match control chars. Inline disable in `promptSanitizer.ts` and the test file; file-level disable in `storyImportService.ts` (whose entire purpose is content sanitization). All disables include `--` reasoning suffixes.
+- **`react-native/no-inline-styles` (7 cleared):** static styles (5) extracted into `StyleSheet.create` (added a fresh sheet to `ConditionalClerkProvider.tsx`; extended existing sheets in `ConsentPendingScreen.tsx`, `SettingsScreen.tsx`). Two dynamic insets-based styles (`ProfileScreen.tsx`, `SettingsScreen.tsx`) use inline disable since `useMemo`-extraction isn't a satisfaction signal for this rule and the values genuinely change at runtime.
+- **`react/no-unstable-nested-components` (4 cleared):** 3 React-Navigation `screenOptions` callbacks in `AppNavigator.tsx` use inline disable (closure captures `theme`/`route` which the RN signature doesn't permit lifting). 1 `FlatList`'s `ItemSeparatorComponent` in `AdvancedSearchModal.tsx` lifted to module-level (closure was trivial — only `styles.resultSeparator`).
+- **`no-catch-shadow` (4 cleared):** rule is officially deprecated by ESLint (legacy IE8 scope rule). Set to `'off'` in `.eslintrc.js` since the inherited `@react-native` preset still enables it.
+- **`jest/no-disabled-tests` (3 cleared):** the 3 `describe.skip` blocks landed in US-015c batch 3b/3c with FR-8 tracking comments. Added `eslint-disable-next-line` directives directly above each skip — explicitly tying ESLint exemption to FR-8 compliance.
+- **`react-hooks/rules-of-hooks` (2 cleared):**
+  - `ConditionalClerkProvider.tsx:168` — `useMemo` was called AFTER an early `return null`, breaking React's rules. Moved the `useMemo` call ABOVE the early return (the proper rules-of-hooks fix). `getConvexClient()` is a singleton accessor, so calling it eagerly is fine.
+  - `downloadThemeService.ts:107` — `useColorScheme()` was being called inside a CLASS METHOD, which would crash at runtime ("Invalid hook call"). Replaced with `Appearance.getColorScheme()` (the imperative non-hook API). **This was a real latent bug, not just a lint nit.**
+- **`no-useless-escape` (2 cleared):** removed unnecessary backslashes inside character classes (`[\/\\]` → `[/\\]`, `[,\]\}]` → `[,\]}]`). No regex semantics change.
+- **`eslint-comments/no-unlimited-disable` (2 cleared):** these were in `coverage/lcov-report/*.js` (auto-generated istanbul coverage HTML). Added `coverage/` to `.eslintignore` — these files aren't ours to edit.
+- **`no-void` (1 cleared):** the `void _exhaustive;` is the canonical TypeScript exhaustiveness-check pattern (uses the `never`-typed value to satisfy `noUnusedLocals`). Inline disable with explanation.
+- **`no-unreachable` (1 cleared):** stub catch block whose try body has no throw paths (`predictiveFailurePrevention.ts:704`). Inline disable noting the catch becomes reachable once the stubbed implementation arrives.
+- **`jest/valid-expect` (1 cleared):** real bug in `analyticsIntegration.test.ts:430` — async assertion was not `await`ed. Added `async` to the `it` callback and `await` to the expect. The test now actually waits for the assertion.
+
+**Verification:**
+
+- Local: `npx eslint .` reports `✖ 677 problems (0 errors, 677 warnings)` (was 717)
+- Local: `npx eslint . --max-warnings 677` exits 0; `--max-warnings 676` exits 1 (gate has teeth at the new floor)
+- Local: `npx tsc --noEmit` exits 0 (zero TS errors)
+- CI: TBD on PR merge — expected new CI floor ~675 (matching the 2-warning local↔CI gap pattern from US-019.5)
+
+**Files modified for US-019 batch 8: 18 (1 PRD + 1 .eslintrc.js + 1 .eslintignore + 15 source/test files). Mix of trivial mechanical fixes (radix, useless-escape, parseInt arg) and 2 small but meaningful semantic fixes (the rules-of-hooks bugs).**
+
+**Follow-up: a fresh ratchet PR (US-019.5 policy) should land after batch 8 merges to tighten `--max-warnings` from 715 → ~675 (CI floor).**
 
 ### US-020: Validate Phase 5 — flip ESLint to `--max-warnings 0`
 

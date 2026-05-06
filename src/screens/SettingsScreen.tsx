@@ -204,6 +204,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
       <PaperBackground style={StyleSheet.absoluteFillObject} />
       <ScrollView
         style={styles.scrollView}
+        // eslint-disable-next-line react-native/no-inline-styles -- dynamic safe-area insets, value changes per device
         contentContainerStyle={{
           paddingTop: insets.top + 12,
           paddingBottom: insets.bottom + 100,
@@ -341,7 +342,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
             />
           </View>
 
-          <View style={{ marginTop: 14 }}>
+          <View style={styles.logoutWrapper}>
             <InkButton variant="ghost" onPress={handleLogout}>
               🚪 Log out
             </InkButton>
@@ -398,6 +399,9 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  logoutWrapper: {
+    marginTop: 14,
   },
 
   // Header

@@ -1437,7 +1437,7 @@ class BehaviorAnalyticsService {
     for (const [id, adaptation] of this.adaptations) {
       // Remove adaptations older than 24 hours
       if (
-        Date.now() - parseInt(id.split('_').pop() || '0') >
+        Date.now() - parseInt(id.split('_').pop() || '0', 10) >
         24 * 60 * 60 * 1000
       ) {
         this.adaptations.delete(id);

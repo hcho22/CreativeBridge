@@ -487,6 +487,7 @@ describe('StoryImportService', () => {
 
       expect(result.content).toBe('Storywithnullbytesandcontrolchars'); // Cleaned content
       expect(result.content).not.toContain('\x00');
+      // eslint-disable-next-line no-control-regex -- intentional: verifying control chars were stripped
       expect(result.content).not.toMatch(/[\x01-\x05]/);
     });
   });

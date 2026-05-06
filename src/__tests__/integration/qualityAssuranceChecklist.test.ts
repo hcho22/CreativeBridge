@@ -60,9 +60,9 @@ describe('Quality Assurance Checklist - Phase 1', () => {
 
       // Verify date components are valid
       const dateStr = parts[1];
-      const month = parseInt(dateStr.substring(0, 2));
-      const day = parseInt(dateStr.substring(2, 4));
-      const year = parseInt(dateStr.substring(4, 6));
+      const month = parseInt(dateStr.substring(0, 2), 10);
+      const day = parseInt(dateStr.substring(2, 4), 10);
+      const year = parseInt(dateStr.substring(4, 6), 10);
 
       expect(month).toBeGreaterThanOrEqual(1);
       expect(month).toBeLessThanOrEqual(12);
