@@ -76,31 +76,33 @@ describe('GoogleSignInButton', () => {
 
   describe('Rendering', () => {
     test('renders Google sign-in button', () => {
-      const { getByText } = render(<GoogleSignInButton />);
+      const { getByLabelText } = render(<GoogleSignInButton />);
 
-      expect(getByText('Continue with Google')).toBeTruthy();
+      expect(getByLabelText('Continue with Google')).toBeTruthy();
     });
 
     test('renders with custom style', () => {
       const customStyle = { marginTop: 20 };
-      const { getByText } = render(<GoogleSignInButton style={customStyle} />);
+      const { getByLabelText } = render(
+        <GoogleSignInButton style={customStyle} />,
+      );
 
-      expect(getByText('Continue with Google')).toBeTruthy();
+      expect(getByLabelText('Continue with Google')).toBeTruthy();
     });
 
     test('renders in disabled state when disabled prop is true', () => {
-      const { getByText } = render(<GoogleSignInButton disabled={true} />);
+      const { getByLabelText } = render(<GoogleSignInButton disabled={true} />);
 
-      const button = getByText('Continue with Google').parent;
+      const button = getByLabelText('Continue with Google');
       expect(button?.props.disabled).toBe(true);
     });
   });
 
   describe('User Interactions', () => {
     test('calls signInWithGoogle on button press', async () => {
-      const { getByText } = render(<GoogleSignInButton />);
+      const { getByLabelText } = render(<GoogleSignInButton />);
 
-      fireEvent.press(getByText('Continue with Google'));
+      fireEvent.press(getByLabelText('Continue with Google'));
 
       await waitFor(() => {
         expect(mockSignInWithGoogle).toHaveBeenCalled();
@@ -108,11 +110,11 @@ describe('GoogleSignInButton', () => {
     });
 
     test('calls onSignInStart callback when provided', async () => {
-      const { getByText } = render(
+      const { getByLabelText } = render(
         <GoogleSignInButton onSignInStart={mockOnSignInStart} />,
       );
 
-      fireEvent.press(getByText('Continue with Google'));
+      fireEvent.press(getByLabelText('Continue with Google'));
 
       await waitFor(() => {
         expect(mockOnSignInStart).toHaveBeenCalled();
@@ -120,11 +122,11 @@ describe('GoogleSignInButton', () => {
     });
 
     test('calls onSignInComplete callback on success', async () => {
-      const { getByText } = render(
+      const { getByLabelText } = render(
         <GoogleSignInButton onSignInComplete={mockOnSignInComplete} />,
       );
 
-      fireEvent.press(getByText('Continue with Google'));
+      fireEvent.press(getByLabelText('Continue with Google'));
 
       await waitFor(() => {
         expect(mockOnSignInComplete).toHaveBeenCalled();
@@ -132,9 +134,9 @@ describe('GoogleSignInButton', () => {
     });
 
     test('does not initiate OAuth when disabled', async () => {
-      const { getByText } = render(<GoogleSignInButton disabled={true} />);
+      const { getByLabelText } = render(<GoogleSignInButton disabled={true} />);
 
-      fireEvent.press(getByText('Continue with Google'));
+      fireEvent.press(getByLabelText('Continue with Google'));
 
       await waitFor(() => {
         expect(mockSignInWithGoogle).not.toHaveBeenCalled();
@@ -144,9 +146,9 @@ describe('GoogleSignInButton', () => {
 
   describe('Network Checking', () => {
     test('checks network before OAuth initiation', async () => {
-      const { getByText } = render(<GoogleSignInButton />);
+      const { getByLabelText } = render(<GoogleSignInButton />);
 
-      fireEvent.press(getByText('Continue with Google'));
+      fireEvent.press(getByLabelText('Continue with Google'));
 
       await waitFor(() => {
         expect(mockCheckNetworkBeforeOAuth).toHaveBeenCalled();
@@ -164,9 +166,9 @@ describe('GoogleSignInButton', () => {
         'No internet connection. Please check your network settings and try again.',
       );
 
-      const { getByText } = render(<GoogleSignInButton />);
+      const { getByLabelText } = render(<GoogleSignInButton />);
 
-      fireEvent.press(getByText('Continue with Google'));
+      fireEvent.press(getByLabelText('Continue with Google'));
 
       await waitFor(() => {
         expect(Alert.alert).toHaveBeenCalledWith(
@@ -188,9 +190,9 @@ describe('GoogleSignInButton', () => {
         'No internet connection. Please check your network settings and try again.',
       );
 
-      const { getByText } = render(<GoogleSignInButton />);
+      const { getByLabelText } = render(<GoogleSignInButton />);
 
-      fireEvent.press(getByText('Continue with Google'));
+      fireEvent.press(getByLabelText('Continue with Google'));
 
       await waitFor(() => {
         expect(Alert.alert).toHaveBeenCalled();
@@ -223,9 +225,9 @@ describe('GoogleSignInButton', () => {
         retryDelay: 2000,
       });
 
-      const { getByText } = render(<GoogleSignInButton />);
+      const { getByLabelText } = render(<GoogleSignInButton />);
 
-      fireEvent.press(getByText('Continue with Google'));
+      fireEvent.press(getByLabelText('Continue with Google'));
 
       await waitFor(() => {
         expect(mockHandleOAuthError).toHaveBeenCalled();
@@ -245,9 +247,9 @@ describe('GoogleSignInButton', () => {
         retryDelay: 2000,
       });
 
-      const { getByText } = render(<GoogleSignInButton />);
+      const { getByLabelText } = render(<GoogleSignInButton />);
 
-      fireEvent.press(getByText('Continue with Google'));
+      fireEvent.press(getByLabelText('Continue with Google'));
 
       await waitFor(() => {
         expect(Alert.alert).toHaveBeenCalledWith(
@@ -269,9 +271,9 @@ describe('GoogleSignInButton', () => {
         canRetry: false,
       });
 
-      const { getByText } = render(<GoogleSignInButton />);
+      const { getByLabelText } = render(<GoogleSignInButton />);
 
-      fireEvent.press(getByText('Continue with Google'));
+      fireEvent.press(getByLabelText('Continue with Google'));
 
       await waitFor(() => {
         expect(mockHandleOAuthError).toHaveBeenCalled();
@@ -293,9 +295,9 @@ describe('GoogleSignInButton', () => {
         retryDelay: 2000,
       });
 
-      const { getByText } = render(<GoogleSignInButton />);
+      const { getByLabelText } = render(<GoogleSignInButton />);
 
-      fireEvent.press(getByText('Continue with Google'));
+      fireEvent.press(getByLabelText('Continue with Google'));
 
       await waitFor(() => {
         const alertCall = (Alert.alert as jest.Mock).mock.calls[0];
@@ -315,9 +317,9 @@ describe('GoogleSignInButton', () => {
 
       mockSignInWithGoogle.mockReturnValue(slowOAuth as any);
 
-      const { getByText, queryByTestId } = render(<GoogleSignInButton />);
+      const { getByLabelText, queryByTestId } = render(<GoogleSignInButton />);
 
-      fireEvent.press(getByText('Continue with Google'));
+      fireEvent.press(getByLabelText('Continue with Google'));
 
       // Should show loading indicator
       await waitFor(() => {
@@ -337,10 +339,10 @@ describe('GoogleSignInButton', () => {
 
       mockSignInWithGoogle.mockReturnValue(slowOAuth as any);
 
-      const { getByText } = render(<GoogleSignInButton />);
-      const button = getByText('Continue with Google').parent;
+      const { getByLabelText } = render(<GoogleSignInButton />);
+      const button = getByLabelText('Continue with Google');
 
-      fireEvent.press(getByText('Continue with Google'));
+      fireEvent.press(getByLabelText('Continue with Google'));
 
       // Button should be disabled during OAuth
       await waitFor(() => {
@@ -355,9 +357,9 @@ describe('GoogleSignInButton', () => {
     test('shows success feedback after successful OAuth', async () => {
       mockSignInWithGoogle.mockResolvedValue({ success: true });
 
-      const { getByText, queryByTestId } = render(<GoogleSignInButton />);
+      const { getByLabelText, queryByTestId } = render(<GoogleSignInButton />);
 
-      fireEvent.press(getByText('Continue with Google'));
+      fireEvent.press(getByLabelText('Continue with Google'));
 
       await waitFor(() => {
         // Success indicator should appear briefly

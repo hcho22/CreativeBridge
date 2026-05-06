@@ -135,8 +135,8 @@ describe('Comprehensive Performance Validation', () => {
 
     // Initialize all services for testing
     await Promise.all([
-      dynamicUICoordinator.initialize(testSessionId, 'Grade3', 'Home'),
-      behaviorAnalytics.initialize('Grade3'),
+      dynamicUICoordinator.initialize(testSessionId, '3-5', 'Home'),
+      behaviorAnalytics.initialize('3-5'),
       interfaceAdapter.initialize(),
     ]);
   });
