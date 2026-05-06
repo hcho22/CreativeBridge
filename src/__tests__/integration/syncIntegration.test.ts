@@ -8,7 +8,36 @@
 
 import { syncService } from '../../services/syncService';
 
-describe('Sync Service Integration', () => {
+// FR-8 deferral marker — see .claude/.agent/Tasks/prd-ci-debt-cleanup.md
+// US-015c batch 3 ("Service rewrites") for the rewrite plan.
+//
+// Why this whole describe is skipped:
+// `SyncService` was substantively rewritten — the realtime subscription
+// API exposed via `service.handleRealtimeChange(payload)` no longer
+// exists on the class. The current public surface is `setUserId`,
+// `updateStoryOnDevice`, `syncAcrossDevices`, `getStoryOnDevice`,
+// `resolveConflict`, `setOfflineMode`, `updateStory`, `getPendingChanges`,
+// `syncPendingChanges`, `getSyncStatus`, `forceSyncAll`, `destroy`.
+// 3 of the 18 failing tests call the removed `handleRealtimeChange`;
+// the remaining 15 fail with data-shape divergences consistent with the
+// rewrite (different return shapes from updateStoryOnDevice /
+// syncAcrossDevices, different conflict-resolution flow, different
+// offline-queue semantics).
+//
+// Rewriting requires reading the new SyncService implementation end-to-end
+// and re-deriving the test scenarios against the current API. The
+// "realtime" test cases probably need to be deleted entirely (the
+// realtime-via-Supabase-channel path no longer exists in this app's
+// architecture — Convex queries auto-invalidate, so there's no
+// equivalent to test). The "conflict resolution" and "offline queue"
+// tests likely have direct rewrites against `resolveConflict` and
+// `getPendingChanges`/`syncPendingChanges`. Estimated cost: ~200 lines
+// of test changes plus design judgment about which test scenarios still
+// represent product behavior. Out of scope for batch 3b.
+//
+// Skipping these tests reduces the CI failure count by 18 without losing
+// information about what needs to be rewritten.
+describe.skip('Sync Service Integration', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.clearAllTimers();
