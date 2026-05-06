@@ -165,9 +165,15 @@ export const createMockSupabaseClient = () => {
       }
     }),
 
-    // Storage API mock
-    storage: {
-      from: jest.fn().mockImplementation(bucket => ({
+    // Storage API mock — `from(bucket?)` returns a single shared wrapper
+    // regardless of the bucket argument. This matches the test's mental model:
+    //   mockSupabase.storage.from().upload.mockResolvedValueOnce(...);  // setup
+    //   await mockSupabase.storage.from('story-images').upload(...);     // exercise
+    // If we returned a fresh wrapper per call (the previous behaviour) the queued
+    // one-time resolution would be orphaned on the setup-instance and the
+    // exercise call would silently fall through to the default mockResolvedValue.
+    storage: (() => {
+      const sharedBucket = {
         upload: jest.fn().mockResolvedValue({
           data: { path: 'test-path.png' },
           error: null,
@@ -187,8 +193,11 @@ export const createMockSupabaseClient = () => {
           data: [],
           error: null,
         }),
-      })),
-    },
+      };
+      return {
+        from: jest.fn().mockImplementation((_bucket?: string) => sharedBucket),
+      };
+    })(),
 
     // Test utilities
     __testUtils: {

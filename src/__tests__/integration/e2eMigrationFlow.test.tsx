@@ -171,6 +171,29 @@ jest.mock('../../utils/asyncStorageWrapper', () => ({
   },
 }));
 
+// Mock sensitiveStorage (US-019). Production code writes pending-migration and
+// pending-clerk-profile payloads through setSecureItem (expo-secure-store
+// backed). Without this mock the writes go into a no-op SecureStore stub and
+// getPendingMigrationData() reads null. Backing the mock with the shared
+// asyncStorageData map keeps the test's existing helpers working.
+jest.mock('../../utils/sensitiveStorage', () => ({
+  __esModule: true,
+  setSecureItem: jest.fn((key: string, value: string) => {
+    asyncStorageData[key] = value;
+    return Promise.resolve(undefined);
+  }),
+  getSecureItem: jest.fn((key: string) =>
+    Promise.resolve(asyncStorageData[key] ?? null),
+  ),
+  removeSecureItem: jest.fn((key: string) => {
+    delete asyncStorageData[key];
+    return Promise.resolve(undefined);
+  }),
+  migrateAndGet: jest.fn((key: string) =>
+    Promise.resolve(asyncStorageData[key] ?? null),
+  ),
+}));
+
 // Token cache mock
 jest.mock('../../utils/clerkTokenCache', () => ({
   clearAllClerkTokens: jest.fn().mockResolvedValue(undefined),

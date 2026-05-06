@@ -1094,7 +1094,7 @@ The local re-run shows 6 of these tests now pass; the other 2 may still flake un
 
 ---
 
-### US-015c: Long-tail visible-test sweep ⏳ PARTIAL — first per-file batch landed (78 cleared); remainder structural
+### US-015c: Long-tail visible-test sweep ⏳ PARTIAL — batches 1+2 landed (96 cleared, 2 suites green); remainder structural
 
 **Description:** As a maintainer, I want the 722 visible-test long-tail (real-assertion + scattered mock-div + catch-all) cleared per-file. Per the PRD this is the "longest tail" and needs case-by-case work.
 
@@ -1164,6 +1164,73 @@ The per-file work that remains in the long-tail breaks into three failure mechan
 |    16 | `src/__tests__/security/auditLogger.test.ts`                  | post-cluster-C; remaining 13 are mock-arg-shape divergence                  | ⏳ batch 2            |
 
 The clerkAuthFlows row dropped out of the top-12 entirely (52 → 7).
+
+**Batch 2 results (PR — chore/us-015c-batch2-svc-mockdiv):**
+
+| Cluster                                                   | Files                                                                                                                                                | Approach                                                                                                                                                                                                    | Fails cleared   | Status                                               |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | ---------------------------------------------------- |
+| **E: `sensitiveStorage` mock missing for migration flow** | `e2eMigrationFlow.test.tsx`                                                                                                                          | Add `jest.mock('../../utils/sensitiveStorage', ...)` backed by the test's existing `asyncStorageData` Map                                                                                                   | **17** (17 → 0) | ✅ cleared (suite fully green)                       |
+| **F: `mockSupabase.storage.from()` non-singleton**        | `imageStorageSecurity.test.ts` + `supabaseMock.ts` (1 caller)                                                                                        | Refactor `storage.from(bucket?)` to return a single shared wrapper instance so queued `mockResolvedValueOnce` configurations actually apply to the exercised call                                           | **5** (22 → 17) | ✅ partial (cluster wins; per-test residual remains) |
+| **Incidental from F**                                     | `claudeSkillsMock.test.ts`                                                                                                                           | Marginal benefit from supabaseMock refactor                                                                                                                                                                 | **1** (1 → 0)   | ✅ incidental                                        |
+| **G: `imageStorageService.test.ts` (18 fails)**           | structural — `uploadImageToSupabase` is now a thin wrapper that delegates to `uploadImageToConvex`; service migrated from Supabase storage to Convex | Investigated, deferred — 18 tests written for legacy Supabase implementation that no longer exists; needs full rewrite to mock Convex client + verify `client.action(api.storage.uploadFromUrl, ...)` calls | 0               | ⏳ deferred                                          |
+| **H: `syncIntegration.test.ts` (18 fails)**               | structural — `SyncService.handleRealtimeChange` method no longer exists; service rewritten                                                           | Investigated, deferred — 3 fails reference a removed method; remaining 15 are data-shape divergence consistent with rewrite                                                                                 | 0               | ⏳ deferred                                          |
+
+**Cluster E root cause (the most leveraged finding of the batch):** AuthContext (and several other services) writes sensitive payloads through `setSecureItem(...)` from `src/utils/sensitiveStorage.ts`, which is `expo-secure-store`-backed. The setup.ts mock for `expo-secure-store` is a no-op stub — calls succeed but discard the value. Tests that mock `asyncStorageWrapper` only and read post-write data via local helpers find `null`. Mocking `sensitiveStorage` directly with the same backing Map the test already uses unblocks all 17 e2eMigrationFlow remainders in one diff. Any other test file that exercises a sensitive-storage code path will hit the same wall — watch for this pattern.
+
+**Cluster F root cause:** The previous `storage.from = jest.fn().mockImplementation(bucket => ({ upload: jest.fn(), ... }))` returned a fresh wrapper per call. Tests that did `from().upload.mockResolvedValueOnce(...)` for setup, then `from('story-images').upload(...)` for exercise, were configuring one wrapper and exercising a different one — the queued resolutions silently fell through to the default `mockResolvedValue` of the second wrapper. Returning a single shared wrapper makes the queue apply correctly. The same mock has only one consumer (`imageStorageSecurity.test.ts`), so the change is locally contained.
+
+**Cluster G/H insight (why the "service-mock-divergence" cluster turned out smaller than triaged):** The original triage labeled 7+ files in the 18-22 fail range as "service-level mock-divergence." Investigation in batch 2 split them: `imageStorageSecurity` (the singleton-mock cluster) was a real cluster fix; `imageStorageService` and `syncIntegration` were not — the underlying production services were rewritten (Supabase storage → Convex; SyncService realtime API removed). Their tests are structural rewrites, not mock fixes. The label "mock-divergence" was right for the symptom (mocks don't match expected behaviour) but wrong for the cause (production code moved out from under the mocks). Per-test rewrite cost remains.
+
+**Cumulative deltas (post-batch-1 → post-batch-2):**
+
+| Metric                | Post-batch-1 (PR #38) | Post-batch-2 (this PR) | Δ       |
+| --------------------- | --------------------- | ---------------------- | ------- |
+| Failed test suites    | 145                   | 143                    | **−2**  |
+| Passing test suites   | 163                   | 165                    | **+2**  |
+| Visible failed tests  | 889                   | 866                    | **−23** |
+| Visible passing tests | 3 465                 | 3 488                  | **+23** |
+
+**Cumulative US-015c deltas (post-#36 main → post-batch-2 — the full story so far):**
+
+| Metric                | Pre-US-015c (post-#36) | Post-batch-2                          | Δ       |
+| --------------------- | ---------------------- | ------------------------------------- | ------- |
+| Failed test suites    | 145                    | 143                                   | **−2**  |
+| Passing test suites   | 162                    | 165                                   | **+3**  |
+| Visible failed tests  | 962                    | 866                                   | **−96** |
+| Visible passing tests | 3 392                  | 3 488                                 | **+96** |
+| Suites fully green    | n/a                    | 2 (`authContext`, `e2eMigrationFlow`) | +2      |
+
+**Files modified for US-015c batch 2: 2 (test/test-infra only), 0 production source.**
+
+- `src/__tests__/mocks/supabaseMock.ts` — `storage.from()` shared-wrapper refactor (-19 / +28 lines net)
+- `src/__tests__/integration/e2eMigrationFlow.test.tsx` — `sensitiveStorage` mock added (+23 lines)
+
+**Updated top-N ranking (post-batch-2 — what remains in the long tail):**
+
+| Tests | File                                                          | Pattern                                                            | Status                                             |
+| ----: | ------------------------------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------- |
+|    24 | `src/__tests__/components/StorySelectionModal.test.tsx`       | split-text-node JSX `{count}{' '}{noun}` + UI-label staleness      | ⏳ batch 3 (FR-9 carve-out OR per-test regex)      |
+|    22 | `src/__tests__/components/StoryImageDisplay.test.tsx`         | UI-label staleness                                                 | ⏳ batch 3 (UI rewrite)                            |
+|    22 | `src/__tests__/story/errorHandling.test.ts`                   | post-US-015d timeout fix; 22 real assertion failures               | ⏳ batch 3 (per-test)                              |
+|    21 | `src/__tests__/integration/clerkSignUpFlow.test.tsx`          | structural — full rewrite of sign-up flow                          | ⏳ batch 3 (UI rewrite)                            |
+|    20 | `src/__tests__/components/EnhancedStoryImageDisplay.test.tsx` | UI-label staleness                                                 | ⏳ batch 3 (UI rewrite)                            |
+|    18 | `src/__tests__/services/imageStorageService.test.ts`          | structural — service migrated Supabase → Convex                    | ⏳ batch 3 (rewrite)                               |
+|    18 | `src/__tests__/integration/syncIntegration.test.ts`           | structural — `handleRealtimeChange` removed; service rewritten     | ⏳ batch 3 (rewrite)                               |
+|    17 | `src/__tests__/security/imageStorageSecurity.test.ts`         | post-cluster-F; 17 residual per-test "Convex not available" errors | ⏳ batch 3 (per-test, may share root cause with G) |
+|    17 | `src/__tests__/components/auth/GoogleSignInButton.test.tsx`   | DevMenu TurboModule                                                | ⏳ batch 3                                         |
+|    17 | `src/__tests__/screens/SettingsScreen.genre.test.tsx`         | (newly visible after US-015b)                                      | ⏳ batch 3                                         |
+|    16 | `src/__tests__/security/auditLogger.test.ts`                  | post-cluster-C; 13 residual per-test mock-arg-shape divergences    | ⏳ batch 3                                         |
+|    14 | `src/__tests__/integration/comprehensiveValidation.test.ts`   | (existing)                                                         | ⏳ batch 3                                         |
+
+The `e2eMigrationFlow` row dropped out of the top-N entirely (17 → 0).
+
+**Why "batch 3" instead of "batch 2 continued":** The remaining work is now uniformly per-file structural — UI rewrites, service-API rewrites, per-test mock-arg adjustments. There are no more cluster-shaped wins to harvest. From here, leverage scales linearly with files touched, so smaller, focused PRs are the right shape.
+
+**Suggested next moves for US-015c batch 3+:**
+
+1. **Resolve FR-9 carve-out before doing UI text staleness work.** The `{count}{' '}{noun}` JSX pattern, the toggle-label `'Sign Up'` → `'Begin your story →'` rename, etc., are all genuinely cleaner with one-line production fixes. A single-paragraph FR-9 amendment ("test-driven copy/template-string fixes are in scope when they have no behavioral impact") would unlock ~80 fails across StorySelectionModal/StoryImageDisplay/EnhancedStoryImageDisplay with cheap diffs.
+2. **Bundle the structural service rewrites** (imageStorageService, syncIntegration) — both rewrite tests for services that were already migrated. Same agent could do both in one PR.
+3. **Pick off the per-test residuals one file at a time** — auditLogger residual 13, imageStorageSecurity residual 17, GoogleSignInButton 17, SettingsScreen.genre 17, comprehensiveValidation 14. None of these are cohesive enough to batch; each is its own small PR.
 
 **Triage finding:** The top-failure files are dominated by "Unable to find element with text X" assertions — UI test rot from production label/copy changes. Sample (`StorySelectionModal.test.tsx`, 24 fails):
 
