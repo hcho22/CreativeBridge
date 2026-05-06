@@ -11,13 +11,9 @@
 import { structuredLogger } from '../utils/logger';
 import {
   dynamicResourceManager,
-  DeviceConditions,
   ResourceAllocationStrategy,
 } from './resourceManager';
-import {
-  performanceOptimizer,
-  PerformanceMetrics,
-} from './performanceOptimizer';
+import { performanceOptimizer } from './performanceOptimizer';
 import { storyCache } from './storyCache';
 
 export interface PerformanceTuningMetrics {
@@ -360,12 +356,6 @@ export class PerformanceTuningService {
     deviceTier: 'low' | 'medium' | 'high',
   ): Promise<PerformanceTuningMetrics> {
     try {
-      // Get current device conditions and performance data
-      const conditions = dynamicResourceManager.getCurrentConditions();
-      const strategy = dynamicResourceManager.getCurrentStrategy();
-      const perfMetrics = performanceOptimizer.getMetrics();
-      const memoryConfig = dynamicResourceManager.getMemoryConfig();
-
       // Simulate memory optimization measurement
       const memoryOptimizationEffectiveness =
         await this.measureMemoryOptimization(deviceTier);
@@ -408,10 +398,8 @@ export class PerformanceTuningService {
 
   private identifyPerformanceGaps(
     metrics: PerformanceTuningMetrics,
-    deviceTier: 'low' | 'medium' | 'high',
+    _deviceTier: 'low' | 'medium' | 'high',
   ): Record<string, number> {
-    const targets = PERFORMANCE_TARGETS[deviceTier];
-
     return {
       memoryGap: Math.max(0, 0.8 - metrics.memoryOptimizationEffectiveness), // Target 80% effectiveness
       cacheGap: Math.max(0, 0.8 - metrics.cacheHitRatioScore),
@@ -478,7 +466,7 @@ export class PerformanceTuningService {
   private async generateMemoryTuningRecommendation(
     gap: number,
     strategy: ResourceAllocationStrategy,
-    deviceTier: 'low' | 'medium' | 'high',
+    _deviceTier: 'low' | 'medium' | 'high',
   ): Promise<TuningRecommendation> {
     const currentMemoryLimit = strategy.memoryLimitMB;
     const gapSeverity = gap > 0.3 ? 'high' : gap > 0.15 ? 'medium' : 'low';
@@ -597,7 +585,7 @@ export class PerformanceTuningService {
   private async generateBatteryTuningRecommendation(
     gap: number,
     strategy: ResourceAllocationStrategy,
-    deviceTier: 'low' | 'medium' | 'high',
+    _deviceTier: 'low' | 'medium' | 'high',
   ): Promise<TuningRecommendation> {
     if (gap > 0.15 && strategy.enableBackgroundTasks) {
       return {
@@ -757,7 +745,7 @@ export class PerformanceTuningService {
   private async validateTuningChanges(
     baseline: PerformanceTuningMetrics,
     current: PerformanceTuningMetrics,
-    deviceTier: 'low' | 'medium' | 'high',
+    _deviceTier: 'low' | 'medium' | 'high',
   ): Promise<boolean> {
     const improvementThreshold = 0.05; // 5% minimum improvement
 
@@ -793,7 +781,7 @@ export class PerformanceTuningService {
 
   private checkTargetsAchieved(
     metrics: PerformanceTuningMetrics,
-    deviceTier: 'low' | 'medium' | 'high',
+    _deviceTier: 'low' | 'medium' | 'high',
   ): boolean {
     const targetThreshold = 0.8; // 80% of target performance
 
