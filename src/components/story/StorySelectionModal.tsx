@@ -766,8 +766,9 @@ export const StorySelectionModal: React.FC<StorySelectionModalProps> = ({
 
       {/* Results Count */}
       <Text style={styles.resultsCount}>
-        {filteredStories.length}{' '}
-        {filteredStories.length === 1 ? 'story' : 'stories'}
+        {`${filteredStories.length} ${
+          filteredStories.length === 1 ? 'story' : 'stories'
+        }`}
       </Text>
 
       {/* Story List */}

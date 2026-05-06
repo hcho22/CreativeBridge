@@ -1273,7 +1273,15 @@ If you arrive at US-017 expecting to flip a CI gate from advisory to required, s
 - **FR-6:** GitHub branch protection on `main` must require `Lint, Type Check & Test` to pass before merge
 - **FR-7:** Test policy: when a test fails because mocks diverge from source, default fix is to update the mock (US-013); when ambiguous, document rationale per failure (US-015)
 - **FR-8:** No use of `any`, `// @ts-ignore`, or `it.skip` without a tracking link in a comment
-- **FR-9:** No production source code changes in mock-update stories (US-013); no test assertion changes in mock-update stories
+- **FR-9:** No production source code changes in mock-update stories (US-013); no test assertion changes in mock-update stories.
+  - **FR-9.1 (US-015c carve-out, added 2026-05-05):** As tests are repaired in US-015c batches, _render-equivalent_ production source changes are **in scope** when they make existing tests pass without altering observable behaviour. Specifically permitted:
+    1. **Template-literal consolidation of split-text-node JSX patterns** — e.g., `<Text>{count}{' '}{noun}</Text>` → `` <Text>{`${count} ${noun}`}</Text> ``. The rendered DOM is identical for users; the change matters only because `@testing-library/react-native`'s `getByText` exact-match traverses a single string child rather than concatenating siblings.
+    2. **Adding `testID` props to existing rendered elements** when the test is searching for them and the production element is otherwise unambiguous. (testIDs are inert in production builds — they do not affect rendering or behavior.)
+  - **Explicitly NOT permitted under FR-9.1:**
+    - Logic changes (effects, state transitions, conditional rendering) — these alter observable behaviour and need their own story / design review.
+    - Copy/label changes — copy is a product decision; tests should be rewritten to match production text, not the other way around.
+    - Adding new components, props, or APIs purely to satisfy tests.
+  - **Why the carve-out is narrow:** the goal is to pay off "test-tooling artifacts" cheaply (the JSX-whitespace gotcha is a `@testing-library` quirk, not a real-world bug) without opening the door to "fix the code to fit the test" in cases where the test is the wrong thing.
 - **FR-10:** Each implementation story merges as its own PR with the corresponding validation story performed before flipping the related CI gate
 
 ## Non-Goals
