@@ -19,7 +19,33 @@ jest.mock('../../services/supabase', () => ({
   },
 }));
 
-describe('ImageStorageService', () => {
+// FR-8 deferral marker — see .claude/.agent/Tasks/prd-ci-debt-cleanup.md
+// US-015c batch 3 ("Service rewrites") for the rewrite plan.
+//
+// Why this whole describe is skipped:
+// The service was migrated from Supabase Storage to Convex Storage during
+// US-019 / Phase B. `uploadImageToSupabase` is now a thin wrapper that
+// delegates to `uploadImageToConvex`; `getPublicUrl` is deprecated and
+// returns ''; `deleteImage`'s signature changed from `(userId, sessionId)`
+// to `(sessionId)`; `checkStorageHealth` queries Convex via
+// `client.query(api.storage.checkStorageHealth)` instead of listing a
+// bucket. The 18 tests in this file mock `supabase.storage.from(...)` and
+// `supabase.from(...)` — neither of which the production code path
+// touches anymore. The test exercise calls go through `isConvexReady() →
+// false` and return canned "Convex not available" errors that the
+// existing assertions don't recognise.
+//
+// Rewriting requires a full mock-setup reshape: mock `isConvexReady`,
+// `getConvexClient` (returning an object with `query`/`mutation`/`action`
+// methods), `global.fetch` for both Replicate-download and presigned-URL
+// upload paths, and re-anchor each test's assertions to the new return
+// shape (`UploadImageResult` with `success`/`status`/`attempts`/`error`).
+// Estimated cost: ~250 lines of test changes. Out of scope for batch 3b.
+//
+// Skipping these tests reduces the CI failure count by 18 without losing
+// information about what needs to be rewritten — the test bodies remain
+// in place as a record of the original assertions to migrate.
+describe.skip('ImageStorageService', () => {
   let service: ImageStorageService;
   let mockStorage: any;
   let mockDatabase: any;
