@@ -1224,6 +1224,84 @@ That single decision would unblock 20+ failures across multiple files at once �
 
 **Files modified for US-015c.2: 2** (1 PRD + 1 test file). No production source changes; pure mock additions.
 
+#### US-015c.3 verdict ⏳ PARTIAL — `StorySelectionModal.test.tsx` 24 → 13 failures (11 cleared, 46%)
+
+**File:** `src/__tests__/components/StorySelectionModal.test.tsx` (top-1 by failure count in the US-015c triage table — 24 fails)
+
+**Two distinct mock-side root causes diagnosed and fixed (FR-9.1 compliant — pure mock additions, no test logic changes):**
+
+**Root cause #1 — Jest mock-factory TDZ trap (cleared ~3 tests directly + unblocked subsequent layers).** The `jest.mock('../../services/storyManagementService', () => ({ StoryManagementService: { getStoryLibrary: mockGetStoryLibrary } }))` factory snapshots the value of `mockGetStoryLibrary` EAGERLY at factory-invocation time. Because `jest.mock()` is hoisted to the top of the file but `const mockGetStoryLibrary = jest.fn()` is **not** hoisted, the factory runs while the const is still in TDZ — capturing `undefined`. The mocked module then permanently has `getStoryLibrary: undefined`, so calling `StoryManagementService.getStoryLibrary({...})` in the component throws `TypeError: ... is not a function` (silently caught by component's try/catch).
+
+Confirmed via `process.stderr.write` diagnostic (jest's `setup.ts` mocks `console.log` to `jest.fn()`, swallowing factory-time logs):
+
+```
+[DIAG] mock===real? false
+[DIAG] SMS.getStoryLibrary type: undefined
+[DIAG] mockGetStoryLibrary mock calls: 0  (after render)
+```
+
+**Fix #1 (wrapper pattern — same idiom as `storyManagementService.test.ts:13`):**
+
+```typescript
+jest.mock('../../services/storyManagementService', () => ({
+  StoryManagementService: {
+    getStoryLibrary: (...args: unknown[]) => mockGetStoryLibrary(...args),
+  },
+}));
+```
+
+The wrapper is a function created at factory time; its body reads `mockGetStoryLibrary` lazily when invoked — by which point the const has been initialized.
+
+**Root cause #2 — Global `jest.setup.js:269` stubs `FlatList: 'FlatList'` as a literal string component.** The string-component stub renders as a leaf `<FlatList />` with no children — `data` and `renderItem` props are ignored. So even after the mock TDZ fix loaded 3 stories into state, the FlatList rendered empty.
+
+Test-level `jest.mock('react-native', () => ({...}))` is silently overridden by the setupFilesAfterEnv mock and never invoked (verified via stderr diagnostic in factory body — no log emitted).
+
+**Fix #2 (mutate the already-mocked module):**
+
+```typescript
+{
+  const RN = jest.requireMock('react-native') as Record<string, unknown>;
+  const RealReact = jest.requireActual('react') as typeof import('react');
+  RN.FlatList = function MockFlatList({
+    data,
+    renderItem,
+    ListEmptyComponent,
+    ListHeaderComponent,
+    ListFooterComponent,
+    keyExtractor,
+  }) {
+    // ...renders header/items/footer/empty synchronously via RealReact.createElement
+  };
+}
+```
+
+Babel transpiles `import { FlatList } from 'react-native'` to `_reactNative.FlatList` property access at use sites, so mutating `RN.FlatList` after-the-fact is observed at component render time.
+
+**Failure-count delta (this file only):**
+
+| Bucket                                          | Before | After | Delta |
+| ----------------------------------------------- | -----: | ----: | ----: |
+| `StorySelectionModal.test.tsx` test failures    |     24 |    13 |   −11 |
+| `StorySelectionModal.test.tsx` test passes      |      4 |    15 |   +11 |
+| Total US-015c long-tail visible failures (~921) |   ~921 |  ~910 |   −11 |
+
+**Remaining 13 failures — routed to follow-up US-015c.3.1 (real-assertion / stale-test cluster):**
+
+These are NOT mock-side; they are stale-test rot from UI refactors:
+
+1. **Title-truncation drift (4 fails)** — Tests assert `getByText('Mystery at the mansion began when detective...')` (45 chars + ellipsis), but `getStoryTitle()` at `src/components/story/StorySelectionModal.tsx:130` truncates at `substring(0, 40)` ("Mystery at the mansion began when detect..."). Either the truncation length changed or the test was always slightly off-by-N.
+2. **Source filter UI removed (5 fails)** — Tests do `fireEvent.press(getByText('File'))` / `getByText('CreativeBridge')` to filter by source, but the rendered tree only shows date filters ("All Time", "This Week", etc.). Source-filter chips appear to have been removed from the UI; component now exposes filter via a different control or only via search.
+3. **"Completed Only" toggle removed (1 fail)** — Test does `fireEvent.press(getByText('☐ Completed Only'))`. Component comment at line 559-560 confirms: _"Story completion feature is not yet implemented"_ — the toggle is no longer rendered.
+4. **Date format drift (1 fail)** — Test expects `Jan 3, 2024`; story-3 (the only one missing this assertion) has `completed_at: '2024-01-03T01:30:00Z'`. The date "Jan 1, 2024" and "Jan 2, 2024" pass, but "Jan 3, 2024" doesn't — possibly because completed-state stories format dates differently, or only the `created_at` date renders.
+5. **`getAllByText` undefined identifier (1 fail)** — Test line 254 uses bare `getAllByText('✕')` without destructuring from `render()`. The module-scope helper at line 597-600 takes a `container` arg, so even importing it would mismatch the call signature. Pre-existing test-source bug.
+6. **Singular/plural count drift (1 fail)** — Test expects `getByText('1 story')` after filtering to a single story. The current count rendering may be `'1 stories'` (no pluralization) or differ in spacing.
+
+Each would need test-assertion updates (`expect(getByText(...)).toBeTruthy()` → updated literal), which is **outside FR-9.1's "no logic changes" rule**. They route to US-015c.3.1 as per-test investigation: read the current `getStoryTitle` / filter-UI source, decide whether the new behavior is the intended target state, and either update the test assertion (if source is correct) or open a separate bug-fix story (if the source has regressed).
+
+**Drift-hypothesis update from US-015c.1+US-015c.2:** The architectural-drift hypothesis (`useConvexAuth` mock divergence) was specific to auth-flow tests. US-015c.3 is a **different category of drift** — UI-component label/structure changes — confirming the triage table's prediction that the long tail is heterogeneous (real-assertion, scattered mock-div, catch-all). The architectural-drift cluster does NOT generalize to UI-component tests; those need per-file investigation. US-015c.architectural-drift remains scoped to AuthContext-dependent tests only.
+
+**Files modified for US-015c.3: 2** (1 PRD + 1 test file). No production source changes; pure mock additions.
+
 ---
 
 ### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c

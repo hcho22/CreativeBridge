@@ -5,13 +5,79 @@ import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { StorySelectionModal } from '../../components/story/StorySelectionModal';
 import type { GameSession } from '../../types/database';
 
-// Mock the StoryManagementService
 const mockGetStoryLibrary = jest.fn();
 jest.mock('../../services/storyManagementService', () => ({
   StoryManagementService: {
-    getStoryLibrary: mockGetStoryLibrary,
+    getStoryLibrary: (...args: unknown[]) => mockGetStoryLibrary(...args),
   },
 }));
+
+// The global mock at jest.setup.js stubs FlatList as a literal string component
+// ('FlatList'), so children/items never render. Patch the already-mocked
+// react-native module to render items synchronously for assertion.
+{
+  const RN = jest.requireMock('react-native') as Record<string, unknown>;
+  const RealReact = jest.requireActual('react') as typeof import('react');
+  RN.FlatList = function MockFlatList({
+    data,
+    renderItem,
+    ListEmptyComponent,
+    ListHeaderComponent,
+    ListFooterComponent,
+    keyExtractor,
+  }: {
+    data?: unknown[];
+    renderItem?: (info: {
+      item: unknown;
+      index: number;
+      separators: unknown;
+    }) => React.ReactElement | null;
+    ListEmptyComponent?:
+      | React.ComponentType
+      | React.ReactElement
+      | null
+      | undefined;
+    ListHeaderComponent?:
+      | React.ComponentType
+      | React.ReactElement
+      | null
+      | undefined;
+    ListFooterComponent?:
+      | React.ComponentType
+      | React.ReactElement
+      | null
+      | undefined;
+    keyExtractor?: (item: unknown, index: number) => string;
+  }) {
+    const renderOptional = (
+      Comp: React.ComponentType | React.ReactElement | null | undefined,
+    ) => {
+      if (!Comp) return null;
+      if (RealReact.isValidElement(Comp)) return Comp;
+      return RealReact.createElement(Comp as React.ComponentType);
+    };
+    if (!data || data.length === 0) {
+      return RealReact.createElement(
+        'View',
+        null,
+        renderOptional(ListEmptyComponent),
+      );
+    }
+    return RealReact.createElement(
+      'View',
+      null,
+      renderOptional(ListHeaderComponent),
+      ...data.map((item, index) =>
+        RealReact.createElement(
+          RealReact.Fragment,
+          { key: keyExtractor ? keyExtractor(item, index) : String(index) },
+          renderItem ? renderItem({ item, index, separators: {} }) : null,
+        ),
+      ),
+      renderOptional(ListFooterComponent),
+    );
+  };
+}
 
 // Mock SafeAreaView
 jest.mock('react-native-safe-area-context', () => ({
