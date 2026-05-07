@@ -22,6 +22,47 @@ jest.mock('react-native-fs', () => ({
   downloadFile: jest.fn(),
 }));
 
+// The component imports `RNFS, { rnfsWrapper }` from '../../utils/rnfsWrapper',
+// not directly from 'react-native-fs'. Mock the wrapper to delegate via getters
+// to the (already-mocked) 'react-native-fs' module so existing `mockRNFS.*`
+// per-test setup applies to both import paths.
+jest.mock('../../utils/rnfsWrapper', () => {
+  const rnfs = () =>
+    require('react-native-fs') as Record<string, unknown> & {
+      DocumentDirectoryPath: string;
+    };
+  const proxy = {
+    get DocumentDirectoryPath() {
+      return rnfs().DocumentDirectoryPath;
+    },
+    get exists() {
+      return rnfs().exists;
+    },
+    get mkdir() {
+      return rnfs().mkdir;
+    },
+    get downloadFile() {
+      return rnfs().downloadFile;
+    },
+  };
+  const wrapper = {
+    ...proxy,
+    // Simulation mode causes downloadImageForDisplay (component:340) to return
+    // null immediately, then the caller's `else if (rnfsWrapper.isSimulationMode)`
+    // branch at component:1536 sets `isLoading:false, hasError:false` synchronously
+    // — letting the image testID path render without waiting on the cache flow.
+    isSimulationMode: true,
+    retryNativeModuleInitialization: jest.fn(),
+  };
+  return {
+    __esModule: true,
+    default: proxy,
+    rnfsWrapper: wrapper,
+    downloadFile: (...args: unknown[]) =>
+      (rnfs().downloadFile as (...a: unknown[]) => unknown)(...args),
+  };
+});
+
 jest.mock('react-native', () => {
   const RN = jest.requireActual('react-native');
   return {
@@ -77,7 +118,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
       const { getByText } = render(
         <StoryImageDisplay
           {...mockProps}
-          imageUrl="https://example.com/image.jpg"
+          imageUrl="https://images.cb.test/image.jpg"
         />,
       );
 
@@ -89,7 +130,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
       const { getByText, getByTestId } = render(
         <StoryImageDisplay
           {...mockProps}
-          imageUrl="https://example.com/image.jpg"
+          imageUrl="https://images.cb.test/image.jpg"
           storyTitle="My Epic Adventure"
         />,
       );
@@ -117,7 +158,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
       const { getByTestId } = render(
         <StoryImageDisplay
           {...mockProps}
-          imageUrl="https://example.com/image.jpg"
+          imageUrl="https://images.cb.test/image.jpg"
         />,
       );
 
@@ -143,7 +184,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
       const { getByTestId } = render(
         <StoryImageDisplay
           {...mockProps}
-          imageUrl="https://example.com/image.jpg"
+          imageUrl="https://images.cb.test/image.jpg"
         />,
       );
 
@@ -169,7 +210,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
       const { getByTestId } = render(
         <StoryImageDisplay
           {...mockProps}
-          imageUrl="https://example.com/image.jpg"
+          imageUrl="https://images.cb.test/image.jpg"
         />,
       );
 
@@ -195,7 +236,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
       const { getByText, getByTestId } = render(
         <StoryImageDisplay
           {...mockProps}
-          imageUrl="https://example.com/image.jpg"
+          imageUrl="https://images.cb.test/image.jpg"
         />,
       );
 
@@ -211,7 +252,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
       await waitFor(() => {
         expect(mockRNFS.downloadFile).toHaveBeenCalledWith(
           expect.objectContaining({
-            fromUrl: 'https://example.com/image.jpg',
+            fromUrl: 'https://images.cb.test/image.jpg',
             toFile: expect.stringContaining('story_test-session-123_'),
           }),
         );
@@ -233,7 +274,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
       const { getByText, getByTestId } = render(
         <StoryImageDisplay
           {...mockProps}
-          imageUrl="https://example.com/image.jpg"
+          imageUrl="https://images.cb.test/image.jpg"
         />,
       );
 
@@ -275,7 +316,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
       const { getByText, getByTestId } = render(
         <StoryImageDisplay
           {...mockProps}
-          imageUrl="https://example.com/image.jpg"
+          imageUrl="https://images.cb.test/image.jpg"
         />,
       );
 
@@ -306,7 +347,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
       const { getByText, getByTestId } = render(
         <StoryImageDisplay
           {...mockProps}
-          imageUrl="https://example.com/image.jpg"
+          imageUrl="https://images.cb.test/image.jpg"
         />,
       );
 
@@ -337,7 +378,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
       const { getByText, getByTestId } = render(
         <StoryImageDisplay
           {...mockProps}
-          imageUrl="https://example.com/image.jpg"
+          imageUrl="https://images.cb.test/image.jpg"
         />,
       );
 
@@ -368,7 +409,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
       const { getByText, getByTestId } = render(
         <StoryImageDisplay
           {...mockProps}
-          imageUrl="https://example.com/image.jpg"
+          imageUrl="https://images.cb.test/image.jpg"
           onImageSaved={onImageSaved}
         />,
       );
@@ -400,7 +441,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
       const { getByText, getByTestId } = render(
         <StoryImageDisplay
           {...mockProps}
-          imageUrl="https://example.com/image.jpg"
+          imageUrl="https://images.cb.test/image.jpg"
           sessionId="unique-session-456"
         />,
       );
@@ -496,7 +537,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
       const { getByText } = render(
         <StoryImageDisplay
           {...mockProps}
-          imageUrl="https://example.com/image.jpg"
+          imageUrl="https://images.cb.test/image.jpg"
         />,
       );
 
@@ -515,7 +556,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
       const { getByText } = render(
         <StoryImageDisplay
           {...mockProps}
-          imageUrl="https://example.com/image.jpg"
+          imageUrl="https://images.cb.test/image.jpg"
         />,
       );
 
@@ -534,7 +575,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
       const { getByText } = render(
         <StoryImageDisplay
           {...mockProps}
-          imageUrl="https://example.com/image.jpg"
+          imageUrl="https://images.cb.test/image.jpg"
         />,
       );
 
@@ -549,7 +590,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
       const { getByText, getByTestId } = render(
         <StoryImageDisplay
           {...mockProps}
-          imageUrl="https://example.com/image.jpg"
+          imageUrl="https://images.cb.test/image.jpg"
         />,
       );
 
@@ -563,7 +604,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
       });
 
       expect(mockShare.open).toHaveBeenCalledWith({
-        url: 'https://example.com/image.jpg',
+        url: 'https://images.cb.test/image.jpg',
         title: 'The Adventure Begins',
         message:
           'Check out this AI-generated illustration for my story: "The Adventure Begins" 🎨\n\nCreated with CreativeBridge',
@@ -577,7 +618,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
       const { getByText, getByTestId } = render(
         <StoryImageDisplay
           {...mockProps}
-          imageUrl="https://example.com/image.jpg"
+          imageUrl="https://images.cb.test/image.jpg"
         />,
       );
 
@@ -600,7 +641,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
       const { queryByText, getByTestId } = render(
         <StoryImageDisplay
           {...mockProps}
-          imageUrl="https://example.com/image.jpg"
+          imageUrl="https://images.cb.test/image.jpg"
           showDownloadButton={false}
         />,
       );
@@ -618,7 +659,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
       const { queryByText, getByTestId } = render(
         <StoryImageDisplay
           {...mockProps}
-          imageUrl="https://example.com/image.jpg"
+          imageUrl="https://images.cb.test/image.jpg"
           showShareButton={false}
         />,
       );
