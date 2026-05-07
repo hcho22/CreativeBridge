@@ -5,20 +5,8 @@
  * Task 4.2.7: Validate against PRD acceptance criteria
  */
 
-import {
-  jest,
-  describe,
-  it,
-  expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
-} from '@jest/globals';
+import { jest, describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { deviceTierTestFramework } from './deviceTierTestFramework';
-import { performanceTuner } from '../../services/performanceTuner';
-import { dynamicResourceManager } from '../../services/resourceManager';
-import { performanceOptimizer } from '../../services/performanceOptimizer';
-import { storyCache } from '../../services/storyCache';
 import { structuredLogger } from '../../utils/logger';
 
 interface PRDCriteriaResult {
@@ -498,7 +486,6 @@ describe('PRD Acceptance Criteria Validation', () => {
 
       // Collect all validation results
       const allTests = await deviceTierTestFramework.runComprehensiveTests();
-      const prdValidation = await deviceTierTestFramework.validatePRDCriteria();
 
       // Build comprehensive results
       const criteriaResults: PRDCriteriaResult[] = Object.entries(

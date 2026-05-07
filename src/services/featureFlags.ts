@@ -5,7 +5,6 @@
  * the Story Image Generation feature with gradual rollout capabilities.
  */
 
-import { supabase } from './supabase';
 import { env } from './environment';
 import { auditLogger, EventType, EventCategory, Severity } from './auditLogger';
 
@@ -169,7 +168,6 @@ class FeatureFlagService {
   ): Promise<boolean> {
     try {
       // Check cache first
-      const cacheKey = `${userContext.userId}:${flagKey}`;
       const cached = this.userCache.get(userContext.userId);
 
       if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
@@ -433,6 +431,7 @@ class FeatureFlagService {
   /**
    * Generate consistent hash for user and flag combination
    */
+  /* eslint-disable no-bitwise -- djb2 hash: bit-shift/mask intrinsic to algorithm. */
   private hashUser(userId: string, flagKey: string): number {
     const combined = `${userId}:${flagKey}`;
     let hash = 0;
@@ -443,6 +442,7 @@ class FeatureFlagService {
     }
     return Math.abs(hash);
   }
+  /* eslint-enable no-bitwise */
 
   /**
    * Cache result for user

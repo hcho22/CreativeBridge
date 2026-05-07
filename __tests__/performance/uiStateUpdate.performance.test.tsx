@@ -8,7 +8,7 @@
  */
 
 import React from 'react';
-import { render, act, waitFor } from '@testing-library/react-native';
+import { render, act } from '@testing-library/react-native';
 import ImageGeneration from '../../src/components/common/ImageGeneration';
 import StoryImageDisplay from '../../src/components/common/StoryImageDisplay';
 
@@ -55,10 +55,11 @@ jest.mock('../../src/utils/folderPicker', () => ({
 
 // Mock FullScreenImageModal used by StoryImageDisplay
 jest.mock('../../src/components/common/FullScreenImageModal', () => {
+  // eslint-disable-next-line @typescript-eslint/no-shadow -- jest.mock factory runs in isolated scope; the outer React import isn't visible at factory-execution time.
   const React = require('react');
   return {
     __esModule: true,
-    default: (props: any) =>
+    default: (_props: any) =>
       React.createElement('View', { testID: 'full-screen-modal' }),
     StoryImage: {},
   };
@@ -292,7 +293,7 @@ describe('Performance Tests: UI State Update Performance', () => {
     }
 
     // All updates should be fast
-    updateTimes.forEach((time, index) => {
+    updateTimes.forEach((time, _index) => {
       expect(time).toBeLessThan(16);
     });
 

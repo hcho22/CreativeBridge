@@ -5,14 +5,7 @@
  * service: disabled by default, explicit lifecycle, no fake data. (Finding P-3.4)
  */
 
-import {
-  jest,
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-} from '@jest/globals';
+import { describe, it, expect, afterEach } from '@jest/globals';
 import PerformanceMonitorService, {
   performanceMonitor,
 } from '../../services/performanceMonitor';

@@ -309,7 +309,7 @@ const UsageMetricsCard: React.FC<{ metrics: UsageMetrics }> = ({ metrics }) => (
       <>
         <Text style={styles.subSectionTitle}>Popular Sources</Text>
         <View style={styles.sourcesContainer}>
-          {metrics.popularSources.slice(0, 3).map((source, index) => (
+          {metrics.popularSources.slice(0, 3).map((source, _index) => (
             <View key={source.source} style={styles.sourceItem}>
               <Text style={styles.sourceName}>{source.source}</Text>
               <Text style={styles.sourcePercentage}>

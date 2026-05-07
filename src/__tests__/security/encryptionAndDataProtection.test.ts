@@ -8,8 +8,6 @@
 import { jest } from '@jest/globals';
 import { secureStorage } from '../../utils/secureStorage';
 import { ClaudeSkillsCredentialRotationService } from '../../services/ClaudeSkillsCredentialRotationService';
-import { structuredLogger } from '../../utils/logger';
-import { userPreferencesService } from '../../services/userPreferences';
 
 // Mock cryptographic modules
 jest.mock('react-native-keychain', () => ({
@@ -158,9 +156,9 @@ describe('Encryption and Data Protection', () => {
     });
 
     test('Encryption includes authentication tags for integrity', async () => {
-      const testData = { important: 'data', timestamp: Date.now() };
+      const authData = { important: 'data', timestamp: Date.now() };
 
-      await secureStorage.set('authenticated_data', testData, {
+      await secureStorage.set('authenticated_data', authData, {
         encrypt: true,
         includeAuthTag: true,
       });
@@ -501,40 +499,3 @@ describe('Encryption and Data Protection', () => {
     });
   });
 });
-
-// Helper function to verify encryption end-to-end
-async function verifyEndToEndEncryption(
-  originalData: any,
-  encryptedData: any,
-  decryptedData: any,
-): Promise<boolean> {
-  // Verify original data equals decrypted data
-  const dataMatches =
-    JSON.stringify(originalData) === JSON.stringify(decryptedData);
-
-  // Verify encrypted data is different from original
-  const encryptedDifferent =
-    JSON.stringify(originalData) !== JSON.stringify(encryptedData);
-
-  return dataMatches && encryptedDifferent;
-}
-
-// Performance benchmark for encryption operations
-async function benchmarkEncryption(
-  dataSize: number,
-): Promise<{ encryptTime: number; decryptTime: number }> {
-  const testData = 'x'.repeat(dataSize);
-
-  const encryptStart = performance.now();
-  await secureStorage.set('benchmark_data', testData, { encrypt: true });
-  const encryptEnd = performance.now();
-
-  const decryptStart = performance.now();
-  await secureStorage.get('benchmark_data', { decrypt: true });
-  const decryptEnd = performance.now();
-
-  return {
-    encryptTime: encryptEnd - encryptStart,
-    decryptTime: decryptEnd - decryptStart,
-  };
-}

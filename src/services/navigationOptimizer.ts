@@ -6,11 +6,7 @@
  */
 
 import { structuredLogger } from '../utils/logger';
-import {
-  behaviorAnalytics,
-  BehaviorPattern,
-  InteractionContext,
-} from './behaviorAnalytics';
+import { behaviorAnalytics, InteractionContext } from './behaviorAnalytics';
 import { engagementOptimizer } from './engagementOptimizer';
 import { GradeLevel } from '../types/database';
 
@@ -657,20 +653,24 @@ class NavigationOptimizerService {
     });
 
     // Convert to result format
-    return Array.from(sequenceMap.entries()).map(([sequenceKey, events]) => {
-      const sequence = sequenceKey.split(' -> ');
-      const durations = events.filter(e => e.duration).map(e => e.duration!);
+    return Array.from(sequenceMap.entries()).map(
+      ([sequenceKey, sequenceEvents]) => {
+        const sequence = sequenceKey.split(' -> ');
+        const durations = sequenceEvents
+          .filter(e => e.duration)
+          .map(e => e.duration!);
 
-      return {
-        sequence,
-        events,
-        frequency: events.length,
-        averageDuration:
-          durations.length > 0
-            ? durations.reduce((sum, d) => sum + d, 0) / durations.length
-            : 0,
-      };
-    });
+        return {
+          sequence,
+          events: sequenceEvents,
+          frequency: sequenceEvents.length,
+          averageDuration:
+            durations.length > 0
+              ? durations.reduce((sum, d) => sum + d, 0) / durations.length
+              : 0,
+        };
+      },
+    );
   }
 
   private classifyNavigationPattern(sequence: {

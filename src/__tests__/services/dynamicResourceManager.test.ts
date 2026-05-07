@@ -13,11 +13,9 @@ import {
   afterEach,
 } from '@jest/globals';
 import DeviceInfo from 'react-native-device-info';
-import { AppState, Platform } from 'react-native';
+import { AppState } from 'react-native';
 
-import DynamicResourceManager, {
-  dynamicResourceManager,
-} from '../../services/resourceManager';
+import DynamicResourceManager from '../../services/resourceManager';
 import { performanceOptimizer } from '../../services/performanceOptimizer';
 import {
   SkillManager,
@@ -635,8 +633,8 @@ describe('DynamicResourceManager', () => {
     it('should handle destroyed state', () => {
       resourceManager.destroy();
 
-      const conditions = resourceManager.getCurrentConditions();
-      const strategy = resourceManager.getCurrentStrategy();
+      resourceManager.getCurrentConditions();
+      resourceManager.getCurrentStrategy();
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         'Dynamic Resource Manager destroyed',

@@ -8,25 +8,20 @@
 import { structuredLogger } from '../utils/logger';
 import {
   uiPerformanceMonitor,
-  UIPerformanceMetric,
   OptimizationRecommendation,
 } from './uiPerformanceMonitor';
 import {
   engagementOptimizer,
-  EngagementMetric,
   EngagementOptimization,
 } from './engagementOptimizer';
 import {
   navigationOptimizer,
-  NavigationEvent,
   NavigationOptimization,
 } from './navigationOptimizer';
 import {
   readingComprehensionOptimizer,
-  ReadingEvent,
   ReadingOptimization,
 } from './readingComprehensionOptimizer';
-import { behaviorAnalytics } from './behaviorAnalytics';
 import { GradeLevel } from '../types/database';
 
 export interface UIOptimizationState {

@@ -3,8 +3,6 @@
  * Tests pinch-to-zoom implementation and zoom state management
  */
 
-import React from 'react';
-
 // Mock the dependencies for zoom testing
 jest.mock('react-native-reanimated', () => {
   const mockSharedValue = (initialValue: number) => ({ value: initialValue });
@@ -20,11 +18,11 @@ jest.mock('react-native-reanimated', () => {
         onEnd: handlers.onEnd || jest.fn(),
       };
     }),
-    withSpring: jest.fn((value, config) => {
+    withSpring: jest.fn((value, _config) => {
       // Mock spring animation - return target value
       return value;
     }),
-    withTiming: jest.fn((value, config) => {
+    withTiming: jest.fn((value, _config) => {
       // Mock timing animation - return target value
       return value;
     }),
@@ -330,7 +328,6 @@ describe('Zoom Performance on Different Devices', () => {
 
   deviceProfiles.forEach(device => {
     it(`should handle zoom efficiently on ${device.name}`, () => {
-      const maxImageSize = Math.max(device.width, device.height);
       const recommendedMaxZoom = device.performance === 'low' ? 3 : 5;
 
       // Test zoom limits based on device performance

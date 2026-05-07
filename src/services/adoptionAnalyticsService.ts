@@ -484,7 +484,6 @@ class AdoptionAnalyticsService {
     events: any[],
   ): GradeLevelAdoption {
     const totalUsers = users.length;
-    const userIds = new Set(users.map(u => u.id));
 
     // Find users who have generated images
     const usersWithEvents = new Set(events.map(e => e.user_id));
@@ -850,8 +849,8 @@ class AdoptionAnalyticsService {
   }
 
   private analyzeDiscoveryMethods(
-    users: any[],
-    events: any[],
+    _users: any[],
+    _events: any[],
   ): Record<string, number> {
     // Simplified discovery analysis - would be more sophisticated with tracking
     return {
@@ -910,7 +909,7 @@ class AdoptionAnalyticsService {
 
   private generateRecommendations(
     adoptionData: GradeLevelAdoption[],
-    trends: AdoptionTrends,
+    _trends: AdoptionTrends,
   ): AdoptionInsights['recommendations'] {
     const immediate = [];
     const shortTerm = [];

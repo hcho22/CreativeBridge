@@ -368,11 +368,10 @@ export class EnhancedContentAnalyzer {
   private extractAbstractConcepts(content: string): AbstractConcept[] {
     const concepts: AbstractConcept[] = [];
     const text = content.toLowerCase();
-    const words = text.split(/\s+/);
 
     // Extract emotional concepts
     Object.entries(this.EMOTIONAL_CONCEPTS).forEach(
-      ([subcategory, conceptList]) => {
+      ([_subcategory, conceptList]) => {
         conceptList.forEach(concept => {
           if (text.includes(concept)) {
             const context = this.findContext(content, concept);
@@ -389,7 +388,7 @@ export class EnhancedContentAnalyzer {
 
     // Extract value concepts
     Object.entries(this.VALUE_CONCEPTS).forEach(
-      ([subcategory, conceptList]) => {
+      ([_subcategory, conceptList]) => {
         conceptList.forEach(concept => {
           if (text.includes(concept)) {
             const context = this.findContext(content, concept);
@@ -406,7 +405,7 @@ export class EnhancedContentAnalyzer {
 
     // Extract action concepts
     Object.entries(this.ACTION_CONCEPTS).forEach(
-      ([subcategory, conceptList]) => {
+      ([_subcategory, conceptList]) => {
         conceptList.forEach(concept => {
           const regex = new RegExp(`\\b${concept}\\w*\\b`, 'gi');
           if (regex.test(text)) {
@@ -643,7 +642,7 @@ export class EnhancedContentAnalyzer {
   private generateVisualSuggestions(
     contentType: ContentType,
     themes: SemanticTheme[],
-    emotionalTone: EnhancedContentAnalysis['emotionalTone'],
+    _emotionalTone: EnhancedContentAnalysis['emotionalTone'],
   ): EnhancedContentAnalysis['visualSuggestions'] {
     const suggestions = {
       artStyle: 'abstract expressionism',

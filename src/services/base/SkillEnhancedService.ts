@@ -20,7 +20,6 @@ import {
 import {
   FallbackStrategyManager,
   FallbackContext,
-  FallbackResult,
   OriginalServiceFallbackStrategy,
 } from './FallbackStrategy';
 import { abTestingService } from '../abTesting';

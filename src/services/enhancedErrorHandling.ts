@@ -772,7 +772,6 @@ export class EnhancedErrorHandlingService {
     try {
       // Clear temporary files and cache
       const tempDir = RNFS.TemporaryDirectoryPath;
-      const cacheDir = RNFS.CachesDirectoryPath;
 
       const tempFiles = await RNFS.readDir(tempDir);
       for (const file of tempFiles) {

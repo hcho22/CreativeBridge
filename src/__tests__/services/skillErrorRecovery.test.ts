@@ -5,13 +5,7 @@
  */
 
 import { skillErrorRecovery } from '../../services/skillErrorRecovery';
-import {
-  SkillError,
-  SkillErrorCode,
-  SkillType,
-} from '../../types/claudeSkills';
-import { structuredLogger } from '../../utils/logger';
-import { errorHandler } from '../../services/errorHandler';
+import { SkillErrorCode } from '../../types/claudeSkills';
 
 // Mock dependencies
 jest.mock('../../utils/logger');

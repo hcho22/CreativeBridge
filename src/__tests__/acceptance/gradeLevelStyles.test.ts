@@ -162,7 +162,7 @@ class GradeLevelStyleValidator {
   // Generate and validate art style for a grade level
   validateGradeLevelStyle(
     gradeLevel: GradeLevel,
-    storyContent: string,
+    _storyContent: string,
   ): {
     isAppropriate: boolean;
     styleAnalysis: {
@@ -381,8 +381,6 @@ class GradeLevelStyleValidator {
       );
     }
 
-    const expected = this.expectedElements[gradeLevel];
-
     // Grade-specific recommendations
     switch (gradeLevel) {
       case 'K-2':
@@ -453,7 +451,7 @@ describe('Grade Level Art Styles - User Acceptance Tests', () => {
     test('should generate age-appropriate styles for K-2 students', () => {
       const stories = styleValidator.getTestStories('K-2');
 
-      stories.forEach((story, index) => {
+      stories.forEach((story, _index) => {
         const validation = styleValidator.validateGradeLevelStyle('K-2', story);
 
         expect(validation.isAppropriate).toBe(true);
@@ -512,7 +510,7 @@ describe('Grade Level Art Styles - User Acceptance Tests', () => {
     test('should generate appropriate styles for elementary students', () => {
       const stories = styleValidator.getTestStories('3-5');
 
-      stories.forEach((story, index) => {
+      stories.forEach((story, _index) => {
         const validation = styleValidator.validateGradeLevelStyle('3-5', story);
 
         expect(validation.isAppropriate).toBe(true);
@@ -549,7 +547,7 @@ describe('Grade Level Art Styles - User Acceptance Tests', () => {
     test('should generate sophisticated styles for middle school students', () => {
       const stories = styleValidator.getTestStories('6-8');
 
-      stories.forEach((story, index) => {
+      stories.forEach((story, _index) => {
         const validation = styleValidator.validateGradeLevelStyle('6-8', story);
 
         expect(validation.isAppropriate).toBe(true);
@@ -581,7 +579,7 @@ describe('Grade Level Art Styles - User Acceptance Tests', () => {
     test('should generate mature, artistic styles for high school students', () => {
       const stories = styleValidator.getTestStories('9-12');
 
-      stories.forEach((story, index) => {
+      stories.forEach((story, _index) => {
         const validation = styleValidator.validateGradeLevelStyle(
           '9-12',
           story,

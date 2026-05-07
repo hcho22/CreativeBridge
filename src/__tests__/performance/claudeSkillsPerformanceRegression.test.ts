@@ -7,10 +7,7 @@
 
 import { createMockSkillManager } from '../mocks/claudeSkillsMock';
 import { SkillManager } from '../../types/claudeSkills';
-import {
-  SkillTestUtils,
-  MOCK_EXECUTION_TIMES,
-} from '../mocks/claudeSkillsMock';
+import { SkillTestUtils } from '../mocks/claudeSkillsMock';
 import { claudeSkillsMonitor } from '../../services/claudeSkillsMonitor';
 
 interface PerformanceBaseline {

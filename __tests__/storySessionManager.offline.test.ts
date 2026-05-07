@@ -7,7 +7,6 @@ import {
   storySessionManager,
   StorySession,
 } from '../src/services/storySessionManager';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GradeLevel } from '../src/types';
 
 // Mock AsyncStorage

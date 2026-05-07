@@ -280,7 +280,7 @@ export class ProgressiveEnhancementService {
     operation: () => Promise<T>,
     retryStrategy: RetryStrategy,
     operationId: string,
-    request: StoryRequest,
+    _request: StoryRequest,
   ): Promise<{
     success: boolean;
     result?: T;
@@ -733,8 +733,8 @@ export class ProgressiveEnhancementService {
    * Check if functionality level is compatible with request requirements
    */
   private checkFunctionalityCompatibility(
-    functionality: FunctionalityLevel,
-    request: StoryRequest,
+    _functionality: FunctionalityLevel,
+    _request: StoryRequest,
   ): boolean {
     // For now, accept all functionality levels
     // In a real implementation, this would check specific requirements
@@ -746,7 +746,7 @@ export class ProgressiveEnhancementService {
    */
   private async applyCommunicationStrategy(
     communication: UserCommunicationStrategy,
-    request: StoryRequest,
+    _request: StoryRequest,
   ): Promise<void> {
     // This would integrate with the UI to show user communications
     structuredLogger.info('Applying user communication strategy', {
@@ -768,7 +768,7 @@ export class ProgressiveEnhancementService {
   private assessUserExperiencePreservation(
     level: FallbackLevel,
     strategy: UserExperienceStrategy,
-    request: StoryRequest,
+    _request: StoryRequest,
   ): boolean {
     let score = 70; // Base score
 

@@ -24,6 +24,7 @@ import {
 import { useQuery, useMutation } from 'convex/react';
 import { theme } from '../../constants/theme';
 import { api } from '../../services/convex';
+import { redactId } from '../../utils/piiRedaction';
 import { onboardingMilestoneTracker } from '../../services/onboardingMilestoneTracker';
 
 // Enable LayoutAnimation on Android
@@ -107,15 +108,17 @@ export const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({
     // If userId is provided, wait for the Convex query to finish loading.
     // serverOnboarding === undefined means still loading (or skipped).
     if (userId && serverOnboarding === undefined) {
+      const uidWaitMasked = redactId(userId);
       console.log(
         '🔍 [DEBUG-CHECKLIST] Waiting for serverOnboarding to load...',
-        { userId, serverOnboarding },
+        { uid: uidWaitMasked, serverOnboarding },
       );
       return;
     }
 
+    const uidLoadMasked = redactId(userId);
     console.log('🔍 [DEBUG-CHECKLIST] Loading progress with:', {
-      userId,
+      uid: uidLoadMasked,
       serverOnboarding: serverOnboarding
         ? JSON.stringify(serverOnboarding.onboardingProgress)
         : 'null/skipped',
@@ -275,6 +278,7 @@ export const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({
     };
 
     loadProgress();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- US-019 batch 4: load triggered only by serverOnboarding query result; userId/recordMilestone identities are stable per-mount.
   }, [serverOnboarding]);
 
   // Update progress bar animation when completion changes

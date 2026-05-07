@@ -39,7 +39,7 @@ let skippedTests = 0;
 function printResult(
   testName: string,
   status: 'pass' | 'fail' | 'skip',
-  message?: string
+  message?: string,
 ) {
   if (status === 'pass') {
     console.log(`${colors.green}✓${colors.reset} ${testName}`);
@@ -85,7 +85,7 @@ async function runSmokeTests() {
 
   if (!supabaseUrl || !supabaseKey) {
     console.error(
-      `${colors.red}Error: Missing SUPABASE_URL or SUPABASE_ANON_KEY in environment${colors.reset}`
+      `${colors.red}Error: Missing SUPABASE_URL or SUPABASE_ANON_KEY in environment${colors.reset}`,
     );
     console.error('Make sure .env file is configured correctly');
     process.exit(1);
@@ -100,29 +100,21 @@ async function runSmokeTests() {
   printSection('SECTION 1: Database Connectivity');
 
   try {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('game_sessions')
       .select('count', { count: 'exact', head: true });
 
     if (error) {
-      printResult(
-        'Database connection',
-        'fail',
-        `Error: ${error.message}`
-      );
+      printResult('Database connection', 'fail', `Error: ${error.message}`);
     } else {
       printResult(
         'Database connection',
         'pass',
-        `Connected to production database`
+        `Connected to production database`,
       );
     }
   } catch (error: any) {
-    printResult(
-      'Database connection',
-      'fail',
-      `Exception: ${error.message}`
-    );
+    printResult('Database connection', 'fail', `Exception: ${error.message}`);
   }
 
   // ============================================================
@@ -133,43 +125,38 @@ async function runSmokeTests() {
 
   // Test 1: Check if new columns exist
   try {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('game_sessions')
       .select('id, current_round, supabase_image_url, image_upload_status')
       .limit(1);
 
     if (error) {
-      if (error.message.includes('column') && error.message.includes('does not exist')) {
+      if (
+        error.message.includes('column') &&
+        error.message.includes('does not exist')
+      ) {
         printResult(
           'New columns exist (current_round, supabase_image_url, image_upload_status)',
           'fail',
-          'Migration not applied - columns missing'
+          'Migration not applied - columns missing',
         );
       } else {
-        printResult(
-          'New columns exist',
-          'fail',
-          `Error: ${error.message}`
-        );
+        printResult('New columns exist', 'fail', `Error: ${error.message}`);
       }
     } else {
       printResult(
         'New columns exist (current_round, supabase_image_url, image_upload_status)',
         'pass',
-        'Migration schema changes applied'
+        'Migration schema changes applied',
       );
     }
   } catch (error: any) {
-    printResult(
-      'New columns exist',
-      'fail',
-      `Exception: ${error.message}`
-    );
+    printResult('New columns exist', 'fail', `Exception: ${error.message}`);
   }
 
   // Test 2: Check indexes exist
   try {
-    const { data, error } = await supabase.rpc('check_index_exists', {
+    const { error } = await supabase.rpc('check_index_exists', {
       index_name: 'idx_game_sessions_completed_at',
     });
 
@@ -178,26 +165,22 @@ async function runSmokeTests() {
       printResult(
         'Database indexes created',
         'skip',
-        'Cannot verify - RPC function not available'
+        'Cannot verify - RPC function not available',
       );
     } else if (error) {
-      printResult(
-        'Database indexes created',
-        'fail',
-        'Index not found'
-      );
+      printResult('Database indexes created', 'fail', 'Index not found');
     } else {
       printResult(
         'Database indexes created',
         'pass',
-        'Performance indexes in place'
+        'Performance indexes in place',
       );
     }
   } catch (error: any) {
     printResult(
       'Database indexes created',
       'skip',
-      'Cannot verify automatically'
+      'Cannot verify automatically',
     );
   }
 
@@ -215,21 +198,23 @@ async function runSmokeTests() {
       printResult(
         'Storage buckets accessible',
         'fail',
-        `Error: ${error.message}`
+        `Error: ${error.message}`,
       );
     } else {
-      const storyImagesBucket = buckets?.find((b) => b.id === 'story-images');
+      const storyImagesBucket = buckets?.find(b => b.id === 'story-images');
       if (storyImagesBucket) {
         printResult(
           'story-images bucket exists',
           'pass',
-          `Bucket configured: ${storyImagesBucket.public ? 'public' : 'private'}`
+          `Bucket configured: ${
+            storyImagesBucket.public ? 'public' : 'private'
+          }`,
         );
       } else {
         printResult(
           'story-images bucket exists',
           'fail',
-          'Bucket not found - run Task 1.3 setup'
+          'Bucket not found - run Task 1.3 setup',
         );
       }
     }
@@ -237,7 +222,7 @@ async function runSmokeTests() {
     printResult(
       'Storage buckets accessible',
       'fail',
-      `Exception: ${error.message}`
+      `Exception: ${error.message}`,
     );
   }
 
@@ -245,7 +230,7 @@ async function runSmokeTests() {
   printResult(
     'Storage RLS policies active',
     'skip',
-    'Manual verification required with test user account'
+    'Manual verification required with test user account',
   );
 
   // ============================================================
@@ -267,27 +252,23 @@ async function runSmokeTests() {
       printResult(
         'No incomplete stories with 5+ sentences',
         'fail',
-        `Error: ${error.message}`
+        `Error: ${error.message}`,
       );
     } else if (data && data.length > 0) {
       printResult(
         'No incomplete stories with 5+ sentences',
         'fail',
-        `Found ${data.length} stories that should be completed`
+        `Found ${data.length} stories that should be completed`,
       );
     } else {
       printResult(
         'No incomplete stories with 5+ sentences',
         'pass',
-        'Data migration completed successfully'
+        'Data migration completed successfully',
       );
     }
   } catch (error: any) {
-    printResult(
-      'Data integrity check',
-      'fail',
-      `Exception: ${error.message}`
-    );
+    printResult('Data integrity check', 'fail', `Exception: ${error.message}`);
   }
 
   // Test 2: Check for invalid round numbers
@@ -302,26 +283,26 @@ async function runSmokeTests() {
       printResult(
         'All round numbers valid (1-5)',
         'fail',
-        `Error: ${error.message}`
+        `Error: ${error.message}`,
       );
     } else if (data && data.length > 0) {
       printResult(
         'All round numbers valid (1-5)',
         'fail',
-        `Found ${data.length} sessions with invalid round numbers`
+        `Found ${data.length} sessions with invalid round numbers`,
       );
     } else {
       printResult(
         'All round numbers valid (1-5)',
         'pass',
-        'Round constraints enforced'
+        'Round constraints enforced',
       );
     }
   } catch (error: any) {
     printResult(
       'Round number validation',
       'fail',
-      `Exception: ${error.message}`
+      `Exception: ${error.message}`,
     );
   }
 
@@ -334,7 +315,7 @@ async function runSmokeTests() {
   // Test 1: Query performance with new indexes
   try {
     const startTime = Date.now();
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('game_sessions')
       .select('id, completed_at')
       .not('completed_at', 'is', null)
@@ -346,33 +327,29 @@ async function runSmokeTests() {
       printResult(
         'Query performance (completed stories)',
         'fail',
-        `Error: ${error.message}`
+        `Error: ${error.message}`,
       );
     } else if (elapsed > 1000) {
       printResult(
         'Query performance (completed stories)',
         'fail',
-        `Query took ${elapsed}ms (threshold: 1000ms)`
+        `Query took ${elapsed}ms (threshold: 1000ms)`,
       );
     } else {
       printResult(
         'Query performance (completed stories)',
         'pass',
-        `Query completed in ${elapsed}ms`
+        `Query completed in ${elapsed}ms`,
       );
     }
   } catch (error: any) {
-    printResult(
-      'Query performance',
-      'fail',
-      `Exception: ${error.message}`
-    );
+    printResult('Query performance', 'fail', `Exception: ${error.message}`);
   }
 
   // Test 2: Upload status query performance
   try {
     const startTime = Date.now();
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('game_sessions')
       .select('id, image_upload_status')
       .eq('image_upload_status', 'uploaded')
@@ -384,26 +361,26 @@ async function runSmokeTests() {
       printResult(
         'Query performance (upload status)',
         'fail',
-        `Error: ${error.message}`
+        `Error: ${error.message}`,
       );
     } else if (elapsed > 1000) {
       printResult(
         'Query performance (upload status)',
         'fail',
-        `Query took ${elapsed}ms (threshold: 1000ms)`
+        `Query took ${elapsed}ms (threshold: 1000ms)`,
       );
     } else {
       printResult(
         'Query performance (upload status)',
         'pass',
-        `Query completed in ${elapsed}ms`
+        `Query completed in ${elapsed}ms`,
       );
     }
   } catch (error: any) {
     printResult(
       'Upload status query performance',
       'fail',
-      `Exception: ${error.message}`
+      `Exception: ${error.message}`,
     );
   }
 
@@ -419,13 +396,13 @@ async function runSmokeTests() {
     printResult(
       'Replicate API token configured',
       'pass',
-      'Token available (not tested)'
+      'Token available (not tested)',
     );
   } else {
     printResult(
       'Replicate API token configured',
       'fail',
-      'REPLICATE_API_TOKEN not found in environment'
+      'REPLICATE_API_TOKEN not found in environment',
     );
   }
 
@@ -435,13 +412,13 @@ async function runSmokeTests() {
     printResult(
       'Clerk authentication configured',
       'pass',
-      'Publishable key available'
+      'Publishable key available',
     );
   } else {
     printResult(
       'Clerk authentication configured',
       'fail',
-      'CLERK_PUBLISHABLE_KEY not found'
+      'CLERK_PUBLISHABLE_KEY not found',
     );
   }
 
@@ -455,19 +432,19 @@ async function runSmokeTests() {
   printResult(
     'Sentry error tracking configured',
     'skip',
-    'Manual verification: Check Sentry dashboard'
+    'Manual verification: Check Sentry dashboard',
   );
 
   printResult(
     'Supabase dashboard accessible',
     'skip',
-    'Manual verification: Check Supabase logs'
+    'Manual verification: Check Supabase logs',
   );
 
   printResult(
     'Alert thresholds configured',
     'skip',
-    'Manual verification: Test alert system'
+    'Manual verification: Test alert system',
   );
 
   // ============================================================
@@ -482,9 +459,15 @@ async function runSmokeTests() {
   console.log();
 
   if (failedTests === 0) {
-    console.log(`${colors.green}╔════════════════════════════════════════════════════════╗${colors.reset}`);
-    console.log(`${colors.green}║  ✓ ALL SMOKE TESTS PASSED                             ║${colors.reset}`);
-    console.log(`${colors.green}╚════════════════════════════════════════════════════════╝${colors.reset}`);
+    console.log(
+      `${colors.green}╔════════════════════════════════════════════════════════╗${colors.reset}`,
+    );
+    console.log(
+      `${colors.green}║  ✓ ALL SMOKE TESTS PASSED                             ║${colors.reset}`,
+    );
+    console.log(
+      `${colors.green}╚════════════════════════════════════════════════════════╝${colors.reset}`,
+    );
     console.log();
     console.log('Production deployment verified successfully!');
     console.log();
@@ -496,11 +479,19 @@ async function runSmokeTests() {
     console.log();
     process.exit(0);
   } else {
-    console.log(`${colors.red}╔════════════════════════════════════════════════════════╗${colors.reset}`);
-    console.log(`${colors.red}║  ✗ SMOKE TESTS FAILED                                  ║${colors.reset}`);
-    console.log(`${colors.red}╚════════════════════════════════════════════════════════╝${colors.reset}`);
+    console.log(
+      `${colors.red}╔════════════════════════════════════════════════════════╗${colors.reset}`,
+    );
+    console.log(
+      `${colors.red}║  ✗ SMOKE TESTS FAILED                                  ║${colors.reset}`,
+    );
+    console.log(
+      `${colors.red}╚════════════════════════════════════════════════════════╝${colors.reset}`,
+    );
     console.log();
-    console.log(`${colors.red}⚠️  CRITICAL: ${failedTests} test(s) failed${colors.reset}`);
+    console.log(
+      `${colors.red}⚠️  CRITICAL: ${failedTests} test(s) failed${colors.reset}`,
+    );
     console.log();
     console.log('Action required:');
     console.log('1. Review failed tests above');
@@ -513,7 +504,7 @@ async function runSmokeTests() {
 }
 
 // Run smoke tests
-runSmokeTests().catch((error) => {
+runSmokeTests().catch(error => {
   console.error(`${colors.red}Fatal error running smoke tests:${colors.reset}`);
   console.error(error);
   process.exit(1);

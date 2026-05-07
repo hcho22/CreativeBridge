@@ -15,7 +15,6 @@ import {
 } from '@jest/globals';
 import {
   ContextualFallbackService,
-  StoryContext,
   ErrorRecoveryContext,
 } from '../../services/contextualFallback';
 import { StoryAwareFallbackGenerator } from '../../services/storyAwareFallbackGenerator';

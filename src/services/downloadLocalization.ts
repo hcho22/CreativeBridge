@@ -294,10 +294,6 @@ export class DownloadLocalizationService {
    * Format time remaining with localization
    */
   formatTimeRemaining(seconds: number): string {
-    const strings =
-      this.translations.get(this.currentLanguage) ||
-      this.translations.get(this.fallbackLanguage)!;
-
     if (seconds < 60) {
       return this.getStringWithParams('time.secondsRemaining', {
         seconds: Math.round(seconds),

@@ -13,13 +13,8 @@ import { monitoringService, PerformanceMetrics } from './monitoringService';
 import {
   adoptionAnalyticsService,
   GradeLevelAdoption,
-  AdoptionInsights,
 } from './adoptionAnalyticsService';
-import {
-  costTrackingService,
-  CostMetrics,
-  OptimizationInsights,
-} from './costTrackingService';
+import { costTrackingService, CostMetrics } from './costTrackingService';
 
 export interface IterationPlan {
   id: string;
@@ -1023,7 +1018,7 @@ class IterationPlanningService {
     return Math.min(value, 10);
   }
 
-  private getAffectedGradeLevels(feedback: any): string[] {
+  private getAffectedGradeLevels(_feedback: any): string[] {
     // Simple heuristic - would be more sophisticated with user segmentation
     return ['K-2', '3-5', '6-8', '9-12'];
   }

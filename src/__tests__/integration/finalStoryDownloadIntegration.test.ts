@@ -3,9 +3,7 @@
  * Comprehensive end-to-end testing for the complete story download feature
  */
 
-import React from 'react';
-import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
-import { Platform, Alert } from 'react-native';
+import { Platform } from 'react-native';
 
 // Import all the services and components we've built
 import { storyDownloadService } from '../../services/storyDownloadService';

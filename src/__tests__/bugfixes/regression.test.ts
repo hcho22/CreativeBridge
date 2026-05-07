@@ -316,7 +316,6 @@ describe('Regression Tests - Bug Fixes', () => {
     it('should refund XP when Replicate generation fails', async () => {
       const userId = 'user-refund-test';
       const initialXP = 2000;
-      const imageCost = 1000;
 
       // Mock user profile with XP
       (supabase.from as jest.Mock).mockReturnValue({
@@ -346,12 +345,10 @@ describe('Regression Tests - Bug Fixes', () => {
     });
 
     it('should NOT refund XP when Supabase upload fails (Replicate succeeded)', async () => {
-      const userId = 'user-no-refund';
       const initialXP = 2000;
       const imageCost = 1000;
 
       // Replicate succeeds - user gets image URL
-      const replicateUrl = 'https://replicate.delivery/image.png';
 
       // Supabase upload fails (but user still has Replicate URL)
       const uploadResult = {
@@ -368,7 +365,6 @@ describe('Regression Tests - Bug Fixes', () => {
     });
 
     it('should prevent double refunds with idempotency', async () => {
-      const userId = 'user-double-refund';
       const eventId = 'event-123';
 
       // Simulate refund already processed

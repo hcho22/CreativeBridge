@@ -544,7 +544,7 @@ class InterfaceAdapterService {
   }
 
   private async createNavigationAdaptation(
-    pattern: BehaviorPattern,
+    _pattern: BehaviorPattern,
   ): Promise<UIAdaptation> {
     return {
       id: `nav_adapt_${Date.now()}`,
@@ -585,7 +585,7 @@ class InterfaceAdapterService {
   }
 
   private async createInputAdaptation(
-    pattern: BehaviorPattern,
+    _pattern: BehaviorPattern,
   ): Promise<UIAdaptation> {
     return {
       id: `input_adapt_${Date.now()}`,
@@ -637,7 +637,7 @@ class InterfaceAdapterService {
   }
 
   private async createAccessibilityAdaptation(
-    pattern: BehaviorPattern,
+    _pattern: BehaviorPattern,
   ): Promise<UIAdaptation> {
     return {
       id: `a11y_adapt_${Date.now()}`,
@@ -743,7 +743,7 @@ class InterfaceAdapterService {
   }
 
   private async createEngagementAdaptation(
-    pattern: BehaviorPattern,
+    _pattern: BehaviorPattern,
   ): Promise<UIAdaptation> {
     return {
       id: `engagement_adapt_${Date.now()}`,

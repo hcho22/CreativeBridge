@@ -10,7 +10,7 @@
  * - Image URL persistence across offline/online states
  */
 
-import { storySessionManager, StorySession } from '../../src/services/storySessionManager';
+import { storySessionManager } from '../../src/services/storySessionManager';
 import { supabase } from '../../src/services/supabase';
 import { GradeLevel } from '../../src/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -25,25 +25,26 @@ describe('Integration Test: Offline to Online Sync', () => {
   const TEST_USER_ID = 'test-user-offline';
   const TEST_GRADE_LEVEL: GradeLevel = 'K-2';
   const MOCK_REPLICATE_URL = 'https://replicate.delivery/offline-test.png';
-  const MOCK_SUPABASE_URL = 'https://supabase.co/storage/story-images/offline-test.png';
+  const MOCK_SUPABASE_URL =
+    'https://supabase.co/storage/story-images/offline-test.png';
 
   let mockCache: Record<string, any> = {};
-  let isOnline = true;
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockCache = {};
-    isOnline = true;
 
     // Setup AsyncStorage mock
     (AsyncStorage.getItem as jest.Mock).mockImplementation((key: string) => {
       return Promise.resolve(mockCache[key] || null);
     });
 
-    (AsyncStorage.setItem as jest.Mock).mockImplementation((key: string, value: string) => {
-      mockCache[key] = value;
-      return Promise.resolve();
-    });
+    (AsyncStorage.setItem as jest.Mock).mockImplementation(
+      (key: string, value: string) => {
+        mockCache[key] = value;
+        return Promise.resolve();
+      },
+    );
 
     // Setup Supabase mock
     setupSupabaseMock();
@@ -56,25 +57,11 @@ describe('Integration Test: Offline to Online Sync', () => {
   it('should cache session data to AsyncStorage when online', async () => {
     console.log('🧪 Test 1: Online session caching');
 
-    const mockSession = {
-      id: 'cache-test-session',
-      user_id: TEST_USER_ID,
-      grade_level: TEST_GRADE_LEVEL,
-      created_at: new Date().toISOString(),
-      current_round: 3,
-      story_content: 'Test story content',
-      generated_image_url: MOCK_REPLICATE_URL,
-      supabase_image_url: MOCK_SUPABASE_URL,
-      image_upload_status: 'uploaded',
-      final_score: 0,
-      words_written: 15,
-      sentences_completed: 3,
-      challenges_completed: 0,
-      xp_earned: 0,
-    };
-
     // Create session (simulates online operation)
-    const session = await storySessionManager.createSession(TEST_USER_ID, TEST_GRADE_LEVEL);
+    const session = await storySessionManager.createSession(
+      TEST_USER_ID,
+      TEST_GRADE_LEVEL,
+    );
 
     // Update session with data
     session.current_round = 3;
@@ -96,7 +83,10 @@ describe('Integration Test: Offline to Online Sync', () => {
 
     console.log('  ✅ Session data cached successfully');
     console.log(`     - Cached session ID: ${session.id}`);
-    console.log(`     - Image URLs cached: ${!!parsedCache[session.id].supabase_image_url}`);
+    console.log(
+      `     - Image URLs cached: ${!!parsedCache[session.id]
+        .supabase_image_url}`,
+    );
   });
 
   /**
@@ -144,7 +134,9 @@ describe('Integration Test: Offline to Online Sync', () => {
     (supabase.from as jest.Mock).mockReturnValue({
       select: jest.fn().mockReturnValue({
         eq: jest.fn().mockReturnValue({
-          single: jest.fn().mockRejectedValue(new Error('Network request failed')),
+          single: jest
+            .fn()
+            .mockRejectedValue(new Error('Network request failed')),
         }),
       }),
     });
@@ -228,7 +220,9 @@ describe('Integration Test: Offline to Online Sync', () => {
     // Verify cache was updated
     const cachedData = JSON.parse(mockCache['@CreativeBridge:sessions']);
     expect(cachedData[sessionId].current_round).toBe(3);
-    expect(cachedData[sessionId].story_content).toBe('New content added offline');
+    expect(cachedData[sessionId].story_content).toBe(
+      'New content added offline',
+    );
 
     console.log('  - Offline changes cached ✓');
 
@@ -281,10 +275,11 @@ describe('Integration Test: Offline to Online Sync', () => {
   it('should preserve image URLs across offline/online transitions', async () => {
     console.log('🧪 Test 4: Image URL persistence across transitions');
 
-    const sessionId = 'image-persistence-test';
-
     // Start online, create session with images
-    const session = await storySessionManager.createSession(TEST_USER_ID, TEST_GRADE_LEVEL);
+    const session = await storySessionManager.createSession(
+      TEST_USER_ID,
+      TEST_GRADE_LEVEL,
+    );
     session.generated_image_url = MOCK_REPLICATE_URL;
     session.supabase_image_url = MOCK_SUPABASE_URL;
     session.image_upload_status = 'uploaded';
@@ -468,7 +463,9 @@ describe('Integration Test: Offline to Online Sync', () => {
     console.log('  ✅ Multiple sessions retrieved from cache');
     console.log(`     - Session 1: round ${retrieved1?.current_round}`);
     console.log(`     - Session 2: round ${retrieved2?.current_round}`);
-    console.log(`     - Session 3: round ${retrieved3?.current_round} (completed)`);
+    console.log(
+      `     - Session 3: round ${retrieved3?.current_round} (completed)`,
+    );
   });
 
   /**
@@ -486,7 +483,9 @@ describe('Integration Test: Offline to Online Sync', () => {
       oldCache[`old-session-${i}`] = {
         id: `old-session-${i}`,
         user_id: TEST_USER_ID,
-        created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days ago
+        created_at: new Date(
+          Date.now() - 30 * 24 * 60 * 60 * 1000,
+        ).toISOString(), // 30 days ago
         current_round: 1,
       };
     }
@@ -502,7 +501,10 @@ describe('Integration Test: Offline to Online Sync', () => {
     mockCache['@CreativeBridge:sessions'] = JSON.stringify(oldCache);
 
     // Create a new session (should trigger cleanup)
-    const newSession = await storySessionManager.createSession(TEST_USER_ID, TEST_GRADE_LEVEL);
+    const newSession = await storySessionManager.createSession(
+      TEST_USER_ID,
+      TEST_GRADE_LEVEL,
+    );
     await storySessionManager.updateSession(newSession);
 
     // Check cache size after cleanup

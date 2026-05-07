@@ -384,7 +384,6 @@ class PerformanceOptimizerService {
     dimensions: { width: number; height: number },
   ) {
     const { width, height } = dimensions;
-    const screenScale = Dimensions.get('window').scale;
 
     return {
       uri,

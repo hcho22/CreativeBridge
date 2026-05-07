@@ -323,6 +323,7 @@ class ImageGenerationTester {
     this.printTestSummary();
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-shadow -- this script imports a top-level `config` object; renaming the parameter throughout 200+ lines is out of scope.
   private async runTest(config: TestConfig): Promise<void> {
     console.log(`\nRunning Test: ${config.testName}`);
     console.log(`  Prompt: ${config.prompt.substring(0, 100)}...`);

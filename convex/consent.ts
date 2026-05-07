@@ -808,7 +808,11 @@ export const sendConsentEmail = action({
     const resendApiKey = process.env.RESEND_API_KEY;
     if (!resendApiKey) {
       // Fallback: log the consent URL for development/testing
-      console.log(`[VPC] Consent email would be sent to ${args.parentEmail}`);
+      const recipientMasked = String(args.parentEmail).replace(
+        /^(.).*@/,
+        '$1***@',
+      );
+      console.log(`[VPC] Consent email would be sent to ${recipientMasked}`);
       console.log(`[VPC] Consent URL: ${consentUrl}`);
       return {
         sent: false,
@@ -870,9 +874,13 @@ export const sendRenewalReminderEmail = action({
   },
   handler: async (_ctx, args) => {
     const siteUrl = process.env.CONVEX_SITE_URL;
+    const recipientMasked = String(args.parentEmail).replace(
+      /^(.).*@/,
+      '$1***@',
+    );
     if (!siteUrl) {
       console.log(
-        `[Renewal] CONVEX_SITE_URL not configured, skipping email to ${args.parentEmail}`,
+        `[Renewal] CONVEX_SITE_URL not configured, skipping email to ${recipientMasked}`,
       );
       return { sent: false, reason: 'CONVEX_SITE_URL not configured' };
     }
@@ -884,7 +892,7 @@ export const sendRenewalReminderEmail = action({
     const resendApiKey = process.env.RESEND_API_KEY;
     if (!resendApiKey) {
       console.log(
-        `[Renewal] Reminder email would be sent to ${args.parentEmail}`,
+        `[Renewal] Reminder email would be sent to ${recipientMasked}`,
       );
       return { sent: false, reason: 'RESEND_API_KEY not configured' };
     }

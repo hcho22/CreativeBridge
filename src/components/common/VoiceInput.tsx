@@ -41,7 +41,6 @@ import {
   Alert,
   AppState,
   Linking,
-  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,

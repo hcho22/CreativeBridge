@@ -1,12 +1,6 @@
 // Jest Tests for Story Management Service
 // US-014: Updated to use Convex mocks (Supabase removed)
 
-import type {
-  GameSession,
-  StorySource,
-  GradeLevel,
-} from '../../types/database';
-
 // Mock Convex client - must be before the import
 const mockConvexMutation = jest.fn();
 const mockConvexQuery = jest.fn();

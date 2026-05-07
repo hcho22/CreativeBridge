@@ -17,7 +17,6 @@ import {
   contentPredictionService,
   StoryContextAnalysis,
 } from './contentPrediction';
-import { SkillExecutionPlan } from './base/SkillOrchestrator';
 import { structuredLogger } from '../utils/logger';
 
 /**
@@ -152,8 +151,8 @@ class EnhancedStoryAgentService {
   async generateStoryStarter(
     gradeLevel: GradeLevel,
     theme?: string,
-    character?: string,
-    setting?: string,
+    _character?: string,
+    _setting?: string,
   ): Promise<StoryResponse> {
     if (!this.isInitialized) {
       await this.initialize();

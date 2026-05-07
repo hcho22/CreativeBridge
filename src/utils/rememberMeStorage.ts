@@ -1,11 +1,9 @@
 import AsyncStorage from './asyncStorageWrapper';
 import {
   setSecureJSON,
-  getSecureJSON,
   removeSecureItem,
   migrateAndGet,
   setSecureItem,
-  getSecureItem,
 } from './sensitiveStorage';
 
 const REMEMBER_ME_KEY = '@CreativeBridge:rememberMe';

@@ -64,7 +64,7 @@ const StoryQuestImportScreen: React.FC<Props> = ({ navigation }) => {
 
   // Connection state
   const [isConnecting, setIsConnecting] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
+  const [, setIsConnected] = useState(false);
   const [connectionSteps, setConnectionSteps] = useState<ConnectionStep[]>([
     {
       id: 'health',
@@ -88,7 +88,6 @@ const StoryQuestImportScreen: React.FC<Props> = ({ navigation }) => {
 
   // User input state
   const [email, setEmail] = useState('');
-  const [username, setUsername] = useState('');
 
   // Data state
   const [storyQuestUser, setStoryQuestUser] = useState<StoryQuestUser | null>(
@@ -217,11 +216,13 @@ const StoryQuestImportScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
-  const continueWithUserMatch = async (user: StoryQuestUser) => {
+  const continueWithUserMatch = async (matchedUser: StoryQuestUser) => {
     try {
       // Step 3: Fetch user stories
       updateConnectionStep('stories', 'in_progress');
-      const storiesResult = await storyQuestService.fetchUserStories(user.id);
+      const storiesResult = await storyQuestService.fetchUserStories(
+        matchedUser.id,
+      );
 
       if (!storiesResult.success) {
         updateConnectionStep(

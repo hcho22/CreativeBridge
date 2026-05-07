@@ -5,10 +5,7 @@
  */
 
 import { diversityScoreService } from '../../services/diversityScoreService';
-import type {
-  ElementForScoring,
-  CalculateDiversityScoreOptions,
-} from '../../services/diversityScoreService';
+import type { ElementForScoring } from '../../services/diversityScoreService';
 import type {
   RecentElements,
   ElementWithFrequency,

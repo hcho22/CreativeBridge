@@ -6,7 +6,6 @@ import {
   supabase,
   UserProfile,
   GameSession,
-  Database,
   GradeLevel,
   // Image generation types (Task 2.1 & 2.2 - NEW)
   ImageGenerationEvent,

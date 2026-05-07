@@ -2,9 +2,21 @@ module.exports = {
   root: true,
   extends: '@react-native',
   rules: {
-    // Temporarily downgrade to warnings to unblock Ralph autonomous agent
-    // TODO: Fix all unused variables and re-enable as errors
-    '@typescript-eslint/no-unused-vars': 'warn',
+    // Allow `_`-prefixed identifiers across all positions (args, locals,
+    // destructured props/elements, caught errors). Matches the convention
+    // already permitted for args by the @react-native preset and used
+    // throughout US-019 batches 1-7 for intentionally-unused bindings.
+    '@typescript-eslint/no-unused-vars': [
+      'warn',
+      {
+        args: 'after-used',
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        destructuredArrayIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+        ignoreRestSiblings: true,
+      },
+    ],
     'no-bitwise': 'warn',
     'no-control-regex': 'warn',
     '@typescript-eslint/no-shadow': 'warn',

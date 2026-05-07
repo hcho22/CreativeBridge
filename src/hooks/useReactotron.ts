@@ -47,7 +47,7 @@ export const useReactotron = () => {
     }
   };
 
-  const logWarning = (message: string, data?: unknown) => {
+  const logWarning = (message: string, _data?: unknown) => {
     if (__DEV__) {
       reactotron.warn?.(message);
     }

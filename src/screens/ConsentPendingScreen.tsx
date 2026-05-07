@@ -213,14 +213,6 @@ const Step: React.FC<{ number: number; text: string; active?: boolean }> = ({
   </View>
 );
 
-function maskEmail(email: string): string {
-  const [local, domain] = email.split('@');
-  if (!domain) return email;
-  const masked =
-    local.length > 2 ? local[0] + '***' + local[local.length - 1] : '***';
-  return `${masked}@${domain}`;
-}
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,

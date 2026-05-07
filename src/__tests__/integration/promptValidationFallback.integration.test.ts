@@ -7,7 +7,6 @@
  */
 
 import { imageGenerationService } from '../../services/imageGeneration';
-import { errorLogger } from '../../services/errorLogger';
 import type { GradeLevel } from '../../types/database';
 
 // Mock environment variables
@@ -234,7 +233,6 @@ describe('Prompt Validation Fallback - Integration Tests', () => {
       const emptyStory = `   `;
 
       const finalPrompt = generatePrompt(emptyStory, gradeLevel);
-      const validation = validatePrompt(finalPrompt, gradeLevel);
 
       // Should still produce a valid prompt using fallback
       expect(finalPrompt.length).toBeGreaterThan(0);

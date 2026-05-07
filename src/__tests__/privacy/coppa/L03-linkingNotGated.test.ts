@@ -10,7 +10,7 @@
  * @status Unresolved — test.failing() documents the gap
  */
 
-import { readSourceFile, findAllFiles } from '../../security/coppa/helpers';
+import { readSourceFile } from '../../security/coppa/helpers';
 
 describe('L-03: Linking.openSettings() not gated', () => {
   test.failing(

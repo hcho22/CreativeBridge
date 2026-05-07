@@ -7,14 +7,8 @@
 
 import { jest } from '@jest/globals';
 import { dynamicUICoordinator } from '../../services/dynamicUICoordinator';
-import { uiPerformanceMonitor } from '../../services/uiPerformanceMonitor';
-import { engagementOptimizer } from '../../services/engagementOptimizer';
-import { navigationOptimizer } from '../../services/navigationOptimizer';
-import { readingComprehensionOptimizer } from '../../services/readingComprehensionOptimizer';
 import { behaviorAnalytics } from '../../services/behaviorAnalytics';
 import { interfaceAdapter } from '../../services/interfaceAdapter';
-import { storyAnalytics } from '../../services/storyAnalytics';
-import { userPreferencesService } from '../../services/userPreferences';
 import { abTestingService } from '../../services/abTesting';
 
 // Mock external dependencies
@@ -746,7 +740,7 @@ describe('Comprehensive Performance Validation', () => {
 
   async function testFeatureFunctionality(
     feature: string,
-    platform: string,
+    _platform: string,
   ): Promise<{
     success: boolean;
     featureCount: number;

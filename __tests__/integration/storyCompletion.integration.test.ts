@@ -33,11 +33,9 @@ describe('Integration Test: Story Completion Flow', () => {
   const MAX_ROUNDS = 5;
 
   let mockSessionData: any;
-  let sessionCallCount = 0;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    sessionCallCount = 0;
 
     // Initialize mock session data
     mockSessionData = {

@@ -1,5 +1,3 @@
-import { storySessionManager } from '../../services/storySessionManager';
-
 describe('Story Session Manager - Story Content Display', () => {
   describe('session story content preservation', () => {
     it('should preserve story_content when loading session from Supabase', async () => {

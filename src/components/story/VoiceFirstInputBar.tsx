@@ -428,6 +428,7 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
   const handleSubmit = useCallback(() => {
     props.onSubmit();
     dispatch({ type: 'SUBMIT' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- US-019 batch 4: deliberate `props.onSubmit` dep to track only the submit callback identity; full destructure of props (used 30+ times throughout) would require touching unrelated code.
   }, [props.onSubmit]);
 
   // --- Speak button wiring (US-004, extended by US-015 on 2026-04-15) -----

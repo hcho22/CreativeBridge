@@ -346,7 +346,6 @@ describe('Convex storage', () => {
     it('should return Convex storage URL when storageId exists', async () => {
       // Arrange
       const storageId = generateStorageId();
-      const storageUrl = `https://mock-convex-storage.com/files/${storageId}`;
       ctx.storage.__testUtils.addFile(
         storageId,
         Buffer.from('data'),
@@ -449,8 +448,6 @@ describe('Convex storage', () => {
   describe('uploadFromUrl', () => {
     it('should download and store image from external URL', async () => {
       // Arrange
-      const sourceUrl = 'https://example.com/image.png';
-
       // Simulate the action flow:
       // 1. Fetch image from URL (simulated)
       const imageData = Buffer.from('simulated-image-data');

@@ -89,6 +89,7 @@ export class ImageCache {
   }
 
   /** Derive a deterministic filename from a URL. */
+  /* eslint-disable no-bitwise -- djb2-style hash: bit-shift/OR intrinsic to algorithm. */
   private keyFor(url: string): string {
     // Simple hash: use btoa-safe base64 of URL to create a filename
     let hash = 0;
@@ -102,6 +103,7 @@ export class ImageCache {
       : '.jpg';
     return `img_${Math.abs(hash).toString(36)}${ext}`;
   }
+  /* eslint-enable no-bitwise */
 
   /**
    * Get a cached image URI, or null if not cached.

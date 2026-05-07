@@ -180,7 +180,6 @@ describe('Security Testing - Image Storage & Persistence', () => {
 
       // Malicious session ID attempting SQL injection
       const maliciousSessionId = "'; DROP TABLE game_sessions; --";
-      const safeUserId = testUser1.id;
 
       // Mock the query - should be parameterized and safe
       mockSupabase.from().select.mockReturnThis();
@@ -495,7 +494,7 @@ describe('Security Testing - Image Storage & Persistence', () => {
         './user/./session.png',
       ];
 
-      attempts.forEach(maliciousPath => {
+      attempts.forEach(_maliciousPath => {
         // These should be rejected by RLS even if they bypass sanitization
         mockSupabase.storage.from().upload.mockResolvedValueOnce({
           data: null,

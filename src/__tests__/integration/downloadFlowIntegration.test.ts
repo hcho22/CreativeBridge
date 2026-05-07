@@ -3,7 +3,6 @@
  * Tests the complete end-to-end download functionality
  */
 
-import { Alert } from 'react-native';
 import RNFS from 'react-native-fs';
 import Share from 'react-native-share';
 import { StoryDownloadService } from '../../services/storyDownloadService';
@@ -252,7 +251,7 @@ The mouse and cat became unlikely companions, sharing adventures and proving tha
       );
 
     const fileContent = storyDownloadService.generateStoryFile(downloadOptions);
-    const fileName = storyDownloadService.generateFileName();
+    storyDownloadService.generateFileName();
 
     const generationTime = Date.now() - startTime;
 

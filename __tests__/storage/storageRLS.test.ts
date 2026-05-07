@@ -218,7 +218,7 @@ describe('Supabase Storage RLS Policies', () => {
     it("should prevent user from deleting other users' images", async () => {
       const otherUserFilePath = `${testUser2Id}/session_test/image_123.png`;
 
-      const { data, error } = await supabase.storage
+      const { data } = await supabase.storage
         .from('story-images')
         .remove([otherUserFilePath]);
 
@@ -245,7 +245,7 @@ describe('Supabase Storage RLS Policies', () => {
       const largeBlob = Buffer.alloc(11 * 1024 * 1024); // 11MB
       const filePath = `${testUser1Id}/session_test/large_image_${Date.now()}.png`;
 
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from('story-images')
         .upload(filePath, largeBlob, {
           contentType: 'image/png',

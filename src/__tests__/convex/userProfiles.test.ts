@@ -146,7 +146,7 @@ describe('Convex userProfiles', () => {
   describe('getProfileByClerkId', () => {
     it('should return profile when it exists', async () => {
       // Arrange
-      const profile = await createTestUserProfile(ctx, testClerkUserId, {
+      await createTestUserProfile(ctx, testClerkUserId, {
         displayName: 'Found User',
         totalXp: 500,
       });

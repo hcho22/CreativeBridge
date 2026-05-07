@@ -6,7 +6,6 @@
 
 import { featureFlagService } from './featureFlags';
 import { monitoringService } from './monitoringService';
-import { supabase } from './supabase';
 import { auditLogger, EventType, EventCategory, Severity } from './auditLogger';
 
 export interface RolloutPlan {
@@ -614,7 +613,7 @@ class RolloutAutomationService {
   }> {
     const status = this.getRolloutStatus(featureName);
     const health = await monitoringService.checkSystemHealth();
-    const analytics = await monitoringService.getRolloutAnalytics();
+    await monitoringService.getRolloutAnalytics();
 
     const recommendations: string[] = [];
     const nextActions: string[] = [];

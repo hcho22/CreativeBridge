@@ -95,14 +95,10 @@ describe('EmbeddingGenerationService', () => {
         }),
       });
 
-      const result1 = await embeddingGenerationService.generateEmbedding(
-        '  Dragon  ',
-      );
+      await embeddingGenerationService.generateEmbedding('  Dragon  ');
       embeddingGenerationService.clearCache();
 
-      const result2 = await embeddingGenerationService.generateEmbedding(
-        'dragon',
-      );
+      await embeddingGenerationService.generateEmbedding('dragon');
 
       // Both should send the same normalized text to API
       const calls = (global.fetch as jest.Mock).mock.calls;

@@ -2,7 +2,7 @@
 // Testing story continuation feature with various scenarios and edge cases
 
 import React from 'react';
-import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
 
 // Mock dependencies
 jest.mock('react-native-document-picker', () => ({
@@ -56,9 +56,6 @@ jest.mock('../../services/storyManagementService', () => ({
 jest.mock('../../services/storyGenerationService', () => ({
   StoryGenerationService: mockStoryGenerationService,
 }));
-
-// Import test utilities
-import { FilePickerUtils } from '../../utils/filePicker';
 
 // Test data generators
 function generateLargeStoryCollection(count: number) {

@@ -348,7 +348,7 @@ describe('Integration Test: Retry Upload Flow', () => {
     };
 
     // Mock fetch with different outcomes for each session
-    (global.fetch as jest.Mock).mockImplementation((url: string) => {
+    (global.fetch as jest.Mock).mockImplementation((_url: string) => {
       // Determine which session based on call order
       const callCount = (global.fetch as jest.Mock).mock.calls.length;
       const sessionKey =

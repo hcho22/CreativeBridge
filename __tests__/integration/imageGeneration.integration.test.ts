@@ -419,7 +419,7 @@ describe('Integration Test: Image Generation + Supabase Upload', () => {
     (supabase.from as jest.Mock).mockImplementation((table: string) => {
       if (table === 'game_sessions') {
         return {
-          update: (data: any) => {
+          update: (_data: any) => {
             updateCalled = true;
             return {
               eq: jest.fn().mockReturnValue({

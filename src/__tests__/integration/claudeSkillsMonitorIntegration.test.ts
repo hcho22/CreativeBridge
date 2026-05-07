@@ -7,7 +7,7 @@
 
 import { getClaudeSkillsManager } from '../../services/claudeSkillsManager';
 import { claudeSkillsMonitor } from '../../services/claudeSkillsMonitor';
-import { SkillType, SkillInput } from '../../types/claudeSkills';
+import { SkillType } from '../../types/claudeSkills';
 import { SkillManager } from '../../types/claudeSkills';
 
 describe('Claude Skills Monitor Integration', () => {
@@ -25,29 +25,9 @@ describe('Claude Skills Monitor Integration', () => {
 
   describe('Manager-Monitor Integration', () => {
     test('Monitor tracks skill executions from manager', async () => {
-      // Get a registered skill ID (assuming skills are registered during initialization)
-      // In a real scenario, we'd register a skill first
-      const skillType: SkillType = 'ContentPredictionSkill';
-
-      // Create a mock skill execution
-      const input: SkillInput = {
-        context: {
-          storyContext: 'Test story',
-          userInput: 'Continue',
-          gradeLevel: 'K-2',
-        },
-        options: {
-          maxPredictions: 3,
-          confidenceThreshold: 0.8,
-        },
-        userId: 'test_user_123',
-        sessionId: 'test_session_456',
-      };
-
       // Note: This test assumes skills are registered
       // In a real test, we'd need to register skills first
-      const initialMetrics = claudeSkillsMonitor.getCurrentMetrics();
-      const initialCount = initialMetrics.totalExecutions;
+      claudeSkillsMonitor.getCurrentMetrics();
 
       // The manager should automatically track via monitor
       // Since we can't easily execute without registered skills,
@@ -57,7 +37,7 @@ describe('Claude Skills Monitor Integration', () => {
     });
 
     test('Real-time metrics update after skill execution', async () => {
-      const initialMetrics = claudeSkillsMonitor.getRealTimeMetrics();
+      claudeSkillsMonitor.getRealTimeMetrics();
 
       // Simulate skill execution tracking
       const executionId = 'integration_exec_1';

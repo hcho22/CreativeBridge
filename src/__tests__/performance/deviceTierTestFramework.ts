@@ -5,14 +5,12 @@
  * Task 4.2.5: Create comprehensive device tier test framework
  */
 
-import { jest, describe, it, expect, beforeAll, afterAll } from '@jest/globals';
+import { jest } from '@jest/globals';
 import DeviceInfo from 'react-native-device-info';
-import { Platform } from 'react-native';
 
 import { dynamicResourceManager } from '../../services/resourceManager';
 import { performanceOptimizer } from '../../services/performanceOptimizer';
 import { performanceTuner } from '../../services/performanceTuner';
-import { storyCache } from '../../services/storyCache';
 import { structuredLogger } from '../../utils/logger';
 import { SkillManager } from '../../types/claudeSkills';
 
@@ -1020,7 +1018,7 @@ export class DeviceTierTestFramework {
     };
   }
 
-  private validateCrossDeviceConsistency(results: TestResult[]): {
+  private validateCrossDeviceConsistency(_results: TestResult[]): {
     achieved: boolean;
     details: string;
   } {

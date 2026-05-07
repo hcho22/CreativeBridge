@@ -435,9 +435,9 @@ export class ContextualFallbackService {
         showProgress: true,
         delayResponse: true,
       };
-    } catch (error) {
+    } catch (err) {
       structuredLogger.warn('Error masking failed', {
-        error: error instanceof Error ? error.message : String(error),
+        error: err instanceof Error ? err.message : String(err),
       });
 
       return {
@@ -853,7 +853,7 @@ export class ContextualFallbackService {
   }
 
   private async executeContextualGeneration(
-    context: ErrorRecoveryContext,
+    _context: ErrorRecoveryContext,
   ): Promise<ContextualFallbackResult> {
     // Implementation continues...
     // This is a complex method that would use the story context to generate appropriate continuations
@@ -901,7 +901,7 @@ export class ContextualFallbackService {
   }
 
   private async executeRateLimitRecovery(
-    context: ErrorRecoveryContext,
+    _context: ErrorRecoveryContext,
   ): Promise<ContextualFallbackResult> {
     // Use cached or template-based generation
     return {
@@ -920,7 +920,7 @@ export class ContextualFallbackService {
   }
 
   private async executeNetworkRecovery(
-    context: ErrorRecoveryContext,
+    _context: ErrorRecoveryContext,
   ): Promise<ContextualFallbackResult> {
     // Use offline/cached content
     return {
@@ -939,7 +939,7 @@ export class ContextualFallbackService {
   }
 
   private async executeServiceUnavailableRecovery(
-    context: ErrorRecoveryContext,
+    _context: ErrorRecoveryContext,
   ): Promise<ContextualFallbackResult> {
     // Use alternative generation service or cached content
     return {
@@ -958,7 +958,7 @@ export class ContextualFallbackService {
   }
 
   private async executeBasicGeneration(
-    context: ErrorRecoveryContext,
+    _context: ErrorRecoveryContext,
   ): Promise<ContextualFallbackResult> {
     return {
       story: 'The story continued...',
@@ -976,13 +976,13 @@ export class ContextualFallbackService {
   }
 
   private async executeDefaultRecovery(
-    context: ErrorRecoveryContext,
+    _context: ErrorRecoveryContext,
   ): Promise<ContextualFallbackResult> {
-    return this.executeBasicGeneration(context);
+    return this.executeBasicGeneration(_context);
   }
 
   private async executeEmergencyFallback(
-    context: ErrorRecoveryContext,
+    _context: ErrorRecoveryContext,
   ): Promise<ContextualFallbackResult> {
     return {
       story: 'Something interesting happened next...',
@@ -1017,7 +1017,7 @@ export class ContextualFallbackService {
 
   private async validateRecoveryResult(
     result: ContextualFallbackResult,
-    context: ErrorRecoveryContext,
+    _context: ErrorRecoveryContext,
   ): Promise<ContextualFallbackResult> {
     // Validate that the recovery result meets minimum standards
     if (result.qualityScore < 40) {

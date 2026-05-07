@@ -14,13 +14,11 @@ import {
   afterAll,
   beforeEach,
 } from '@jest/globals';
-import { Platform } from 'react-native';
 import DeviceInfo from 'react-native-device-info';
 
 import { dynamicResourceManager } from '../../services/resourceManager';
 import { performanceOptimizer } from '../../services/performanceOptimizer';
 import { storyCache } from '../../services/storyCache';
-import { storyAgent } from '../../services/storyAgent';
 import { structuredLogger } from '../../utils/logger';
 import { SkillManager } from '../../types/claudeSkills';
 
@@ -426,7 +424,7 @@ describe('Device Tier Performance Validation', () => {
     });
 
     it('should maintain functionality across all tiers', async () => {
-      for (const [tierKey, config] of Object.entries(DEVICE_TIER_CONFIGS)) {
+      for (const [_tierKey, config] of Object.entries(DEVICE_TIER_CONFIGS)) {
         await setupDeviceEnvironment(config);
         await dynamicResourceManager.initialize(mockSkillManager);
 
@@ -447,7 +445,7 @@ describe('Device Tier Performance Validation', () => {
 
   describe('Performance Under Stress Conditions', () => {
     it('should handle memory pressure across all device tiers', async () => {
-      for (const [tierKey, config] of Object.entries(DEVICE_TIER_CONFIGS)) {
+      for (const [_tierKey, config] of Object.entries(DEVICE_TIER_CONFIGS)) {
         await setupDeviceEnvironment(config);
         await dynamicResourceManager.initialize(mockSkillManager);
 
@@ -470,7 +468,7 @@ describe('Device Tier Performance Validation', () => {
     });
 
     it('should adapt to low battery conditions across all tiers', async () => {
-      for (const [tierKey, config] of Object.entries(DEVICE_TIER_CONFIGS)) {
+      for (const [_tierKey, config] of Object.entries(DEVICE_TIER_CONFIGS)) {
         await setupDeviceEnvironment({ ...config, batteryLevel: 0.1 }); // 10% battery
         await dynamicResourceManager.initialize(mockSkillManager);
 
@@ -603,7 +601,7 @@ describe('Device Tier Performance Validation', () => {
     return (currentUsage / memoryConfig.baseMemoryLimit) * 100;
   }
 
-  async function simulateStoryGeneration(request: {
+  async function simulateStoryGeneration(_request: {
     gradeLevel: string;
     userInput: string;
     context: string;

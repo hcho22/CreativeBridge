@@ -2,7 +2,6 @@
 // Mock response testing for story generation APIs
 
 import { apiClient } from '../../services/api';
-import { GradeLevel } from '../../types';
 
 // Mock fetch for API calls
 global.fetch = jest.fn();

@@ -3,8 +3,6 @@
  * Tests dark overlay implementation and touch-through prevention
  */
 
-import React from 'react';
-
 // Mock dependencies for background animation testing
 jest.mock('react-native-reanimated', () => {
   const mockSharedValue = (initialValue: number) => ({ value: initialValue });
@@ -14,7 +12,7 @@ jest.mock('react-native-reanimated', () => {
     useAnimatedStyle: jest.fn(() => ({})),
     useAnimatedGestureHandler: jest.fn(() => jest.fn()),
     withSpring: jest.fn(value => value),
-    withTiming: jest.fn((value, config) => {
+    withTiming: jest.fn((value, _config) => {
       // Mock timing animation with duration tracking
       return value;
     }),

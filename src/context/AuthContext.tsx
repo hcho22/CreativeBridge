@@ -10,7 +10,6 @@ import React, {
 import AsyncStorage from '../utils/asyncStorageWrapper';
 import {
   setSecureItem,
-  getSecureItem,
   removeSecureItem,
   migrateAndGet,
 } from '../utils/sensitiveStorage';
@@ -38,6 +37,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { useQuery, useMutation, useConvex, useConvexAuth } from 'convex/react';
 import { api } from '../services/convex';
 import type { Doc } from '../../convex/_generated/dataModel';
+import { redactId, redactEmail } from '../utils/piiRedaction';
 
 /**
  * Simplified user type for auth context (US-016).
@@ -387,6 +387,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
   // Note (US-016): fetchUserProfile and createUserProfile removed.
   // Profile data comes from Convex reactive query; creation via convexCreateProfile mutation.
 
+  /* eslint-disable react-hooks/exhaustive-deps -- US-019 batch 4: ~25 inline-declared auth/XP/migration callbacks below feed into the context-value useMemo. Wrapping each in useCallback is a substantial refactor of this 4000-line auth context (deferred as architectural debt). The deps array intentionally omits them; consumers tolerate the per-render re-creation. */
   const signIn = async (
     email: string,
     password: string,
@@ -1465,10 +1466,11 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       }
       const migrationData: PendingMigrationData = JSON.parse(migrationJson);
       const { email } = migrationData;
+      const emailMasked = redactEmail(email);
 
       console.log(
         '🔑 [AuthContext] Resuming migration with new password for:',
-        email,
+        emailMasked,
       );
 
       // Step 2: Create Clerk account with the new password
@@ -1747,6 +1749,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Step 4: Create Convex profile via createOAuthProfile mutation
       // Use the Clerk user ID from the completed sign-up
+      // eslint-disable-next-line @typescript-eslint/no-shadow -- intentional shadow: inner has narrower (post-signup) type guarantee that the outer (auth state) doesn't.
       const clerkUserId = result.createdUserId;
 
       if (!clerkUserId) {
@@ -1763,7 +1766,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
       console.log(
         '📧 [AuthContext] Creating Convex profile for user:',
-        clerkUserId,
+        redactId(clerkUserId),
       );
       await convexCreateProfile({
         clerkUserId,
@@ -2727,9 +2730,11 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         const isSignUp = !!result.signUp?.createdUserId;
         const isSignIn = !!result.signIn;
 
+        const oauthUidMasked = redactId(oauthUserId);
+        const oauthEmailMasked = redactEmail(oauthEmail);
         console.log('🔍 [AuthContext] OAuth result identity:', {
-          userId: oauthUserId,
-          email: oauthEmail,
+          uid: oauthUidMasked,
+          mail: oauthEmailMasked,
           isSignUp,
           isSignIn,
         });
@@ -2876,11 +2881,13 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           console.error(
             '🚨 [AuthContext] CRITICAL: Clerk already signed in with DIFFERENT user!',
           );
+          const activeUidMasked = redactId(clerkAuth.userId);
+          const oauthUidMaskedDup = redactId(oauthUserId);
+          console.error('🚨 [AuthContext] Clerk active user:', activeUidMasked);
           console.error(
-            '🚨 [AuthContext] Clerk active user:',
-            clerkAuth.userId,
+            '🚨 [AuthContext] OAuth returned user:',
+            oauthUidMaskedDup,
           );
-          console.error('🚨 [AuthContext] OAuth returned user:', oauthUserId);
           console.error('🚨 [AuthContext] Force clearing and rejecting...');
 
           await clearAllClerkTokens();
@@ -3167,9 +3174,11 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         const isSignUp = !!result.signUp?.createdUserId;
         const isSignIn = !!result.signIn;
 
+        const oauthUidMasked = redactId(oauthUserId);
+        const oauthEmailMasked = redactEmail(oauthEmail);
         console.log('🔍 [AuthContext] OAuth result identity:', {
-          userId: oauthUserId,
-          email: oauthEmail,
+          uid: oauthUidMasked,
+          mail: oauthEmailMasked,
           isSignUp,
           isSignIn,
         });
@@ -3316,11 +3325,13 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           console.error(
             '🚨 [AuthContext] CRITICAL: Clerk already signed in with DIFFERENT user!',
           );
+          const activeUidMasked = redactId(clerkAuth.userId);
+          const oauthUidMaskedDup = redactId(oauthUserId);
+          console.error('🚨 [AuthContext] Clerk active user:', activeUidMasked);
           console.error(
-            '🚨 [AuthContext] Clerk active user:',
-            clerkAuth.userId,
+            '🚨 [AuthContext] OAuth returned user:',
+            oauthUidMaskedDup,
           );
-          console.error('🚨 [AuthContext] OAuth returned user:', oauthUserId);
           console.error('🚨 [AuthContext] Force clearing and rejecting...');
 
           await clearAllClerkTokens();
@@ -3516,7 +3527,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
     try {
       console.log('💸 Deducting XP:', {
-        userId: user.id,
+        uid: redactId(user.id),
         amount,
         reason,
         currentBalance: userProfile.total_xp,
@@ -3528,10 +3539,11 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         userProfile.clerk_user_id || clerkUserId || clerkAuth?.userId;
 
       if (!clerkUserIdForXp) {
+        const authClerkIdMasked = redactId(clerkAuth?.userId);
         console.error('❌ XP deduction failed: No Clerk user ID', {
-          profileClerkId: userProfile.clerk_user_id,
-          componentClerkId: clerkUserId,
-          authClerkId: clerkAuth?.userId,
+          profileClerkId: redactId(userProfile.clerk_user_id),
+          componentClerkId: redactId(clerkUserId),
+          authClerkId: authClerkIdMasked,
         });
         return {
           success: false,
@@ -3635,7 +3647,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
 
     try {
       console.log('💰 Refunding XP:', {
-        userId: user.id,
+        uid: redactId(user.id),
         amount,
         reason: reason.trim(),
         currentBalance: userProfile.total_xp,
@@ -3647,10 +3659,11 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         userProfile.clerk_user_id || clerkUserId || clerkAuth?.userId;
 
       if (!clerkUserIdForXp) {
+        const authClerkIdMasked = redactId(clerkAuth?.userId);
         console.error('❌ XP refund failed: No Clerk user ID', {
-          profileClerkId: userProfile.clerk_user_id,
-          componentClerkId: clerkUserId,
-          authClerkId: clerkAuth?.userId,
+          profileClerkId: redactId(userProfile.clerk_user_id),
+          componentClerkId: redactId(clerkUserId),
+          authClerkId: authClerkIdMasked,
         });
         return {
           success: false,
@@ -3769,10 +3782,11 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         userProfile.clerk_user_id || clerkUserId || clerkAuth?.userId;
 
       if (!clerkUserIdForXp) {
+        const authClerkIdMasked = redactId(clerkAuth?.userId);
         console.error('❌ Onboarding XP award failed: No Clerk user ID', {
-          profileClerkId: userProfile.clerk_user_id,
-          componentClerkId: clerkUserId,
-          authClerkId: clerkAuth?.userId,
+          profileClerkId: redactId(userProfile.clerk_user_id),
+          componentClerkId: redactId(clerkUserId),
+          authClerkId: authClerkIdMasked,
         });
         return {
           success: false,
@@ -3878,8 +3892,6 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         return;
       }
 
-      const clerkUserId = clerkUser.user.id;
-
       // Check if profile exists and is complete
       if (userProfile) {
         // Profile exists - check if it's complete
@@ -3962,9 +3974,11 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       const userId = currentClerkUserId || '';
       const email = clerkUser?.user?.emailAddresses?.[0]?.emailAddress || '';
 
+      const idMasked = redactId(userId);
+      const mailMasked = redactEmail(email);
       console.log('👤 [AuthContext] Setting user from Clerk:', {
-        id: userId,
-        email,
+        id: idMasked,
+        mail: mailMasked,
       });
 
       setUser({ id: userId, email });
@@ -3998,9 +4012,10 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
   // Monitor Clerk auth state changes to detect OAuth completion or existing session
   useEffect(() => {
     const checkAndSync = async () => {
+      const clerkUidMasked = redactId(clerkAuth?.userId);
       console.log('🔍 [AuthContext] Clerk auth state changed:', {
         isSignedIn: clerkAuth?.isSignedIn,
-        userId: clerkAuth?.userId,
+        uid: clerkUidMasked,
         hasUser: !!user,
         isProcessingOAuth: isProcessingOAuth.current,
         isSigningOut: isSigningOut.current,
@@ -4085,11 +4100,12 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         }
 
         // Debug Clerk auth state
+        const initClerkUidMasked = redactId(clerkAuth?.userId);
         console.log('🔍 [AuthContext] Clerk auth state on init:', {
           isSignedIn: clerkAuth?.isSignedIn,
-          userId: clerkAuth?.userId,
+          uid: initClerkUidMasked,
           hasClerkUser: !!clerkUser,
-          clerkUserId: clerkUser?.user?.id,
+          clerkUserId: redactId(clerkUser?.user?.id),
         });
 
         // If Clerk is signed in, set user from Clerk data
@@ -4245,6 +4261,7 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
       resumeMigrationWithNewPassword,
     ],
   );
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

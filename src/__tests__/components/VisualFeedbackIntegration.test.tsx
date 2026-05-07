@@ -3,8 +3,6 @@
  * Tests zoom indicators, touch animations, and cross-device compatibility
  */
 
-import React from 'react';
-
 // Mock dependencies for visual feedback testing
 jest.mock('react-native-reanimated', () => {
   const mockSharedValue = (initialValue: number) => ({
@@ -23,7 +21,7 @@ jest.mock('react-native-reanimated', () => {
       if (callback) setTimeout(callback, 100);
       return value;
     }),
-    withTiming: jest.fn((value, config) => value),
+    withTiming: jest.fn((value, _config) => value),
     runOnJS: jest.fn(fn => fn),
     View: require('react-native').View,
   };

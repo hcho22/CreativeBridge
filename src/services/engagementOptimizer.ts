@@ -6,11 +6,6 @@
  */
 
 import { structuredLogger } from '../utils/logger';
-import {
-  uiPerformanceMonitor,
-  OptimizationRecommendation,
-} from './uiPerformanceMonitor';
-import { behaviorAnalytics, BehaviorPattern } from './behaviorAnalytics';
 import { GradeLevel } from '../types/database';
 
 export interface EngagementMetric {

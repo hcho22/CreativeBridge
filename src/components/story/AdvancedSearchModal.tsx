@@ -17,7 +17,6 @@ import {
   Modal,
   ScrollView,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -86,6 +85,7 @@ const AdvancedSearchModal: React.FC<Props> = ({
   ];
 
   // Debounced search function
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- US-019 batch 4: lodash debounce wraps the function so deps cannot be statically inferred; refactoring to a use-debounced-callback hook is out of scope.
   const debouncedSearch = useCallback(
     debounce(async (searchQuery: string, searchFilters: FilterState) => {
       if (!searchQuery.trim()) {
@@ -141,6 +141,7 @@ const AdvancedSearchModal: React.FC<Props> = ({
   );
 
   // Debounced suggestions function
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- US-019 batch 4: same pattern as debouncedSearch above; lodash debounce hides the inner deps.
   const debouncedSuggestions = useCallback(
     debounce(async (partial: string) => {
       if (partial.length < 2) {
@@ -149,12 +150,12 @@ const AdvancedSearchModal: React.FC<Props> = ({
       }
 
       try {
-        const suggestions = await advancedSearchService.getSuggestions(
+        const fetchedSuggestions = await advancedSearchService.getSuggestions(
           partial,
           user?.id,
           8,
         );
-        setSuggestions(suggestions);
+        setSuggestions(fetchedSuggestions);
       } catch (error) {
         console.error('Suggestions error:', error);
         setSuggestions([]);
@@ -364,6 +365,7 @@ const AdvancedSearchModal: React.FC<Props> = ({
         </TouchableOpacity>
       </View>
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- US-019 batch 4: gradeLevelOptions/sortOptions/sourcesOptions are component-scope constants that don't change identity.
   }, [showFilters, filters]);
 
   const SearchResultItem = useCallback(({ item }: { item: SearchResult }) => {
@@ -406,6 +408,7 @@ const AdvancedSearchModal: React.FC<Props> = ({
         </View>
       </TouchableOpacity>
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- US-019 batch 4: handleStoryPress closes over module-stable handlers; the empty deps array memoizes for the modal lifetime.
   }, []);
 
   const SearchResults = useMemo(() => {

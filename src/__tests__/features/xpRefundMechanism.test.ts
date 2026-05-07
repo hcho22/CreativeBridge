@@ -83,7 +83,7 @@ describe('XP Refund Mechanism for Image Generation Failures', () => {
     });
 
     test('should validate refund amount is positive', async () => {
-      const simulateXPRefund = async (amount: number, reason: string) => {
+      const simulateXPRefund = async (amount: number, _reason: string) => {
         if (amount <= 0) {
           return { success: false, error: 'Invalid refund amount' };
         }
@@ -103,7 +103,7 @@ describe('XP Refund Mechanism for Image Generation Failures', () => {
         error: { message: 'Database connection failed' },
       });
 
-      const simulateXPRefund = async (amount: number, reason: string) => {
+      const simulateXPRefund = async (amount: number, _reason: string) => {
         const { error } = await supabase.rpc('add_user_xp', {
           user_uuid: mockUserId,
           xp_to_add: amount,

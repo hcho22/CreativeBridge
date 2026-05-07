@@ -371,7 +371,7 @@ export class DownloadKeyboardNavigationService {
     }
   }
 
-  private handleElementKeyDown(event: any, elementId: string): boolean {
+  private handleElementKeyDown(event: any, _elementId: string): boolean {
     if (!this.isActive) return false;
 
     const handled = this.handleGlobalKeyDown(event);

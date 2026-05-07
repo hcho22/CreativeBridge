@@ -58,7 +58,6 @@ describe('M-04: Device Metadata Collection', () => {
     const serviceFiles = findAllFiles('src/services', '.ts');
     for (const file of serviceFiles) {
       const content = fs.readFileSync(file, 'utf-8');
-      const relPath = path.relative(PROJECT_ROOT, file);
       // Must not reference unique device identifiers
       expect(content).not.toMatch(
         /\bIMEI\b|getSerialNumber|getUniqueId\(\)|DeviceInfo\.getUniqueId/,

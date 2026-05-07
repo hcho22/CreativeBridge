@@ -9,7 +9,6 @@
 
 import { storySessionManager } from '../../src/services/storySessionManager';
 import { supabase } from '../../src/services/supabase';
-import { StorySession } from '../../src/services/storySessionManager';
 
 describe('Performance Tests: Database Query Performance', () => {
   const TEST_USER_ID = 'db-perf-test-' + Date.now();

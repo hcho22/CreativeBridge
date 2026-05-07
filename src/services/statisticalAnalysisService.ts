@@ -6,8 +6,6 @@
  */
 
 import { structuredLogger } from '../utils/logger';
-import { abTestingService } from './abTesting';
-import { dynamicUICoordinator } from './dynamicUICoordinator';
 
 export interface StatisticalTest {
   name: string;
@@ -236,7 +234,7 @@ class StatisticalAnalysisService {
   /**
    * Collect experiment data for analysis
    */
-  private async collectExperimentData(experimentId: string): Promise<{
+  private async collectExperimentData(_experimentId: string): Promise<{
     participants: { control: number; treatment: number; total: number };
     metrics: Record<string, MetricComparison>;
   }> {
@@ -410,7 +408,7 @@ class StatisticalAnalysisService {
   private async analyzeMetric(
     metricName: string,
     experimentData: any,
-    metricType: 'primary' | 'secondary',
+    _metricType: 'primary' | 'secondary',
   ): Promise<StatisticalResult> {
     const metricData = experimentData.metrics[metricName];
     if (!metricData) {
@@ -421,10 +419,7 @@ class StatisticalAnalysisService {
     const test = this.selectStatisticalTest(metricData);
 
     // Calculate test statistic and p-value
-    const { pValue, testStatistic } = this.calculateTestStatistic(
-      metricData,
-      test,
-    );
+    const { pValue } = this.calculateTestStatistic(metricData, test);
 
     // Calculate effect size
     const effectSize = this.calculateEffectSize(metricData, test.type);
@@ -676,7 +671,7 @@ class StatisticalAnalysisService {
    */
   private assessAssumptions(
     metricData: MetricComparison,
-    test: StatisticalTest,
+    _test: StatisticalTest,
   ): {
     normality: boolean;
     homogeneity: boolean;
@@ -919,11 +914,7 @@ class StatisticalAnalysisService {
     std: number,
     n: number,
   ): number[] {
-    // Approximate beta distribution parameters from mean and std
-    const variance = std * std;
-    const alpha = mean * ((mean * (1 - mean)) / variance - 1);
-    const beta = (1 - mean) * ((mean * (1 - mean)) / variance - 1);
-
+    // Approximate beta distribution parameters from mean and std (alpha/beta unused — see TODO)
     const distribution: number[] = [];
     for (let i = 0; i < Math.min(n, 100); i++) {
       // Simplified beta generation using normal approximation

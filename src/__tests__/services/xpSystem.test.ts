@@ -32,7 +32,7 @@ describe('XP System - Image Generation Integration', () => {
 
       // Test would be run in context of AuthProvider
       // This is a mock of what the deductXP function should do
-      const mockDeductXP = async (amount: number, reason?: string) => {
+      const mockDeductXP = async (amount: number, _reason?: string) => {
         if (amount <= 0) {
           return { success: false, error: 'Invalid XP amount' };
         }
@@ -307,6 +307,7 @@ describe('XP System - Image Generation Integration', () => {
         reason: string = 'Image generation',
       ) => {
         console.log('💸 Deducting XP:', {
+          // eslint-disable-next-line no-restricted-syntax -- COPPA US-012: test fixture mockUserId is not real PII
           userId: mockUserId,
           amount,
           reason,

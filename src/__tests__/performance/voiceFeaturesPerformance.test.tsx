@@ -22,12 +22,14 @@ import Voice from '@react-native-voice/voice';
 // render its game UI.  These tests benchmark voice/TTS performance, not
 // HomeScreen internals, so a slim stand-in with the right testIDs is sufficient.
 jest.mock('../../screens/HomeScreen', () => {
+  /* eslint-disable @typescript-eslint/no-shadow -- jest.mock factory runs in isolated scope; outer imports aren't visible at factory-execution time. */
   const React = require('react');
   const { View, TextInput, TouchableOpacity, Text } = require('react-native');
   const { VoiceInput } = require('../../components/common/VoiceInput');
   const {
     textToSpeechService,
   } = require('../../services/textToSpeechIsolated');
+  /* eslint-enable @typescript-eslint/no-shadow */
 
   return {
     __esModule: true,

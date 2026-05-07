@@ -244,7 +244,7 @@ describe('Performance Service Integration', () => {
 
   describe('Memory Management', () => {
     it('should not leak memory with repeated operations', async () => {
-      const initialStats = performanceService.getCacheStats();
+      performanceService.getCacheStats();
 
       // Perform many operations
       for (let i = 0; i < 100; i++) {

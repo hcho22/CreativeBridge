@@ -43,6 +43,7 @@ const ClaudeSkillsDemo: React.FC = () => {
         skillManager.shutdown().catch(console.error);
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- US-019 batch 4: skillManager belongs to component state; cleanup needs to run only on unmount, not on each instance change.
   }, []);
 
   const initializeSkillManager = async () => {

@@ -259,7 +259,7 @@ class StoryAnalyticsService {
 
   // Update user behavior metrics
   private updateUserBehaviorMetrics(event: UserBehaviorEvent): void {
-    const { eventType, metadata } = event;
+    const { eventType } = event;
 
     switch (eventType) {
       case 'voice_used':

@@ -3,7 +3,6 @@
  * Comprehensive validation of all Phase 1 requirements
  */
 
-import { Alert } from 'react-native';
 import RNFS from 'react-native-fs';
 import Share from 'react-native-share';
 import { StoryDownloadService } from '../../services/storyDownloadService';
@@ -229,7 +228,7 @@ Through courage and determination, the knight succeeded.`;
         { name: 'Large story', size: 50000 }, // 50KB
       ];
 
-      storySizes.forEach(({ name, size }) => {
+      storySizes.forEach(({ name: _name, size }) => {
         const testContent = 'Test content for memory usage. '.repeat(
           Math.floor(size / 35),
         );

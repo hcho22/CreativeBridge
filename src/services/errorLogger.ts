@@ -5,6 +5,8 @@
  * capabilities for the image generation system.
  */
 
+import { redactId } from '../utils/piiRedaction';
+
 export interface ErrorLogEntry {
   id?: string;
   timestamp: string;
@@ -290,7 +292,7 @@ class ErrorLogger {
     rule.lastTriggered = now;
     this.metrics.alertsTriggered++;
 
-    const alertMessage = `🚨 ALERT: ${rule.name} - ${errorEntry.message}`;
+    const _alertMessage = `🚨 ALERT: ${rule.name} - ${errorEntry.message}`;
 
     console.error('🚨 MONITORING ALERT:', {
       rule: rule.name,
@@ -319,6 +321,8 @@ class ErrorLogger {
     const emoji = this.getSeverityEmoji(errorEntry.severity);
     const serviceEmoji = this.getServiceEmoji(errorEntry.service);
 
+    const uidMasked = redactId(errorEntry.userId);
+    const sidMasked = redactId(errorEntry.sessionId);
     console.error(
       `${emoji} ${serviceEmoji} [${errorEntry.errorType.toUpperCase()}] ${
         errorEntry.message
@@ -327,8 +331,8 @@ class ErrorLogger {
         id: errorEntry.id,
         severity: errorEntry.severity,
         service: errorEntry.service,
-        userId: errorEntry.userId,
-        sessionId: errorEntry.sessionId,
+        uid: uidMasked,
+        sid: sidMasked,
         responseTime: errorEntry.responseTime,
         context: errorEntry.context,
         timestamp: errorEntry.timestamp,
@@ -398,7 +402,7 @@ class ErrorLogger {
     }
   }
 
-  private async saveErrorsToDatabase(errors: ErrorLogEntry[]): Promise<void> {
+  private async saveErrorsToDatabase(_errors: ErrorLogEntry[]): Promise<void> {
     // Simulate database operation
     await new Promise(resolve => setTimeout(resolve, 100));
 

@@ -82,9 +82,7 @@ describe('Adaptive Quality Thresholds', () => {
         'K-2',
         userId,
       );
-      const baseStandards = await qualityService.getAdaptiveQualityStandards(
-        'K-2',
-      );
+      await qualityService.getAdaptiveQualityStandards('K-2');
 
       // Verify adaptation occurred
       expect(adaptedStandards).toBeDefined();

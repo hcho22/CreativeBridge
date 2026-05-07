@@ -297,6 +297,7 @@ class SecureStorageService {
   /**
    * Hash key for logging (privacy protection)
    */
+  /* eslint-disable no-bitwise -- djb2 hash: bit-shift/mask intrinsic to algorithm. */
   private hashKey(key: string): string {
     let hash = 0;
     for (let i = 0; i < key.length; i++) {
@@ -306,6 +307,7 @@ class SecureStorageService {
     }
     return Math.abs(hash).toString(36).substring(0, 8);
   }
+  /* eslint-enable no-bitwise */
 
   /**
    * Clear all stored data (for privacy compliance)

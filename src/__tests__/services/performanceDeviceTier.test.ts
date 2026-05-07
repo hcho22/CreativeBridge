@@ -14,7 +14,6 @@ import {
   afterEach,
 } from '@jest/globals';
 import DeviceInfo from 'react-native-device-info';
-import { Platform, Dimensions } from 'react-native';
 
 import DynamicResourceManager from '../../services/resourceManager';
 import { performanceOptimizer } from '../../services/performanceOptimizer';
@@ -34,7 +33,6 @@ const mockDeviceInfo = DeviceInfo as jest.Mocked<typeof DeviceInfo>;
 const mockPerformanceOptimizer = performanceOptimizer as jest.Mocked<
   typeof performanceOptimizer
 >;
-const mockDimensions = Dimensions as jest.Mocked<typeof Dimensions>;
 
 describe('Performance and Device Tier Integration', () => {
   let resourceManager: DynamicResourceManager;

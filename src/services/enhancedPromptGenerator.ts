@@ -9,12 +9,6 @@ import {
 
 export type GradeLevel = 'K-2' | '3-5' | '6-8' | '9-12';
 
-interface PromptTemplate {
-  structure: string[];
-  styleModifiers: string[];
-  safetyGuidelines: string[];
-}
-
 interface ArtStyleDefinition {
   narrative: {
     baseStyle: string;
@@ -230,7 +224,7 @@ export class EnhancedPromptGenerator {
   private generateNarrativePrompt(
     analysis: EnhancedContentAnalysis,
     artStyle: ArtStyleDefinition[keyof ArtStyleDefinition],
-    gradeLevel: GradeLevel,
+    _gradeLevel: GradeLevel,
   ): string {
     const parts: string[] = [];
 
@@ -273,7 +267,7 @@ export class EnhancedPromptGenerator {
   private generateAbstractPrompt(
     analysis: EnhancedContentAnalysis,
     artStyle: ArtStyleDefinition[keyof ArtStyleDefinition],
-    gradeLevel: GradeLevel,
+    _gradeLevel: GradeLevel,
   ): string {
     const parts: string[] = [];
 
@@ -323,7 +317,7 @@ export class EnhancedPromptGenerator {
   private generateInspirationalPrompt(
     analysis: EnhancedContentAnalysis,
     artStyle: ArtStyleDefinition[keyof ArtStyleDefinition],
-    gradeLevel: GradeLevel,
+    _gradeLevel: GradeLevel,
   ): string {
     const parts: string[] = [];
 
@@ -377,7 +371,7 @@ export class EnhancedPromptGenerator {
   private generatePhilosophicalPrompt(
     analysis: EnhancedContentAnalysis,
     artStyle: ArtStyleDefinition[keyof ArtStyleDefinition],
-    gradeLevel: GradeLevel,
+    _gradeLevel: GradeLevel,
   ): string {
     const parts: string[] = [];
 
@@ -427,7 +421,7 @@ export class EnhancedPromptGenerator {
   private generatePoeticPrompt(
     analysis: EnhancedContentAnalysis,
     artStyle: ArtStyleDefinition[keyof ArtStyleDefinition],
-    gradeLevel: GradeLevel,
+    _gradeLevel: GradeLevel,
   ): string {
     const parts: string[] = [];
 
@@ -471,7 +465,7 @@ export class EnhancedPromptGenerator {
   private generateGenericPrompt(
     analysis: EnhancedContentAnalysis,
     artStyle: ArtStyleDefinition[keyof ArtStyleDefinition],
-    gradeLevel: GradeLevel,
+    _gradeLevel: GradeLevel,
   ): string {
     const parts: string[] = [];
 

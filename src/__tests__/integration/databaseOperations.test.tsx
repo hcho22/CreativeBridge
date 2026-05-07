@@ -10,11 +10,9 @@ jest.mock('react-native-fs', () => ({
 }));
 
 import type {
-  GameSession,
   ImportableStory,
   SearchableStory,
   StorySource,
-  StoryMetadata,
 } from '../../types/database';
 
 // Mock supabase - must be before the import
@@ -291,7 +289,7 @@ describe('Database Operations Integration', () => {
         expectedResolution: 'duplicate',
       });
 
-      mockSupabaseRpc.mockImplementation((functionName, params) => {
+      mockSupabaseRpc.mockImplementation((functionName, _params) => {
         if (functionName === 'get_user_importable_stories') {
           return {
             data: [duplicateStory],

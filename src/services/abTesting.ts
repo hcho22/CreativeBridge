@@ -6,9 +6,9 @@
  */
 
 import { supabase } from './supabase';
+import { redactId } from '../utils/piiRedaction';
 import { analyticsService } from './analyticsService';
-import { claudeSkillsMonitor } from './claudeSkillsMonitor';
-import { featureFlagService, UserContext } from './featureFlags';
+import { UserContext } from './featureFlags';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SkillType } from '../types/claudeSkills';
 
@@ -279,8 +279,9 @@ class ABTestingService {
     // Persist assignment
     await this.persistAssignments();
 
+    const uidMasked = redactId(userId);
     console.log(
-      `📊 User ${userId} assigned to experiment ${experimentId}, variant ${variant.id}`,
+      `📊 User ${uidMasked} assigned to experiment ${experimentId}, variant ${variant.id}`,
     );
 
     return assignment;
@@ -485,10 +486,9 @@ class ABTestingService {
    */
   private calculateVariantMetrics(
     events: ExperimentEvent[],
-    userCount: number,
+    _userCount: number,
   ): VariantMetrics {
     const metricEvents = events.filter(e => e.eventType === 'metric');
-    const conversionEvents = events.filter(e => e.eventType === 'conversion');
 
     // Calculate average response time
     const responseTimeEvents = metricEvents.filter(
@@ -760,6 +760,7 @@ class ABTestingService {
   /**
    * Hash user ID for consistent assignment
    */
+  /* eslint-disable no-bitwise -- djb2 hash function: bit-shift and mask are intrinsic to the algorithm. */
   private hashUser(userId: string, experimentId: string): number {
     const combined = `${userId}:${experimentId}`;
     let hash = 0;
@@ -770,6 +771,7 @@ class ABTestingService {
     }
     return Math.abs(hash);
   }
+  /* eslint-enable no-bitwise */
 
   /**
    * Track event

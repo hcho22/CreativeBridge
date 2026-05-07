@@ -7,7 +7,7 @@
 
 import { getClaudeSkillsManager } from '../../services/claudeSkillsManager';
 import { createMockSkillManager } from '../mocks/claudeSkillsMock';
-import { SkillManager, SkillType } from '../../types/claudeSkills';
+import { SkillManager } from '../../types/claudeSkills';
 import {
   SkillEnhancedServiceFactory,
   SkillEnhancedServiceConfig,
@@ -15,11 +15,10 @@ import {
 import { SkillTestUtils } from '../mocks/claudeSkillsMock';
 
 describe('Claude Skills Integration Test Framework', () => {
-  let realSkillManager: SkillManager;
   let mockSkillManager: SkillManager;
 
   beforeAll(async () => {
-    realSkillManager = await getClaudeSkillsManager();
+    await getClaudeSkillsManager();
     mockSkillManager = createMockSkillManager();
     await mockSkillManager.initialize({
       apiKey: 'test_key',
@@ -54,7 +53,7 @@ describe('Claude Skills Integration Test Framework', () => {
         mockSkillManager,
         config,
         {
-          buildSkillExecutionPlan: async request => {
+          buildSkillExecutionPlan: async _request => {
             return {
               skills: [
                 {
@@ -133,7 +132,7 @@ describe('Claude Skills Integration Test Framework', () => {
   describe('Error Handling Integration', () => {
     test('Error propagation through service layers', async () => {
       const mockService = {
-        execute: async (request: { input: string }) => {
+        execute: async (_request: { input: string }) => {
           throw new Error('Service error');
         },
       };

@@ -307,13 +307,11 @@ describe('Claude Skills Failure Simulation', () => {
       });
 
       // Simulate one skill failing, one succeeding
-      let callCount = 0;
       const originalExecute = skillManager.executeSkill.bind(skillManager);
       (skillManager as any).executeSkill = async function (
         skillId: string,
         input: any,
       ) {
-        callCount++;
         if (skillId.includes('ContentPredictionSkill')) {
           // First skill fails
           return {

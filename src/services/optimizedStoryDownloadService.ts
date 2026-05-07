@@ -4,11 +4,9 @@
  */
 
 import { StoryDownloadOptions, DownloadResult } from '../types/storyDownload';
-import { GameSession } from '../types/database';
 import * as RNFS from '../utils/rnfsWrapper';
 import Share from '../utils/shareWrapper';
 import { enhancedErrorHandling } from './enhancedErrorHandling';
-import { networkMonitor } from './networkMonitor';
 import { downloadPerformanceMonitor } from './downloadPerformanceMonitor';
 import pako from 'pako'; // For compression
 
@@ -83,8 +81,6 @@ export class OptimizedStoryDownloadService {
       throw new Error('Story content is required for file generation');
     }
 
-    // Pre-allocate string buffer size for better memory management
-    const estimatedSize = content.length + (title ? title.length + 4 : 0) + 100;
     const chunks: string[] = [];
 
     // Add title if provided
@@ -119,11 +115,8 @@ export class OptimizedStoryDownloadService {
       .substr(2, 9)}`;
     const {
       content: storyContent,
-      fileName,
       userId,
       sessionId,
-      maxRetries = 3,
-      enableCompression = false,
       enableBackgroundProcessing = true,
       onProgress,
     } = options;

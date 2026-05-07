@@ -1,6 +1,6 @@
 // Basic integration test to validate setup (US-016: Clerk-only auth)
 import React from 'react';
-import { renderHook, act, waitFor } from '@testing-library/react-native';
+import { renderHook, waitFor } from '@testing-library/react-native';
 
 // Import mock first — use a shared chain object so mockResolvedValueOnce
 // calls apply to the same instance that tests use

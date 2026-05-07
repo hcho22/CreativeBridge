@@ -8,19 +8,16 @@
  * Task 4.1: Dynamic Resource Management
  */
 
-import { Platform, AppState } from 'react-native';
+import { AppState } from 'react-native';
 import DeviceInfo from 'react-native-device-info';
 import {
   SkillManager,
   ResourceOptimizationInput,
   ResourceOptimizationResult,
-  ResourceRecommendation,
-  ResourceOptimization,
   SkillResult,
 } from '../types/claudeSkills';
 import {
   performanceOptimizer,
-  PerformanceMetrics,
   OptimizationSettings,
 } from './performanceOptimizer';
 import { structuredLogger } from '../utils/logger';
@@ -184,11 +181,11 @@ class DynamicResourceManager {
   async assessDeviceConditions(): Promise<DeviceConditions> {
     try {
       const [
-        memoryInfo,
+        _memoryInfo,
         batteryLevel,
         batteryState,
-        powerState,
-        availableMemory,
+        _powerState,
+        _availableMemory,
         totalMemory,
         usedMemory,
         freeDiskStorage,

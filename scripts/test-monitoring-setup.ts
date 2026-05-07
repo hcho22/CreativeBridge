@@ -60,10 +60,7 @@ function logTest(result: TestResult) {
  * Test 1: Verify SQL Analytics Queries File
  */
 function testAnalyticsQueries(): TestResult {
-  const filePath = path.join(
-    __dirname,
-    '../sql/analytics_queries.sql',
-  );
+  const filePath = path.join(__dirname, '../sql/analytics_queries.sql');
 
   if (!fs.existsSync(filePath)) {
     return {
@@ -115,10 +112,7 @@ function testAnalyticsQueries(): TestResult {
  * Test 2: Verify Alert Rules Configuration
  */
 function testAlertRules(): TestResult {
-  const filePath = path.join(
-    __dirname,
-    '../config/monitoring/alert-rules.yml',
-  );
+  const filePath = path.join(__dirname, '../config/monitoring/alert-rules.yml');
 
   if (!fs.existsSync(filePath)) {
     return {
@@ -235,10 +229,7 @@ function testDashboardConfig(): TestResult {
  * Test 4: Verify Monitoring Service
  */
 function testMonitoringService(): TestResult {
-  const filePath = path.join(
-    __dirname,
-    '../src/services/monitoringService.ts',
-  );
+  const filePath = path.join(__dirname, '../src/services/monitoringService.ts');
 
   if (!fs.existsSync(filePath)) {
     return {
@@ -285,10 +276,7 @@ function testMonitoringService(): TestResult {
  * Test 5: Verify Deployment Monitoring Script
  */
 function testDeploymentMonitor(): TestResult {
-  const filePath = path.join(
-    __dirname,
-    '../scripts/monitor-deployment.ts',
-  );
+  const filePath = path.join(__dirname, '../scripts/monitor-deployment.ts');
 
   if (!fs.existsSync(filePath)) {
     return {
@@ -350,7 +338,7 @@ async function testSupabaseConnectivity(): Promise<TestResult> {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Test database query
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('game_sessions')
       .select('id')
       .limit(1);
@@ -400,7 +388,7 @@ async function testDatabaseSchema(): Promise<TestResult> {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Check for required columns
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('game_sessions')
       .select(
         'id, current_round, supabase_image_url, image_upload_status, image_upload_attempts, image_upload_error',
@@ -551,10 +539,18 @@ function testPackageJsonScripts(): TestResult {
  * Main test runner
  */
 async function runTests() {
-  console.log('╔══════════════════════════════════════════════════════════════╗');
-  console.log('║       MONITORING SETUP VALIDATION                           ║');
-  console.log('║       Task 7.3: Monitoring Setup Testing                    ║');
-  console.log('╚══════════════════════════════════════════════════════════════╝');
+  console.log(
+    '╔══════════════════════════════════════════════════════════════╗',
+  );
+  console.log(
+    '║       MONITORING SETUP VALIDATION                           ║',
+  );
+  console.log(
+    '║       Task 7.3: Monitoring Setup Testing                    ║',
+  );
+  console.log(
+    '╚══════════════════════════════════════════════════════════════╝',
+  );
   console.log();
 
   console.log(`${colors.cyan}Running validation tests...${colors.reset}`);
@@ -589,30 +585,36 @@ async function runTests() {
   const total = results.length;
 
   console.log(`Total Tests:  ${total}`);
-  console.log(
-    `${colors.green}Passed:       ${passed}${colors.reset}`,
-  );
+  console.log(`${colors.green}Passed:       ${passed}${colors.reset}`);
   if (failed > 0) {
     console.log(`${colors.red}Failed:       ${failed}${colors.reset}`);
   }
   console.log();
 
   if (failed === 0) {
-    console.log(`${colors.green}${colors.bright}✓ ALL TESTS PASSED${colors.reset}`);
+    console.log(
+      `${colors.green}${colors.bright}✓ ALL TESTS PASSED${colors.reset}`,
+    );
     console.log();
     console.log('Monitoring setup is complete and ready for production!');
     console.log();
     console.log(`${colors.cyan}Next Steps:${colors.reset}`);
-    console.log('1. Review alert thresholds in config/monitoring/alert-rules.yml');
+    console.log(
+      '1. Review alert thresholds in config/monitoring/alert-rules.yml',
+    );
     console.log('2. Test alert delivery with simulation mode');
     console.log('3. Set up notification channels (Slack, PagerDuty, Email)');
-    console.log('4. Run: npm run deploy:monitor (to start real-time monitoring)');
+    console.log(
+      '4. Run: npm run deploy:monitor (to start real-time monitoring)',
+    );
     console.log('5. Bookmark dashboards in Grafana/Supabase');
     console.log();
 
     process.exit(0);
   } else {
-    console.log(`${colors.red}${colors.bright}✗ SOME TESTS FAILED${colors.reset}`);
+    console.log(
+      `${colors.red}${colors.bright}✗ SOME TESTS FAILED${colors.reset}`,
+    );
     console.log();
     console.log('Please fix the following issues:');
     console.log();

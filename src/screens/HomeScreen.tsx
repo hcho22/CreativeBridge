@@ -80,6 +80,7 @@ import { theme } from '../constants/theme';
 import { useMutation } from 'convex/react';
 import { getConvexClient, api, isConvexReady } from '../services/convex';
 import type { Id } from '../../convex/_generated/dataModel';
+import { redactId } from '../utils/piiRedaction';
 
 type HomeScreenNavigationProp = StackNavigationProp<HomeStackParamList, 'Home'>;
 
@@ -103,7 +104,11 @@ interface GenerationError {
 }
 
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
-  const { userProfile, refreshProfile, awardOnboardingXP } = useAuth();
+  const {
+    userProfile,
+    refreshProfile: _refreshProfile,
+    awardOnboardingXP,
+  } = useAuth();
   const { clerkAuth } = useSafeClerkAuth();
   const route = useRoute<RouteProp<HomeStackParamList, 'Home'>>();
   const tabBarHeight = useBottomTabBarHeight();
@@ -236,6 +241,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       currentSession,
     );
     return latestContinuation.trim().length > 0;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- US-019 batch 4: deps cover the actual fields read; the full `currentSession` object reference is intentionally omitted to avoid recompute on unrelated mutations.
   }, [currentSession?.story_content, currentSession?.contributions]);
 
   // Enhanced empty state for new users (US-017)
@@ -316,6 +322,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     };
 
     checkFirstStreakAchievement();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- US-019 batch 4: streak achievement should fire only when streak count changes, not when callback identity changes.
   }, [userProfile?.current_streak]);
 
   // Determine if user is "new" (US-017) - controls enhanced empty state display
@@ -631,6 +638,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
       return () => clearTimeout(scrollTimer);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- US-019 batch 4: scroll only on contribution count change, not on contribution content edits.
   }, [currentSession?.contributions?.length]);
 
   // US-004: Reset loaded story expanded state when session changes
@@ -641,6 +649,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     if (loaded) {
       setIsLoadedStoryExpanded(loaded.content.length <= 500);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- US-019 batch 4: reset when session ID flips; contribution-content changes within the same session shouldn't re-collapse the loaded story.
   }, [currentSession?.id]);
 
   // Check service availability
@@ -887,11 +896,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         console.error('❌ Error tracking first voice input milestone:', error);
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- US-019 batch 4: effectiveUserId/recordOnboardingMilestone are stable in practice; including them would re-create the callback on every render.
     [awardOnboardingXP],
   );
 
   // Voice input error handler
-  const handleVoiceError = useCallback((error: string) => {
+  const _handleVoiceError = useCallback((error: string) => {
     // Only log, don't show alert for expected errors (permission denied, unavailable in simulator, etc.)
     // The VoiceInput component already handles showing alerts appropriately
     console.log('Voice input error:', error);
@@ -1253,6 +1263,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       // Start the imported story continuation
       handleContinueImportedStory(continueStoryParams);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- US-019 batch 4: effect should fire only when route params change; navigation/handleContinueImportedStory are stable.
   }, [
     route.params?.continueStory,
     isAuthenticated,
@@ -1283,6 +1294,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       // Start the story with setup answers
       executeStartNewGame(effectiveUserId, storySetupParams);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- US-019 batch 4: fire on route param change; navigation/executeStartNewGame closures are stable.
   }, [
     route.params?.storySetup,
     isAuthenticated,
@@ -1603,11 +1615,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   // Wrapper function that shows first story guidance modal if needed (US-012)
   const handleStartNewGame = async () => {
+    const clerkUidMasked = redactId(clerkAuth?.userId);
     console.log('📖 handleStartNewGame: Starting...', {
       isAuthenticated,
-      effectiveUserId,
-      userProfileId: userProfile?.id,
-      clerkUserId: clerkAuth?.userId,
+      effectiveUserId: redactId(effectiveUserId),
+      userProfileId: redactId(userProfile?.id),
+      clerkUid: clerkUidMasked,
     });
 
     if (!isAuthenticated || !effectiveUserId) {
@@ -2388,6 +2401,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
       console.log('✅ [DEBUG] handleImageGenerated completed');
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- US-019 batch 4: callback recomputed on session change only; awardOnboardingXP/effectiveUserId/recordOnboardingMilestone are stable.
     [currentSession],
   );
 

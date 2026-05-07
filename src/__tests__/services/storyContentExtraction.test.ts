@@ -4,9 +4,6 @@
 import {
   imageGenerationService,
   ImageGenerationEvent,
-  StoryAnalysis,
-  ExtractedCharacters,
-  ExtractedScenes,
 } from '../../services/imageGeneration';
 
 describe('Task 3.4: Story Content Extraction and Prompt Generation Tests', () => {
@@ -18,13 +15,6 @@ describe('Task 3.4: Story Content Extraction and Prompt Generation Tests', () =>
         One sunny day, they discovered a beautiful garden filled with colorful flowers. 
         The bunny and owl danced together in the garden, laughing and having fun.
       `;
-
-      const request: ImageGenerationEvent = {
-        storyContent: k2Story,
-        gradeLevel: 'K-2',
-        sessionId: 'test-k2-analysis',
-        userId: 'test-user',
-      };
 
       // Test the story analysis (accessing private method through service)
       const analysis = imageGenerationService.analyzeStoryContent(k2Story);
@@ -155,13 +145,6 @@ describe('Task 3.4: Story Content Extraction and Prompt Generation Tests', () =>
         a colorful butterfly. They would chase each other around the flowers, 
         laughing and having the most wonderful time together.
       `;
-
-      const request: ImageGenerationEvent = {
-        storyContent: k2Story,
-        gradeLevel: 'K-2',
-        sessionId: 'test-k2-prompt',
-        userId: 'test-user',
-      };
 
       // Generate prompt using the private method
       const prompt = imageGenerationService.generatePrompt(k2Story, 'K-2');

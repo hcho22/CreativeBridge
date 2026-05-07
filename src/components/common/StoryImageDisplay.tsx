@@ -10,7 +10,6 @@ import {
   Alert,
   ActivityIndicator,
   Dimensions,
-  Linking,
   Pressable,
 } from 'react-native';
 // Temporarily disabled Reanimated until native module is properly configured
@@ -109,7 +108,7 @@ const StoryImageDisplay: React.FC<StoryImageDisplayProps> = ({
   imageUrl,
   storyTitle = 'Story Illustration',
   sessionId,
-  userId,
+  userId: _userId,
   onImageSaved,
   onError,
   onBackToOptions,

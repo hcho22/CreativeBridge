@@ -41,7 +41,7 @@ describe('XP Management Journey E2E', () => {
     // Step 4: Check if XP is insufficient
     // Note: This test assumes the test account has < 1000 XP
     // If user has sufficient XP, the button should be enabled
-    const xpText = await element(by.id('xp-balance')).getAttributes();
+    await element(by.id('xp-balance')).getAttributes();
     await TestHelpers.takeScreenshot('04-checking-xp-balance');
 
     // Step 5: Try to generate image with insufficient XP
@@ -55,7 +55,9 @@ describe('XP Management Journey E2E', () => {
       await TestHelpers.takeScreenshot('05-insufficient-xp-message');
     } catch {
       // Button might be disabled - verify disabled state
-      await detoxExpect(element(by.id('generate-image-button'))).toHaveToggleValue(false);
+      await detoxExpect(
+        element(by.id('generate-image-button')),
+      ).toHaveToggleValue(false);
       await TestHelpers.verifyTextExists('You need');
       await TestHelpers.takeScreenshot('05-button-disabled-insufficient-xp');
     }
@@ -91,7 +93,9 @@ describe('XP Management Journey E2E', () => {
 
     // Step 5: Now try to generate image (should succeed)
     await TestHelpers.waitForElementToBeVisible('generate-image-button');
-    await detoxExpect(element(by.id('generate-image-button'))).not.toHaveToggleValue(false);
+    await detoxExpect(
+      element(by.id('generate-image-button')),
+    ).not.toHaveToggleValue(false);
     await TestHelpers.generateImage();
     await TestHelpers.takeScreenshot('05-image-generated-after-earning-xp');
 
@@ -147,7 +151,7 @@ describe('XP Management Journey E2E', () => {
     await TestHelpers.verifyStoryCompleted();
 
     // Record XP before generation
-    const xpBeforeElement = await element(by.id('xp-balance')).getAttributes();
+    await element(by.id('xp-balance')).getAttributes();
     await TestHelpers.takeScreenshot('01-xp-before-generation');
 
     // Try to generate image (simulate failure)
@@ -164,7 +168,7 @@ describe('XP Management Journey E2E', () => {
       await TestHelpers.takeScreenshot('02-generation-failed-message');
 
       // Verify XP was refunded
-      const xpAfterElement = await element(by.id('xp-balance')).getAttributes();
+      await element(by.id('xp-balance')).getAttributes();
       await TestHelpers.takeScreenshot('03-xp-refunded');
 
       // XP should be the same as before (refunded)

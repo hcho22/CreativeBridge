@@ -130,7 +130,7 @@ describe('Task 1.4: TypeScript Type Updates', () => {
       { status: 'failed' as const, expected: true },
     ];
 
-    testStatuses.forEach(({ status, expected }) => {
+    testStatuses.forEach(({ status, expected: _expected }) => {
       const session: Partial<GameSession> = {
         image_upload_status: status,
       };

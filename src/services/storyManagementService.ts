@@ -384,7 +384,7 @@ export class StoryManagementService {
    */
   static async deleteStory(
     sessionId: string,
-    userId: string,
+    _userId: string,
   ): Promise<DeleteStoryResult> {
     try {
       if (!isConvexReady()) {
@@ -814,7 +814,7 @@ export class StoryManagementService {
   /**
    * Get user statistics
    */
-  static async getUserStoryStats(userId: string): Promise<{
+  static async getUserStoryStats(_userId: string): Promise<{
     success: boolean;
     stats?: {
       totalStories: number;

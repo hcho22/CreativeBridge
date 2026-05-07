@@ -142,7 +142,7 @@ describe('Task 6.5: Security Testing - Image Storage', () => {
         "1' UNION SELECT * FROM user_profiles--",
       ];
 
-      maliciousUserIds.forEach(maliciousId => {
+      maliciousUserIds.forEach(_maliciousId => {
         // Supabase client automatically parameterizes all query parameters
         // No raw SQL execution possible through .eq(), .update(), .insert()
         const usesParameterizedQueries = true;
@@ -167,7 +167,6 @@ describe('Task 6.5: Security Testing - Image Storage', () => {
 
     it('should prevent second-order SQL injection', () => {
       // Second-order: malicious data stored, then used in query
-      const storedMaliciousData = "test'; DELETE FROM game_sessions--";
 
       // When used in subsequent queries, must remain parameterized
       const alwaysParameterized = true; // Supabase enforces this
@@ -400,7 +399,7 @@ describe('Task 6.5: Security Testing - Image Storage', () => {
         'getPublicUrl',
       ];
 
-      operationsRequiringAuth.forEach(operation => {
+      operationsRequiringAuth.forEach(_operation => {
         const requiresAuth = true; // Enforced by Supabase
         expect(requiresAuth).toBe(true);
       });
@@ -494,7 +493,7 @@ describe('Task 6.5: Security Testing - Image Storage', () => {
       };
 
       // All security checks must pass
-      Object.entries(securityChecks).forEach(([check, passed]) => {
+      Object.entries(securityChecks).forEach(([_check, passed]) => {
         expect(passed).toBe(true);
       });
 

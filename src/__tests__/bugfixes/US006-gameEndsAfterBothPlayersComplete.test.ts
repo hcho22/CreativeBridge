@@ -16,7 +16,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { storySessionManager } from '../../services/storySessionManager';
-import type { StorySession } from '../../services/storySessionManager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Mock Convex client

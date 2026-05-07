@@ -277,10 +277,6 @@ describe('Claude Skills Performance Monitoring', () => {
       const alerts = claudeSkillsMonitor.getActiveAlerts();
 
       // Should have at least one alert for slow response time
-      const responseTimeAlerts = alerts.filter(
-        a => a.metric === 'response_time' && a.severity === 'warning',
-      );
-
       // Note: Alert generation depends on threshold evaluation
       // In a real scenario, this would trigger alerts
       expect(alerts).toBeDefined();

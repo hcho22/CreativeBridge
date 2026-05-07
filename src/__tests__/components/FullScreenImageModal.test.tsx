@@ -50,6 +50,7 @@ jest.mock('react-native-gesture-handler', () => {
 // Mock react-native-image-zoom-viewer
 jest.mock('react-native-image-zoom-viewer', () => {
   const MockImageViewer = ({ imageUrls }: any) => {
+    // eslint-disable-next-line @typescript-eslint/no-shadow -- jest.mock factory runs in isolated scope; the outer React import isn't visible at factory-execution time.
     const React = require('react');
     const { View, Text } = require('react-native');
 
@@ -193,7 +194,7 @@ describe('FullScreenImageModal', () => {
 
     it('should call onImageChange when navigating', () => {
       const onImageChange = jest.fn();
-      const { getByTestId } = render(
+      render(
         <FullScreenImageModal
           {...defaultProps}
           visible={true}

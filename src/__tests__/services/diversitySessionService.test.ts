@@ -188,8 +188,6 @@ describe('diversitySessionService', () => {
       });
 
       it('sets expiration to 24 hours from creation', async () => {
-        const beforeCreation = Date.now();
-
         const mockInsert = jest.fn().mockReturnValue({
           select: jest.fn().mockReturnValue({
             single: jest.fn().mockResolvedValue({
@@ -214,7 +212,6 @@ describe('diversitySessionService', () => {
 
         const session = await getOrCreateSession({ userId: mockUserId });
 
-        const afterCreation = Date.now();
         const expectedExpiration = 24 * 60 * 60 * 1000; // 24 hours in ms
         const actualDuration =
           session.expiresAt.getTime() - session.createdAt.getTime();

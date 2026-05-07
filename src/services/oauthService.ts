@@ -15,6 +15,7 @@
  */
 
 import { isClerkConfigured } from '../config/environment';
+import { redactId } from '../utils/piiRedaction';
 
 /**
  * OAuth response types
@@ -203,9 +204,10 @@ export async function completeOAuthFlow(
       }
     } else if (clerkAuth.userId) {
       // Fallback: try to get email from Clerk auth if user object not provided
+      const uidMasked = redactId(clerkAuth.userId);
       console.log(
         '⚠️ [OAuth Service] Clerk user object not provided, using userId:',
-        clerkAuth.userId,
+        uidMasked,
       );
       console.log(
         '⚠️ [OAuth Service] Email will not be available until user object is provided',

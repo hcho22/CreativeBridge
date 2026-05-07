@@ -8,8 +8,6 @@
  */
 
 const fs = require('fs');
-const path = require('path');
-const { execSync } = require('child_process');
 
 class ImageGenerationDeployer {
   constructor() {
@@ -191,16 +189,6 @@ class ImageGenerationDeployer {
   }
 
   async simulateFeatureFlagConfig() {
-    const flagConfig = {
-      image_generation: {
-        enabled: true,
-        rolloutPercentage: this.config.rolloutPercentage,
-        requiresWhitelist: this.config.betaUsersOnly,
-        maxDailyGenerations: 5,
-        allowedGradeLevels: ['K-2', '3-5', '6-8', '9-12'],
-      },
-    };
-
     this.log('  🚩 Feature flag configuration:');
     this.log(`     Rollout: ${this.config.rolloutPercentage}%`);
     this.log(`     Beta only: ${this.config.betaUsersOnly}`);

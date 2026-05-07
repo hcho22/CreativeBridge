@@ -14,11 +14,7 @@ import {
 } from './serviceHealth';
 import { ProgressiveEnhancementService } from './progressiveEnhancement';
 import { NetworkAdapterService } from './networkAdapter';
-import {
-  SkillManager,
-  SkillError,
-  SkillErrorCode,
-} from '../types/claudeSkills';
+import { SkillManager } from '../types/claudeSkills';
 // import { StoryRequest, StoryResponse } from '../types/story';
 
 export interface FallbackStrategy {
@@ -404,7 +400,7 @@ export class AutomaticFallbackManager {
       trigger: {
         servicePattern: '*',
         healthThreshold: 'unavailable',
-        customCondition: status => {
+        customCondition: _status => {
           const systemHealth = this.healthMonitor.getSystemHealth();
           return systemHealth.unavailableServices.length >= 2;
         },
@@ -821,8 +817,6 @@ export class AutomaticFallbackManager {
 
   private async checkForRecovery(): Promise<void> {
     if (this.activeFallbacks.size === 0) return;
-
-    const systemHealth = this.healthMonitor.getSystemHealth();
 
     for (const [strategyId, fallbackState] of this.activeFallbacks.entries()) {
       if (!fallbackState.canRevert) continue;

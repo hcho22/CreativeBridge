@@ -5,25 +5,10 @@
  */
 
 import {
-  SkillEnhancedService,
   SkillEnhancedServiceFactory,
   SkillEnhancedServiceConfig,
 } from '../../../services/base/SkillEnhancedService';
-import {
-  SkillOrchestrator,
-  SkillExecutionPlan,
-} from '../../../services/base/SkillOrchestrator';
-import {
-  FallbackStrategyManager,
-  OriginalServiceFallbackStrategy,
-  CachedResponseFallbackStrategy,
-} from '../../../services/base/FallbackStrategy';
-import {
-  SkillManager,
-  SkillResult,
-  SkillError,
-  SkillErrorCode,
-} from '../../../types/claudeSkills';
+import { SkillManager, SkillErrorCode } from '../../../types/claudeSkills';
 
 // Mock dependencies
 jest.mock('../../../services/claudeSkillsMonitor');

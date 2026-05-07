@@ -14,7 +14,6 @@ import {
   validateAllApiKeys,
   secureLogger,
 } from '../services/secureApiKeyManager';
-import { auditLogger } from '../services/auditLogger';
 
 // Test data with realistic but fake API keys
 const TEST_SCENARIOS = {

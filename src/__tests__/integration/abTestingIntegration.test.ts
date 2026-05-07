@@ -6,8 +6,7 @@
 
 import { abTestingService } from '../../services/abTesting';
 import { claudeSkillsMonitor } from '../../services/claudeSkillsMonitor';
-import { featureFlagService, UserContext } from '../../services/featureFlags';
-import { getClaudeSkillsManager } from '../../services/claudeSkillsManager';
+import { UserContext } from '../../services/featureFlags';
 
 describe('A/B Testing Integration', () => {
   const mockUserContext: UserContext = {

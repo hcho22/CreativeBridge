@@ -10,8 +10,6 @@
  * 3. Handler logic correctness
  */
 
-import React from 'react';
-import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 import RNFS from 'react-native-fs';
 
@@ -119,11 +117,6 @@ jest.mock('react-native-fs', () => ({
     promise: Promise.resolve({ statusCode: 200, bytesWritten: 12345 }),
   }),
 }));
-
-const mockNavigation = {
-  navigate: jest.fn(),
-  setOptions: jest.fn(),
-};
 
 const mockAlert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 

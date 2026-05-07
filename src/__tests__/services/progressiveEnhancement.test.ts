@@ -379,9 +379,6 @@ describe('Progressive Enhancement System', () => {
         .fn()
         .mockRejectedValue(new Error('All services failing'));
 
-      // Mock failures at each level by making implementation throw errors
-      const originalImplementations = new Map();
-
       const request: StoryRequest = {
         gradeLevel: 'K-2',
         userInput: 'bedtime story',

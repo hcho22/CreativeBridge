@@ -11,7 +11,7 @@ export const useTheme = () => {
   const currentTheme = useMemo(() => {
     // In the future, you could return dark theme based on colorScheme
     return lightTheme;
-  }, [colorScheme]);
+  }, []);
 
   return {
     theme: currentTheme,

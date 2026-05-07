@@ -3,10 +3,9 @@ import React from 'react';
 import { renderHook, act, waitFor } from '@testing-library/react-native';
 import { AuthProvider, useAuth } from '../../context/AuthContext';
 import { auditLogger } from '../../services/auditLogger';
-import { rateLimiter } from '../../services/rateLimiter';
 import { mockSupabase } from '../mocks/supabaseMock';
 import mockDeviceInfo from '../mocks/deviceInfoMock';
-import { createMockUser, SECURITY_TEST_CONSTANTS } from '../utils/testUtils';
+import { createMockUser } from '../utils/testUtils';
 
 // Mock all dependencies
 jest.mock('../../services/supabase', () => ({
@@ -365,8 +364,6 @@ describe('Security Integration Tests', () => {
 
     it('should detect concurrent session anomalies', async () => {
       const mockUser = createMockUser();
-      const deviceInfo1 = { deviceId: 'device-1', location: 'New York' };
-      const deviceInfo2 = { deviceId: 'device-2', location: 'London' };
 
       // Simulate concurrent sessions from different locations
       await auditLogger.logSuspiciousActivity(

@@ -13,34 +13,20 @@ import {
   beforeEach,
   afterEach,
 } from '@jest/globals';
-import {
-  PerformanceTuningService,
-  performanceTuner,
-} from '../../services/performanceTuner';
+import { PerformanceTuningService } from '../../services/performanceTuner';
 import { dynamicResourceManager } from '../../services/resourceManager';
 import { performanceOptimizer } from '../../services/performanceOptimizer';
-import { SkillManager } from '../../types/claudeSkills';
 
 jest.mock('../../services/resourceManager');
 jest.mock('../../services/performanceOptimizer');
 jest.mock('../../utils/logger');
 
 describe('Performance Tuning Service', () => {
-  let mockSkillManager: jest.Mocked<SkillManager>;
   let tuningService: PerformanceTuningService;
 
   beforeEach(() => {
     jest.clearAllMocks();
     tuningService = new PerformanceTuningService();
-
-    mockSkillManager = {
-      initialize: jest.fn().mockResolvedValue(undefined),
-      registerSkill: jest.fn(),
-      executeSkill: jest.fn(),
-      getSkillStatus: jest.fn().mockReturnValue('idle'),
-      shutdown: jest.fn().mockResolvedValue(undefined),
-      isInitialized: jest.fn().mockReturnValue(true),
-    };
 
     // Setup mocks for resource manager
     const mockResourceManager = dynamicResourceManager as jest.Mocked<
@@ -135,7 +121,7 @@ describe('Performance Tuning Service', () => {
       const result = await tuningService.analyzeAndTune('high');
 
       // High-end devices may get recommendations to increase performance
-      const performanceRecommendations = result.tuningRecommendations.filter(
+      result.tuningRecommendations.filter(
         r =>
           (r.parameter === 'maxConcurrentOperations' &&
             r.recommendedValue > r.currentValue) ||
@@ -384,7 +370,7 @@ describe('Performance Tuning Service', () => {
   describe('Tuning Reports', () => {
     it('should generate comprehensive tuning report', async () => {
       await tuningService.establishPerformanceBaseline('medium');
-      const result = await tuningService.analyzeAndTune('medium');
+      await tuningService.analyzeAndTune('medium');
 
       const report = tuningService.generateTuningReport('medium');
 

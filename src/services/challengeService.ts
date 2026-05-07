@@ -156,7 +156,7 @@ export class ChallengeService {
    * Always returns an integer to prevent database type errors
    */
   getTotalXP(rewards: XPReward[]): number {
-    const total = rewards.reduce((total, reward) => total + reward.amount, 0);
+    const total = rewards.reduce((sum, reward) => sum + reward.amount, 0);
     return Math.floor(total);
   }
 

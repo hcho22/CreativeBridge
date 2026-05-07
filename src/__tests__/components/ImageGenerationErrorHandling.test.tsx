@@ -7,7 +7,6 @@ import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import ImageGeneration from '../../components/common/ImageGeneration';
 import { useAuth } from '../../context/AuthContext';
-import type { ErrorType } from '../../types/database';
 
 // Mock the AuthContext
 jest.mock('../../context/AuthContext', () => ({
@@ -84,9 +83,7 @@ describe('ImageGeneration Error Handling UI - Tasks 7.1-7.4', () => {
         new Error('Replicate API service temporarily unavailable'),
       );
 
-      const { getByText, queryByText } = render(
-        <ImageGeneration {...mockProps} />,
-      );
+      const { getByText } = render(<ImageGeneration {...mockProps} />);
 
       // Trigger image generation
       const generateButton = getByText('🎨 Generate Story Image');
@@ -490,7 +487,7 @@ describe('ImageGeneration Error Handling UI - Tasks 7.1-7.4', () => {
         imageGenerationService,
       } = require('../../services/imageGeneration');
 
-      const { getByText, queryByText, rerender } = render(
+      const { getByText, queryByText } = render(
         <ImageGeneration {...mockProps} />,
       );
 

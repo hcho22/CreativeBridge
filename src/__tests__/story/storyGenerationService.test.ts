@@ -2,7 +2,6 @@
 // Comprehensive testing for story generation functionality
 
 import { storyGenerationService } from '../../services/storyGenerationService';
-import { GradeLevel } from '../../types';
 
 // Mock OpenAI
 jest.mock('openai', () => ({

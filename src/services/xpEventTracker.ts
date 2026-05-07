@@ -9,6 +9,7 @@
  */
 
 import { GenerationStatus, ErrorType, ServiceUsed } from '../types/database';
+import { redactId } from '../utils/piiRedaction';
 
 // Convex imports
 import { getConvexClient, api, isConvexReady } from './convex';
@@ -58,10 +59,12 @@ class XPEventTracker {
     eventData: ImageGenerationXPEvent,
   ): Promise<XPEventResult> {
     try {
+      const uidMasked = redactId(eventData.userId);
+      const sidMasked = redactId(eventData.sessionId);
       console.log('📊 Creating image generation event for XP tracking:', {
-        userId: eventData.userId,
+        uid: uidMasked,
         xpCost: eventData.xpCost,
-        sessionId: eventData.sessionId,
+        sid: sidMasked,
       });
 
       if (!isConvexReady()) {
@@ -173,8 +176,9 @@ class XPEventTracker {
    */
   async trackXPDeduction(eventData: XPEventData): Promise<void> {
     try {
+      const uidMasked = redactId(eventData.userId);
       console.log('💸 Tracking XP deduction:', {
-        userId: eventData.userId,
+        uid: uidMasked,
         xpAmount: eventData.xpAmount,
         reason: eventData.reason,
         imageGenerationEventId: eventData.imageGenerationEventId,
@@ -207,8 +211,9 @@ class XPEventTracker {
    */
   async trackXPRefund(eventData: XPEventData): Promise<void> {
     try {
+      const uidMasked = redactId(eventData.userId);
       console.log('💰 Tracking XP refund:', {
-        userId: eventData.userId,
+        uid: uidMasked,
         xpAmount: eventData.xpAmount,
         reason: eventData.reason,
         imageGenerationEventId: eventData.imageGenerationEventId,
@@ -370,8 +375,9 @@ class XPEventTracker {
     offset: number = 0,
   ): Promise<any[]> {
     try {
+      const uidMasked = redactId(userId);
       console.log('📋 Fetching user image generation events:', {
-        userId,
+        uid: uidMasked,
         limit,
         offset,
       });

@@ -1,7 +1,7 @@
 // Jest Tests for Task 8: Integrate with HomeScreen
 
 import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { render, fireEvent } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 import HomeScreen from '../../screens/HomeScreen';
 import { useAuth } from '../../context/AuthContext';

@@ -1010,7 +1010,7 @@ class ErrorHandler {
 
   private detectSuspiciousAuthActivity(
     error: Error | string,
-    context: ErrorContext,
+    _context: ErrorContext,
   ): boolean {
     const message = typeof error === 'string' ? error : error.message;
     const lowercaseMessage = message.toLowerCase();
