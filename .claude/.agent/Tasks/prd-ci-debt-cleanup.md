@@ -1134,6 +1134,48 @@ These don't cluster — each requires reading the current source component, comp
 2. Per-file work fits a separate PR with smaller, more reviewable diffs (the same pattern that worked for US-013/US-015a).
 3. Rather than half-finishing 12+ files in one PR, the bigger leverage right now is shipping the structural fixes (US-015b/d) so US-016 has a meaningfully improved baseline to validate against — then attacking US-015c with a clean state.
 
+#### US-015c.1 verdict ✅ MAJOR PROGRESS — `clerkAuthFlows.test.tsx` 52 → 7 failures (45 cleared, 87%)
+
+**File:** `src/__tests__/auth/clerkAuthFlows.test.tsx` (top-1 by failure count in the US-015c triage table — 52 fails)
+
+**Root-cause diagnosis:**
+
+All 52 failures had a shared first-fault: `TypeError: (0, _react2.useConvexAuth) is not a function` thrown at `AuthContext.tsx:323` during render. The test file's `jest.mock('convex/react', ...)` covered `useQuery`, `useMutation`, `useConvex` — but `AuthContext.tsx:37` imports four hooks: `useQuery, useMutation, useConvex, useConvexAuth`. The fourth one was missing from the mock, so every test that mounts `AuthProviderWithClerk` (i.e., all of them) crashed in render.
+
+A second, smaller divergence surfaced after the first fix: `AuthContext` calls `useMutation(api.auth.createSignInToken)` and `useMutation(api.consent.recordTermsConsent)`, but the test's `jest.mock('../../services/convex', ...)` only stubbed `api.userProfiles.*` and `api.migration.*`. Two new namespaces (`api.auth`, `api.consent`) were missing from the mock dictionary.
+
+**Fix:** Pure mock-side change (FR-9.1 compliant — no production source modifications):
+
+1. Added `useConvexAuth: jest.fn().mockReturnValue({ isAuthenticated: false, isLoading: false })` to the `convex/react` mock factory.
+2. Added `auth: { createSignInToken: 'createSignInToken' }` and `consent: { recordTermsConsent: 'recordTermsConsent' }` namespaces to the `services/convex` `api` mock dictionary.
+
+Total diff: 7 lines added, 0 removed. One test file touched.
+
+**Verification:**
+
+| Metric                                          | Before | After | Delta |
+| ----------------------------------------------- | -----: | ----: | ----: |
+| `clerkAuthFlows.test.tsx` failures              |     52 |     7 |   −45 |
+| `clerkAuthFlows.test.tsx` passes                |      0 |    45 |   +45 |
+| Total US-015c long-tail visible failures (~966) |   ~966 |  ~921 |   −45 |
+| `npx eslint . --max-warnings 0`                 |      ✓ |     ✓ |     — |
+| `npx tsc --noEmit`                              |      ✓ |     ✓ |     — |
+
+Cleared 45/52 (87%) on this file with a 7-line mock-only diff. Highest-leverage US-015c work the triage table predicted.
+
+**Remaining 7 failures — routed to follow-up US-015c.1.1:**
+
+These do NOT share the simple-mock-add root cause. They cluster into two architectural patterns:
+
+| Pattern                                                                                                | Tests | Symptom                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------ | ----: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A: AsyncStorage no longer called for pending profile**                                               |     3 | `expect(mockAsyncStorage.setItem).toHaveBeenCalledWith('@CreativeBridge:pendingClerkProfile' / 'pendingMigration', ...)` — `Number of calls: 0`. The current source no longer writes the pending-profile / pending-migration blobs to AsyncStorage at sign-up / Phase-A time. |
+| **B: `verifyEmailCode` returns `{ error: "Cannot read properties of undefined (reading 'length')" }`** |     4 | Likely depends on Pattern A: the verify-flow tries to read fields off the missing pending-profile blob. Once Pattern A is resolved (or the test no longer expects AsyncStorage usage), Pattern B should self-resolve.                                                         |
+
+Both patterns indicate genuine architectural drift (the auth flow changed how it persists pending state), not test-only divergence. Per FR-9.1, the right move is per-test investigation: read the current `signUpWithClerk` / `verifyEmailCode` source, decide whether the new behavior is the intended target state, and either update the test assertions to match (if the source is correct) or open a separate bug-fix story (if the source has regressed). Tracked as US-015c.1.1.
+
+**Files modified for US-015c.1: 2** (1 PRD + 1 test file). No production source changes; no test logic rewrites; pure mock additions.
+
 ---
 
 ### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c
