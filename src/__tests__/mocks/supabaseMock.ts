@@ -3,6 +3,78 @@ export const createMockSupabaseClient = () => {
   const mockData = new Map();
   const mockUsers = new Map();
   const mockSessions = new Map();
+  // Memoize per-table and per-bucket chains so repeated from()/storage.from()
+  // calls return the SAME object — required for tests that want stable jest.fn
+  // identities across multiple from('users') invocations (e.g., to override
+  // .select.mockResolvedValue or assert on .insert.mock.calls).
+  const tableChains = new Map<string, any>();
+  const bucketChains = new Map<string, any>();
+
+  const createTableChain = (table: string) => ({
+    select: jest.fn().mockReturnThis(),
+    insert: jest.fn().mockImplementation(data => {
+      const id = `${table}-${Date.now()}`;
+      const record = Array.isArray(data)
+        ? data.map(item => ({ id, ...item }))
+        : { id, ...data };
+      mockData.set(`${table}-${id}`, record);
+      return Promise.resolve({ data: record, error: null });
+    }),
+    update: jest.fn().mockImplementation(data => ({
+      eq: jest.fn().mockImplementation((_column, value) => {
+        const record = mockData.get(`${table}-${value}`) || {
+          id: value,
+          ...data,
+        };
+        mockData.set(`${table}-${value}`, { ...record, ...data });
+        return Promise.resolve({ data: record, error: null });
+      }),
+    })),
+    delete: jest.fn().mockReturnThis(),
+    eq: jest.fn().mockImplementation((_column, value) => {
+      const record = mockData.get(`${table}-${value}`);
+      return Promise.resolve({
+        data: record || null,
+        error: record ? null : { message: 'Record not found' },
+      });
+    }),
+    single: jest.fn().mockImplementation(() => {
+      return Promise.resolve({
+        data: Array.from(mockData.values()).pop() || null,
+        error: null,
+      });
+    }),
+    ilike: jest.fn().mockImplementation((column, pattern) => {
+      const results = Array.from(mockData.values()).filter(record =>
+        record[column]
+          ?.toLowerCase()
+          .includes(pattern.replace(/%/g, '').toLowerCase()),
+      );
+      return Promise.resolve({ data: results, error: null });
+    }),
+  });
+
+  const createBucketChain = () => ({
+    upload: jest.fn().mockResolvedValue({
+      data: { path: 'test-path.png' },
+      error: null,
+    }),
+    download: jest.fn().mockResolvedValue({
+      data: new Blob(['test'], { type: 'image/png' }),
+      error: null,
+    }),
+    remove: jest.fn().mockResolvedValue({
+      data: ['removed-file.png'],
+      error: null,
+    }),
+    getPublicUrl: jest.fn().mockReturnValue({
+      data: { publicUrl: 'https://supabase.co/storage/test.png' },
+    }),
+    list: jest.fn().mockResolvedValue({
+      data: [],
+      error: null,
+    }),
+  });
 
   return {
     auth: {
@@ -99,50 +171,12 @@ export const createMockSupabaseClient = () => {
       }),
     },
 
-    from: jest.fn().mockImplementation(table => ({
-      select: jest.fn().mockReturnThis(),
-      insert: jest.fn().mockImplementation(data => {
-        const id = `${table}-${Date.now()}`;
-        const record = Array.isArray(data)
-          ? data.map(item => ({ id, ...item }))
-          : { id, ...data };
-        mockData.set(`${table}-${id}`, record);
-        return Promise.resolve({ data: record, error: null });
-      }),
-      update: jest.fn().mockImplementation(data => ({
-        eq: jest.fn().mockImplementation((column, value) => {
-          const record = mockData.get(`${table}-${value}`) || {
-            id: value,
-            ...data,
-          };
-          mockData.set(`${table}-${value}`, { ...record, ...data });
-          return Promise.resolve({ data: record, error: null });
-        }),
-      })),
-      delete: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockImplementation((column, value) => {
-        const record = mockData.get(`${table}-${value}`);
-        return Promise.resolve({
-          data: record || null,
-          error: record ? null : { message: 'Record not found' },
-        });
-      }),
-      single: jest.fn().mockImplementation(() => {
-        // Return the last operation result as single
-        return Promise.resolve({
-          data: Array.from(mockData.values()).pop() || null,
-          error: null,
-        });
-      }),
-      ilike: jest.fn().mockImplementation((column, pattern) => {
-        const results = Array.from(mockData.values()).filter(record =>
-          record[column]
-            ?.toLowerCase()
-            .includes(pattern.replace(/%/g, '').toLowerCase()),
-        );
-        return Promise.resolve({ data: results, error: null });
-      }),
-    })),
+    from: jest.fn().mockImplementation((table: string) => {
+      if (!tableChains.has(table)) {
+        tableChains.set(table, createTableChain(table));
+      }
+      return tableChains.get(table);
+    }),
 
     rpc: jest.fn().mockImplementation((functionName, params) => {
       // Mock database functions
@@ -167,27 +201,12 @@ export const createMockSupabaseClient = () => {
 
     // Storage API mock
     storage: {
-      from: jest.fn().mockImplementation(_bucket => ({
-        upload: jest.fn().mockResolvedValue({
-          data: { path: 'test-path.png' },
-          error: null,
-        }),
-        download: jest.fn().mockResolvedValue({
-          data: new Blob(['test'], { type: 'image/png' }),
-          error: null,
-        }),
-        remove: jest.fn().mockResolvedValue({
-          data: ['removed-file.png'],
-          error: null,
-        }),
-        getPublicUrl: jest.fn().mockReturnValue({
-          data: { publicUrl: 'https://supabase.co/storage/test.png' },
-        }),
-        list: jest.fn().mockResolvedValue({
-          data: [],
-          error: null,
-        }),
-      })),
+      from: jest.fn().mockImplementation((bucket: string) => {
+        if (!bucketChains.has(bucket)) {
+          bucketChains.set(bucket, createBucketChain());
+        }
+        return bucketChains.get(bucket);
+      }),
     },
 
     // Test utilities
@@ -196,6 +215,8 @@ export const createMockSupabaseClient = () => {
         mockData.clear();
         mockUsers.clear();
         mockSessions.clear();
+        tableChains.clear();
+        bucketChains.clear();
       },
       setUser: (user: any) => {
         mockUsers.set(user.id, user);
