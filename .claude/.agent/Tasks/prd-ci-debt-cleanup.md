@@ -1176,6 +1176,54 @@ Both patterns indicate genuine architectural drift (the auth flow changed how it
 
 **Files modified for US-015c.1: 2** (1 PRD + 1 test file). No production source changes; no test logic rewrites; pure mock additions.
 
+#### US-015c.2 verdict ⏳ PARTIAL — `e2eMigrationFlow.test.tsx` 26 → 17 failures (9 cleared, 35%)
+
+**File:** `src/__tests__/integration/e2eMigrationFlow.test.tsx` (top-2 by failure count in the US-015c triage table — 26 fails)
+
+**Root-cause diagnosis:**
+
+Same `useConvexAuth` mock-divergence as US-015c.1 (`clerkAuthFlows.test.tsx`). The test file's `jest.mock('convex/react', ...)` and `jest.mock('../../services/convex', ...)` blocks were byte-for-byte identical to `clerkAuthFlows.test.tsx`'s mocks — so the same render-time crash hit all 26 tests.
+
+After applying the same 7-line fix (add `useConvexAuth`, `api.auth`, `api.consent`), 9 of 26 tests passed. The remaining 17 share **a single new root cause** that goes beyond mocks.
+
+**Architectural-drift cluster — 17 failures:**
+
+All 17 remaining failures fail at `getPendingMigrationData()` returning `null` (or downstream assertions that depend on it). The tests expect `AuthContext`'s migration flow to write `'@CreativeBridge:pendingMigration'` and `'@CreativeBridge:pendingClerkProfile'` to AsyncStorage during sign-up / Phase A, then read them during email verification / Phase B.
+
+**Source verification (current `AuthContext.tsx`):**
+
+- Constants `PENDING_CLERK_PROFILE_KEY` (line 107) and `PENDING_MIGRATION_KEY` (line 110) are still defined.
+- However, `AsyncStorage.setItem` is called only with `__logout_in_progress`, `__previous_clerk_user_id`, and `__previous_logout_timestamp` (lines 487, 521, 525).
+- The constants appear only in a cleanup-filter context: `allKeys.filter(key => key.startsWith('@CreativeBridge:'))` at line 448.
+
+**Net:** The current source no longer persists pending-migration / pending-profile blobs to AsyncStorage at the times these tests expect. Either the source intentionally moved this state elsewhere (component state? Convex query? Clerk metadata?) or the persistence step was removed and not replaced. Determining which requires per-test investigation against the current architecture.
+
+**Fix applied (7 lines added, 0 removed) — same as US-015c.1:**
+
+1. Added `useConvexAuth` to the `convex/react` mock factory.
+2. Added `api.auth.createSignInToken` and `api.consent.recordTermsConsent` namespaces to the `services/convex` mock dictionary.
+
+**Verification:**
+
+| Metric                               | Before | After | Delta |
+| ------------------------------------ | -----: | ----: | ----: |
+| `e2eMigrationFlow.test.tsx` failures |     26 |    17 |    −9 |
+| `e2eMigrationFlow.test.tsx` passes   |      0 |     9 |    +9 |
+| `npx eslint . --max-warnings 0`      |      ✓ |     ✓ |     — |
+| `npx tsc --noEmit`                   |      ✓ |     ✓ |     — |
+
+**Remaining 17 failures — routed to follow-up US-015c.2.1 (architectural-drift cluster):**
+
+These are the same Pattern A architectural drift documented in US-015c.1's residual (3 fails). The drift is now confirmed across two files (US-015c.1 + this file = 20 failures total dependent on AsyncStorage migration persistence).
+
+**Strategic implication:** If a third file in the triage table (likely `clerkSignUpFlow.test.tsx` per the table) shows the same pattern, US-015c.\*.1 should be promoted to a single architectural decision PR rather than per-file rewrites:
+
+> "Should `AuthContext` re-introduce pending-migration-via-AsyncStorage, OR should all dependent tests be updated to assert the new persistence target?"
+
+That single decision would unblock 20+ failures across multiple files at once — better leverage than the per-file long-tail. Tracked as US-015c.architectural-drift (proposed sub-story).
+
+**Files modified for US-015c.2: 2** (1 PRD + 1 test file). No production source changes; pure mock additions.
+
 ---
 
 ### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c
