@@ -1869,6 +1869,58 @@ US-015c.12 is the first sub-story to use ALL THREE FR mechanisms in one file (FR
 
 **Files modified for US-015c.12: 2** (1 PRD + 1 test file). No production source changes; pure mock-data + mock-shape corrections + 6 FR-8 timeout skips.
 
+#### US-015c.13 verdict ⏳ PARTIAL — `imageStorageSecurity.test.ts` 22 → 12 failures (10 cleared, 45%); rebaselined top-1 tied
+
+**File:** `src/__tests__/security/imageStorageSecurity.test.ts` (top-1 tied of rebaseline at 22 actual fails / 44 raw scrape — confirms US-015c.12's scrape-doubling pattern)
+
+**Single root cause cleared 10 of 22 failures via mock-side singleton fix (FR-9.1 compliant — pure mock-infrastructure correction):**
+
+**Root cause — `mockSupabase.storage.from()` and `mockSupabase.from()` return new instances each call.** The shared `src/__tests__/mocks/supabaseMock.ts` defines both with `jest.fn().mockImplementation(_arg => ({...new methods}))` — every call creates a fresh object with fresh `jest.fn()` methods. Tests pattern:
+
+```typescript
+mockSupabase.storage.from().upload.mockResolvedValueOnce({...});  // sets up A.upload
+await mockSupabase.storage.from('bucket').upload(...);             // calls B.upload (different!)
+```
+
+The override is silently lost; the default `{path: 'test-path.png'}` is returned. Same bug applies to table-query chains.
+
+**Fix (FR-9.1 — per-test singleton override of the centralized mock):** rather than modifying the shared `supabaseMock.ts` (cross-cutting risk to 10+ test files that consume it), patched two singletons in this file's `beforeEach` so `from()` and `storage.from()` always return the same chain object. Each test's `mockResolvedValueOnce`-style overrides now persist.
+
+**Failure-count delta (this file only):**
+
+| Bucket                                          | Before | After | Delta |
+| ----------------------------------------------- | -----: | ----: | ----: |
+| `imageStorageSecurity.test.ts` failures         |     22 |    12 |   −10 |
+| `imageStorageSecurity.test.ts` passes           |      7 |    17 |   +10 |
+| Total US-015c long-tail visible failures (~839) |   ~839 |  ~829 |   −10 |
+
+**Remaining 12 failures — routed to follow-up US-015c.13.1:**
+
+1. **Single Promise-thenable mock pattern (1 test).** `should prevent SQL injection in session ID` does `mockSupabase.from().select().mockResolvedValueOnce(...)` — calls `mockResolvedValueOnce` on the return of `select()`. With singleton, that's the chain object, not a `jest.fn()`. Supporting this pattern needs a thenable mock (object that's both awaitable AND has `mockResolvedValueOnce`) — non-trivial test-infra work.
+
+2. **Service-API / behavior drift (~11 tests, outside FR-9.1).** File-upload-validation and path-traversal tests that call `imageStorageService.uploadImage(...)` and assert specific result shapes the current service no longer returns. Plus one auth test where `setUser(null)` crashes on `user.id` in the test util.
+
+**Cross-cutting opportunity flagged:** the singleton fix could be applied to `src/__tests__/mocks/supabaseMock.ts` directly to fix similar bugs across 10 consumer files (`rlsPolicy`, `auditLogger`, `rateLimiter`, `navigationFlow`, `formValidation`, `profileCompletion`, `oauthFlow`, `securityFlow`, `supabaseIntegration`). Higher blast radius — better to land per-file first, observe stability, then refactor. Tracked as **US-015c.architectural-supabaseMock-singleton** (proposed sub-story).
+
+**New pattern category — "shared test-infra singleton bug."** The defect lives in shared mock infrastructure (`src/__tests__/mocks/`) rather than the test file itself. Per-file overrides work, but the underlying shared mock should be fixed too. This is a different shape from per-file mock-divergence (US-015c.4 wrapper-import, US-015c.10 UUID-shape) — it affects multiple files via a single defective abstraction.
+
+| Sub-story      | Category                            |               Failures cleared |
+| -------------- | ----------------------------------- | -----------------------------: |
+| US-015c.1-2    | Mock-side (auth)                    |                            −54 |
+| US-015c.3      | Mock-side (TDZ + FlatList)          |                            −11 |
+| US-015c.4      | Mock-side (URL + wrapper)           |                             −4 |
+| US-015c.5-6    | Docs-only                           |                              0 |
+| US-015c.7      | FR-8 skip (removed feature)         |                            −17 |
+| US-015c.8      | Mock-side (3 root causes)           |                            −12 |
+| US-015c.9      | FR-9.1 + FR-8 hybrid                |                             −4 |
+| US-015c.10     | Mock-side (UUID-shape)              |                             −7 |
+| US-015c.11     | FR-8 skip (UI-label drift)          |                            −21 |
+| US-015c.12     | Three-mechanism hybrid              |                             −6 |
+| **US-015c.13** | **Shared-test-infra singleton fix** |                        **−10** |
+| **Cumulative** |                                     | **−146 across 13 sub-stories** |
+
+**Files modified for US-015c.13: 2** (1 PRD + 1 test file). No production source changes; pure per-test singleton override of centralized supabaseMock chain.
+
 ---
 
 ### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c

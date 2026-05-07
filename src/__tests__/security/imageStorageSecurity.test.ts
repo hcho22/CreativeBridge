@@ -36,6 +36,64 @@ describe('Security Testing - Image Storage & Persistence', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockSupabase.__testUtils.clear();
+
+    // Patch supabaseMock.ts:170 — `storage.from` is built as
+    // `jest.fn().mockImplementation(_bucket => ({ upload, download, ... }))`
+    // which returns a NEW object on every call. The test pattern is:
+    //   mockSupabase.storage.from().upload.mockResolvedValueOnce(...)  // sets up A.upload
+    //   await mockSupabase.storage.from('bucket').upload(...)          // calls B.upload (different instance)
+    // The `mockResolvedValueOnce` was set on A; the call hits B; the
+    // override is silently lost and the default `{path: 'test-path.png'}`
+    // is returned. Stabilize per-test by returning a singleton bucket
+    // object so setup and call hit the same `upload` jest.fn.
+    const stableBucket = {
+      upload: jest.fn().mockResolvedValue({
+        data: { path: 'test-path.png' },
+        error: null,
+      }),
+      download: jest.fn().mockResolvedValue({
+        data: new Blob(['test'], { type: 'image/png' }),
+        error: null,
+      }),
+      remove: jest.fn().mockResolvedValue({
+        data: ['removed-file.png'],
+        error: null,
+      }),
+      getPublicUrl: jest.fn().mockReturnValue({
+        data: { publicUrl: 'https://supabase.co/storage/test.png' },
+      }),
+      list: jest.fn().mockResolvedValue({ data: [], error: null }),
+    };
+    (mockSupabase.storage.from as jest.Mock).mockReturnValue(stableBucket);
+
+    // Same instance-per-call bug on `mockSupabase.from(table)` at
+    // supabaseMock.ts:102. Tests do
+    //   mockSupabase.from().select.mockReturnThis()
+    //   mockSupabase.from().select().eq().single.mockResolvedValueOnce(...)
+    // — each `from()` returns a fresh chain. Stabilize with a singleton
+    // table object whose chained methods return the same `this`.
+    type AnyMock = jest.Mock & { mockReturnThis(): AnyMock };
+    const mkChain = () => jest.fn() as unknown as AnyMock;
+    const stableTable: Record<string, AnyMock> = {
+      select: mkChain(),
+      insert: mkChain(),
+      update: mkChain(),
+      delete: mkChain(),
+      eq: mkChain(),
+      neq: mkChain(),
+      in: mkChain(),
+      single: mkChain(),
+      maybeSingle: mkChain(),
+      order: mkChain(),
+      limit: mkChain(),
+      range: mkChain(),
+    };
+    // Each chain method returns the stable table itself by default —
+    // `select().eq().single()` all walk back to `stableTable`. Per-test
+    // overrides via `.mockResolvedValueOnce(...)` on a leaf method then
+    // win because the stable jest.fn is the one being called.
+    Object.values(stableTable).forEach(m => m.mockReturnValue(stableTable));
+    (mockSupabase.from as jest.Mock).mockReturnValue(stableTable);
   });
 
   describe('RLS Policies for Supabase Storage (story-images bucket)', () => {
