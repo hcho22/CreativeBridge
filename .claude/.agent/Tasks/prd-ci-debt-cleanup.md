@@ -1414,6 +1414,37 @@ US-015c.{4,5}'s residuals confirm a recurring shape: test-logic ordering violati
 
 **Files modified for US-015c.5: 1** (PRD only — test file reverted to no changes).
 
+#### US-015c.6 verdict ⏸ ALREADY-DEFERRED — `syncIntegration.test.ts` is fully `describe.skip`'d; triage table is stale
+
+**File:** `src/__tests__/integration/syncIntegration.test.ts` (top-4 by failure count in the US-015c triage table — listed as 18 fails)
+
+**Decision: no PR action; this file already routes to a different workstream.** The triage table snapshot (PRD §"Top files by visible failures") was recorded BEFORE someone applied a `describe.skip(...)` directive at `syncIntegration.test.ts:41` with a comprehensive FR-8 deferral marker (lines 11-40 of the test file). Current failure count from this file is **0**, not 18.
+
+**Verifying via local run:**
+
+```text
+$ npx jest src/__tests__/integration/syncIntegration.test.ts --no-coverage
+Test Suites: 1 skipped, 0 of 1 total
+Tests:       20 skipped, 20 total
+```
+
+**The existing in-file deferral block already documents:**
+
+- **Why:** `SyncService` was substantively rewritten — the realtime-subscription API (`service.handleRealtimeChange(payload)`) no longer exists on the class. Current public surface listed in the comment.
+- **Failure breakdown:** 3 of the 18 tests called the removed method; the remaining 15 failed with data-shape divergences from the rewrite.
+- **Why per-test rewrite is wrong:** "Rewriting requires reading the new SyncService implementation end-to-end and re-deriving the test scenarios against the current API. The 'realtime' test cases probably need to be deleted entirely (Convex queries auto-invalidate, so there's no equivalent to test)."
+- **Where it routes:** US-015c batch 3 ("Service rewrites") — a separate workstream from this long-tail per-file pass.
+
+**Why this is a different category from US-015c.5's docs-only finding:**
+
+US-015c.5 was a "no-mock-leverage" finding (architectural fixes work but pre-blocked by test-logic ordering). US-015c.6 is "already-deferred-elsewhere" — the work was already routed to a future story (Service rewrites) by a previous engineer with appropriate context. There's no new analysis to add; only the triage table needs to be marked stale for this row.
+
+**Implications for the rest of the triage table:**
+
+The other top-8 files _may_ also have hidden `describe.skip` or `it.skip` directives applied since the snapshot. A re-baseline (`npx jest --listTests | xargs -I{} jest {} --json --silent` aggregating numFailingTests per file) would confirm. Deferred for now — proceeding to top-5 (`SettingsScreen.genre.test.tsx`, 17 fails) which spot-checks as having real failures.
+
+**Files modified for US-015c.6: 1** (PRD only — test file unchanged; existing FR-8 marker already complete).
+
 ---
 
 ### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c
