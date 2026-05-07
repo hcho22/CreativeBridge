@@ -75,6 +75,21 @@ jest.mock('@clerk/clerk-expo', () => ({
     user: null,
     isLoaded: true,
   })),
+  useSSO: jest.fn(() => ({
+    startSSOFlow: jest.fn(() =>
+      Promise.resolve({ createdSessionId: null, signIn: null, signUp: null }),
+    ),
+  })),
+  useSignIn: jest.fn(() => ({
+    signIn: { create: jest.fn() },
+    setActive: jest.fn(),
+    isLoaded: true,
+  })),
+  useSignUp: jest.fn(() => ({
+    signUp: { create: jest.fn() },
+    setActive: jest.fn(),
+    isLoaded: true,
+  })),
 }));
 
 // Mock expo-web-browser
