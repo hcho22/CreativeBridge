@@ -8,6 +8,7 @@
 // Replaced with this stub pending rewrite against the current
 // ClaudeSkillsConfigManager API surface.
 
+// eslint-disable-next-line jest/no-disabled-tests -- Intentional archaeology stub per US-015d; rewrite pending.
 describe.skip('Comprehensive Security Audit', () => {
   it('archaeology — claudeSkillsConfig.getApiEndpoints no longer exists', () => {
     // Pending US-015d rewrite against ClaudeSkillsConfigManager.

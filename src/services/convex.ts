@@ -157,6 +157,125 @@ export const isConvexReady = (): boolean => {
   return isConvexConfigured() && getConvexClient() !== null;
 };
 
+// ---------------------------------------------------------------------------
+// Convex auth-ready bridge
+//
+// `ConvexProviderWithClerk` calls `client.setAuth(getToken)` from a useEffect
+// after mount, then the WebSocket performs an auth handshake with Convex.
+// Until that handshake lands, calls to `convexClient.mutation()` /
+// `convexClient.action()` from non-React services (storySessionManager,
+// onboardingService, xpEventTracker, imageStorageService, etc.) race the
+// handshake and surface as `Server Error: Not authenticated` from
+// `requireAuth(ctx)`.
+//
+// This module-level signal lets non-React code wait for the handshake.
+// `ConditionalClerkProvider` drives the boolean via `setConvexAuthReady`
+// from a `useConvexAuth()` effect; service code awaits `waitForConvexAuth`
+// before issuing singleton-client mutations, and registers
+// `onConvexAuthReady` listeners to flush whatever it queued during the gap.
+// ---------------------------------------------------------------------------
+
+let _isConvexAuthReady = false;
+const _authReadyWaiters = new Set<() => void>();
+const _authReadyListeners = new Set<() => void>();
+
+/**
+ * Update the module-level auth-ready flag. Call from React when
+ * `useConvexAuth().isAuthenticated` changes.
+ *
+ * On a `false → true` transition, all pending `waitForConvexAuth` promises
+ * resolve and every `onConvexAuthReady` listener fires.
+ *
+ * @internal Wired by ConditionalClerkProvider; do not call from service code.
+ */
+export const setConvexAuthReady = (isReady: boolean): void => {
+  if (_isConvexAuthReady === isReady) return;
+  _isConvexAuthReady = isReady;
+  if (!isReady) return;
+
+  // Drain waiters first so synchronous listeners can't add new waiters that
+  // miss this transition.
+  const waiters = Array.from(_authReadyWaiters);
+  _authReadyWaiters.clear();
+  for (const resolve of waiters) {
+    try {
+      resolve();
+    } catch (err) {
+      console.warn('[convex] auth-ready waiter threw:', err);
+    }
+  }
+  for (const listener of Array.from(_authReadyListeners)) {
+    try {
+      listener();
+    } catch (err) {
+      console.warn('[convex] auth-ready listener threw:', err);
+    }
+  }
+};
+
+/**
+ * Synchronous read of the auth-ready flag.
+ *
+ * Equivalent to `useConvexAuth().isAuthenticated` but accessible from
+ * non-React code.
+ */
+export const isConvexAuthCurrentlyReady = (): boolean => _isConvexAuthReady;
+
+/**
+ * Wait until Convex auth handshake has completed (or the timeout fires).
+ *
+ * Resolves `true` if auth is ready (immediately if already ready, or once
+ * `setConvexAuthReady(true)` is called). Resolves `false` if the timeout
+ * fires first — in that case the caller should fall back to local cache and
+ * queue the work for `onConvexAuthReady`.
+ *
+ * @param timeoutMs Default 5000ms. Set lower for fast UI paths, higher for
+ *   background syncs.
+ */
+export const waitForConvexAuth = (timeoutMs = 5000): Promise<boolean> => {
+  if (_isConvexAuthReady) return Promise.resolve(true);
+  return new Promise(resolve => {
+    let settled = false;
+    const finish = (value: boolean) => {
+      if (settled) return;
+      settled = true;
+      _authReadyWaiters.delete(onReady);
+      clearTimeout(timer);
+      resolve(value);
+    };
+    const onReady = () => finish(true);
+    _authReadyWaiters.add(onReady);
+    const timer = setTimeout(() => finish(false), timeoutMs);
+  });
+};
+
+/**
+ * Register a one-shot-style listener that fires on every `false → true`
+ * auth-ready transition. Used by service singletons to flush whatever they
+ * queued while auth was unavailable.
+ *
+ * Returns an unsubscribe function. If auth is already ready when registered,
+ * the listener is invoked once on a microtask so callers don't have to
+ * branch on `isConvexAuthCurrentlyReady()` themselves.
+ */
+export const onConvexAuthReady = (listener: () => void): (() => void) => {
+  _authReadyListeners.add(listener);
+  if (_isConvexAuthReady) {
+    Promise.resolve().then(() => {
+      if (_authReadyListeners.has(listener)) {
+        try {
+          listener();
+        } catch (err) {
+          console.warn('[convex] initial auth-ready listener threw:', err);
+        }
+      }
+    });
+  }
+  return () => {
+    _authReadyListeners.delete(listener);
+  };
+};
+
 /**
  * Set the Convex client instance
  *

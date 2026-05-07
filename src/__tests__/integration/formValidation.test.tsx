@@ -5,6 +5,7 @@
 // archaeology against an interface that no longer exists. Replaced with this
 // stub pending rewrite against the new auth contract.
 
+// eslint-disable-next-line jest/no-disabled-tests -- Intentional archaeology stub per US-015d; rewrite pending.
 describe.skip('Form Validation and Submission Integration Tests', () => {
   it('archaeology — useEnhancedAuth no longer exists', () => {
     // Pending US-015d rewrite against AuthContext.useAuth.

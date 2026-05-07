@@ -42,6 +42,7 @@ import React, {
 import {
   AccessibilityInfo,
   ActivityIndicator,
+  Alert,
   Animated,
   Easing,
   Image,
@@ -505,12 +506,19 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
     [props],
   );
 
-  // Any VoiceInput error (permission denied, native module failure, timeout)
-  // snaps us back to idle via the reducer's VOICE_ERROR case. VoiceInput
-  // itself shows the user-facing Alert, so we don't need to surface the
-  // message — we only need to unwedge the state machine.
-  const handleEmbeddedVoiceError = useCallback((_err: string) => {
+  // Any VoiceInput error (permission denied, native module failure, timeout,
+  // Convex auth-not-attached on transcribe) snaps us back to idle via the
+  // reducer's VOICE_ERROR case. VoiceInput surfaces its own Alert for the
+  // permission-denied path; everything else (transcription failures from
+  // whisperTranscriptionService) reaches us with no UI side-effect, so we
+  // raise an Alert here. The "Voice input needs you signed in..." copy is
+  // produced by whisperTranscriptionService when Convex throws "Not
+  // authenticated" — see that file for why we translate at the service edge.
+  const handleEmbeddedVoiceError = useCallback((err: string) => {
     dispatch({ type: 'VOICE_ERROR' });
+    if (err && err.trim().length > 0) {
+      Alert.alert('Voice input failed', err);
+    }
   }, []);
 
   // Pulsing waveform animation shown around the Speak button while listening.
