@@ -107,6 +107,9 @@ jest.mock('convex/react', () => ({
   useQuery: jest.fn().mockReturnValue(null),
   useMutation: jest.fn().mockImplementation(() => mockConvexMutation),
   useConvex: jest.fn().mockReturnValue({ query: jest.fn() }),
+  useConvexAuth: jest
+    .fn()
+    .mockReturnValue({ isAuthenticated: false, isLoading: false }),
 }));
 
 jest.mock('../../services/convex', () => ({
@@ -123,6 +126,12 @@ jest.mock('../../services/convex', () => ({
     migration: {
       migrateUserGameSessions: 'migrateUserGameSessions',
       logMigrationEvent: 'logMigrationEvent',
+    },
+    auth: {
+      createSignInToken: 'createSignInToken',
+    },
+    consent: {
+      recordTermsConsent: 'recordTermsConsent',
     },
   },
 }));
