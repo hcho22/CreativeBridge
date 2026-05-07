@@ -9,7 +9,7 @@ import { createMockUser } from '../utils/testUtils';
 
 // Mock all dependencies
 jest.mock('../../services/supabase', () => ({
-  supabase: mockSupabase,
+  supabase: jest.requireActual('../mocks/supabaseMock').mockSupabase,
 }));
 
 jest.mock('../../services/deviceInfo', () => mockDeviceInfo);
