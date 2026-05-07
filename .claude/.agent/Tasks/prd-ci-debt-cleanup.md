@@ -1808,6 +1808,67 @@ US-015c.{1, 2}'s success on auth-flow tests was specifically about `useConvexAut
 
 **Files modified for US-015c.11: 2** (1 PRD + 1 test file). No production source changes; only `describe.skip` + comprehensive FR-8 marker added.
 
+#### US-015c.12 verdict ⏳ PARTIAL — `errorHandling.test.ts` 22 → 16 failures (6 cleared via FR-8 skips, 27%); runtime 183s → 3s
+
+**File:** `src/__tests__/story/errorHandling.test.ts` (top-1 of rebaseline at 22 actual fails / 44 in raw scrape — cascade-doubled in full-suite log)
+
+**Triage discovery: full-suite scrape was double-counting.** Raw scrape said 44 fails; isolated baseline shows **22 failed / 2 passed / 24 total**. Likely cause: cascade effects in the parent suite scrape (each failure may have been counted twice via `●` markers in chained reports). **Lesson:** isolated `npx jest <file>` is the authoritative count; the full-suite `awk` aggregation is for relative ordering, not exact magnitude.
+
+**Heterogeneous failure mix — 4 distinct categories, addressed via 3 FR mechanisms:**
+
+**Category 1 — Real-time timeout tests exceeding 30s budget (6 tests, FR-8 skipped).** File-wide `jest.setTimeout(30000)` was already applied (per a US-015d-tagged comment), but 6 tests still consistently exceed because they wait on real-time `setTimeout` calls in production retry/timeout/jitter chains. Each marked `it.skip(...)` with FR-8 marker routing to **US-015d**.
+
+**Side benefit:** test-file runtime dropped from **183s → 3s** (60×). The timeout tests were ALL of the slow ones; jest's per-test timeout was firing serially.
+
+**Category 2 — Module-not-found path (1 test).** Test does `require('@react-native-netinfo/netinfo')` — a package that never resolved. The codebase uses `@react-native-community/netinfo`. Fixed via path-update + explicit `jest.mock('@react-native-community/netinfo', ...)` because the global moduleNameMapper points the path at `reactNativeMocks.ts` which exposes `mockNetInfo` (nested) but no top-level `fetch` — what the test queries directly.
+
+**Category 3 — Auto-mock didn't preserve `react-native-tts` instance methods (3 tests).** `jest.mock('react-native-tts')` (auto-mock) didn't surface `getInitStatus`, `speak`, `voices` as `jest.fn()`s on the module shape. Fixed with explicit factory mock having all 13 methods + triple shape (`__esModule + spread + default`).
+
+**Category 4 — Service-API / service-behavior drift (~12 tests, routed to follow-up).** Tests assert specific shapes/values (`result.success === true`, `result.fallbackUsed === true`, `result.offlineMode === true`, etc.) that the current services don't return. These need test-assertion updates against current return shapes — outside FR-9.1.
+
+**Failure-count delta (this file only):**
+
+| Bucket                                          | Before | After | Delta |
+| ----------------------------------------------- | -----: | ----: | ----: |
+| `errorHandling.test.ts` failures                |     22 |    16 |    −6 |
+| `errorHandling.test.ts` passes                  |      2 |     2 |     0 |
+| `errorHandling.test.ts` skips                   |      0 |     6 |    +6 |
+| `errorHandling.test.ts` runtime                 |   183s |    3s | −180s |
+| Total US-015c long-tail visible failures (~845) |   ~845 |  ~839 |    −6 |
+
+**Diagnostic value beyond pass-count:** the netinfo + TTS mock fixes don't move the pass count, but they convert noise (TypeErrors and "Cannot find module") into signal (real assertion drift like "service no longer returns offlineMode"). When US-015c.12.1 picks up the residual 16, the failures will be much faster to triage — the failure messages now describe the actual drift rather than the missing-mock noise that masked it.
+
+**Routes to US-015c.12.1 (proposed):**
+
+The 16 residuals cluster around service-behavior drift:
+
+1. **`apiClient.generateStory(...)` shape changed** — no longer returns `success / fallbackUsed / story / error` in the shapes tests assert (5+ tests).
+2. **`storyAgentService.generateStoryStarter(...)` no longer returns `offlineMode`** — likely refactored to use a different field.
+3. **`textToSpeechService.speak(...)` no longer rejects on errors** — graceful-degradation refactor.
+4. **`storySessionManager` quota/cache-corruption handling** — different return shape than tests expect.
+
+Each cluster needs per-test investigation against current service code. Estimated: 1-2 hours focused rewrite work.
+
+**Pattern crystallizing across US-015c.{1-12}:**
+
+US-015c.12 is the first sub-story to use ALL THREE FR mechanisms in one file (FR-9.1 mock-data + FR-9.1 mock-shape + FR-8 skip). The "diagnostic value beyond pass-count" pattern (mock fixes that surface real drift but don't directly clear failures) is also new and worth recognizing — it's a real form of progress that the failure-count metric undervalues.
+
+| Sub-story      | Category                                  |               Failures cleared |
+| -------------- | ----------------------------------------- | -----------------------------: |
+| US-015c.1-2    | Mock-side (auth)                          |                            −54 |
+| US-015c.3      | Mock-side (TDZ + FlatList)                |                            −11 |
+| US-015c.4      | Mock-side (URL + wrapper)                 |                             −4 |
+| US-015c.5-6    | Docs-only                                 |                              0 |
+| US-015c.7      | FR-8 skip (removed feature)               |                            −17 |
+| US-015c.8      | Mock-side (3 root causes)                 |                            −12 |
+| US-015c.9      | FR-9.1 + FR-8 hybrid                      |                             −4 |
+| US-015c.10     | Mock-side (UUID-shape)                    |                             −7 |
+| US-015c.11     | FR-8 skip (UI-label drift)                |                            −21 |
+| **US-015c.12** | **FR-9.1 + FR-8 + diagnostic mock-shape** |                         **−6** |
+| **Cumulative** |                                           | **−136 across 12 sub-stories** |
+
+**Files modified for US-015c.12: 2** (1 PRD + 1 test file). No production source changes; pure mock-data + mock-shape corrections + 6 FR-8 timeout skips.
+
 ---
 
 ### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c
