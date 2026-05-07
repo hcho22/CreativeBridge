@@ -1445,6 +1445,85 @@ The other top-8 files _may_ also have hidden `describe.skip` or `it.skip` direct
 
 **Files modified for US-015c.6: 1** (PRD only — test file unchanged; existing FR-8 marker already complete).
 
+#### US-015c.7 verdict ✅ MAJOR PROGRESS — `SettingsScreen.genre.test.tsx` 17 → 0 failures (17 cleared, 100%) via FR-8 skip
+
+**File:** `src/__tests__/screens/SettingsScreen.genre.test.tsx` (top-5 by failure count in the US-015c triage table — 17 fails)
+
+**Decision: apply FR-8 `describe.skip` with comprehensive deferral marker (matches the US-015c.6 / `syncIntegration.test.ts` pattern).** The genre-selector UI was intentionally removed from SettingsScreen in commit `a1dc5b2` ("fix: remove redundant story genre section from Settings screen"). All 17 tests assert against UI elements that no longer render. There is no mock-side fix that resurrects deleted source code — this is a stale-test-for-removed-feature situation.
+
+**Investigation chain:**
+
+1. **Baseline:** `npx jest src/__tests__/screens/SettingsScreen.genre.test.tsx --no-coverage` → 17 failed, 1 passed.
+2. **Failure shape:** every failure is `Unable to find element with text: <Genre>` (Mystery / Fantasy / Comedy / Horror / etc.) or `Unable to find element with text: 📚 Story Genre`.
+3. **Rendered tree confirms removal:** SettingsScreen's "Workshop" renders Reading-level controls but no genre controls. No `<Text>📚 Story Genre</Text>`, no `Mystery` button, no `Clear Selection (No Preference)` text.
+4. **Source check:** `grep -n "Genre\|genre" src/screens/SettingsScreen.tsx` → 0 matches. The `preferred_genre` field still exists on `userProfile` and is consumed by `HomeScreen.tsx:259` and `src/utils/storySetupDefaults.ts:17` (the `GENRES` list); only the SETTINGS-SCREEN selector UI was deleted.
+5. **Git history confirms intent:** `a1dc5b2 fix: remove redundant story genre section from Settings screen` — explicit "redundant" framing, not an accidental regression.
+6. **The 1 originally-passing test was a false positive:** "does not show 'Clear Selection' button when no genre is selected" passes via `queryByText('...').toBeNull()` — but the button is null because the entire feature is gone, not because the hide-logic works. Skipping doesn't lose meaningful coverage.
+
+**Fix applied (FR-8, not FR-9.1 — same idiom as US-015c.6's skip):**
+
+```typescript
+// FR-8 deferral marker — see .claude/.agent/Tasks/prd-ci-debt-cleanup.md
+// US-015c.7 verdict for the deferral context.
+//
+// Why this whole describe is skipped:
+// The "Story Genre" UI section was intentionally removed from
+// `src/screens/SettingsScreen.tsx` in commit a1dc5b2 [...]
+// The genre PREFERENCE field itself still exists on userProfile [...]
+// Genre selection presumably happens elsewhere now (story-setup wizard /
+// onboarding / removed entirely with random fallback). [...]
+//
+// Categorization: same shape as US-015c.6 — feature substantively
+// removed/relocated [...] FR-9.1 mock-only changes have no leverage.
+// The right resolution is either:
+//   (a) Delete this file entirely (the feature is gone); or
+//   (b) Rewrite tests against wherever genre selection now lives, after
+//       a product decision on the new UX.
+//
+// Skipping (vs deletion) preserves the test scenarios as a paper trail
+// for "if we re-introduce settings-screen genre selection, here's what
+// was previously asserted" archaeology. [...] Routes to US-015c.7.1.
+//
+// eslint-disable-next-line jest/no-disabled-tests -- FR-8-compliant skip
+describe.skip('US-005: SettingsScreen genre selector', () => {
+```
+
+**Failure-count delta (this file only):**
+
+| Bucket                                          | Before | After | Delta |
+| ----------------------------------------------- | -----: | ----: | ----: |
+| `SettingsScreen.genre.test.tsx` test failures   |     17 |     0 |   −17 |
+| `SettingsScreen.genre.test.tsx` test passes     |      1 |     0 |    −1 |
+| `SettingsScreen.genre.test.tsx` test skips      |      0 |    18 |   +18 |
+| Total US-015c long-tail visible failures (~906) |   ~906 |  ~889 |   −17 |
+
+**Routes to US-015c.7.1 (proposed product+test follow-up):**
+
+The deferred decision: **does CreativeBridge want a settings-screen genre selector at all?** Three candidate resolutions, each with implications for this test file:
+
+1. **No — feature is gone permanently** (random/wizard-only genre selection). → Delete this test file entirely; remove `preferred_genre` field from `userProfile` if no other consumer needs it; clean up the `GENRES` constant from `storySetupDefaults.ts` if unused.
+2. **Yes, but in a different screen** (e.g., onboarding wizard, story-setup flow). → Rewrite this file's tests against the new screen's render path; rename to match the host screen.
+3. **Yes, eventually re-add to Settings** (deferred product feature). → Keep the skip; revisit when the feature lands.
+
+This is a product-decision question, not a per-test mock fix — properly out of scope for the long-tail FR-9.1 sweep.
+
+**Pattern crystallizing across US-015c.{1-7}:**
+
+| Sub-story      | Category                                   |              Net failures cleared |
+| -------------- | ------------------------------------------ | --------------------------------: |
+| US-015c.1      | Mock-side (auth flow `useConvexAuth`)      |                               −45 |
+| US-015c.2      | Mock-side (auth flow `useConvexAuth`)      |                                −9 |
+| US-015c.3      | Mock-side (TDZ + FlatList stub)            |                               −11 |
+| US-015c.4      | Mock-side (URL guard + wrapper divergence) |                                −4 |
+| US-015c.5      | No-mock-leverage (test-logic ordering)     |                     0 (docs-only) |
+| US-015c.6      | Already-deferred (existing FR-8 skip)      | 0 (docs-only; triage table stale) |
+| **US-015c.7**  | **FR-8 skip (removed feature)**            |                           **−17** |
+| **Cumulative** |                                            |      **−86 across 7 sub-stories** |
+
+The shape that emerges: **mock-side fixes work for live features with mock-divergence; FR-8 skips work for removed/deferred features; no-mock-leverage findings flag tests that need test-logic ordering rewrites in a separate sweep**. Each category has a different scope and shouldn't be conflated. US-015c.7 is the highest single-file leverage so far (−17, 100% of file's failures cleared).
+
+**Files modified for US-015c.7: 2** (1 PRD + 1 test file). No production source changes; only `describe.skip` + deferral marker added to the test file.
+
 ---
 
 ### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c

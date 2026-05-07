@@ -79,7 +79,46 @@ const GENRES: StoryGenre[] = [
   'Fairy Tale',
 ];
 
-describe('US-005: SettingsScreen genre selector', () => {
+// FR-8 deferral marker — see .claude/.agent/Tasks/prd-ci-debt-cleanup.md
+// US-015c.7 verdict for the deferral context.
+//
+// Why this whole describe is skipped:
+// The "Story Genre" UI section was intentionally removed from
+// `src/screens/SettingsScreen.tsx` in commit a1dc5b2 ("fix: remove
+// redundant story genre section from Settings screen"). All 17 tests in
+// this file assert against UI elements (genre buttons "Mystery" /
+// "Fantasy" / "Comedy" / "Horror" / etc., "📚 Story Genre" section
+// header, "Clear Selection (No Preference)" button, and the success/
+// error alerts that fire when tapping a genre) that the screen no longer
+// renders. The rendered tree confirms: SettingsScreen's "Workshop"
+// shows Reading-level controls but no genre controls at all.
+//
+// The genre PREFERENCE field itself still exists on userProfile
+// (`preferred_genre`) and is still consumed by `HomeScreen.tsx` (line
+// 259) and `src/utils/storySetupDefaults.ts` (the `GENRES` list at line
+// 17 — Mystery, Fantasy, Comedy, Horror, etc.). Genre selection
+// presumably happens elsewhere now (story-setup wizard / onboarding /
+// removed entirely with random fallback). Determining the new entry
+// point requires product judgment — out of scope for this long-tail
+// per-file mock-only sweep.
+//
+// Categorization: same shape as US-015c.6 (`syncIntegration.test.ts`)
+// — feature substantively removed/relocated; per-test "fixes" don't
+// make sense; FR-9.1 mock-only changes have no leverage. The right
+// resolution is either:
+//   (a) Delete this file entirely (the feature is gone); or
+//   (b) Rewrite tests against wherever genre selection now lives, after
+//       a product decision on the new UX.
+//
+// Skipping (vs deletion) preserves the test scenarios as a paper trail
+// for "if we re-introduce settings-screen genre selection, here's what
+// was previously asserted" archaeology. Cost of skip: zero. Routes to a
+// follow-up product+test decision under US-015c.7.1.
+//
+// Skipping these tests reduces the CI failure count by 17 without
+// losing information about what needs to be rewritten/deleted.
+// eslint-disable-next-line jest/no-disabled-tests -- FR-8-compliant skip with tracking comment above
+describe.skip('US-005: SettingsScreen genre selector', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockUpdateProfile.mockResolvedValue({});
