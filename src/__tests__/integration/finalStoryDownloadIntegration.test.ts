@@ -39,8 +39,97 @@ jest.mock('react-native-fs', () => ({
   stat: jest.fn(),
 }));
 
+// The download services import `* as RNFS from '../../utils/rnfsWrapper'`,
+// not directly from 'react-native-fs'. Mock the wrapper to delegate via
+// getters to the (already-mocked) 'react-native-fs' module so the existing
+// per-test setup (e.g., RNFS.writeFile.mockResolvedValue(true)) applies to
+// the wrapper's named-export surface as well. Pattern matches US-015c.4
+// (StoryImageDisplay) and uses the namespace-import shape this file needs.
+jest.mock('../../utils/rnfsWrapper', () => {
+  const rnfs = () =>
+    require('react-native-fs') as Record<string, unknown> & {
+      DocumentDirectoryPath: string;
+    };
+  // The wrapper exports each method as a named export bound to the
+  // singleton, plus a default singleton. Tests configure behavior via
+  // `react-native-fs` mock; getters forward at call time.
+  const namedExports = {
+    get DocumentDirectoryPath() {
+      return rnfs().DocumentDirectoryPath;
+    },
+    get writeFile() {
+      return rnfs().writeFile;
+    },
+    get readFile() {
+      return rnfs().readFile;
+    },
+    get exists() {
+      return rnfs().exists;
+    },
+    get mkdir() {
+      return rnfs().mkdir;
+    },
+    get unlink() {
+      return rnfs().unlink;
+    },
+    get stat() {
+      return rnfs().stat;
+    },
+    get downloadFile() {
+      return (rnfs() as Record<string, unknown>).downloadFile;
+    },
+    get moveFile() {
+      return (rnfs() as Record<string, unknown>).moveFile;
+    },
+    get copyFile() {
+      return (rnfs() as Record<string, unknown>).copyFile;
+    },
+    get readDir() {
+      return (rnfs() as Record<string, unknown>).readDir;
+    },
+  };
+  return {
+    __esModule: true,
+    default: { ...namedExports, isSimulationMode: false },
+    rnfsWrapper: { ...namedExports, isSimulationMode: false },
+    retryNativeModuleInitialization: jest.fn(),
+    ...namedExports,
+  };
+});
+
+// jest.setup.js:269's global react-native mock omits Vibration and
+// Appearance. The test-level `jest.mock('react-native', ...)` below tries
+// to add them, but per the US-015c.3 finding (setupFilesAfterEnv mocks
+// silently win over test-level mocks for the same path), the test mock is
+// ignored. Mutate the already-registered global mock object to add what
+// this file's services need.
+{
+  const RN = jest.requireMock('react-native') as Record<string, unknown>;
+  RN.Vibration = { vibrate: jest.fn() };
+  RN.Appearance = {
+    getColorScheme: jest.fn(() => 'light'),
+    addChangeListener: jest.fn(() => ({ remove: jest.fn() })),
+  };
+  if (!RN.useColorScheme) {
+    RN.useColorScheme = jest.fn(() => 'light');
+  }
+  if (!RN.Easing) {
+    RN.Easing = {
+      out: jest.fn(),
+      in: jest.fn(),
+      cubic: jest.fn(),
+      linear: jest.fn(),
+    };
+  }
+}
+
 jest.mock('react-native-share', () => ({
-  open: jest.fn(),
+  // The shareWrapper at src/utils/shareWrapper.ts calls Share.open then reads
+  // `result.dismissedAction`. A bare jest.fn() returns undefined and the
+  // wrapper crashes, propagates a TypeError, and saveOptimizedStoryFile's
+  // catch returns { success: false }. Resolve with a proper share-result
+  // shape so the wrapper computes `success: !result.dismissedAction = true`.
+  open: jest.fn().mockResolvedValue({ dismissedAction: false }),
 }));
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
