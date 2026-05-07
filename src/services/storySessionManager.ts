@@ -16,8 +16,28 @@ import { scoreInputQuality } from './inputQualityScorer';
 import { piiScrubber } from './piiScrubber';
 
 // Convex imports - primary database
-import { getConvexClient, api, isConvexReady } from './convex';
+import {
+  getConvexClient,
+  api,
+  isConvexReady,
+  waitForConvexAuth,
+  onConvexAuthReady,
+} from './convex';
 import type { Doc, Id } from '../../convex/_generated/dataModel';
+
+/**
+ * Shape mirrored from `convex/gameSessions.ts:updateSession.args.updates`
+ * — kept local so the pending-flush queue is strongly typed without
+ * importing the validator.
+ */
+type PendingSessionUpdate = {
+  storyContent?: string;
+  wordsWritten?: number;
+  sentencesCompleted?: number;
+  challengesCompleted?: number;
+  currentRound?: number;
+  storyMetadata?: Record<string, unknown>;
+};
 
 /**
  * Convert Convex game session to legacy StorySession format.
@@ -140,6 +160,32 @@ class StorySessionManager {
   > = new Map();
   private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache TTL
   private readonly MAX_CACHE_SIZE = 10; // Keep 10 most recent sessions in memory
+
+  /**
+   * In-memory queue of session updates that couldn't reach Convex because
+   * the auth handshake hadn't completed yet (or the JWT had expired). Keyed
+   * by Convex session id; each new update overwrites the previous so we
+   * always replay the freshest state.
+   *
+   * Drained by `flushPendingUpdates` — registered with `onConvexAuthReady`
+   * in the constructor so it fires automatically once auth lands.
+   */
+  private pendingSessionUpdates = new Map<string, PendingSessionUpdate>();
+
+  constructor() {
+    // Auto-flush whenever the Convex auth handshake completes (or on every
+    // re-auth). The listener stays alive for the singleton's lifetime — no
+    // unsubscribe path needed since the manager itself is process-scoped.
+    //
+    // Guarded with `typeof === 'function'` so the many unit-test fixtures
+    // that mock `services/convex` with a partial export don't break on
+    // module load. Production code always has the real export available.
+    if (typeof onConvexAuthReady === 'function') {
+      onConvexAuthReady(() => {
+        void this.flushPendingUpdates();
+      });
+    }
+  }
 
   // Create a new story session (Convex only - US-013)
   public async createSession(
@@ -578,6 +624,29 @@ class StorySessionManager {
       if (isConvexReady()) {
         const convexClient = getConvexClient();
         if (convexClient) {
+          // Wait for the Clerk → Convex JWT handshake before issuing the
+          // mutation. Without this, taps that happen during app launch race
+          // the handshake and surface as `requireAuth` "Not authenticated"
+          // server errors. 5s is generous for a normal handshake (~hundreds
+          // of ms); if we timeout we cache locally and queue for replay
+          // when `onConvexAuthReady` fires.
+          //
+          // The `typeof` guard mirrors the constructor's: unit-test mocks
+          // of services/convex don't define this helper, so we treat its
+          // absence as "auth is fine, proceed" — production always has it.
+          const authReady =
+            typeof waitForConvexAuth === 'function'
+              ? await waitForConvexAuth(5000)
+              : true;
+          if (!authReady) {
+            console.warn(
+              '⏳ Convex auth not ready; caching session locally and queuing for flush',
+            );
+            this.pendingSessionUpdates.set(session.id, convexUpdateData);
+            await this.cacheSessionLocally(session);
+            this.addToCache(session);
+            return session;
+          }
           try {
             console.log('📝 Updating session in Convex');
             await convexClient.mutation(api.gameSessions.updateSession, {
@@ -585,11 +654,25 @@ class StorySessionManager {
               updates: convexUpdateData,
             });
             console.log('✅ Convex session update successful');
+            // Drop any queued retry — we just wrote a fresher state.
+            this.pendingSessionUpdates.delete(session.id);
           } catch (convexError) {
-            console.error(
-              '❌ Convex update failed, caching locally:',
-              convexError,
-            );
+            const message = (convexError as Error)?.message ?? '';
+            const isAuthError = /not authenticated/i.test(message);
+            if (isAuthError) {
+              // Auth handshake reported ready but the server-side identity
+              // check still failed (token refresh in flight, session
+              // revoked, etc.). Queue for replay on the next ready edge.
+              console.warn(
+                '⏳ Convex update hit auth race; queued for retry on next auth-ready',
+              );
+              this.pendingSessionUpdates.set(session.id, convexUpdateData);
+            } else {
+              console.error(
+                '❌ Convex update failed, caching locally:',
+                convexError,
+              );
+            }
             await this.cacheSessionLocally(session);
             this.addToCache(session);
             return session;
@@ -992,6 +1075,46 @@ class StorySessionManager {
       await AsyncStorage.setItem(this.SESSIONS_KEY, JSON.stringify(sessions));
     } catch (error) {
       console.error('Error saving session:', error);
+    }
+  }
+
+  /**
+   * Replay any session updates that were queued because the Convex auth
+   * handshake hadn't completed (or the JWT had expired) at the time
+   * `updateSession` was called. Wired to `onConvexAuthReady` from the
+   * constructor — runs automatically on every false→true auth transition.
+   *
+   * We iterate a snapshot of the queue so concurrent `updateSession` calls
+   * (which can drop or replace entries) don't surprise us mid-loop. Each
+   * replay drops its entry on success; failures stay queued for the next
+   * auth-ready edge.
+   */
+  public async flushPendingUpdates(): Promise<void> {
+    if (this.pendingSessionUpdates.size === 0) return;
+    const client = getConvexClient();
+    if (!client) return;
+
+    const entries = Array.from(this.pendingSessionUpdates.entries());
+    console.log(
+      `🔁 Flushing ${entries.length} pending session update(s) after auth-ready`,
+    );
+    for (const [sessionId, updates] of entries) {
+      try {
+        await client.mutation(api.gameSessions.updateSession, {
+          sessionId: sessionId as Id<'gameSessions'>,
+          updates,
+        });
+        // Only delete on confirmed success — leaves stuck updates queued so
+        // a flaky network can retry on the next handshake.
+        this.pendingSessionUpdates.delete(sessionId);
+      } catch (err) {
+        console.warn(
+          `[storySessionManager] Flush retry failed for ${redactId(
+            sessionId,
+          )}:`,
+          (err as Error)?.message ?? err,
+        );
+      }
     }
   }
 

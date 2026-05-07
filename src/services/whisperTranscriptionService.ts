@@ -311,12 +311,28 @@ export class WhisperTranscriptionService {
         encoding: FileSystem.EncodingType.Base64,
       });
       const mimeType = Platform.OS === 'ios' ? 'audio/m4a' : 'audio/m4a';
-      const transcript = await openaiClient.transcribeAudio(
-        audioBase64,
-        mimeType,
-        language,
-      );
-      return transcript.trim();
+      try {
+        const transcript = await openaiClient.transcribeAudio(
+          audioBase64,
+          mimeType,
+          language,
+        );
+        return transcript.trim();
+      } catch (err) {
+        // The Convex `transcribeAudio` action calls `requireAuth(ctx)` first
+        // thing, which throws "Not authenticated" when no Clerk JWT is
+        // attached to the call. The HomeScreen Speak gate catches the
+        // common race-on-launch case, but a token refresh failure mid-flight
+        // (or a session that was revoked between record and stop) can still
+        // hit this path. Translate to a copy that tells the user what to do.
+        const message = (err as Error)?.message ?? '';
+        if (/not authenticated/i.test(message)) {
+          throw new Error(
+            'Voice input needs you signed in. Please sign in again, then tap Speak.',
+          );
+        }
+        throw err;
+      }
     } finally {
       // Always clean up — even on Whisper errors we don't want to leave
       // recordings on disk.

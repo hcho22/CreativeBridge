@@ -1,10 +1,29 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useEffect, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { ClerkProvider, useAuth } from '@clerk/clerk-expo';
 import { ConvexProviderWithClerk } from 'convex/react-clerk';
+import { useConvexAuth } from 'convex/react';
 import { isClerkConfigured, getClerkConfig } from '../../config/environment';
 import { clerkTokenCache } from '../../utils/clerkTokenCache';
-import { getConvexClient } from '../../services/convex';
+import { getConvexClient, setConvexAuthReady } from '../../services/convex';
+
+/**
+ * Tiny effect-only component that mirrors `useConvexAuth().isAuthenticated`
+ * into the module-level `setConvexAuthReady` flag in services/convex.ts.
+ *
+ * Lives inside `ConvexProviderWithClerk` so the hook has the right context.
+ * Non-React services (storySessionManager, onboardingService, etc.) read
+ * the module flag via `waitForConvexAuth` / `onConvexAuthReady`, which
+ * eliminates the race where `convexClient.mutation()` fires before the
+ * Clerk → Convex JWT handshake completes.
+ */
+const ConvexAuthBridge: React.FC = () => {
+  const { isAuthenticated } = useConvexAuth();
+  useEffect(() => {
+    setConvexAuthReady(isAuthenticated);
+  }, [isAuthenticated]);
+  return null;
+};
 
 /**
  * Helper to decode JWT payload without verification (for debugging only)
@@ -184,6 +203,13 @@ export const ConditionalClerkProvider: React.FC<
           client={convexClientInstance}
           useAuth={useAuthWithConvexDebug}
         >
+          {/*
+            Mirrors `useConvexAuth().isAuthenticated` into the module-level
+            flag read by non-React services. Must be a child of
+            ConvexProviderWithClerk so `useConvexAuth` resolves to the
+            real provider context.
+          */}
+          <ConvexAuthBridge />
           {children}
         </ConvexProviderWithClerk>
       ) : (

@@ -77,7 +77,7 @@ import {
   Watercolor,
 } from '../components/common/storybook';
 import { theme } from '../constants/theme';
-import { useMutation } from 'convex/react';
+import { useMutation, useConvexAuth } from 'convex/react';
 import { getConvexClient, api, isConvexReady } from '../services/convex';
 import type { Id } from '../../convex/_generated/dataModel';
 import { redactId } from '../utils/piiRedaction';
@@ -124,6 +124,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const recordOnboardingMilestone = useMutation(
     api.onboarding.recordOnboardingMilestone,
   );
+
+  // Convex auth handshake state. Voice transcription routes through the
+  // Convex `transcribeAudio` action which calls `requireAuth`; if a user taps
+  // Speak before the Clerk → Convex JWT handshake completes (or while a
+  // refresh is in flight), the action throws "Not authenticated". Gating the
+  // Speak button on this flag prevents the race rather than just translating
+  // the eventual error.
+  const { isAuthenticated: isConvexAuthReady } = useConvexAuth();
 
   const [isGameActive, setIsGameActive] = useState(false);
   const [currentSession, setCurrentSession] = useState<StorySession | null>(
@@ -3462,7 +3470,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                   storyInputRef={storyInputRef}
                   isUserStarting={isUserStarting}
                   onVoiceResult={handleVoiceResult}
-                  voiceInputEnabled={voiceInputEnabled}
+                  voiceInputEnabled={voiceInputEnabled && isConvexAuthReady}
                   onSpeakerPress={handleSpeakerButtonPress}
                   onSpeakerLongPress={handleSpeakerButtonLongPress}
                   speakerState={speakerState}
