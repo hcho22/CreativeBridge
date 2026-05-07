@@ -132,7 +132,7 @@ describe('Skill Enhanced Service Integration', () => {
   describe('Error Handling', () => {
     test('Error handling propagates correctly through architecture', async () => {
       const failingService = {
-        execute: async (req: { input: string }) => {
+        execute: async (_req: { input: string }) => {
           throw new Error('Service error');
         },
       };

@@ -218,7 +218,7 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
   // NEW: Upload image to Supabase Storage for permanent backup
   // Runs asynchronously in the background - doesn't block user experience
   const uploadToSupabaseStorage = useCallback(
-    async (replicateUrl: string, sessionId: string, userId: string) => {
+    async (replicateUrl: string, sid: string, uid: string) => {
       try {
         console.log('📤 Starting background upload to Supabase Storage...');
 
@@ -231,7 +231,7 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
 
         // Mark upload as pending in database
         await storySessionManager.updateSessionWithSupabaseImage(
-          sessionId,
+          sid,
           '', // No URL yet
           'pending',
           0,
@@ -240,14 +240,14 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
         // Upload to Supabase Storage with retry logic
         const uploadResult = await imageStorageService.uploadImageToSupabase(
           replicateUrl,
-          sessionId,
-          userId,
+          sid,
+          uid,
         );
 
         if (uploadResult.success && uploadResult.supabaseUrl) {
           // Update session with successful upload
           await storySessionManager.updateSessionWithSupabaseImage(
-            sessionId,
+            sid,
             uploadResult.supabaseUrl,
             'uploaded',
             uploadResult.attempts,
@@ -264,7 +264,7 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
         } else {
           // Update session with failure status
           await storySessionManager.updateSessionWithSupabaseImage(
-            sessionId,
+            sid,
             '',
             'failed',
             uploadResult.attempts,
@@ -285,7 +285,7 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
 
         // Update session with failure status
         await storySessionManager.updateSessionWithSupabaseImage(
-          sessionId,
+          sid,
           '',
           'failed',
           0,
@@ -528,6 +528,7 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({
     } finally {
       stopPulseAnimation();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- US-019 batch 4: clerk_user_id is loaded with the userProfile object; depending on the parent `userProfile` is sufficient.
   }, [
     isStoryCompleted,
     currentRound,

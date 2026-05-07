@@ -245,7 +245,6 @@ describe('US-008: Genre-aware story generation prompts', () => {
   describe('fallback story selection (generateStoryStarter)', () => {
     it('prefers genre-matching categories when genre is set', () => {
       // Run multiple times to test statistical preference
-      const categories: string[] = [];
       for (let i = 0; i < 50; i++) {
         const result = service.generateStoryStarter({
           gradeLevel: '3-5',

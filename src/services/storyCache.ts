@@ -218,25 +218,21 @@ class StoryCacheService {
     pattern2: StoryPattern,
   ): number {
     let score = 0;
-    let factors = 0;
 
     // Grade level match (high weight)
     if (pattern1.gradeLevel === pattern2.gradeLevel) {
       score += 0.4;
     }
-    factors++;
 
     // Genre match (medium weight)
     if (pattern1.genre === pattern2.genre) {
       score += 0.3;
     }
-    factors++;
 
     // Theme match (medium weight)
     if (pattern1.theme === pattern2.theme) {
       score += 0.2;
     }
-    factors++;
 
     // Keywords overlap (low weight)
     const keywordOverlap = this.calculateSetOverlap(
@@ -244,7 +240,6 @@ class StoryCacheService {
       new Set(pattern2.keywords),
     );
     score += keywordOverlap * 0.1;
-    factors++;
 
     return score;
   }
@@ -397,6 +392,7 @@ class StoryCacheService {
   }
 
   // Hash string for consistent keys
+  /* eslint-disable no-bitwise -- djb2 hash: bit-shift/mask intrinsic to algorithm. */
   private hashString(str: string): string {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
@@ -406,6 +402,7 @@ class StoryCacheService {
     }
     return hash.toString(36);
   }
+  /* eslint-enable no-bitwise */
 
   // Debounced persist to storage
   private persistTimeout: NodeJS.Timeout | null = null;
@@ -436,7 +433,6 @@ class StoryCacheService {
 
   // Clean up expired entries
   private cleanupExpiredEntries(): void {
-    const now = Date.now();
     for (const [key, entry] of this.cache) {
       if (this.isExpired(entry)) {
         this.cache.delete(key);

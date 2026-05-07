@@ -6,14 +6,10 @@
  */
 
 import { structuredLogger } from '../utils/logger';
-import { dynamicUICoordinator } from './dynamicUICoordinator';
 import { uiPerformanceMonitor } from './uiPerformanceMonitor';
 import { engagementOptimizer } from './engagementOptimizer';
 import { navigationOptimizer } from './navigationOptimizer';
 import { readingComprehensionOptimizer } from './readingComprehensionOptimizer';
-import { behaviorAnalytics } from './behaviorAnalytics';
-import { abTestingService } from './abTesting';
-import { storyAnalytics } from './storyAnalytics';
 
 export interface PRDSuccessCriteria {
   id: string;

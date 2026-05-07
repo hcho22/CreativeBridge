@@ -399,7 +399,7 @@ describe('Enhanced Error Handling Integration Tests', () => {
         new Error('Storage access denied'),
       );
 
-      const result = await storyDownloadService.downloadStoryWithRecovery({
+      await storyDownloadService.downloadStoryWithRecovery({
         storyContent: 'Storage check failure test',
         fileName: 'storage_check_test.txt',
         userId: 'user-123',

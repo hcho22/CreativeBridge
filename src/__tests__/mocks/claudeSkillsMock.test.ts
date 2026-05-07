@@ -8,8 +8,6 @@
 import {
   MockSkillManager,
   createMockSkillManager,
-  MOCK_SKILL_RESPONSES,
-  MOCK_EXECUTION_TIMES,
   MOCK_ERROR_SCENARIOS,
   SkillTestUtils,
 } from './claudeSkillsMock';

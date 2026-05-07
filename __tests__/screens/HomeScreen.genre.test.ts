@@ -13,7 +13,7 @@
  */
 
 import type { StoryGenre, UserProfile } from '../../src/types/database';
-import type { StoryRequest, StoryResponse } from '../../src/types/story';
+import type { StoryResponse } from '../../src/types/story';
 import type { GradeLevel } from '../../src/types/database';
 
 // --- Constants ---

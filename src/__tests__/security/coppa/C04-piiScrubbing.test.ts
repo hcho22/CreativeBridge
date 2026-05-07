@@ -11,7 +11,7 @@
  * @implements C-04
  */
 
-import { readSourceFile, extractFunctionBlock } from './helpers';
+import { readSourceFile } from './helpers';
 import { scrub } from '../../../services/piiScrubber';
 
 // ---------------------------------------------------------------------------

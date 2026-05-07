@@ -1,15 +1,11 @@
 import React from 'react';
 import { View, Text } from 'react-native';
-import {
-  PanGestureHandler,
-  PinchGestureHandler,
-} from 'react-native-gesture-handler';
+import { PinchGestureHandler } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
 } from 'react-native-reanimated';
-import ImageViewer from 'react-native-image-zoom-viewer';
 
 /**
  * Test component to verify all new dependencies are properly installed and functioning
@@ -27,14 +23,6 @@ const DependencyTest: React.FC = () => {
   const handlePinch = () => {
     scale.value = withSpring(scale.value === 1 ? 1.5 : 1);
   };
-
-  // Test react-native-image-zoom-viewer configuration
-  const images = [
-    {
-      url: 'https://example.com/test-image.jpg',
-      props: { testID: 'test-image' },
-    },
-  ];
 
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>

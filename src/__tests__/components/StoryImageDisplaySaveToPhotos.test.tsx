@@ -111,10 +111,6 @@ const defaultProps = {
 // This lets us test the Save to Photos button flow in isolation.
 const IMAGE_URL = 'file:///mock/documents/ImageCache/cached_story-image.jpg';
 
-// The remote URL is only used in the integration test where we need to test download
-const REMOTE_IMAGE_URL =
-  'https://abcdefghijk.supabase.co/storage/v1/object/public/story-images/story-image.jpg';
-
 /**
  * Helper: render component with a local file:// URL, simulate image load.
  * Using file:// skips the component's external URL validation and download useEffect,

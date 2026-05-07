@@ -205,8 +205,6 @@ jest.mock('../../services/reactotron', () => ({
 // Import after mocks
 import { AuthProvider, useAuth } from '../../context/AuthContext';
 
-const mockAsyncStorage = require('../../utils/asyncStorageWrapper').default;
-
 // ---------------------------------------------------------------------------
 // Test Data — Simulates a real Supabase user with full profile, stats, sessions
 // ---------------------------------------------------------------------------

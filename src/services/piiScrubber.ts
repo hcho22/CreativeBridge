@@ -60,7 +60,7 @@ type PatternEntry = {
   type: string;
 };
 
-const PII_PATTERNS: PatternEntry[] = [
+const _PII_PATTERNS: PatternEntry[] = [
   { regex: SSN_REGEX, replacement: '[SSN]', type: 'ssn' },
   { regex: EMAIL_REGEX, replacement: '[EMAIL]', type: 'email' },
   { regex: PHONE_REGEX, replacement: '[PHONE]', type: 'phone' },

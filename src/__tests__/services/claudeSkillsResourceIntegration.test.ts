@@ -605,7 +605,7 @@ describe('Claude Skills Resource Integration', () => {
 
       mockSkillManager.executeSkill.mockResolvedValue(lowConfidenceResult);
 
-      const initialStrategy = resourceManager.getCurrentStrategy();
+      resourceManager.getCurrentStrategy();
       await resourceManager.requestClaudeOptimization();
       const newStrategy = resourceManager.getCurrentStrategy();
 

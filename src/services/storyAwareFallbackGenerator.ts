@@ -197,7 +197,7 @@ export class StoryAwareFallbackGenerator {
   public async preGenerateFallbacks(
     request: StoryRequest,
     storyContext?: StoryContext,
-    riskFactors?: string[],
+    _riskFactors?: string[],
   ): Promise<Map<string, string>> {
     try {
       const preGeneratedContent = new Map<string, string>();
@@ -635,7 +635,7 @@ export class StoryAwareFallbackGenerator {
 
   private getAdaptiveTemplates(
     parameters: AdaptiveParameters,
-    gradeLevel: GradeLevel,
+    _gradeLevel: GradeLevel,
   ): string[] {
     const creativity = parameters.creativity;
     const complexity = parameters.complexity;
@@ -935,7 +935,7 @@ export class StoryAwareFallbackGenerator {
   }
 
   private generateEmergencyFallback(
-    gradeLevel: GradeLevel,
+    _gradeLevel: GradeLevel,
   ): ContextualFallbackResult {
     const emergencyContent = 'The story continued...';
 

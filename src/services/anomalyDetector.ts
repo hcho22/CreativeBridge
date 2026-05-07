@@ -49,6 +49,7 @@ export interface UserBehaviorProfile {
  * One-way hash to anonymize user IDs for COPPA compliance.
  * Uses a simple but effective hash — the result cannot be reversed to recover the original userId.
  */
+/* eslint-disable no-bitwise -- djb2 hash: bit-shift/OR are intrinsic to the algorithm. */
 function hashUserId(userId: string): string {
   let hash = 0;
   const salt = 'anomaly-detector-coppa';
@@ -59,6 +60,7 @@ function hashUserId(userId: string): string {
   }
   return `anon_${Math.abs(hash).toString(36)}`;
 }
+/* eslint-enable no-bitwise */
 
 class AnomalyDetector {
   private rules: AnomalyRule[] = [];

@@ -108,7 +108,7 @@ class PerformanceOptimizerService {
 
       // OS version score (20% weight)
       if (Platform.OS === 'ios') {
-        const majorVersion = parseInt(systemVersion.split('.')[0]);
+        const majorVersion = parseInt(systemVersion.split('.')[0], 10);
         if (majorVersion >= 15) score += 20;
         else if (majorVersion >= 13) score += 15;
         else score += 10;
@@ -384,7 +384,6 @@ class PerformanceOptimizerService {
     dimensions: { width: number; height: number },
   ) {
     const { width, height } = dimensions;
-    const screenScale = Dimensions.get('window').scale;
 
     return {
       uri,

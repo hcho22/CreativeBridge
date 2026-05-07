@@ -14,7 +14,6 @@ import {
 } from '../types/claudeSkills';
 import { ClaudeSkillsConfigFactory } from '../config/claudeSkillsConfig';
 import { claudeSkillsMonitor } from './claudeSkillsMonitor';
-import { abTestingService } from './abTesting';
 
 // Mock implementation for proof-of-concept
 // In a real implementation, this would use the actual Claude Skills SDK
@@ -313,7 +312,7 @@ class ClaudeSkillsManagerImpl implements SkillManager {
     };
   }
 
-  private mockResourceOptimization(input: SkillInput): any {
+  private mockResourceOptimization(_input: SkillInput): any {
     return {
       recommendations: [
         {
@@ -339,7 +338,7 @@ class ClaudeSkillsManagerImpl implements SkillManager {
     };
   }
 
-  private mockQualityAssessment(input: SkillInput): any {
+  private mockQualityAssessment(_input: SkillInput): any {
     return {
       overallScore: 0.92,
       scores: {
@@ -361,7 +360,7 @@ class ClaudeSkillsManagerImpl implements SkillManager {
     };
   }
 
-  private mockBehaviorAnalysis(input: SkillInput): any {
+  private mockBehaviorAnalysis(_input: SkillInput): any {
     return {
       patterns: [
         {

@@ -2,7 +2,6 @@
 // Task 1.2-TEST: Simplified security tests for authentication and configuration
 
 import { ClaudeSkillsConfigValidator } from '../../config/claudeSkillsConfig';
-import ClaudeSkillsConfigManager from '../../services/claudeSkillsConfigManager';
 import ClaudeSkillsCredentialRotationService from '../../services/claudeSkillsCredentialRotation';
 import { SkillType } from '../../types/claudeSkills';
 

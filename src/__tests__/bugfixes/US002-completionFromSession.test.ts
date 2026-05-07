@@ -15,7 +15,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { storySessionManager } from '../../services/storySessionManager';
-import type { StorySession } from '../../services/storySessionManager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Mock Convex client
@@ -67,8 +66,6 @@ jest.mock('../../services/challengeService', () => ({
 }));
 
 jest.mock('../../services/supabase');
-
-const MAX_ROUNDS = 5;
 
 /**
  * Helper to create a mock Convex game session document.

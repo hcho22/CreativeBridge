@@ -237,6 +237,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
       <PaperBackground style={StyleSheet.absoluteFillObject} />
       <ScrollView
         style={styles.scrollView}
+        // eslint-disable-next-line react-native/no-inline-styles -- dynamic safe-area insets, value changes per device
         contentContainerStyle={{
           paddingTop: insets.top + 20,
           paddingBottom: insets.bottom + 100,

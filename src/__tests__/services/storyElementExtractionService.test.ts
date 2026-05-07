@@ -4,10 +4,7 @@
  * Tests LLM-based extraction, normalization, fallback logic, and error handling
  */
 
-import {
-  storyElementExtractionService,
-  StoryElements,
-} from '../../services/storyElementExtractionService';
+import { storyElementExtractionService } from '../../services/storyElementExtractionService';
 import { openaiClient } from '../../services/openaiClient';
 
 // Mock the OpenAI client

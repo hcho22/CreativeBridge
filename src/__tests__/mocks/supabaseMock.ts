@@ -37,7 +37,7 @@ export const createMockSupabaseClient = () => {
           });
         }),
 
-      signUp: jest.fn().mockImplementation(({ email, password }) => {
+      signUp: jest.fn().mockImplementation(({ email, password: _password }) => {
         if (email === 'existing@example.com') {
           return Promise.resolve({
             data: { user: null, session: null },
@@ -80,7 +80,7 @@ export const createMockSupabaseClient = () => {
         });
       }),
 
-      onAuthStateChange: jest.fn().mockImplementation(callback => {
+      onAuthStateChange: jest.fn().mockImplementation(_callback => {
         return {
           data: {
             subscription: {
@@ -90,11 +90,11 @@ export const createMockSupabaseClient = () => {
         };
       }),
 
-      resetPasswordForEmail: jest.fn().mockImplementation(email => {
+      resetPasswordForEmail: jest.fn().mockImplementation(_email => {
         return Promise.resolve({ error: null });
       }),
 
-      resend: jest.fn().mockImplementation(({ email }) => {
+      resend: jest.fn().mockImplementation(({ email: _email }) => {
         return Promise.resolve({ error: null });
       }),
     },
@@ -167,7 +167,7 @@ export const createMockSupabaseClient = () => {
 
     // Storage API mock
     storage: {
-      from: jest.fn().mockImplementation(bucket => ({
+      from: jest.fn().mockImplementation(_bucket => ({
         upload: jest.fn().mockResolvedValue({
           data: { path: 'test-path.png' },
           error: null,

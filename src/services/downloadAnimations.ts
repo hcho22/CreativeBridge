@@ -140,7 +140,7 @@ export class DownloadAnimationsService {
     >,
     onComplete?: () => void,
   ): void {
-    const { opacity, scale, rotation } = animatedValues;
+    const { opacity: _opacity, scale, rotation } = animatedValues;
 
     // Stop any ongoing rotation
     rotation.stopAnimation();
@@ -173,7 +173,7 @@ export class DownloadAnimationsService {
     >,
     onComplete?: () => void,
   ): void {
-    const { opacity, scale, rotation, translateY } = animatedValues;
+    const { opacity: _opacity, scale, rotation, translateY } = animatedValues;
 
     // Stop any ongoing rotation
     rotation.stopAnimation();

@@ -10,6 +10,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GradeLevel, StorySource } from '../types';
+import { redactId } from '../utils/piiRedaction';
 import { ChallengeService } from './challengeService';
 import { scoreInputQuality } from './inputQualityScorer';
 import { piiScrubber } from './piiScrubber';
@@ -503,7 +504,7 @@ class StorySessionManager {
   }
 
   // Get all sessions for a user (Convex only - US-013)
-  public async getUserSessions(userId: string): Promise<SessionSummary[]> {
+  public async getUserSessions(_userId: string): Promise<SessionSummary[]> {
     try {
       console.log('Fetching user sessions');
 
@@ -1121,9 +1122,10 @@ class StorySessionManager {
     session: StorySession,
   ): Promise<{ isFirstStory: boolean; isFirstStreak: boolean } | null> {
     try {
+      const uidMasked = redactId(session.user_id);
       console.log('📊 Updating user statistics for completed story:', {
         sessionId: session.id,
-        userId: session.user_id,
+        uid: uidMasked,
         xpEarned: session.xp_earned,
         wordsWritten: session.words_written,
         finalScore: session.final_score,

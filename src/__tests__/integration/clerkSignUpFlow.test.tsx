@@ -21,6 +21,7 @@ import { Alert } from 'react-native';
 
 // Override the jest.setup.js react-native mock to include KeyboardAvoidingView
 jest.mock('react-native', () => {
+  // eslint-disable-next-line @typescript-eslint/no-shadow -- jest.mock factory runs in isolated scope; the outer React import isn't visible at factory-execution time.
   const React = require('react');
   const createComponent = (name: string) =>
     React.forwardRef((props: any, ref: any) =>

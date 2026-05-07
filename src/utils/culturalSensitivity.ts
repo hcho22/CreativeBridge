@@ -261,10 +261,9 @@ export class CulturalSensitivityValidator {
    */
   static detectBias(content: string): BiasDetectionResult[] {
     const results: BiasDetectionResult[] = [];
-    const contentLower = content.toLowerCase();
 
     for (const [biasType, patterns] of Object.entries(BIAS_PATTERNS)) {
-      for (const [patternType, patternList] of Object.entries(patterns)) {
+      for (const [_patternType, patternList] of Object.entries(patterns)) {
         for (const pattern of patternList) {
           const matches = content.match(pattern.pattern);
           if (matches) {
@@ -575,7 +574,7 @@ export class CulturalSensitivityValidator {
 
   // Private helper methods
 
-  private static getBiasSuggestion(biasType: string, match: string): string {
+  private static getBiasSuggestion(biasType: string, _match: string): string {
     const suggestions = {
       gender:
         'Consider using gender-neutral language or representing diverse gender expressions',

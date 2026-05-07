@@ -7,12 +7,7 @@
  */
 
 import { analyticsService } from './analyticsService';
-import {
-  SkillType,
-  SkillResult,
-  SkillError,
-  PerformanceMetrics as SkillPerformanceMetrics,
-} from '../types/claudeSkills';
+import { SkillType, SkillResult } from '../types/claudeSkills';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Performance metrics for Claude Skills
@@ -207,9 +202,9 @@ class ClaudeSkillsMonitor {
   trackExecutionStart(
     executionId: string,
     skillType: SkillType,
-    skillId: string,
-    userId?: string,
-    sessionId?: string,
+    _skillId: string,
+    _userId?: string,
+    _sessionId?: string,
   ): void {
     const memoryBefore = this.getCurrentMemoryUsage();
     const startTime = Date.now();
@@ -374,7 +369,7 @@ class ClaudeSkillsMonitor {
   /**
    * Update percentile metrics (simplified implementation)
    */
-  private updatePercentiles(responseTime: number): void {
+  private updatePercentiles(_responseTime: number): void {
     // In production, this would maintain a sorted list or use a proper percentile algorithm
     // For now, we'll use a simplified approach
     const responseTimes = this.executionEvents

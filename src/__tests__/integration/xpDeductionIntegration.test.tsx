@@ -62,7 +62,7 @@ const mockSupabase = supabase as jest.Mocked<typeof supabase>;
 const TestComponent: React.FC<{ onXPResult?: (result: any) => void }> = ({
   onXPResult,
 }) => {
-  const { deductXP, validateXPBalance, userProfile } = useAuth();
+  const { validateXPBalance, userProfile } = useAuth();
 
   React.useEffect(() => {
     if (onXPResult && userProfile) {
@@ -184,7 +184,7 @@ describe('XP Deduction Integration Tests', () => {
 
     const TestXPDeduction: React.FC = () => {
       const { deductXP, userProfile } = useAuth();
-      const [result, setResult] = React.useState<any>(null);
+      const [_result, setResult] = React.useState<any>(null);
 
       React.useEffect(() => {
         if (userProfile && userProfile.total_xp >= 1000) {

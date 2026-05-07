@@ -120,7 +120,7 @@ export class SkillErrorRecoveryService {
   /**
    * Get recovery strategy for skill type
    */
-  private getRecoveryStrategy(skillType: SkillType): RecoveryStrategy {
+  private getRecoveryStrategy(_skillType: SkillType): RecoveryStrategy {
     return {
       shouldRetry: (error: SkillError, attempt: number) => {
         // Don't retry non-retryable errors

@@ -1,4 +1,4 @@
-import { device, element, by, expect as detoxExpect } from 'detox';
+import { device } from 'detox';
 import { TestHelpers } from './helpers/testHelpers';
 
 /**
@@ -309,7 +309,10 @@ describe('Offline Mode E2E', () => {
     await TestHelpers.verifyStoryCompleted();
 
     // Verify XP was updated correctly
-    await TestHelpers.waitForElementToBeVisible('xp-earned-notification', 10000);
+    await TestHelpers.waitForElementToBeVisible(
+      'xp-earned-notification',
+      10000,
+    );
     await TestHelpers.takeScreenshot('04-xp-synced-after-completion');
   });
 });

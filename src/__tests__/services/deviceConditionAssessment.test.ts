@@ -7,10 +7,8 @@
 
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import DeviceInfo from 'react-native-device-info';
-import { Platform } from 'react-native';
 
 import DynamicResourceManager from '../../services/resourceManager';
-import { DeviceConditions } from '../../services/resourceManager';
 
 jest.mock('react-native-device-info');
 jest.mock('react-native', () => ({

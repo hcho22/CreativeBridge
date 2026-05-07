@@ -8,7 +8,7 @@ import {
   type ImageGenerationRequest,
 } from '../../services/imageGeneration';
 import { supabase } from '../../services/supabase';
-import type { ErrorType, ImageGenerationEvent } from '../../types/database';
+import type { ErrorType } from '../../types/database';
 
 // Mock dependencies
 jest.mock('../../services/supabase', () => ({
@@ -195,7 +195,7 @@ class ErrorScenarioSimulator {
     mockSupabase.from.mockReturnValue(mockQueryBuilder as any);
   }
 
-  async testScenario(scenarioName: string): Promise<{
+  async testScenario(_scenarioName: string): Promise<{
     success: boolean;
     error?: string;
     errorType?: ErrorType;
@@ -711,7 +711,6 @@ describe('Error Handling Scenarios - User Acceptance Tests', () => {
       const gradeLevels = ['K-2', '3-5', '6-8', '9-12'];
 
       for (const gradeLevel of gradeLevels) {
-        const request = { ...errorSimulator.getBaseRequest(), gradeLevel };
         errorSimulator.setupAPIFailureScenario();
 
         // For now, all grade levels get the same message

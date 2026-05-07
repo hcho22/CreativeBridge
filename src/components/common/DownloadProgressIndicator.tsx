@@ -61,6 +61,7 @@ export const DownloadProgressIndicator: React.FC<
         }),
       ]).start();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- US-019 batch 4: fadeAnim/scaleAnim are useRef Animated.Value refs and are stable across renders.
   }, [visible]);
 
   useEffect(() => {
@@ -72,6 +73,7 @@ export const DownloadProgressIndicator: React.FC<
         useNativeDriver: false,
       }).start();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- US-019 batch 4: progressAnim is a stable useRef; depending on the exact `progress.progress` numeric is the intended trigger.
   }, [progress?.progress]);
 
   const getStageIcon = (stage: DownloadProgress['stage']): string => {

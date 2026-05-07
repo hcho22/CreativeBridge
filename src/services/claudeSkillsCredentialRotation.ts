@@ -5,7 +5,6 @@ import {
   ClaudeSkillsCredentialManager,
   ClaudeSkillsConfigFactory,
   CredentialRotationInfo,
-  CredentialRotationConfiguration,
 } from '../config/claudeSkillsConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 

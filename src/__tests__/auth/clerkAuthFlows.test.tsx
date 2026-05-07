@@ -8,7 +8,7 @@
 //   - Network error handling during migration
 
 import React from 'react';
-import { renderHook, act, waitFor } from '@testing-library/react-native';
+import { renderHook, act } from '@testing-library/react-native';
 
 // ---------------------------------------------------------------------------
 // Mocks — jest.mock factories are hoisted above imports. To reference mutable
@@ -1567,9 +1567,8 @@ describe('Clerk Auth Flows Integration Tests (US-019)', () => {
 
       const { result } = renderHook(() => useAuth(), { wrapper });
 
-      let resetResult: any;
       await act(async () => {
-        resetResult = await result.current.resetPassword('user@example.com');
+        await result.current.resetPassword('user@example.com');
       });
 
       expect(mockSignInCreate).toHaveBeenCalledWith({

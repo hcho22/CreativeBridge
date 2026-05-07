@@ -9,7 +9,6 @@ import {
   ClaudeSkillsConfigNotificationManager,
   ClaudeSkillsEnvironmentManager,
   SecurityConfiguration,
-  CredentialRotationConfiguration,
   CacheConfiguration,
   FallbackConfiguration,
   MonitoringConfiguration,

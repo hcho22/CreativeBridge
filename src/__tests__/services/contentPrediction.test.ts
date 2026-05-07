@@ -5,9 +5,7 @@
  */
 
 import { contentPredictionService } from '../../services/contentPrediction';
-import { StoryRequest, GradeLevel } from '../../types/story';
-import { createMockSkillManager } from '../mocks/claudeSkillsMock';
-import { getClaudeSkillsManager } from '../../services/claudeSkillsManager';
+import { StoryRequest } from '../../types/story';
 
 // Mock dependencies
 jest.mock('../../services/claudeSkillsManager');

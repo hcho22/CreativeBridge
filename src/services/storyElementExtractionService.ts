@@ -359,7 +359,7 @@ Extract characters, settings, objects, and plot patterns. Return valid JSON only
     // Pattern 1: Remove orphaned empty strings in the structure
     // This handles cases like: `"objects":[], "" ]}`
     // Remove standalone empty strings that appear after commas or arrays
-    repaired = repaired.replace(/,\s*""\s*(?=[,\]\}])/g, '');
+    repaired = repaired.replace(/,\s*""\s*(?=[,\]}])/g, '');
 
     // Pattern 2: Remove trailing commas in arrays
     repaired = repaired.replace(/,\s*]/g, ']');

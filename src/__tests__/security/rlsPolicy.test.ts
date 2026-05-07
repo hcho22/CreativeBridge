@@ -19,7 +19,6 @@ describe('RLS Policy Tests', () => {
   describe('user_profiles table policies', () => {
     it('should allow users to view all profiles (for leaderboards)', async () => {
       const user1 = createMockUser({ id: 'user-1' });
-      const user2 = createMockUser({ id: 'user-2' });
       const profile1 = createMockUserProfile({ id: 'user-1' });
       const profile2 = createMockUserProfile({ id: 'user-2' });
 

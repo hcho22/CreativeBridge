@@ -375,7 +375,7 @@ describe('Security Validation for Production', () => {
     };
   }
 
-  async function mockInputValidation(input: string): Promise<any> {
+  async function mockInputValidation(_input: string): Promise<any> {
     return {
       blocked: true,
       sanitized: true,

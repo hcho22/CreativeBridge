@@ -512,20 +512,18 @@ describe('Story Generation Integration', () => {
         await mockStoryGenerationService.analyzeImportedStory(
           importedFileContent,
         );
-      const contextResult =
-        await mockStoryGenerationService.prepareImportedStoryContext(
-          importedFileContent,
-          analysisResult,
-        );
+      await mockStoryGenerationService.prepareImportedStoryContext(
+        importedFileContent,
+        analysisResult,
+      );
       const continuationResult =
         await mockStoryGenerationService.generateImportedStoryContinuation(
           importedFileContent,
         );
-      const qualityResult =
-        await mockStoryGenerationService.validateContinuationQuality(
-          continuationResult,
-          importedFileContent,
-        );
+      await mockStoryGenerationService.validateContinuationQuality(
+        continuationResult,
+        importedFileContent,
+      );
 
       // All steps should complete without error
       expect(

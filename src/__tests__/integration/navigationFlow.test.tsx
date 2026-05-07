@@ -1,12 +1,8 @@
 // Navigation flow integration tests
 import React from 'react';
 import { render, fireEvent, screen, waitFor } from '../utils/testUtils';
-import { NavigationContainer } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import AppNavigator from '../../navigation/AppNavigator';
-import { HomeScreen, SettingsScreen, ProfileScreen } from '../../screens';
 import { mockSupabase } from '../mocks/supabaseMock';
-import { createMockUser, createMockUserProfile } from '../utils/testUtils';
 
 // Mock dependencies — factory bodies use jest.requireActual so the helper
 // modules resolve at factory-execution time (the surrounding import bindings

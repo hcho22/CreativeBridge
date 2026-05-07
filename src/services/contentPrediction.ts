@@ -7,7 +7,6 @@
 
 import { getClaudeSkillsManager } from './claudeSkillsManager';
 import {
-  SkillType,
   ContentPredictionInput,
   ContentPredictionResult,
   ContentPrediction,
@@ -15,7 +14,6 @@ import {
 import type { StoryRequest } from '../types/story';
 import type { GradeLevel } from '../types/database';
 import { structuredLogger } from '../utils/logger';
-import { storyAnalytics } from './storyAnalytics';
 
 export interface StoryPattern {
   category: string;
@@ -663,7 +661,7 @@ class ContentPredictionService {
    */
   private async getContentPredictionSkillId(): Promise<string | null> {
     try {
-      const skillManager = await getClaudeSkillsManager();
+      await getClaudeSkillsManager();
       // In a real implementation, we would query the skill manager
       // For now, return a default ID pattern that matches the mock
       return 'ContentPredictionSkill_1.0.0';

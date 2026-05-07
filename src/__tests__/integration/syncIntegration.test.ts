@@ -37,6 +37,7 @@ import { syncService } from '../../services/syncService';
 //
 // Skipping these tests reduces the CI failure count by 18 without losing
 // information about what needs to be rewritten.
+// eslint-disable-next-line jest/no-disabled-tests -- FR-8-compliant skip with tracking comment above
 describe.skip('Sync Service Integration', () => {
   beforeEach(() => {
     jest.clearAllMocks();

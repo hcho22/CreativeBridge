@@ -1,5 +1,5 @@
 import React, { useMemo, useCallback } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { ClerkProvider, useAuth } from '@clerk/clerk-expo';
 import { ConvexProviderWithClerk } from 'convex/react-clerk';
 import { isClerkConfigured, getClerkConfig } from '../../config/environment';
@@ -154,6 +154,11 @@ export const ConditionalClerkProvider: React.FC<
     }
   }, []);
 
+  // Get Convex client (may be null if not configured).
+  // Must call useMemo BEFORE the early return below — hooks must run in the
+  // same order on every render (rules-of-hooks).
+  const convexClientInstance = useMemo(() => getConvexClient(), []);
+
   // If Clerk is not configured, don't render children
   // This prevents AuthProvider from calling Clerk hooks when ClerkProvider is not present
   // Components that need to work without Clerk should be rendered outside this provider
@@ -163,9 +168,6 @@ export const ConditionalClerkProvider: React.FC<
     );
     return null;
   }
-
-  // Get Convex client (may be null if not configured)
-  const convexClientInstance = useMemo(() => getConvexClient(), []);
 
   // Clerk is configured, wrap with ClerkProvider
   // This ensures ClerkProvider is present when Clerk hooks are called
@@ -187,26 +189,9 @@ export const ConditionalClerkProvider: React.FC<
       ) : (
         // Convex not configured - AuthProvider requires ConvexProvider for its hooks
         // (useConvex, useMutation, useQuery). Rendering children without it would crash.
-        <View
-          style={{
-            flex: 1,
-            justifyContent: 'center',
-            alignItems: 'center',
-            padding: 20,
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 20,
-              fontWeight: 'bold',
-              color: '#333',
-              textAlign: 'center',
-              marginBottom: 10,
-            }}
-          >
-            Backend Not Configured
-          </Text>
-          <Text style={{ fontSize: 18, color: '#666', textAlign: 'center' }}>
+        <View style={styles.fallbackContainer}>
+          <Text style={styles.fallbackTitle}>Backend Not Configured</Text>
+          <Text style={styles.fallbackBody}>
             CONVEX_URL is not set. Please configure the Convex backend URL to
             continue.
           </Text>
@@ -215,3 +200,24 @@ export const ConditionalClerkProvider: React.FC<
     </ClerkProvider>
   );
 };
+
+const styles = StyleSheet.create({
+  fallbackContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  fallbackTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  fallbackBody: {
+    fontSize: 18,
+    color: '#666',
+    textAlign: 'center',
+  },
+});

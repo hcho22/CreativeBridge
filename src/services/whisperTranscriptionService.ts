@@ -165,9 +165,9 @@ export class WhisperTranscriptionService {
     // carries a `metering` field in dB. Forward only the metering number to
     // the caller — everything else (duration, URI, etc.) is owned by us.
     if (onMetering) {
-      recording.setOnRecordingStatusUpdate(status => {
-        if (status.isRecording && typeof status.metering === 'number') {
-          onMetering(status.metering);
+      recording.setOnRecordingStatusUpdate(recStatus => {
+        if (recStatus.isRecording && typeof recStatus.metering === 'number') {
+          onMetering(recStatus.metering);
         }
       });
       // iOS: poll interval for status updates. Default is ~500ms which is

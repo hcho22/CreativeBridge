@@ -2,6 +2,7 @@
 // Implements OpenAI integration with Story_Quest patterns and comprehensive error handling
 
 // Removed OpenAI SDK - using React Native compatible client
+import { redactId } from '../utils/piiRedaction';
 import { openaiClient } from './openaiClient';
 import { piiScrubber } from './piiScrubber';
 import {
@@ -894,9 +895,11 @@ class StoryGenerationService {
       storyId: request.storyId,
       fn: async () => {
         try {
+          const sidMasked = redactId(request.sessionId);
+          const uidMasked = redactId(request.userId);
           console.log('🎨 Retrieving diversity guidance', {
-            sessionId: request.sessionId,
-            userId: request.userId,
+            sid: sidMasked,
+            uid: uidMasked,
             gradeLevel: request.gradeLevel,
           });
 
@@ -1292,7 +1295,6 @@ Continue the story with 1-3 sentences. Keep your response under 200 words.`;
 
     // Check for inappropriate words using word boundaries to avoid false positives
     // e.g., "war" should not match "warm", "aware", "award"
-    const lowerContent = content.toLowerCase();
     for (const word of this.config.contentFilter.inappropriateWords) {
       // Use word boundary regex to match whole words only
       const wordRegex = new RegExp(`\\b${word.toLowerCase()}\\b`, 'i');

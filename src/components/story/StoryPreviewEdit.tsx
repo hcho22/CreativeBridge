@@ -10,15 +10,12 @@ import {
   ScrollView,
   Alert,
   StyleSheet,
-  Dimensions,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { GameSession, StoryMetadata } from '../../types/database';
-
-const { width, height } = Dimensions.get('window');
 
 export interface StoryPreviewEditProps {
   story: GameSession;
@@ -120,6 +117,7 @@ export const StoryPreviewEdit: React.FC<StoryPreviewEditProps> = ({
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- US-019 batch 4: handleSave/isSaving are forward-declared; effect runs on user-edit signals (editedContent/hasUnsavedChanges).
   }, [editedContent, hasUnsavedChanges, autoSave, autoSaveDelay]);
 
   // Handle edit mode toggle

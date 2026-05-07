@@ -598,6 +598,7 @@ class TwoFactorAuthService {
     return code;
   }
 
+  /* eslint-disable no-bitwise -- djb2 hash: bit-shift/mask intrinsic to algorithm. */
   private simpleHash(input: string): number {
     let hash = 0;
     for (let i = 0; i < input.length; i++) {
@@ -607,6 +608,7 @@ class TwoFactorAuthService {
     }
     return Math.abs(hash);
   }
+  /* eslint-enable no-bitwise */
 
   private async verifyEmailCode(
     userId: string,

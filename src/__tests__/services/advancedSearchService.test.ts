@@ -12,8 +12,6 @@
 import {
   advancedSearchService,
   SearchQuery,
-  SearchResult,
-  SearchSuggestion,
 } from '../../services/advancedSearchService';
 
 // Mock the Supabase client
@@ -477,10 +475,7 @@ describe('AdvancedSearchService', () => {
       supabase.from().select().eq = mockEq;
 
       const metadata = { source: 'CreativeBridge' };
-      const results = await advancedSearchService.searchByMetadata(
-        metadata,
-        'user-1',
-      );
+      await advancedSearchService.searchByMetadata(metadata, 'user-1');
 
       expect(mockEq).toHaveBeenCalledWith('story_source', 'CreativeBridge');
     });
@@ -496,7 +491,7 @@ describe('AdvancedSearchService', () => {
       supabase.from().select().eq = mockEq;
 
       const metadata = { gradeLevel: 'K-2' };
-      const results = await advancedSearchService.searchByMetadata(metadata);
+      await advancedSearchService.searchByMetadata(metadata);
 
       expect(mockEq).toHaveBeenCalledWith('grade_level', 'K-2');
     });
@@ -520,7 +515,7 @@ describe('AdvancedSearchService', () => {
         },
       };
 
-      const results = await advancedSearchService.searchByMetadata(metadata);
+      await advancedSearchService.searchByMetadata(metadata);
 
       expect(mockGte).toHaveBeenCalledWith('created_at', '2024-01-01');
     });

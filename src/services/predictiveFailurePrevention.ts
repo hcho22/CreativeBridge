@@ -403,7 +403,7 @@ export class PredictiveFailurePreventionService {
   public async validatePrediction(
     prediction: FailurePrediction,
     actualOutcome: 'success' | 'failure',
-    responseTime?: number,
+    _responseTime?: number,
   ): Promise<void> {
     try {
       const wasCorrect =
@@ -612,7 +612,7 @@ export class PredictiveFailurePreventionService {
 
   private async createPreventiveActions(
     prediction: FailurePrediction,
-    request: StoryRequest,
+    _request: StoryRequest,
   ): Promise<PreventiveAction[]> {
     const actions: PreventiveAction[] = [];
 
@@ -701,6 +701,7 @@ export class PredictiveFailurePreventionService {
             // Implementation would optimize network settings
             // This could involve adjusting timeouts, retries, etc.
             return true;
+            // eslint-disable-next-line no-unreachable -- catch is a stub for the future impl above; once real I/O is added, this becomes reachable
           } catch {
             return false;
           }
@@ -713,7 +714,7 @@ export class PredictiveFailurePreventionService {
 
   private analyzeHistoricalPatterns(
     request: StoryRequest,
-    sessionMetrics?: any,
+    _sessionMetrics?: any,
   ): number {
     // Simple historical analysis based on stored patterns
     const key = `${request.gradeLevel}_${request.storySoFar?.length || 0}`;

@@ -7,7 +7,7 @@
 import { contentPredictionService } from '../../services/contentPrediction';
 import { enhancedStoryAgentService } from '../../services/enhancedStoryAgent';
 import { getClaudeSkillsManager } from '../../services/claudeSkillsManager';
-import { StoryRequest, GradeLevel } from '../../types/story';
+import { StoryRequest } from '../../types/story';
 import { createMockSkillManager } from '../mocks/claudeSkillsMock';
 
 // Mock dependencies
@@ -44,9 +44,7 @@ describe('Content Prediction Integration', () => {
       expect(analysis).toBeDefined();
 
       // Get predictions
-      const predictions = await contentPredictionService.predictContent(
-        analysis,
-      );
+      await contentPredictionService.predictContent(analysis);
 
       // Predictions should be available (or null if skill unavailable)
       // The story service should still work regardless

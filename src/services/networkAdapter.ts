@@ -516,7 +516,7 @@ export class NetworkAdapterService {
   // Private implementation methods
 
   private determineRequiredAdaptations(
-    request: StoryRequest,
+    _request: StoryRequest,
   ): NetworkAdaptation[] {
     const required: NetworkAdaptation[] = [];
 
@@ -557,7 +557,7 @@ export class NetworkAdapterService {
     }
   }
 
-  private createFallbackPlan(request: StoryRequest): string[] {
+  private createFallbackPlan(_request: StoryRequest): string[] {
     const plan: string[] = [];
 
     // Add progressively more aggressive fallbacks
@@ -927,7 +927,7 @@ export class NetworkAdapterService {
 
   private async compressDataAdaptation(
     request: StoryRequest,
-    conditions: NetworkConditions,
+    _conditions: NetworkConditions,
   ): Promise<AdaptedRequest> {
     const adaptable = request as AdaptableStoryRequest;
     const modifiedRequest: AdaptableStoryRequest = {
@@ -954,7 +954,7 @@ export class NetworkAdapterService {
 
   private async reduceQualityAdaptation(
     request: StoryRequest,
-    conditions: NetworkConditions,
+    _conditions: NetworkConditions,
   ): Promise<AdaptedRequest> {
     const adaptable = request as AdaptableStoryRequest;
     const modifiedRequest: AdaptableStoryRequest = {
@@ -982,7 +982,7 @@ export class NetworkAdapterService {
 
   private async aggressiveCacheAdaptation(
     request: StoryRequest,
-    conditions: NetworkConditions,
+    _conditions: NetworkConditions,
   ): Promise<AdaptedRequest> {
     const adaptable = request as AdaptableStoryRequest;
     const modifiedRequest: AdaptableStoryRequest = {
@@ -1010,7 +1010,7 @@ export class NetworkAdapterService {
 
   private async offlineModeAdaptation(
     request: StoryRequest,
-    conditions: NetworkConditions,
+    _conditions: NetworkConditions,
   ): Promise<AdaptedRequest> {
     const adaptable = request as AdaptableStoryRequest;
     const modifiedRequest: AdaptableStoryRequest = {

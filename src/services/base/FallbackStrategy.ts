@@ -149,7 +149,7 @@ export class OriginalServiceFallbackStrategy<
     this.originalService = originalService;
   }
 
-  canHandle(error: SkillError, context: FallbackContext): boolean {
+  canHandle(_error: SkillError, _context: FallbackContext): boolean {
     // Can always fall back to original service
     return true;
   }
@@ -285,7 +285,7 @@ export class DefaultResponseFallbackStrategy<
     this.defaultResponse = defaultResponse;
   }
 
-  canHandle(error: SkillError, context: FallbackContext): boolean {
+  canHandle(_error: SkillError, _context: FallbackContext): boolean {
     // Can always provide default response
     return true;
   }

@@ -215,6 +215,7 @@ const StoryCard: React.FC<StoryCardProps> = ({
         { text: 'Share', onPress: () => shareImage() },
       ]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- US-019 batch 4: downloadImage/shareImage are forward-declared callbacks (mutual recursion would result if listed here).
   }, [hasImage, imageUrl, imageError, story]);
 
   // Download image to device

@@ -552,6 +552,7 @@ class BehaviorAnalyticsService {
     return anonymized;
   }
 
+  /* eslint-disable no-bitwise -- djb2 hash: bit-shift/mask intrinsic to algorithm. */
   private hashString(input: string): string {
     if (!input || !this.config.privacyMode) return input;
 
@@ -563,6 +564,7 @@ class BehaviorAnalyticsService {
     }
     return `hashed_${Math.abs(hash).toString(36)}`;
   }
+  /* eslint-enable no-bitwise */
 
   private integrateWithExistingAnalytics(
     interaction: UserInteractionEvent,
@@ -737,11 +739,6 @@ class BehaviorAnalyticsService {
   }
 
   private async analyzeAccessibilityPatterns(): Promise<void> {
-    const accessibilityInteractions = this.interactions.filter(
-      i =>
-        i.type === 'accessibility' && this.isWithinAnalysisWindow(i.timestamp),
-    );
-
     // Analyze for accessibility needs
     const voiceInteractions = this.interactions.filter(
       i => i.type === 'voice' && this.isWithinAnalysisWindow(i.timestamp),
@@ -857,7 +854,7 @@ class BehaviorAnalyticsService {
     const sessionDurations: number[] = [];
     const engagementScores: number[] = [];
 
-    for (const [sessionId, interactions] of recentSessions) {
+    for (const [_sessionId, interactions] of recentSessions) {
       const sessionStart = Math.min(...interactions.map(i => i.timestamp));
       const sessionEnd = Math.max(...interactions.map(i => i.timestamp));
       const duration = sessionEnd - sessionStart;
@@ -1175,7 +1172,7 @@ class BehaviorAnalyticsService {
     }
   }
 
-  private analyzeHelpSeekingPattern(interaction: UserInteractionEvent): void {
+  private analyzeHelpSeekingPattern(_interaction: UserInteractionEvent): void {
     // Track help-seeking patterns for proactive assistance
     const recentHelpSeeking = this.interactions.filter(
       i => i.type === 'help_seeking' && Date.now() - i.timestamp < 300000, // Last 5 minutes
@@ -1434,10 +1431,10 @@ class BehaviorAnalyticsService {
     }
 
     // Clean old adaptations
-    for (const [id, adaptation] of this.adaptations) {
+    for (const [id, _adaptation] of this.adaptations) {
       // Remove adaptations older than 24 hours
       if (
-        Date.now() - parseInt(id.split('_').pop() || '0') >
+        Date.now() - parseInt(id.split('_').pop() || '0', 10) >
         24 * 60 * 60 * 1000
       ) {
         this.adaptations.delete(id);

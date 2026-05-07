@@ -17,7 +17,6 @@ import DeviceInfo from 'react-native-device-info';
 
 import { dynamicResourceManager } from '../../services/resourceManager';
 import { performanceOptimizer } from '../../services/performanceOptimizer';
-import { storyCache } from '../../services/storyCache';
 import { structuredLogger } from '../../utils/logger';
 import { SkillManager } from '../../types/claudeSkills';
 
@@ -77,11 +76,9 @@ const MEMORY_TARGETS = {
 
 describe('Memory Optimization Validation', () => {
   let mockSkillManager: jest.Mocked<SkillManager>;
-  let memoryMeasurements: MemoryMeasurement[] = [];
 
   beforeEach(() => {
     jest.clearAllMocks();
-    memoryMeasurements = [];
 
     mockSkillManager = {
       initialize: jest.fn().mockResolvedValue(undefined),

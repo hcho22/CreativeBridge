@@ -14,7 +14,7 @@
  * @see src/__tests__/security/serverSideAI.test.ts — Original regression suite
  */
 
-import { readSourceFile, findAllFiles, scanFilesForPattern } from './helpers';
+import { readSourceFile, findAllFiles } from './helpers';
 
 describe('C-03: Server-Side AI Routing', () => {
   // ── Already-fixed paths (should pass) ──────────────────────────────

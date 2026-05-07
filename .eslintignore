@@ -2,3 +2,7 @@
 # their own /* eslint-disable */ header. Keep ESLint out of them entirely
 # so its --fix doesn't strip the directive on commit.
 convex/_generated/
+
+# Auto-generated Jest coverage reports — third-party JS files (prettify.js,
+# sorter.js) carry their own /* eslint-disable */ headers from istanbul.
+coverage/

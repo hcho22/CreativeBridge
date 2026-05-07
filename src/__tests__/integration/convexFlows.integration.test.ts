@@ -805,7 +805,7 @@ describe('Convex Full User Flow Integration Tests', () => {
       expect(secondResult.alreadyAchieved).toBe(true);
       expect(secondResult.xpAwarded).toBe(0);
 
-      const profile = ctx.db.__testUtils.getById(
+      const fetchedProfile = ctx.db.__testUtils.getById(
         'userProfiles',
         (await ctx.db
           .query('userProfiles')
@@ -814,7 +814,7 @@ describe('Convex Full User Flow Integration Tests', () => {
           )
           .first())!._id,
       );
-      expect(profile?.totalXp).toBe(150); // Only awarded once
+      expect(fetchedProfile?.totalXp).toBe(150); // Only awarded once
     });
 
     it('should prevent completing an already completed session', async () => {

@@ -224,9 +224,6 @@ describe('Error Handling and Fallbacks', () => {
       const originalMemoryWarning = global.console.warn;
       global.console.warn = jest.fn();
 
-      // Simulate low memory by creating large objects
-      const largeData = new Array(1000000).fill('large string data');
-
       try {
         const result = await storyAgentService.generateStoryStarter({
           gradeLevel: 'K-2',

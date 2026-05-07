@@ -358,7 +358,7 @@ jest.mock('react-native', () => ({
     View: 'Animated.View',
     Text: 'Animated.Text',
     ScrollView: 'Animated.ScrollView',
-    loop: jest.fn(_animation => ({
+    loop: jest.fn(() => ({
       start: jest.fn(),
     })),
     timing: jest.fn(() => ({

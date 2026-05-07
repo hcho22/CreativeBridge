@@ -10,7 +10,6 @@ import {
   SkillManager,
   SkillError,
   SkillErrorCode,
-  SkillType,
 } from '../types/claudeSkills';
 
 /**
@@ -214,7 +213,7 @@ export class ServiceHealthMonitor {
     error?: SkillError | Error,
   ): void {
     const metrics = this.getOrCreateMetrics(serviceName);
-    const status = this.getOrCreateStatus(serviceName);
+    this.getOrCreateStatus(serviceName);
 
     // Update metrics
     metrics.requestCount++;
@@ -744,7 +743,6 @@ export class ServiceHealthMonitor {
     const availableServices: string[] = [];
     const unavailableServices: string[] = [];
 
-    let healthyCount = 0;
     let degradedCount = 0;
     let unavailableCount = 0;
 
@@ -753,7 +751,6 @@ export class ServiceHealthMonitor {
 
       switch (status.status) {
         case 'healthy':
-          healthyCount++;
           availableServices.push(serviceName);
           break;
         case 'degraded':

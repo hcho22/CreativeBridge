@@ -517,7 +517,7 @@ describe('Claude Skills Configuration Integration Tests', () => {
 
     // Set up listener
     const unsubscribe = ClaudeSkillsConfigNotificationManager.addListener(
-      (config, version) => {
+      (config, _version) => {
         notificationReceived = true;
         receivedConfig = config;
       },
@@ -589,7 +589,7 @@ describe('Claude Skills Compliance Validation', () => {
     try {
       // Perform operations that might log
       await ClaudeSkillsCredentialManager.storeApiKey('secret_test_key_12345');
-      const config = await ClaudeSkillsConfigFactory.createConfig();
+      await ClaudeSkillsConfigFactory.createConfig();
       await ClaudeSkillsConfigManager.enableSkills(['ContentPredictionSkill']);
 
       // Check that no credentials are in logs
@@ -609,7 +609,7 @@ describe('Claude Skills Compliance Validation', () => {
   test('Configuration backup/restore maintains security', async () => {
     // Create configuration with sensitive data
     await ClaudeSkillsCredentialManager.storeApiKey('backup_test_key_12345');
-    const originalConfig = await ClaudeSkillsConfigFactory.createConfig();
+    await ClaudeSkillsConfigFactory.createConfig();
 
     // Export configuration
     const exportData = await ClaudeSkillsConfigManager.exportConfiguration();

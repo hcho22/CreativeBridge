@@ -8,7 +8,7 @@ import {
   type ImageGenerationRequest,
 } from '../../services/imageGeneration';
 import { supabase } from '../../services/supabase';
-import type { ImageGenerationEvent, GradeLevel } from '../../types/database';
+import type { GradeLevel } from '../../types/database';
 
 // Mock dependencies
 jest.mock('../../services/supabase', () => ({

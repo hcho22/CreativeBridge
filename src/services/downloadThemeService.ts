@@ -3,7 +3,7 @@
  * Provides dark mode support for download components
  */
 
-import { useColorScheme } from 'react-native';
+import { Appearance } from 'react-native';
 
 export interface ThemeColors {
   // Background colors
@@ -101,10 +101,13 @@ export class DownloadThemeService {
   }
 
   /**
-   * Get current theme based on system preference
+   * Get current theme based on system preference.
+   * Uses Appearance.getColorScheme() (non-hook imperative API) because this
+   * method is called from class instances / non-component contexts; hooks
+   * are illegal outside function components (rules-of-hooks).
    */
   getCurrentTheme(): DownloadTheme {
-    const colorScheme = useColorScheme();
+    const colorScheme = Appearance.getColorScheme();
     return colorScheme === 'dark' ? this.darkTheme : this.lightTheme;
   }
 

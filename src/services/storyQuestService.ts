@@ -346,7 +346,7 @@ class StoryQuestService {
       if (this.storyQuestSupabase) {
         try {
           // Test user_profiles table access
-          const { data: users, error: userError } =
+          const { data: _users, error: userError } =
             await this.storyQuestSupabase
               .from('user_profiles')
               .select('id')

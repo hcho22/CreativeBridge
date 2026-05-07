@@ -427,11 +427,11 @@ describe('Analytics Service Integration', () => {
       expect(() => analyticsService.destroy()).not.toThrow();
     });
 
-    it('should continue working after cleanup and restart', () => {
+    it('should continue working after cleanup and restart', async () => {
       analyticsService.destroy();
 
       // Should still work after cleanup
-      expect(
+      await expect(
         analyticsService.trackStoryImport('user-123', 'file', true),
       ).resolves.not.toThrow();
     });

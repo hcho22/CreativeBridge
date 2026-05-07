@@ -8,9 +8,6 @@
 import { jest } from '@jest/globals';
 import { securityAuditor } from '../../services/securityAuditor';
 import { claudeSkillsConfig } from '../../services/claudeSkillsConfig';
-import { ClaudeSkillsCredentialRotationService } from '../../services/ClaudeSkillsCredentialRotationService';
-import { secureStorage } from '../../utils/secureStorage';
-import { structuredLogger } from '../../utils/logger';
 
 // Mock external dependencies
 jest.mock('react-native-keychain', () => ({

@@ -11,7 +11,6 @@ import {
   Platform,
   ActivityIndicator,
   Dimensions,
-  Linking,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useAuth } from '../context/AuthContext';

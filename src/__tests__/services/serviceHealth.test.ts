@@ -17,7 +17,7 @@ import {
   ServiceHealthMonitor,
   ServiceDegradationEvent,
 } from '../../services/serviceHealth';
-import { SkillManager, SkillErrorCode } from '../../types/claudeSkills';
+import { SkillManager } from '../../types/claudeSkills';
 
 jest.mock('../../utils/logger');
 
@@ -59,7 +59,7 @@ describe('Service Health Monitor', () => {
       expect(Object.keys(allHealth)).toContain('story_generation');
       expect(Object.keys(allHealth)).toContain('content_prediction');
 
-      for (const [serviceName, status] of Object.entries(allHealth)) {
+      for (const [, status] of Object.entries(allHealth)) {
         expect(status.status).toBe('unknown');
         expect(status.errorRate).toBe(0);
         expect(status.successRate).toBe(1);
@@ -93,7 +93,6 @@ describe('Service Health Monitor', () => {
         mockError,
       );
 
-      const status = healthMonitor.getServiceHealth('story_generation');
       const metrics = healthMonitor.getServiceMetrics('story_generation');
 
       expect(metrics?.requestCount).toBe(1);

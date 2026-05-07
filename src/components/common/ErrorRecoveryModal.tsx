@@ -34,7 +34,7 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({
   error,
   onClose,
   onRetry,
-  onRetryWithOptions,
+  onRetryWithOptions: _onRetryWithOptions,
 }) => {
   const [isExecutingRecovery, setIsExecutingRecovery] = useState(false);
   const [selectedOption, setSelectedOption] = useState<RecoveryOption | null>(
@@ -120,8 +120,8 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({
     }
   };
 
-  const getErrorDescription = (error: DownloadError): string => {
-    switch (error.type) {
+  const getErrorDescription = (err: DownloadError): string => {
+    switch (err.type) {
       case 'permission_denied':
         return 'The app needs permission to save files to your device. Please grant file access permissions in Settings.';
       case 'storage_full':
@@ -136,7 +136,7 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({
         return 'The download was cancelled. You can start a new download anytime.';
       default:
         return (
-          error.message || 'An unexpected error occurred during the download.'
+          err.message || 'An unexpected error occurred during the download.'
         );
     }
   };

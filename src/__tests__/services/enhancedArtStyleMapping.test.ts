@@ -1,10 +1,7 @@
 // Task 3.5-T: Test enhanced grade-level art style mapping
 // This test verifies that the enhanced art style mapping is properly implemented
 
-import {
-  imageGenerationService,
-  ImageGenerationEvent,
-} from '../../services/imageGeneration';
+import { imageGenerationService } from '../../services/imageGeneration';
 
 describe('Task 3.5: Enhanced Grade-Level Art Style Mapping Tests', () => {
   describe('Enhanced Art Style Integration', () => {

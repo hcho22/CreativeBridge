@@ -189,8 +189,8 @@ export class StoryInputDebouncer {
     const {
       validationDelay = 300,
       generationDelay = 1000,
-      minInputLength = 3,
-      maxInputLength = 2000,
+      minInputLength: _minInputLength = 3,
+      maxInputLength: _maxInputLength = 2000,
     } = options;
 
     // Debounced validation for real-time feedback

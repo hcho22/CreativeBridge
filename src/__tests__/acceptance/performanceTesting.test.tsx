@@ -287,7 +287,7 @@ describe('Performance Testing', () => {
 
       mockStoryImportService.readFileWithEncoding.mockImplementation(
         (fileName: string) => {
-          const index = parseInt(fileName.split('_')[1]);
+          const index = parseInt(fileName.split('_')[1], 10);
           return new Promise(resolve => {
             setTimeout(() => {
               resolve({

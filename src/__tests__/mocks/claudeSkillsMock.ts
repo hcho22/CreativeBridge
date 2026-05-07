@@ -308,7 +308,7 @@ export class MockSkillManager implements SkillManager {
 
   async executeSkill<T>(
     skillId: string,
-    input: SkillInput,
+    _input: SkillInput,
   ): Promise<SkillResult<T>> {
     const startTime = Date.now();
 

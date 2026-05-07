@@ -114,7 +114,7 @@ describe('StoryImageDisplay Component - Tasks 6.1-6.5', () => {
         fontScale: 1,
       });
 
-      const { getByTestId, getByText } = render(
+      const { getByTestId } = render(
         <StoryImageDisplay
           {...mockProps}
           imageUrl="https://example.com/image.jpg"

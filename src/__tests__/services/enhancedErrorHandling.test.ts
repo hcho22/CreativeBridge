@@ -3,10 +3,7 @@
  * Comprehensive test suite for retry mechanisms, offline queueing, and error recovery
  */
 
-import {
-  enhancedErrorHandling,
-  EnhancedErrorHandlingService,
-} from '../../services/enhancedErrorHandling';
+import { enhancedErrorHandling } from '../../services/enhancedErrorHandling';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as RNFS from 'react-native-fs';
 

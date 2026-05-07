@@ -209,7 +209,7 @@ export const DownloadQueueStatus: React.FC<DownloadQueueStatusProps> = ({
 
       {queuedDownloads.length > 0 && (
         <View style={styles.queueDetails}>
-          {queuedDownloads.slice(0, 3).map((download, index) => (
+          {queuedDownloads.slice(0, 3).map((download, _index) => (
             <View key={download.id} style={styles.queueItem}>
               <Text style={styles.queueItemText} numberOfLines={1}>
                 {download.fileName}

@@ -654,6 +654,7 @@ export const getUserSessions = query({
     const limit = args.limit ?? 20;
 
     // Query with index for efficiency
+    // eslint-disable-next-line @typescript-eslint/no-shadow -- Convex's `query` helper is imported at module scope; this local `query` is a chained query builder.
     let query = ctx.db
       .query('gameSessions')
       .withIndex('by_clerk_user', q => q.eq('clerkUserId', clerkUserId))

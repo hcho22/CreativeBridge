@@ -2,7 +2,6 @@
 // Comprehensive testing for file picker functionality
 
 import { FilePickerUtils } from '../../utils/filePicker';
-import DocumentPicker from 'react-native-document-picker';
 import { Platform, PermissionsAndroid } from 'react-native';
 import RNFS from 'react-native-fs';
 
@@ -51,7 +50,6 @@ jest.mock('../../services/storyImportService', () => ({
   },
 }));
 
-const mockDocumentPicker = DocumentPicker as jest.Mocked<typeof DocumentPicker>;
 const mockRNFS = RNFS as jest.Mocked<typeof RNFS>;
 const mockPermissionsAndroid = PermissionsAndroid as jest.Mocked<
   typeof PermissionsAndroid

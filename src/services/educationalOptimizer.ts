@@ -917,7 +917,7 @@ export class EducationalOptimizerService {
 
   private generateFallbackInclusivityAssessment(
     story: StoryResponse,
-    gradeLevel: GradeLevel,
+    _gradeLevel: GradeLevel,
   ): InclusivityAssessment {
     const storyLower = story.story.toLowerCase();
 

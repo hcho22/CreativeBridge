@@ -56,8 +56,6 @@ jest.mock('../../services/challengeService', () => ({
   },
 }));
 
-const MAX_ROUNDS = 5;
-
 /**
  * Helper to create a mock Convex game session document.
  * Convex documents have _id, _creationTime, and camelCase fields.

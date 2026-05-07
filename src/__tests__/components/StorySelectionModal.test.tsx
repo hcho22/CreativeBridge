@@ -1,9 +1,9 @@
 // Jest Tests for Task 5: Create Story Selection Components
 
 import React from 'react';
-import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { StorySelectionModal } from '../../components/story/StorySelectionModal';
-import type { GameSession, StorySource } from '../../types/database';
+import type { GameSession } from '../../types/database';
 
 // Mock the StoryManagementService
 const mockGetStoryLibrary = jest.fn();
@@ -151,6 +151,7 @@ describe('StorySelectionModal', () => {
     });
 
     it('should show completed badge for completed stories', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-shadow -- module-scope helper of same name; render() shadows it inside this test only.
       const { getAllByText } = render(
         <StorySelectionModal {...defaultProps} />,
       );
@@ -241,7 +242,7 @@ describe('StorySelectionModal', () => {
     });
 
     it('should show clear search button when searching', async () => {
-      const { getByPlaceholderText, getByText, queryByText } = render(
+      const { getByPlaceholderText } = render(
         <StorySelectionModal {...defaultProps} />,
       );
 
@@ -256,7 +257,7 @@ describe('StorySelectionModal', () => {
     });
 
     it('should clear search when clear button is pressed', async () => {
-      const { getByPlaceholderText, getAllByText, getByText } = render(
+      const { getByPlaceholderText, getByText } = render(
         <StorySelectionModal {...defaultProps} />,
       );
 
@@ -381,7 +382,7 @@ describe('StorySelectionModal', () => {
     });
 
     it('should combine search and filter', async () => {
-      const { getByPlaceholderText, getByText, queryByText } = render(
+      const { getByPlaceholderText, getByText } = render(
         <StorySelectionModal {...defaultProps} />,
       );
 
@@ -433,6 +434,7 @@ describe('StorySelectionModal', () => {
     it('should close modal when close button is pressed', () => {
       const mockOnClose = jest.fn();
 
+      // eslint-disable-next-line @typescript-eslint/no-shadow -- module-scope helper of same name; render() shadows it inside this test only.
       const { getAllByText } = render(
         <StorySelectionModal {...defaultProps} onClose={mockOnClose} />,
       );
@@ -570,7 +572,7 @@ describe('StorySelectionModal', () => {
 
   describe('Pull to Refresh', () => {
     it('should reload stories when pull to refresh is triggered', async () => {
-      const { getByTestId } = render(<StorySelectionModal {...defaultProps} />);
+      render(<StorySelectionModal {...defaultProps} />);
 
       await waitFor(() => {
         expect(mockGetStoryLibrary).toHaveBeenCalledTimes(1);

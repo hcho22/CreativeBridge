@@ -3,9 +3,7 @@
  * Implements verification tests from Task 1.5
  */
 
-import { Alert } from 'react-native';
 import RNFS from 'react-native-fs';
-import Share from 'react-native-share';
 
 // Mock react-native-fs
 jest.mock('react-native-fs', () => ({
@@ -415,13 +413,13 @@ describe('Enhanced Error Handling and User Feedback', () => {
       let finalResult;
       try {
         await mockFailingOperation();
-      } catch (error) {
+      } catch (e1) {
         try {
           await mockFailingOperation();
-        } catch (error) {
+        } catch (e2) {
           try {
             await mockFailingOperation();
-          } catch (error) {
+          } catch (e3) {
             finalResult = await mockFailingOperation(); // 4th attempt should give up
           }
         }

@@ -8,7 +8,6 @@
 import { SkillError, SkillType } from '../types/claudeSkills';
 import { structuredLogger } from '../utils/logger';
 import { auditLogger, EventType, EventCategory, Severity } from './auditLogger';
-import { claudeSkillsMonitor } from './claudeSkillsMonitor';
 
 export interface ErrorAggregation {
   skillType: SkillType;
@@ -201,7 +200,7 @@ class SkillErrorAggregationService {
 
     const cutoffTime = Date.now() - timeWindow;
     return aggregation.recentErrors.filter(
-      error =>
+      _error =>
         aggregation.lastErrorTime &&
         aggregation.lastErrorTime.getTime() >= cutoffTime,
     ).length;

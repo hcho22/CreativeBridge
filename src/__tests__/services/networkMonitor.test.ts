@@ -3,10 +3,7 @@
  * Tests for network connectivity monitoring and automatic queue processing
  */
 
-import {
-  networkMonitor,
-  NetworkMonitorService,
-} from '../../services/networkMonitor';
+import { NetworkMonitorService } from '../../services/networkMonitor';
 import NetInfo from '@react-native-community/netinfo';
 
 // Mock NetInfo
@@ -27,12 +24,10 @@ import { enhancedErrorHandling } from '../../services/enhancedErrorHandling';
 describe('NetworkMonitorService', () => {
   let networkMonitorInstance: NetworkMonitorService;
   let mockUnsubscribe: jest.Mock;
-  let mockListener: jest.Mock;
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockUnsubscribe = jest.fn();
-    mockListener = jest.fn();
 
     (NetInfo.addEventListener as jest.Mock).mockReturnValue(mockUnsubscribe);
     (NetInfo.fetch as jest.Mock).mockResolvedValue({

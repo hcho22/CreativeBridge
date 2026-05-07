@@ -563,7 +563,7 @@ class ReadingComprehensionOptimizerService {
     return recentLookups > 3; // More than 3 lookups in 2 minutes
   }
 
-  private shouldOfferReadingAssistance(event: ReadingEvent): boolean {
+  private shouldOfferReadingAssistance(_event: ReadingEvent): boolean {
     const timeSinceLastActivity =
       Date.now() - (this.currentReadingSession?.lastActivityTime || Date.now());
     return (
@@ -635,7 +635,7 @@ class ReadingComprehensionOptimizerService {
   }
 
   private generateReadingAssistanceOptimization(
-    triggerEvent: ReadingEvent,
+    _triggerEvent: ReadingEvent,
   ): void {
     const optimization: ReadingOptimization = {
       id: this.generateOptimizationId(),
@@ -1082,7 +1082,7 @@ class ReadingComprehensionOptimizerService {
   }
 
   private createTextSimplificationOptimization(
-    events: ReadingEvent[],
+    _events: ReadingEvent[],
   ): ReadingOptimization {
     return {
       id: this.generateOptimizationId(),
@@ -1139,7 +1139,7 @@ class ReadingComprehensionOptimizerService {
   }
 
   private createReadingPaceOptimization(
-    events: ReadingEvent[],
+    _events: ReadingEvent[],
   ): ReadingOptimization {
     return {
       id: this.generateOptimizationId(),
@@ -1184,7 +1184,7 @@ class ReadingComprehensionOptimizerService {
   }
 
   private createVocabularyAssistanceOptimization(
-    events: ReadingEvent[],
+    _events: ReadingEvent[],
   ): ReadingOptimization {
     return {
       id: this.generateOptimizationId(),
@@ -1232,7 +1232,7 @@ class ReadingComprehensionOptimizerService {
   }
 
   private createAttentionSupportOptimization(
-    events: ReadingEvent[],
+    _events: ReadingEvent[],
   ): ReadingOptimization {
     return {
       id: this.generateOptimizationId(),
@@ -1280,7 +1280,7 @@ class ReadingComprehensionOptimizerService {
   }
 
   private createAdvancedFeaturesOptimization(
-    events: ReadingEvent[],
+    _events: ReadingEvent[],
   ): ReadingOptimization {
     return {
       id: this.generateOptimizationId(),
@@ -1437,11 +1437,6 @@ class ReadingComprehensionOptimizerService {
       .filter(s => s > 0);
 
     if (beforeSpeeds.length === 0 || afterSpeeds.length === 0) return 0.5;
-
-    const beforeAvg =
-      beforeSpeeds.reduce((sum, s) => sum + s, 0) / beforeSpeeds.length;
-    const afterAvg =
-      afterSpeeds.reduce((sum, s) => sum + s, 0) / afterSpeeds.length;
 
     const beforeVariance = this.calculateVariance(beforeSpeeds);
     const afterVariance = this.calculateVariance(afterSpeeds);

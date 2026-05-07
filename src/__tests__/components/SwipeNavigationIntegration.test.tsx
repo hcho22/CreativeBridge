@@ -3,8 +3,6 @@
  * Tests PanGestureHandler implementation and pagination indicators
  */
 
-import React from 'react';
-
 // Mock the dependencies for swipe navigation testing
 jest.mock('react-native-reanimated', () => {
   const mockSharedValue = (initialValue: number) => ({ value: initialValue });

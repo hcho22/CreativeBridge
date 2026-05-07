@@ -7,7 +7,6 @@
 
 import { structuredLogger } from '../utils/logger';
 import { ClaudeSkillsConfigFactory } from '../config/claudeSkillsConfig';
-import { secureStorage } from '../utils/secureStorage';
 
 export interface SecurityAuditReport {
   auditId: string;
@@ -687,7 +686,7 @@ class SecurityAuditorService {
   /**
    * Calculate test coverage
    */
-  private calculateTestCoverage(testResults: SecurityTestResult[]): number {
+  private calculateTestCoverage(_testResults: SecurityTestResult[]): number {
     // Simulate coverage calculation
     return 96.7; // High coverage percentage
   }
@@ -726,8 +725,8 @@ class SecurityAuditorService {
    * Generate security recommendations
    */
   private generateRecommendations(
-    findings: SecurityFinding[],
-    testResults: SecurityTestResult[],
+    _findings: SecurityFinding[],
+    _testResults: SecurityTestResult[],
   ): SecurityRecommendation[] {
     const recommendations: SecurityRecommendation[] = [];
 
@@ -813,7 +812,7 @@ class SecurityAuditorService {
   /**
    * Validation methods for various security aspects
    */
-  async validateThirdPartyIntegration(service: string): Promise<any> {
+  async validateThirdPartyIntegration(_service: string): Promise<any> {
     return {
       apiKeySecure: true,
       communicationEncrypted: true,

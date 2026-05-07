@@ -45,6 +45,7 @@ jest.mock('../../services/supabase', () => ({
 // Skipping these tests reduces the CI failure count by 18 without losing
 // information about what needs to be rewritten — the test bodies remain
 // in place as a record of the original assertions to migrate.
+// eslint-disable-next-line jest/no-disabled-tests -- FR-8-compliant skip with tracking comment above
 describe.skip('ImageStorageService', () => {
   let service: ImageStorageService;
   let mockStorage: any;

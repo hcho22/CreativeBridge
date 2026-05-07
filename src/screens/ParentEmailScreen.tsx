@@ -46,7 +46,7 @@ const ParentEmailScreen: React.FC<ParentEmailScreenProps> = ({
   const [confirmEmail, setConfirmEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [emailSendError, setEmailSendError] = useState(false);
+  const [_emailSendError, setEmailSendError] = useState(false);
 
   const submitParentEmail = useMutation(api.consent.submitParentEmail);
   const initiateConsentRenewal = useMutation(
@@ -68,7 +68,7 @@ const ParentEmailScreen: React.FC<ParentEmailScreenProps> = ({
     try {
       // Create consent record (renewal uses initiateConsentRenewal)
       const submitFn = isRenewal ? initiateConsentRenewal : submitParentEmail;
-      const result = await submitFn({ parentEmail: parentEmail.trim() });
+      await submitFn({ parentEmail: parentEmail.trim() });
 
       // Send the consent email to the parent (token resolved server-side)
       try {

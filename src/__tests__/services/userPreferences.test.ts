@@ -9,8 +9,6 @@ import {
   PersonalizationData,
 } from '../../services/userPreferences';
 import { secureStorage } from '../../utils/secureStorage';
-// import { StoryRequest, StoryResponse } from '../../types/story';
-import { GradeLevel } from '../../types/database';
 
 // Mock secure storage
 jest.mock('../../utils/secureStorage');
@@ -602,7 +600,7 @@ describe('User Preferences Service', () => {
         { input: 'My pet dog', expectedTheme: 'animals' },
       ];
 
-      for (const { input, expectedTheme } of requests) {
+      for (const { input, expectedTheme: _expectedTheme } of requests) {
         const request: StoryRequest = {
           gradeLevel: 'Grade3',
           userInput: input,

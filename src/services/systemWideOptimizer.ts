@@ -20,8 +20,6 @@ import {
   statisticalAnalysisService,
   ExperimentResult,
 } from './statisticalAnalysisService';
-import { behaviorAnalytics } from './behaviorAnalytics';
-import { storyAnalytics } from './storyAnalytics';
 
 export interface SystemOptimizationAnalysis {
   timestamp: number;
@@ -1194,10 +1192,10 @@ class SystemWideOptimizerService {
       r.actionId.includes('reading'),
     );
 
-    const avgImpact = (results: OptimizationResult[]) =>
-      results.length > 0
-        ? results.reduce((sum, r) => sum + (r.actualImpact || 0), 0) /
-          results.length
+    const avgImpact = (subset: OptimizationResult[]) =>
+      subset.length > 0
+        ? subset.reduce((sum, r) => sum + (r.actualImpact || 0), 0) /
+          subset.length
         : 0;
 
     const performance = avgImpact(performanceResults);

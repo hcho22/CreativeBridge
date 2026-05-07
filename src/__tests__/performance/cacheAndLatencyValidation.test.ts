@@ -21,8 +21,6 @@ import {
 } from '../../services/resourceManager';
 import { performanceOptimizer } from '../../services/performanceOptimizer';
 import { storyCache } from '../../services/storyCache';
-import { storyAgent } from '../../services/storyAgent';
-import { structuredLogger } from '../../utils/logger';
 import { SkillManager } from '../../types/claudeSkills';
 // import { StoryRequest, StoryResponse } from '../../types/story';
 
@@ -195,12 +193,10 @@ const PERFORMANCE_TARGETS = {
 
 describe('Cache Effectiveness and Story Generation Speed Validation', () => {
   let mockSkillManager: jest.Mocked<SkillManager>;
-  let testResults: PerformanceTestResult[] = [];
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockCacheStore.clear();
-    testResults = [];
 
     mockSkillManager = {
       initialize: jest.fn().mockResolvedValue(undefined),

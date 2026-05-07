@@ -5,18 +5,7 @@
  * monkey-patched by importing performance services. (Finding P-3.1)
  */
 
-import {
-  jest,
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-} from '@jest/globals';
-
-// Capture the original globals BEFORE any imports
-const originalRAF = global.requestAnimationFrame;
-const originalFetch = global.fetch;
+import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 
 describe('Monkey-Patch Removal (P-3.1)', () => {
   beforeEach(() => {

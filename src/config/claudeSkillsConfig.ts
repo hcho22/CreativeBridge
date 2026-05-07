@@ -288,7 +288,7 @@ export class ClaudeSkillsCredentialManager {
     await this.cleanupOldBackups(maxBackups);
   }
 
-  private static async cleanupOldBackups(maxBackups: number): Promise<void> {
+  private static async cleanupOldBackups(_maxBackups: number): Promise<void> {
     // This would require enumerating keychain entries
     // For now, we'll implement a simple cleanup strategy
     // In a real implementation, you'd track backup keys in AsyncStorage

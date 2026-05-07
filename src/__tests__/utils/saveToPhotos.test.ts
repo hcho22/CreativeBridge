@@ -50,13 +50,11 @@ Linking.openSettings = mockOpenSettings;
 // but for the main tests we import once.
 let requestPhotoLibraryPermission: typeof import('../../utils/saveToPhotos').requestPhotoLibraryPermission;
 let saveImageToPhotos: typeof import('../../utils/saveToPhotos').saveImageToPhotos;
-let isSimulationMode: typeof import('../../utils/saveToPhotos').isSimulationMode;
 
 beforeAll(() => {
   const mod = require('../../utils/saveToPhotos');
   requestPhotoLibraryPermission = mod.requestPhotoLibraryPermission;
   saveImageToPhotos = mod.saveImageToPhotos;
-  isSimulationMode = mod.isSimulationMode;
 });
 
 // ─── Tests ───────────────────────────────────────────────────────────

@@ -11,7 +11,7 @@
  * orchestration layer end-to-end.
  */
 
-import { Alert, Linking, Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import RNFS from 'react-native-fs';
 
 // ─── Native Module Mocks ────────────────────────────────────────────

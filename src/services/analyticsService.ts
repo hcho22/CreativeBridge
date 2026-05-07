@@ -25,6 +25,7 @@ const ANALYTICS_HASH_SALT = 'cb-analytics-v1';
  * to recover the original userId. Deterministic: same input always yields same output,
  * so aggregate analytics (unique users, per-user session counts) still work.
  */
+/* eslint-disable no-bitwise -- cyrb53 hash function: XOR/shift are intrinsic to the algorithm. */
 function hashUserId(rawUserId: string): string {
   const salted = `${ANALYTICS_HASH_SALT}:${rawUserId}`;
   let h1 = 0xdeadbeef;
@@ -41,6 +42,7 @@ function hashUserId(rawUserId: string): string {
   const hash = 4294967296 * (2097151 & h2) + (h1 >>> 0);
   return 'anon_' + hash.toString(36);
 }
+/* eslint-enable no-bitwise */
 
 // Types for analytics events and metrics
 export interface AnalyticsEvent {
@@ -195,7 +197,8 @@ class AnalyticsService {
   async trackEvent(event: Omit<AnalyticsEvent, 'id'>): Promise<void> {
     try {
       // US-013: Anonymize userId and strip deviceInfo
-      const { deviceInfo, ...cleanMetadata } = event.metadata || {};
+      const { deviceInfo: _deviceInfo, ...cleanMetadata } =
+        event.metadata || {};
       const eventWithId: AnalyticsEvent = {
         ...event,
         id: this.generateEventId(),
@@ -798,7 +801,6 @@ class AnalyticsService {
       .map(e => e.metadata?.duration || 0);
 
     const errorEvents = events.filter(e => e.type === 'error');
-    const totalEvents = events.length;
 
     return {
       averageImportTime:

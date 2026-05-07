@@ -14,10 +14,7 @@ import {
   TouchableOpacity,
   Modal,
 } from 'react-native';
-import {
-  ServiceHealthMonitor,
-  ServiceHealthStatus,
-} from '../services/serviceHealth';
+import { ServiceHealthMonitor } from '../services/serviceHealth';
 import {
   AutomaticFallbackManager,
   SystemDegradationStatus,
@@ -55,12 +52,12 @@ export interface StatusAction {
 }
 
 export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
-  healthMonitor,
+  healthMonitor: _healthMonitor,
   fallbackManager,
   restorationManager,
   position = 'top',
   autoHide = true,
-  showDetails = false,
+  showDetails: _showDetails = false,
   onStatusChange,
 }) => {
   const [systemStatus, setSystemStatus] = useState<SystemDegradationStatus>({
@@ -106,6 +103,7 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
         error as Error,
       );
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- US-019 batch 4: addMessage/generateStatusMessage are forward-declared callbacks below; including them creates a circular dep.
   }, [fallbackManager, onStatusChange]);
 
   // Add message to queue
@@ -145,6 +143,7 @@ export const ServiceStatusIndicator: React.FC<ServiceStatusProps> = ({
     } else if (currentMessage && !currentMessage.persistent) {
       hideMessage();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- US-019 batch 4: hideMessage is a forward-declared stable callback; recreating effect on its identity is unnecessary.
   }, [currentMessage, messageQueue, autoHide]);
 
   // Hide current message

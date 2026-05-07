@@ -5,12 +5,7 @@
  * Task 3.2: Predictive Cache Management System
  */
 
-import {
-  storyCacheService,
-  CacheEntry,
-  CacheConfig,
-  CacheStats,
-} from './storyCache';
+import { storyCacheService, CacheConfig, CacheStats } from './storyCache';
 import {
   contentPredictionService,
   StoryContextAnalysis,
@@ -20,7 +15,6 @@ import type { GradeLevel } from '../types/database';
 import { ContentPrediction } from '../types/claudeSkills';
 import { structuredLogger } from '../utils/logger';
 import DeviceInfo from 'react-native-device-info';
-import { Platform, Dimensions } from 'react-native';
 
 export interface PredictiveCacheConfig extends CacheConfig {
   preloadEnabled: boolean;
@@ -202,12 +196,14 @@ export class PredictiveStoryCacheService {
       tone: context.extractedElements.tone,
     });
 
+    /* eslint-disable no-bitwise -- djb2 hash: bit-shift/mask intrinsic to algorithm. */
     let hash = 0;
     for (let i = 0; i < contextString.length; i++) {
       const char = contextString.charCodeAt(i);
       hash = (hash << 5) - hash + char;
       hash = hash & hash;
     }
+    /* eslint-enable no-bitwise */
     return Math.abs(hash).toString(36);
   }
 
@@ -490,7 +486,7 @@ export class PredictiveStoryCacheService {
   /**
    * Record cache usage pattern
    */
-  private recordUsage(key: string, hit: boolean): void {
+  private recordUsage(key: string, _hit: boolean): void {
     const now = Date.now();
     let pattern = this.usagePatterns.get(key);
 
@@ -611,7 +607,6 @@ export class PredictiveStoryCacheService {
 
     const stats = storyCacheService.getStats();
     const currentSize = stats.cacheSize;
-    const recommendedSize = this.deviceCapabilities.recommendedCacheSize;
 
     // If cache is too large for device, reduce it
     if (currentSize > this.deviceCapabilities.maxCacheSize) {

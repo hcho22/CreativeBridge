@@ -503,7 +503,7 @@ class SyncService {
 
   private async createConflict(
     storyId: string,
-    conflictingEdits: any[],
+    _conflictingEdits: any[],
   ): Promise<ConflictData> {
     const conflict: ConflictData = {
       conflictId: this.generateConflictId(),
@@ -630,6 +630,7 @@ class SyncService {
     }, this.config.autoSyncInterval);
   }
 
+  /* eslint-disable no-bitwise -- djb2 hash: bit-shift/mask intrinsic to algorithm. */
   private calculateChecksum(content: string): string {
     let hash = 0;
     for (let i = 0; i < content.length; i++) {
@@ -639,6 +640,7 @@ class SyncService {
     }
     return hash.toString(16);
   }
+  /* eslint-enable no-bitwise */
 
   private generateDeviceId(): string {
     return `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;

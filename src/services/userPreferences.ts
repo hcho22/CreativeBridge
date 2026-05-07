@@ -230,6 +230,7 @@ class UserPreferencesService {
   /**
    * Hash user ID for privacy
    */
+  /* eslint-disable no-bitwise -- djb2 hash: bit-shift/mask intrinsic to algorithm. */
   private hashUserId(userId: string): string {
     let hash = 0;
     for (let i = 0; i < userId.length; i++) {
@@ -241,6 +242,7 @@ class UserPreferencesService {
     // Ensure exactly 12 characters by padding or truncating
     return hashStr.padEnd(12, '0').substring(0, 12);
   }
+  /* eslint-enable no-bitwise */
 
   /**
    * Record a user interaction
@@ -301,7 +303,7 @@ class UserPreferencesService {
   /**
    * Get personalized story recommendations
    */
-  getPersonalizedRecommendations(request: StoryRequest): {
+  getPersonalizedRecommendations(_request: StoryRequest): {
     recommendedThemes: string[];
     recommendedComplexity: string;
     confidenceScore: number;
@@ -652,18 +654,18 @@ class UserPreferencesService {
     // Remove any potentially identifying information by destructuring them out
     const {
       userInput,
-      userEmail, // eslint-disable-line @typescript-eslint/no-unused-vars
-      phoneNumber, // eslint-disable-line @typescript-eslint/no-unused-vars
-      fullName, // eslint-disable-line @typescript-eslint/no-unused-vars
-      userLocation, // eslint-disable-line @typescript-eslint/no-unused-vars
-      deviceId, // eslint-disable-line @typescript-eslint/no-unused-vars
-      ipAddress, // eslint-disable-line @typescript-eslint/no-unused-vars
-      sessionId, // eslint-disable-line @typescript-eslint/no-unused-vars
-      sensitiveData, // eslint-disable-line @typescript-eslint/no-unused-vars
-      maliciousScript, // eslint-disable-line @typescript-eslint/no-unused-vars
-      sqlInjection, // eslint-disable-line @typescript-eslint/no-unused-vars
-      hugeString, // eslint-disable-line @typescript-eslint/no-unused-vars
-      circularRef, // eslint-disable-line @typescript-eslint/no-unused-vars
+      userEmail,
+      phoneNumber,
+      fullName,
+      userLocation,
+      deviceId,
+      ipAddress,
+      sessionId,
+      sensitiveData,
+      maliciousScript,
+      sqlInjection,
+      hugeString,
+      circularRef,
       ...safeContext
     } = context;
 

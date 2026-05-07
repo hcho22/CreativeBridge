@@ -1,4 +1,4 @@
-import { device, element, by, expect as detoxExpect, waitFor } from 'detox';
+import { device, element, by, expect as detoxExpect } from 'detox';
 import { TestHelpers } from './helpers/testHelpers';
 
 /**

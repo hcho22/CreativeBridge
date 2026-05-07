@@ -5,19 +5,8 @@
  * Task 4.2.6: Implement performance benchmark validation
  */
 
-import {
-  jest,
-  describe,
-  it,
-  expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
-} from '@jest/globals';
+import { jest, describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { deviceTierTestFramework } from './deviceTierTestFramework';
-import { performanceTuner } from '../../services/performanceTuner';
-import { dynamicResourceManager } from '../../services/resourceManager';
-import { performanceOptimizer } from '../../services/performanceOptimizer';
 import { structuredLogger } from '../../utils/logger';
 
 interface BenchmarkTarget {
@@ -178,7 +167,6 @@ const PERFORMANCE_BENCHMARKS: Record<string, BenchmarkTarget[]> = {
 
 describe('Performance Benchmark Validation', () => {
   let benchmarkResults: Record<string, DeviceTierBenchmark> = {};
-  const originalRandom = Math.random;
 
   beforeAll(async () => {
     structuredLogger.info('Starting performance benchmark validation');

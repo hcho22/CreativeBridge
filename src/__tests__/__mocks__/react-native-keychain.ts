@@ -28,7 +28,7 @@ export const setInternetCredentials = jest
       service: string,
       username: string,
       password: string,
-      options?: any,
+      _options?: any,
     ) => {
       storage[service] = { username, password };
       return Promise.resolve(true);

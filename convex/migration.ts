@@ -37,7 +37,7 @@ import {
 } from './_generated/server';
 import { v } from 'convex/values';
 import { Id } from './_generated/dataModel';
-import { requireAuth, getCurrentUser, getClerkUserId } from './auth';
+import { getCurrentUser, getClerkUserId } from './auth';
 import { migrationEventTypeValidator, migrationStepValidator } from './schema';
 
 // ============================================================================

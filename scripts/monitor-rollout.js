@@ -6,9 +6,6 @@
  * Provides real-time monitoring and health checks for the image generation feature
  */
 
-const fs = require('fs');
-const path = require('path');
-
 class RolloutMonitor {
   constructor() {
     this.monitoringId = `monitor-${Date.now()}`;

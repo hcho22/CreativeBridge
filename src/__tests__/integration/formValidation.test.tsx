@@ -3,8 +3,6 @@ import React from 'react';
 import { render, fireEvent, screen, waitFor } from '../utils/testUtils';
 import AuthScreen from '../../screens/AuthScreen';
 import { mockSupabase } from '../mocks/supabaseMock';
-import { createMockUser, SECURITY_TEST_CONSTANTS } from '../utils/testUtils';
-
 // Mock validation utilities
 const mockEmailValidation = {
   validateEmail: jest.fn(),

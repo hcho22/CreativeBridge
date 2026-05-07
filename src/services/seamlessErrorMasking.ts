@@ -165,11 +165,11 @@ export class SeamlessErrorMaskingService {
       });
 
       return customizedStrategy;
-    } catch (error) {
+    } catch (err) {
       structuredLogger.error(
         'Error masking strategy determination failed',
         {},
-        error as Error,
+        err as Error,
       );
 
       // Return safe default strategy
@@ -607,7 +607,7 @@ export class SeamlessErrorMaskingService {
 
   private async simulateProcessingDelay(
     duration: number,
-    progressIndicator: any,
+    _progressIndicator: any,
   ): Promise<void> {
     // This would integrate with the UI to show progress
     return new Promise(resolve => {
@@ -751,7 +751,7 @@ export class SeamlessErrorMaskingService {
   private calculateSeamlessScore(
     strategy: ErrorMaskingStrategy,
     userProfile: UserProfile,
-    sessionContext: SessionContext,
+    _sessionContext: SessionContext,
   ): number {
     let score = 50; // Base seamlessness
 

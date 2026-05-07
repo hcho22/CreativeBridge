@@ -2,11 +2,7 @@
 import React from 'react';
 import { renderHook, waitFor } from '@testing-library/react-native';
 import { AuthProvider, useAuth } from '../../context/AuthContext';
-import {
-  createMockUser,
-  createMockUserProfile,
-  createMockGameSession,
-} from '../utils/testUtils';
+import { createMockUser, createMockGameSession } from '../utils/testUtils';
 
 // Mock dependencies — use require() so mockSupabase is available in mock factory
 jest.mock('../../services/supabase', () => ({

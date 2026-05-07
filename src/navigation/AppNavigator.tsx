@@ -77,6 +77,7 @@ const HomeStackNavigator: React.FC = () => {
       initialRouteName="Home"
       screenOptions={{
         headerTransparent: true,
+        // eslint-disable-next-line react/no-unstable-nested-components -- React Navigation idiom; callback captures theme.glass.* outer scope
         headerBackground: () => (
           <AdaptiveGlassBackground
             glassStyle={theme.glass.surfaces.navigationHeader.glassStyle}
@@ -209,12 +210,14 @@ const AppNavigator: React.FC = () => {
     <NavigationContainer>
       <Tab.Navigator
         screenOptions={({ route }) => ({
+          // eslint-disable-next-line react/no-unstable-nested-components -- React Navigation idiom; closure captures route + per-screen tint colors
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon route={route} color={color} focused={focused} />
           ),
           // US-004: foxglove active / ink-faint inactive per storybook TabBar.
           tabBarActiveTintColor: theme.colors.accents.foxglove,
           tabBarInactiveTintColor: theme.colors.ink.faint,
+          // eslint-disable-next-line react/no-unstable-nested-components -- React Navigation idiom; closure captures theme.glass.* outer scope
           tabBarBackground: () => (
             <AdaptiveGlassBackground
               glassStyle={theme.glass.surfaces.tabBar.glassStyle}

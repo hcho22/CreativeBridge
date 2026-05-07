@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   StatusBar,
   View,
@@ -42,6 +42,7 @@ import {
 import { useSafeClerkAuth } from './src/hooks/useSafeClerkAuth';
 import { useQuery, useConvexAuth } from 'convex/react';
 import { api } from './src/services/convex';
+import { redactId } from './src/utils/piiRedaction';
 // Note (US-016): Supabase import removed — auth handled by Clerk only
 
 // Import expo-web-browser with error handling for native module linking
@@ -258,9 +259,10 @@ const MainApp: React.FC = () => {
   }
 
   // Debug auth state
+  const clerkUidMasked = redactId(clerkAuth?.userId);
   console.log('🔍 [App] Auth state check:', {
     clerkIsSignedIn: clerkAuth?.isSignedIn,
-    clerkUserId: clerkAuth?.userId,
+    clerkUid: clerkUidMasked,
     hasClerkUser: !!clerkUser,
   });
 

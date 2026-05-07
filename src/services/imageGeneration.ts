@@ -16,6 +16,7 @@ import type {
   ServiceUsed,
 } from './supabase';
 import type { GameSessionUpdate } from '../types/database';
+import { redactId } from '../utils/piiRedaction';
 
 // Configuration constants
 const IMAGE_GENERATION_COST = 1000; // XP cost for generating an image
@@ -54,8 +55,6 @@ const REPLICATE_STABLE_DIFFUSION_VERSION =
   'stability-ai/stable-diffusion-3.5-large'; // Stable Diffusion 3.5 Large (now backup)
 
 // Flux Aquarell Watercolor Model (Primary)
-const REPLICATE_FLUX_AQUARELL_MODEL =
-  'sebastianbodza/flux_aquarell_watercolor_style';
 const REPLICATE_FLUX_AQUARELL_VERSION =
   '081a44215bf213876674a0a4623f9ea6def12c8a6986b5db9026985723fabcb4';
 const FLUX_AQUARELL_TRIGGER_TOKEN = 'AQUACOLTOK';
@@ -8828,8 +8827,9 @@ class ImageGenerationService {
   ): Promise<ImageGenerationResult> {
     const queueStartTime = Date.now();
 
+    const uidMasked = redactId(request.userId);
     console.log(
-      `📋 Queueing request for user ${request.userId}. Queue position: ${
+      `📋 Queueing request for user ${uidMasked}. Queue position: ${
         requestQueue.length + 1
       }`,
     );
@@ -8841,8 +8841,9 @@ class ImageGenerationService {
       const queueItem = {
         execute: async () => {
           const waitTime = Date.now() - queueStartTime;
+          const uidProcessing = redactId(request.userId);
           console.log(
-            `🚀 Processing queued request for user ${request.userId} after ${waitTime}ms wait`,
+            `🚀 Processing queued request for user ${uidProcessing} after ${waitTime}ms wait`,
           );
 
           // Update wait time statistics
@@ -8875,8 +8876,9 @@ class ImageGenerationService {
         const itemIndex = requestQueue.findIndex(item => item === queueItem);
         if (itemIndex !== -1) {
           requestQueue.splice(itemIndex, 1);
+          const uidTimeout = redactId(request.userId);
           console.warn(
-            `⏰ Queue timeout for user ${request.userId} after ${RATE_LIMIT_CONFIG.QUEUE_TIMEOUT}ms`,
+            `⏰ Queue timeout for user ${uidTimeout} after ${RATE_LIMIT_CONFIG.QUEUE_TIMEOUT}ms`,
           );
           resolve({
             success: false,
