@@ -1602,6 +1602,71 @@ Wrapper-divergence is **the** dominant mock-side bug pattern in this codebase. F
 
 **Files modified for US-015c.8: 2** (1 PRD + 1 test file). No production source changes; pure mock additions + one mock-data shape correction.
 
+#### US-015c.9 verdict ✅ COMPLETE — `comprehensiveValidation.test.ts` 4 → 0 failures (100% cleared); triage table was stale at 14
+
+**File:** `src/__tests__/integration/comprehensiveValidation.test.ts` (top-7 by failure count in the US-015c triage table — listed as 14 fails)
+
+**Triage-table correction:** baseline shows the file had only **4 failed / 10 passed / 14 total** when this story started — not 14 fails. Same triage-staleness pattern as US-015c.6 (`syncIntegration` listed as 18, was actually 0). The table is a snapshot from a prior run; it doesn't reflect the current state of files where partial cleanup has happened since.
+
+**Four root causes diagnosed and fixed via two complementary FR mechanisms (FR-9.1 mock-data corrections + FR-8 stress-test skips):**
+
+**Root cause #1 — Helper-implementation/declared-interface drift (cleared "Confidence intervals" test).** `calculateConfidenceInterval` declares `Promise<{lowerBound, upperBound}>` but the inner data table used `{lower, upper}` keys. The test does `expect(confidenceInterval.lowerBound).toBeGreaterThan(0)` → `lowerBound === undefined` → `Matcher error: received value must be a number or bigint`.
+
+**Fix #1 (FR-9.1 — implementation/interface alignment, no test-assertion change):** rename data-table keys from `{lower, upper}` to `{lowerBound, upperBound}` to match the declared return type.
+
+**Root cause #2 — Direction-inverted metric in regression-check data (cleared "No performance regressions" test).** The regression detector uses `currentValue > baselineValue * 1.1` to flag regressions — correct for latency-style metrics where lower=better. The data set included `cache_hit_ratio: 0.5 → 0.75`, where higher=better — so an _improvement_ tripped the regression flag. All four other metrics are direction-consistent.
+
+**Fix #2 (FR-9.1 — mock-data correction, no test-assertion change):** remove `cache_hit_ratio` from both `loadBaselinePerformanceMetrics()` and `measureCurrentPerformanceMetrics()` so the regression check operates on direction-consistent metrics only. Same pattern as US-015c.4's URL replacement and US-015c.8's share-mock shape — test data correction.
+
+**Root cause #3 — "Story generation latency" stress test (10s timeout).** The test loops 100 iterations of `simulateStoryGeneration()`, where the simulator uses `setTimeout(resolve, ~660ms)`. 100 × 660ms ≈ 66s — far over Jest's default 10s per-test timeout. This is a stress test, not a unit test.
+
+**Fix #3 (FR-8 skip, same idiom as US-015c.6/.7):** `test.skip(...)` with FR-8 marker explaining the runtime budget mismatch.
+
+**Root cause #4 — "Performance stability" 30-minute test (10s timeout).** Body uses `while (Date.now() - startTime < 30 * 60 * 1000)` with a 5-second `setTimeout` per iteration → ~30 minutes wall time.
+
+**Fix #4 (FR-8 skip):** `test.skip(...)` with FR-8 marker.
+
+**Failure-count delta (this file only):**
+
+| Bucket                                          | Before | After | Delta |
+| ----------------------------------------------- | -----: | ----: | ----: |
+| `comprehensiveValidation.test.ts` failures      |      4 |     0 |    −4 |
+| `comprehensiveValidation.test.ts` passes        |     10 |    12 |    +2 |
+| `comprehensiveValidation.test.ts` skips         |      0 |     2 |    +2 |
+| Total US-015c long-tail visible failures (~877) |   ~877 |  ~873 |    −4 |
+
+**Mechanism mix:** 2 cleared by FR-9.1 mock-data corrections (helper typo + direction-inverted metric removal); 2 deferred by FR-8 skips (stress tests inappropriate for unit-test runtime).
+
+**No follow-up sub-story needed** — this file is fully resolved. The 2 skipped stress tests would be re-enabled in a dedicated perf-stress workflow; their FR-8 markers document the rationale.
+
+**Pattern crystallizing across US-015c.{1-9}:**
+
+The triage table's failure counts have proven unreliable for several files:
+
+| Sub-story     |             Triage said |            Actual baseline |
+| ------------- | ----------------------: | -------------------------: |
+| US-015c.6     |                18 fails |        0 (already skipped) |
+| US-015c.7     |                17 fails |               17 (matched) |
+| US-015c.8     |                15 fails |               15 (matched) |
+| **US-015c.9** | **14 fails (residual)** | **4 (10 already passing)** |
+
+**Recommendation:** future sub-stories should always run `npx jest <file> --no-coverage` baseline before estimating effort.
+
+| Sub-story      | Category                                   |              Failures cleared |
+| -------------- | ------------------------------------------ | ----------------------------: |
+| US-015c.1      | Mock-side (auth `useConvexAuth`)           |                           −45 |
+| US-015c.2      | Mock-side (auth `useConvexAuth`)           |                            −9 |
+| US-015c.3      | Mock-side (TDZ + FlatList stub)            |                           −11 |
+| US-015c.4      | Mock-side (URL guard + wrapper divergence) |                            −4 |
+| US-015c.5      | No-mock-leverage (docs-only)               |                             0 |
+| US-015c.6      | Already-deferred (docs-only)               |                             0 |
+| US-015c.7      | FR-8 skip (removed feature)                |                           −17 |
+| US-015c.8      | Mock-side (3 root causes)                  |                           −12 |
+| **US-015c.9**  | **FR-9.1 + FR-8 hybrid (4 root causes)**   |                        **−4** |
+| **Cumulative** |                                            | **−102 across 9 sub-stories** |
+
+**Files modified for US-015c.9: 2** (1 PRD + 1 test file). No production source changes; only test-file mock-data corrections + 2 FR-8 stress-test skips with markers.
+
 ---
 
 ### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c
