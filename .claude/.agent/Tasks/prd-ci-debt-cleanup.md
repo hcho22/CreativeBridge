@@ -1302,6 +1302,64 @@ Each would need test-assertion updates (`expect(getByText(...)).toBeTruthy()` �
 
 **Files modified for US-015c.3: 2** (1 PRD + 1 test file). No production source changes; pure mock additions.
 
+#### US-015c.4 verdict ⏳ PARTIAL — `StoryImageDisplay.test.tsx` 22 → 18 failures (4 cleared, 18%)
+
+**File:** `src/__tests__/components/StoryImageDisplay.test.tsx` (top-2 by failure count in the US-015c triage table — 22 fails)
+
+**Two mock-side root causes diagnosed and fixed (FR-9.1 compliant — pure mock-data + wrapper-divergence fixes, no test logic changes):**
+
+**Root cause #1 — Test URLs trigger production guard (cleared 2 tests + unblocked 2 dimension tests).** `StoryImageDisplay.tsx:1495-1500` runs an `isTestUrl` heuristic on the image URL and short-circuits to a "Development Preview" UI when matched:
+
+```typescript
+const isTestUrl =
+  effectiveImageUrl.includes('backup-service.com') ||
+  effectiveImageUrl.includes('example.com') ||
+  effectiveImageUrl.includes('test-') ||
+  effectiveImageUrl.includes('mock-') ||
+  effectiveImageUrl.includes('dall-e-generated-image');
+```
+
+The test data uses `https://example.com/image.jpg` for ~21 props/values, so EVERY image-bearing test rendered the dev-preview message ("Development Preview / This session contains test data...") instead of the loading/image flow under test.
+
+**Fix #1:** mechanical `sed`-replace `https://example.com` → `https://images.cb.test` (still mock data, no test-logic change). The new domain doesn't match any `isTestUrl` substring. **Note:** `images.cb.test` does NOT trigger `includes('test-')` (no hyphen after `test`).
+
+**Root cause #2 — Test mocks `'react-native-fs'`, but component imports `'../../utils/rnfsWrapper'` (mock divergence).** The component does `import RNFS, { rnfsWrapper } from '../../utils/rnfsWrapper'` (line 23) — RNFS here is the **wrapper singleton**, not the underlying package. The test's `jest.mock('react-native-fs', ...)` therefore had ZERO effect on the component; every `mockRNFS.exists.mockResolvedValue(...)` was setting up a mock the component never reaches.
+
+**Fix #2:** add `jest.mock('../../utils/rnfsWrapper', ...)` that delegates to the (already-mocked) `'react-native-fs'` module via property getters — so the existing `mockRNFS.*.mockX(...)` per-test setup applies to BOTH paths without changing test bodies. Sets `wrapper.isSimulationMode = true` to match the actual wrapper's default (`_isSimulationMode = true` at line 54 of wrapper.ts), which causes `downloadImageForDisplay` to short-circuit via the early-return at line 340 — preserving the existing test contract for the loading-text branch ("Loading your illustration...", not "Downloading image...").
+
+**Side benefit:** the wrapper mock also eliminates the `ReferenceError: You are trying to import a file after the Jest environment has been torn down` post-test warning (the real wrapper schedules `setTimeout` callbacks that fire after suite teardown).
+
+**Failure-count delta (this file only):**
+
+| Bucket                                          | Before | After | Delta |
+| ----------------------------------------------- | -----: | ----: | ----: |
+| `StoryImageDisplay.test.tsx` test failures      |     22 |    18 |    −4 |
+| `StoryImageDisplay.test.tsx` test passes        |      1 |     5 |    +4 |
+| Total US-015c long-tail visible failures (~910) |   ~910 |  ~906 |    −4 |
+
+**Remaining 18 failures — routed to follow-up US-015c.4.1 (test-logic ordering + wrapper-config cluster):**
+
+Two distinct sub-clusters:
+
+1. **Sync `getByTestId('story-image')` before async load completes (~10 fails).** Pattern:
+
+   ```typescript
+   const { getByTestId } = render(<StoryImageDisplay imageUrl="..." />);
+   const image = getByTestId('story-image'); // ← sync; component is in isLoading=true at this instant
+   fireEvent(image, 'onLoad');
+   await waitFor(() => { ... });
+   ```
+
+   The component starts with `isLoading: !!effectiveImageUrl` (line 158), and `getByTestId('story-image')` is only valid AFTER `isLoading` clears — which happens via a `.then()` microtask in the load useEffect, not synchronously after render. The fix is to wrap the `getByTestId` lookup in `await waitFor(() => getByTestId('story-image'))` — but that's a test-logic change.
+
+2. **Download-flow tests with simulation-mode short-circuit (~8 fails).** Tests like "should download image successfully" assert `expect(mockRNFS.downloadFile).toHaveBeenCalledWith(...)` after a button press. With wrapper `isSimulationMode: true`, `downloadImageForDisplay` returns null at line 340 BEFORE calling `RNFS.downloadFile` — so the assertion fails. The natural fix is to set `isSimulationMode: false` per-test in download-flow tests, but that requires either adding setup code (test-logic change) OR mocking the wrapper differently per-test (also a structural test change).
+
+Both sub-clusters need test-logic changes outside FR-9.1 scope. They route to US-015c.4.1 as per-test investigation.
+
+**Pattern crystallizing across US-015c.{1,2,3,4}:** mock-only fixes can clear up to ~50% of failures per file when the divergence is structural (TDZ trap, wrong mock path, FlatList stub, test-URL guard). The residual long-tail consistently lands on test-logic ordering, UI-label drift, and missing-UI-element assertions — all requiring per-test investigation beyond FR-9.1's mechanical-fix scope.
+
+**Files modified for US-015c.4: 2** (1 PRD + 1 test file). No production source changes; pure mock additions.
+
 ---
 
 ### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c
