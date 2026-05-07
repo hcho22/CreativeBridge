@@ -1524,6 +1524,84 @@ The shape that emerges: **mock-side fixes work for live features with mock-diver
 
 **Files modified for US-015c.7: 2** (1 PRD + 1 test file). No production source changes; only `describe.skip` + deferral marker added to the test file.
 
+#### US-015c.8 verdict ✅ MAJOR PROGRESS — `finalStoryDownloadIntegration.test.ts` 15 → 3 failures (12 cleared, 80%)
+
+**File:** `src/__tests__/integration/finalStoryDownloadIntegration.test.ts` (top-6 by failure count in the US-015c triage table — 15 fails)
+
+**Three mock-side root causes diagnosed and fixed (FR-9.1 compliant — pure mock additions and mock-shape corrections, no test logic changes):**
+
+**Root cause #1 — Wrapper-divergence on `rnfsWrapper` (cleared most failures).** Same shape as US-015c.4 (StoryImageDisplay), but with **namespace-import** distinction. Both `optimizedStoryDownloadService.ts:7` and `storyDownloadService.ts:9` do `import * as RNFS from '../utils/rnfsWrapper'` — they consume the wrapper's **named exports** (`writeFile`, `exists`, `mkdir`, `unlink`, `stat`, `DocumentDirectoryPath`, etc.), not the default singleton. The test mocked `'react-native-fs'` directly, so every `RNFS.writeFile.mockResolvedValue(true)` setup configured a mock the services never reach.
+
+**Fix #1 (variation on US-015c.4's wrapper proxy):** add `jest.mock('../../utils/rnfsWrapper', ...)` returning **all named exports** as getters delegating to `require('react-native-fs')` — plus the `default` and `rnfsWrapper` exports for any consumer that takes either. The triple shape (default + named singleton + spread named exports) handles all three import styles seen in the codebase: `import RNFS from`, `import { exists } from`, and `import * as RNFS from`.
+
+**Root cause #2 — `react-native-share` mock shape causes wrapper crash.** The test mocked `'react-native-share'` with bare `{ open: jest.fn() }` — returns `undefined`. But `src/utils/shareWrapper.ts:91-101` does `const result = await shareFunction(opts); return { success: !result.dismissedAction, ... }`. Reading `.dismissedAction` on `undefined` throws TypeError, propagates through the wrapper's catch (no cancellation pattern matches), then through `saveOptimizedStoryFile`'s catch which returns `{ success: false }`. Every download-flow test sees that `success: false`.
+
+**Fix #2:** mock `Share.open` to resolve with the expected shape:
+
+```typescript
+jest.mock('react-native-share', () => ({
+  open: jest.fn().mockResolvedValue({ dismissedAction: false }),
+}));
+```
+
+This single mock-data update was the highest-leverage fix in this file — most of the 12 cleared tests came from it.
+
+**Root cause #3 — Global `react-native` mock missing `Vibration` + `Appearance` (cleared 3 TypeError tests).** Same recurring pattern as US-015c.3 — test-level `jest.mock('react-native', ...)` is silently overridden by `jest.setup.js:269`'s setupFilesAfterEnv mock, which has NO `Vibration` or `Appearance` keys. Services accessing `Vibration.vibrate(...)` or `Appearance.getColorScheme()` got `undefined.vibrate` / `undefined.getColorScheme` TypeErrors.
+
+**Fix #3:** mutate the already-registered global mock object via `jest.requireMock('react-native')` (US-015c.3 pattern):
+
+```typescript
+{
+  const RN = jest.requireMock('react-native') as Record<string, unknown>;
+  RN.Vibration = { vibrate: jest.fn() };
+  RN.Appearance = { getColorScheme: jest.fn(() => 'light'), addChangeListener: jest.fn(...) };
+}
+```
+
+**Failure-count delta (this file only):**
+
+| Bucket                                           | Before | After | Delta |
+| ------------------------------------------------ | -----: | ----: | ----: |
+| `finalStoryDownloadIntegration.test.ts` failures |     15 |     3 |   −12 |
+| `finalStoryDownloadIntegration.test.ts` passes   |     11 |    23 |   +12 |
+| Total US-015c long-tail visible failures (~889)  |   ~889 |  ~877 |   −12 |
+
+**Remaining 3 failures — routed to follow-up US-015c.8.1 (real-assertion drift cluster):**
+
+All 3 are service-API drift / data-shape mismatches that require test rewrites (outside FR-9.1):
+
+1. **`should handle network errors with offline queueing`** — Test expects `enhancedErrorHandling.queueDownload(...)` to return `{ queued: true }`, but the service was refactored to return `Promise<string>` (the downloadId). `queueResult.queued === undefined` because `queueResult` is a string. Test needs to assert against the new return shape.
+2. **`should provide accurate performance analytics`** — Test expects 3 tracked operations after running 3 downloads, gets 0. Likely the analytics service stopped tracking, OR a setup precondition isn't being met. Needs source-code investigation.
+3. **`should handle very large stories (>1MB content)`** — Service returns `success: false` for >1MB content. Likely a content-validation guard rejects oversized content, or the large-content path has a different code branch that the mock setup doesn't cover.
+
+These need test-assertion / test-flow rewrites against the current service APIs — outside FR-9.1's mock-only scope.
+
+**Pattern crystallizing further across US-015c.{1-8}:**
+
+The wrapper-divergence pattern is now confirmed across 3 different wrapper modules:
+
+| Sub-story     | Wrapper module                                              | Shape                   |
+| ------------- | ----------------------------------------------------------- | ----------------------- |
+| US-015c.1     | `convex/react`                                              | hooks (auth flow)       |
+| US-015c.4     | `rnfsWrapper`                                               | default + named         |
+| **US-015c.8** | **`rnfsWrapper` (namespace) + `shareWrapper` (mock shape)** | **namespace + default** |
+
+Wrapper-divergence is **the** dominant mock-side bug pattern in this codebase. Future test work should grep the production source for `from '../../utils/.*Wrapper'` paths early — before debugging individual test failures.
+
+| Sub-story      | Category                                                               |             Failures cleared |
+| -------------- | ---------------------------------------------------------------------- | ---------------------------: |
+| US-015c.1      | Mock-side (auth `useConvexAuth`)                                       |                          −45 |
+| US-015c.2      | Mock-side (auth `useConvexAuth`)                                       |                           −9 |
+| US-015c.3      | Mock-side (TDZ + FlatList stub)                                        |                          −11 |
+| US-015c.4      | Mock-side (URL guard + wrapper divergence)                             |                           −4 |
+| US-015c.5      | No-mock-leverage (docs-only)                                           |                            0 |
+| US-015c.6      | Already-deferred (docs-only)                                           |                            0 |
+| US-015c.7      | FR-8 skip (removed feature)                                            |                          −17 |
+| **US-015c.8**  | **Mock-side (wrapper divergence + share-mock shape + global RN gaps)** |                      **−12** |
+| **Cumulative** |                                                                        | **−98 across 8 sub-stories** |
+
+**Files modified for US-015c.8: 2** (1 PRD + 1 test file). No production source changes; pure mock additions + one mock-data shape correction.
+
 ---
 
 ### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c
