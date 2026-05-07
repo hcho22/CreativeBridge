@@ -21,7 +21,7 @@ jest.mock('../../context/AuthContext');
 jest.mock('../../hooks/useSafeClerkAuth');
 jest.mock('../../utils/usernameValidation');
 jest.mock('../../services/supabase', () => ({
-  supabase: mockSupabase,
+  supabase: jest.requireActual('../mocks/supabaseMock').mockSupabase,
 }));
 
 const mockUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;

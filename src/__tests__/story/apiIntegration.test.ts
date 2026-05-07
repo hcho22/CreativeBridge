@@ -7,7 +7,7 @@ import { apiClient } from '../../services/api';
 global.fetch = jest.fn();
 
 // Mock network connectivity
-jest.mock('@react-native-netinfo/netinfo', () => ({
+jest.mock('@react-native-community/netinfo', () => ({
   addEventListener: jest.fn(),
   fetch: jest.fn(() =>
     Promise.resolve({

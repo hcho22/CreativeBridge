@@ -1923,6 +1923,51 @@ The override is silently lost; the default `{path: 'test-path.png'}` is returned
 
 ---
 
+#### US-015c.architectural-sweep ✅ MERGED — PR #59 (5 atomic commits, ~36+ cleared, ~+5 from supabaseMock central fix)
+
+**Trigger:** After 13 per-file sub-stories the user asked whether the next round could land as one PR instead of file-by-file. PR #59 collapsed five proven cross-cutting patterns into atomic commits:
+
+1. `supabaseMock` memoized `from()` and `storage.from()` chains — stable jest.fn identity per table/bucket. **+5** in `imageStorageSecurity` (12 → 17) on top of PR #58's gains.
+2. Shared `__mocks__/` for `rnfsWrapper` and `shareWrapper` at the conventional adjacency location — sensible defaults for tests calling bare `jest.mock(path)`.
+3. `useConvexAuth` + `api.consent.recordTermsConsent` + `api.migration.logMigrationEvent` added to four auth-adjacent test mocks (logout, basicIntegration, authContext, authFlow). **−31** failures across those 4 files.
+4. Global `react-native-fs` mock (via `moduleNameMapper`) + missing Clerk hooks (`useSSO`, `useSignIn`, `useSignUp`) added to `jest.setup.js`. Voice-feature tests went from "Test suite failed to run" to actually executing.
+5. FR-8 skip stubs for `formValidation` and `navigationFlow` — both authored against the deleted `StableAuthContext` / `useEnhancedAuth` surface (removed in commit `ea82e5c`).
+
+**Cumulative impact across the 7 directly-touched files:** ~15 passing → 51 passing (~+36 cleared); 12 residual failures are pre-existing Supabase data-shape issues that need per-test fixture work.
+
+#### US-015c.archaeology-classification ✅ FINDING — zero archaeology cluster remains
+
+**Trigger:** Post-sweep full-suite re-baseline shows 133 failing suites / 796 failing tests. User asked to start an archaeology sweep targeting an estimated 20-50 deleted-feature tests for FR-8 skipping. A classification fork walked all 133 failing suites and reported:
+
+| Category       | Count | Notes                                                                   |
+| -------------- | ----: | ----------------------------------------------------------------------- |
+| archaeology    |     0 | None remain — PR #59 commit 5 harvested the cluster (StableAuthContext) |
+| mock-shape     |    13 | Per-test mock-factory edits (path renames, missing hooks, TDZ patterns) |
+| render-context |    21 | NavigationContainer wrapper / `requireActual('react-native')` patterns  |
+| data-shape     |    74 | Generic `expect(received).toBe(expected)` — heterogeneous root causes   |
+| unknown        |    25 | Need per-file investigation (cascade failures, env-driven, etc.)        |
+
+**Architectural implication:** the sweep approach is exhausted. Further failure clearing requires per-file investigation. Two follow-ups landed on this branch confirming archaeology candidates the agent missed (export-contract drift, not path-rename):
+
+- `comprehensiveSecurityAudit.test.ts` — `claudeSkillsConfig.getApiEndpoints()` API removed
+- `encryptionAndDataProtection.test.ts` — `ClaudeSkillsCredentialRotationService.testKeyRotation()` removed
+
+Plus three productive mock-shape fixes:
+
+- `supabaseIntegration.test.tsx` — same useConvexAuth + api.consent fix as PR #59 commit 3 (3/3 now passing)
+- `apiIntegration.test.ts` — netinfo path typo (`@react-native-netinfo` → `@react-native-community/netinfo`); suite now loads
+- `profileCompletion.test.tsx` + `securityFlow.test.tsx` — supabaseMock TDZ fix (`require` instead of import-binding inside jest.mock factory); suites now load
+
+**Recommended pivot for the residual 130+ files:** the data-shape (74) and render-context (21) clusters need _categorical_ triage by criticality, not architectural sweeps. Suggested route: open US-015d as a planning ticket, classify which suites are critical-path (auth, security, payments) vs. peripheral, and only invest in the critical-path tier. The peripheral tier may be cheaper to delete-and-rewrite than to repair.
+
+| Sub-story                        | Category                          |  Failures cleared |
+| -------------------------------- | --------------------------------- | ----------------: |
+| US-015c.architectural-sweep      | 5-pattern collapse PR             |          **~+36** |
+| US-015c.archaeology-class.       | Classification + 6-file follow-up |      **−5 to −9** |
+| **Cumulative across all sweeps** |                                   | **~−190 cleared** |
+
+---
+
 ### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c
 
 **Description:** As a maintainer, I want CI back on its original timeout and coverage configuration so CI matches local-run expectations.
