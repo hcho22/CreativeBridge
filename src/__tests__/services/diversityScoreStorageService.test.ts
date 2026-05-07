@@ -34,8 +34,13 @@ jest.mock('../../services/diversityScoreService', () => ({
 
 describe('DiversityScoreStorageService', () => {
   // Test data
-  const mockStoryId = 'story-123';
-  const mockSessionId = 'session-456';
+  // The service guards every path with `isValidUUID(...)` (line 112, 315,
+  // 362) — non-UUID inputs short-circuit to a "Convex IDs detected" branch.
+  // The service's regex requires the version digit (group 3 start) in [1-5]
+  // and variant digit (group 4 start) in [89ab], so use a properly-formed
+  // UUIDv4-style string.
+  const mockStoryId = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+  const mockSessionId = '11111111-2222-4333-8444-555555555555';
 
   const mockExtractedElements: ExtractedElements = {
     characters: [

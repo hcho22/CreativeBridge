@@ -1667,6 +1667,82 @@ The triage table's failure counts have proven unreliable for several files:
 
 **Files modified for US-015c.9: 2** (1 PRD + 1 test file). No production source changes; only test-file mock-data corrections + 2 FR-8 stress-test skips with markers.
 
+#### US-015c.10 verdict ⏳ PARTIAL — `diversityScoreStorageService.test.ts` 14 → 7 failures (7 cleared, 50%)
+
+**File:** `src/__tests__/services/diversityScoreStorageService.test.ts` (top-8 by failure count in the US-015c triage table — 14 fails)
+
+**Triage-table snapshot matched live baseline this time** (14 failed / 3 passed at start). After this fix: 7 failed / 10 passed.
+
+**One mock-side root cause cleared 7 of 14 failures (FR-9.1 compliant — pure test-data correction):**
+
+**Root cause — UUID-format guard rejects test fixtures (cleared 7 tests).** The service guards every public method with `isValidUUID(...)` (lines 112, 315, 362) using a strict UUIDv4-style regex requiring:
+
+- Group 3 must start with `[1-5]` (version digit)
+- Group 4 must start with `[89ab]` (variant digit)
+
+The original test fixtures `mockStoryId = 'story-123'` and `mockSessionId = 'session-456'` failed the UUID check, so every method short-circuited to the "Convex IDs detected, skipping Supabase storage" branch — returning success: true (without `.score`) for `storeDiversityScore` and `null` for `getDiversityScore` / `getSessionDiversityStats`.
+
+**Fix (FR-9.1 — pure test-data correction):**
+
+```typescript
+// Before:
+const mockStoryId = 'story-123';
+const mockSessionId = 'session-456';
+
+// After (proper UUIDv4 with version+variant digits):
+const mockStoryId = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+const mockSessionId = '11111111-2222-4333-8444-555555555555';
+```
+
+The first attempt used `aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee` and `11111111-2222-3333-4444-555555555555` — both still failed the regex because `cccc`/`3333` aren't in `[1-5]` for group 3 and `dddd`/`4444` aren't in `[89ab]` for group 4. **Lesson for future test-UUID fixtures: structure matters, not just hyphen count.**
+
+**Failure-count delta (this file only):**
+
+| Bucket                                          | Before | After | Delta |
+| ----------------------------------------------- | -----: | ----: | ----: |
+| `diversityScoreStorageService.test.ts` failures |     14 |     7 |    −7 |
+| `diversityScoreStorageService.test.ts` passes   |      3 |    10 |    +7 |
+| Total US-015c long-tail visible failures (~873) |   ~873 |  ~866 |    −7 |
+
+**Remaining 7 failures — routed to follow-up US-015c.10.1 (test-vs-service API drift cluster):**
+
+The 7 residual `storeDiversityScore` tests share THREE drift issues that are nested test-rewrites — outside FR-9.1's mock-only scope:
+
+1. **`extractedElements` shape mismatch** — Test passes `ExtractedElements` (`{characters, settings, objects, plot_patterns}`), but the service was refactored to require `StoryElementRecord[]` (a flat array of `{element_text, element_type, embedding_vector}`). The TypeScript signature still accepts both (`StoryElements | StoryElementRecord[]`), but the implementation explicitly throws `'StoryElements format not yet supported - pass StoryElementRecord[] instead'` at line 167 for the object case. Fix requires comprehensive test-data rewrite to array form.
+
+2. **`supabase.from(...).insert(...)` → `.upsert(...)` drift** — Test mocks chain `from(...).insert(...)`, but the service was changed to use `from(...).upsert(record, {onConflict: 'story_id', ignoreDuplicates: false})` at line 223-228. Test mock chain needs `.upsert` instead of `.insert`, and per-test `mockInsert.toHaveBeenCalledWith(...)` assertions need to become `mockUpsert.toHaveBeenCalledWith(record, options)` — a mock-rename + assertion-shape change.
+
+3. **`calculateDiversityScore` argument shape drift** — Test asserts `expect(diversityScoreService.calculateDiversityScore).toHaveBeenCalledWith(mockExtractedElements, mockRecentElements)` (positional), but the service calls it with `{newElements, recentElements}` (object). This is a strict `toHaveBeenCalledWith` mismatch — assertion-shape change.
+
+All three are test-assertion / test-data rewrites, not mock additions. The shape is similar to US-015c.6 (`syncIntegration` — substantive service rewrite) — but lighter-weight because only 7 tests are affected (vs 18 there). US-015c.10.1 should rewrite those 7 tests against the current service API.
+
+**Why land partial progress (vs full FR-8 skip):**
+
+Considered FR-8-skipping the entire file (would clear 14 vs 7), but chose partial for two reasons:
+
+1. **Preserves real test signal** — 10 passing tests (getDiversityScore + getSessionDiversityStats branches) actively verify live functionality. FR-8 skip would silence them too.
+2. **The 7 residuals are narrowly scoped** to one cluster of methods (storeDiversityScore + storeDiversityScoreAsync) sharing a single rewrite target. A focused US-015c.10.1 follow-up is cleaner than re-enabling the whole file later.
+
+**Pattern crystallizing across US-015c.{1-10}:**
+
+UUID/UUID-shape validation is now a confirmed source of mock-data divergence — alongside test-URL guards (US-015c.4), wrapper imports (US-015c.{1, 4, 8}), and global mock gaps (US-015c.{3, 8}). Any service with `isValidUUID(...)` guards is at risk; tests should use proper UUIDv4-format fixtures, not human-readable IDs.
+
+| Sub-story      | Category                                   |               Failures cleared |
+| -------------- | ------------------------------------------ | -----------------------------: |
+| US-015c.1      | Mock-side (auth `useConvexAuth`)           |                            −45 |
+| US-015c.2      | Mock-side (auth `useConvexAuth`)           |                             −9 |
+| US-015c.3      | Mock-side (TDZ + FlatList stub)            |                            −11 |
+| US-015c.4      | Mock-side (URL guard + wrapper divergence) |                             −4 |
+| US-015c.5      | No-mock-leverage (docs-only)               |                              0 |
+| US-015c.6      | Already-deferred (docs-only)               |                              0 |
+| US-015c.7      | FR-8 skip (removed feature)                |                            −17 |
+| US-015c.8      | Mock-side (3 root causes)                  |                            −12 |
+| US-015c.9      | FR-9.1 + FR-8 hybrid (4 root causes)       |                             −4 |
+| **US-015c.10** | **Mock-side (UUID-shape correction)**      |                         **−7** |
+| **Cumulative** |                                            | **−109 across 10 sub-stories** |
+
+**Files modified for US-015c.10: 2** (1 PRD + 1 test file). No production source changes; pure mock-data UUID correction.
+
 ---
 
 ### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c
