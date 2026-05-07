@@ -182,7 +182,17 @@ class StorySessionManager {
     // module load. Production code always has the real export available.
     if (typeof onConvexAuthReady === 'function') {
       onConvexAuthReady(() => {
-        void this.flushPendingUpdates();
+        // Fire-and-forget: flushPendingUpdates logs its own warnings and
+        // re-queues failures, so an auth-ready listener has nothing useful
+        // to do with the resolved promise. Catch swallows any unexpected
+        // rejection so the listener can't accidentally surface as an
+        // unhandled-promise warning at the bridge boundary.
+        this.flushPendingUpdates().catch(err => {
+          console.warn(
+            '[storySessionManager] unexpected error during auto-flush:',
+            err,
+          );
+        });
       });
     }
   }
