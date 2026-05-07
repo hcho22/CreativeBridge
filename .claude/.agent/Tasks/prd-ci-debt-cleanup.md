@@ -1360,6 +1360,60 @@ Both sub-clusters need test-logic changes outside FR-9.1 scope. They route to US
 
 **Files modified for US-015c.4: 2** (1 PRD + 1 test file). No production source changes; pure mock additions.
 
+#### US-015c.5 verdict ⏸ NO-MOCK-LEVERAGE — `EnhancedStoryImageDisplay.test.tsx` 20 → 20 failures (0 cleared, 0%); routed to US-015c.5.1
+
+**File:** `src/__tests__/components/EnhancedStoryImageDisplay.test.tsx` (top-3 by failure count in the US-015c triage table — 20 fails)
+
+**Decision: do NOT land a per-file PR for this file.** Investigation applied both US-015c.4 mock-side fixes (test-URL guard bypass + `rnfsWrapper` divergence patch) and confirmed both root causes are present, but the **net pass-count delta was 0/20**. The fixes are architecturally correct but provide no test-improvement leverage in this file. Test-side changes have been reverted; only this PRD verdict block is committed.
+
+**Why mock-side fixes don't move the count here (the diagnostic value of US-015c.5):**
+
+The file shares a component with US-015c.4 (`StoryImageDisplay.tsx` — note: there is no separate `EnhancedStoryImageDisplay` component; the test name is historical). The same two root causes apply:
+
+1. **Test-URL guard (`isTestUrl` at component:1495).** 3 occurrences of `https://example.com/...` in test data → all rendered "Development Preview" UI.
+2. **Wrapper-divergence (`react-native-fs` mocked, component imports `'../../utils/rnfsWrapper'`).** Identical to US-015c.4.
+
+Applying both fixes:
+
+- `https://example.com/test-image.jpg` → `https://images.cb.test/main.jpg` (also dodges the `test-` substring guard)
+- 2 gallery URLs swapped to `images.cb.test/imageN.jpg`
+- Wrapper proxy mock added (delegates to `react-native-fs` via property getters; `isSimulationMode: true`)
+
+After fixes: rendered tree changes from "Development Preview" → "Loading your illustration...". **But every failing test in this file uses the same downstream-blocked pattern:**
+
+```typescript
+const { getByTestId } = render(<StoryImageDisplay {...defaultProps} ... />);
+expect(getByTestId('image-container')).toBeTruthy();   // ← sync, fails
+expect(getByTestId('image-container-pressable')).toBeTruthy();  // ← sync, fails
+expect(getByTestId('story-image-enhanced')).toBeTruthy();  // ← sync, fails
+```
+
+The `image-container`, `image-container-pressable`, and `story-image-enhanced` testIDs are only available in the post-load render path (component:1623+). The component starts with `isLoading: !!effectiveImageUrl = true`; clearing that takes one or more Promise microtasks even with `isSimulationMode: true` (the `.then(localPath => ...)` callback at component:1525). React-test-renderer's `act()` doesn't synchronously flush these — `await waitFor(...)` is required.
+
+**All 20 failures are the same shape**, distributed across testIDs:
+
+| testID                          | Failures |
+| ------------------------------- | -------: |
+| `image-container-pressable`     |       11 |
+| `image-container`               |        3 |
+| `story-image-enhanced`          |        1 |
+| `Save to Device` / `Share` text |        2 |
+| `🔍` text (zoom indicator)      |        1 |
+| `full-screen-modal` testID      |        2 |
+
+**Why no PR was opened:** The architectural fixes (URL guard + wrapper-divergence) DO clean up:
+
+- Failure messages now reflect the real blocker (loading state) instead of the false-positive dev-preview path
+- The `ReferenceError: import after Jest environment torn down` teardown warning is eliminated
+
+But these are **invisible in the pass-count metric**, and US-015c per-file PRs have been measured by failures cleared. Landing a 0-delta PR breaks that signal. The architectural insights are captured in this PRD block; future US-015c.5.1 work (test-logic ordering rewrite) will naturally include the same wrapper-divergence and URL-guard fixes alongside the `await waitFor(() => getByTestId(...))` rewrites.
+
+**Strategic implication — promote US-015c.architectural-test-logic-rewrite (proposed):**
+
+US-015c.{4,5}'s residuals confirm a recurring shape: test-logic ordering violations (sync `getByTestId` before async load) appear together with mock-side divergences. A single sweep across `StoryImageDisplay.test.tsx` (18 residual fails) + `EnhancedStoryImageDisplay.test.tsx` (20 fails) + likely `StoryImageDisplaySaveToPhotos.test.tsx` (~unknown) and any other `StoryImageDisplay`-derived test could mechanically rewrite the sync→`await waitFor` pattern. Estimated leverage: **40+ failures across 2-3 files from one structural decision** — better than per-file long-tail.
+
+**Files modified for US-015c.5: 1** (PRD only — test file reverted to no changes).
+
 ---
 
 ### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c
