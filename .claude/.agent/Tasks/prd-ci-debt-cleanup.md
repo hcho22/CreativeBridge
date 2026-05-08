@@ -1968,6 +1968,268 @@ Plus three productive mock-shape fixes:
 
 ---
 
+### US-015f: Long-tail criticality triage (planning ticket) 🗂 PLANNING — classify residual 131 suites into invest/skip/delete tiers
+
+> **Naming note.** The PRD recommendation in US-016 originally suggested "open US-015d as a planning ticket," but `US-015d` (flake/timeout) and `US-015e` (dotenv babel plugin) are both already shipped implementation stories. This planning ticket adopts **US-015f** as the next free slot in the 015 series. The intent matches the original recommendation 1:1 — no scope change, only a label change to avoid collision.
+
+**Description:** As a maintainer, I want every residual failing suite categorized by product-criticality tier and assigned a disposition (repair / FR-8 skip / delete-and-rewrite) so that subsequent work can be sized, scheduled, and partially retired instead of dragging on as an undifferentiated "fix the long tail" task. This story produces the _plan_; it does not modify any test files.
+
+**Why this is a planning ticket (not implementation):** Across 13 numbered US-015c sub-stories plus the architectural sweep (PR #59) plus the archaeology classification, the per-file pattern of mock-side fixes has produced ~190 cleared failures but is now exhausted (US-015c.5 onward show diminishing leverage). The remaining ~131 failing suites / ~796 failing tests are heterogeneous: some need surgical repair, some test removed features, some belong to peripheral subsystems where the test infrastructure cost may exceed the test value. Without explicit criticality triage, future work risks spending high-cost engineering hours on tier-3 suites that nobody would notice if deleted.
+
+**Baseline source of truth:** main CI run `25527659518` against SHA `476ce46` (post-PR #61 merge, 2026-05-07). 131 failing suites identified by `gh run view 25527659518 --log-failed | grep -oE "FAIL\s+[^[:space:]]+\.test\.[a-z]+" | sort -u`. The full list is captured in `/tmp/failing-suites.txt` and the criticality classification below covers all 131.
+
+**Acceptance Criteria:**
+
+- [ ] Confirm baseline: 131 unique failing test suites against main SHA `476ce46` (already captured)
+- [ ] Classify every failing suite into one of three criticality tiers (T1 critical-path / T2 high-value / T3 peripheral) using the framework below
+- [ ] Assign every suite one of three dispositions (REPAIR / SKIP / DELETE-AND-REWRITE) with reasoning
+- [ ] Produce a per-tier follow-up sub-story plan (US-015f.1, US-015f.2, US-015f.3) sized to a wall-clock estimate
+- [ ] No test-file edits, no production-source edits, no CI workflow edits — this ticket ships PRD-only
+- [ ] Decision recorded in this PRD; ready for user/stakeholder approval before any sub-story spawns
+
+**Criticality framework (the question to ask each suite):**
+
+> _If this suite were silently deleted and a real regression shipped past CI undetected in the area it covered, how bad would it be?_
+
+| Tier | Blast radius if a real regression ships                                                   | Examples                                                                                  | Disposition default                               |
+| ---- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| T1   | Severe — auth bypass, COPPA breach, currency loss, data corruption, core game softlock    | clerkAuthFlows, COPPA consent, RLS policy, XP system, storyManagement                     | **REPAIR** (non-negotiable)                       |
+| T2   | Moderate — degraded UX, broken feature on a single surface, recoverable by app reload     | Image display, story preview, content extraction, error handling, network monitor         | REPAIR if pattern leverage exists; SKIP otherwise |
+| T3   | Low — analytics gap, perf instrumentation drift, A/B telemetry, accessibility scaffolding | claudeSkills monitor/quality, A/B testing, voiceFeatures\* matrix, performance benchmarks | **DELETE-AND-REWRITE** strong candidate           |
+
+**Disposition definitions:**
+
+- **REPAIR** — write a per-file PR that brings the test back to green. Worth the engineering cost.
+- **SKIP** — apply `describe.skip` with FR-8 marker (matches US-015c.6/7/11 pattern). Preserves the file as archaeology of past intent without claiming a green check on CI. Use when the source moved/changed and a rewrite is cheaper than a repair, but the rewrite isn't urgent.
+- **DELETE-AND-REWRITE** — physically remove the test file. The test infrastructure cost (mock setup, render harness, fixtures) exceeds the protective value, OR the underlying service is in flux and re-pinning the test to a moving target is wasted effort. A future story can author a tighter replacement test only if/when the area stabilizes.
+
+#### Per-suite classification — all 131 failing suites
+
+**TIER 1 — CRITICAL-PATH (33 suites) → REPAIR all**
+
+| File                                                                    | Why T1                 | Notes                                 |
+| ----------------------------------------------------------------------- | ---------------------- | ------------------------------------- |
+| `src/__tests__/auth/clerkAuthFlows.test.tsx`                            | Auth bypass risk       | US-015c.1 cleared 45/52; 7 residual   |
+| `src/__tests__/components/auth/AppleSignInButton.test.tsx`              | Auth bypass risk       |                                       |
+| `src/__tests__/components/auth/GoogleSignInButton.test.tsx`             | Auth bypass risk       |                                       |
+| `src/__tests__/security/coppa/C06-consentTokenEntropy.test.ts`          | COPPA compliance       | Legal-mandatory                       |
+| `src/__tests__/security/coppa/H01-speechRecognition.test.ts`            | COPPA compliance       | Legal-mandatory                       |
+| `src/__tests__/security/coppa/H04-consentEmailError.test.ts`            | COPPA compliance       | Legal-mandatory                       |
+| `src/__tests__/security/auditLogger.test.ts`                            | Audit trail integrity  |                                       |
+| `src/__tests__/security/imageStorageSecurity.test.ts`                   | Image storage RLS      | US-015c.13 cleared 10/22; 12 residual |
+| `src/__tests__/security/rateLimiter.test.ts`                            | DoS / abuse control    |                                       |
+| `src/__tests__/security/rlsPolicy.test.ts`                              | Row-level security     |                                       |
+| `src/__tests__/security/claudeSkillsAuth.test.ts`                       | API auth               |                                       |
+| `__tests__/storage/storageRLS.test.ts`                                  | Row-level security     |                                       |
+| `src/__tests__/integration/profileCompletion.test.tsx`                  | Auth onboarding flow   | Suite-load fixed (supabaseMock TDZ)   |
+| `src/__tests__/integration/securityFlow.test.tsx`                       | Security integration   | Suite-load fixed                      |
+| `src/__tests__/integration/e2eMigrationFlow.test.tsx`                   | Auth migration         | US-015c.2 cleared 9/26; 17 residual   |
+| `src/__tests__/services/xpEventTracker.test.ts`                         | XP currency integrity  |                                       |
+| `src/__tests__/services/xpSystem.test.ts`                               | XP currency integrity  |                                       |
+| `src/__tests__/integration/xpDeductionIntegration.test.tsx`             | XP currency integrity  |                                       |
+| `src/__tests__/integration/xpRefundIntegration.test.tsx`                | XP currency integrity  |                                       |
+| `src/__tests__/integration/xpSystemIntegration.test.ts`                 | XP currency integrity  |                                       |
+| `src/__tests__/integration/xpValidationIntegration.test.tsx`            | XP currency integrity  |                                       |
+| `src/__tests__/bugfixes/US004-inputDisabledAfterCompletion.test.ts`     | Active bugfix coverage |                                       |
+| `src/__tests__/bugfixes/US006-gameEndsAfterBothPlayersComplete.test.ts` | Active bugfix coverage |                                       |
+| `src/__tests__/services/storyManagementService.test.ts`                 | Core data flow         |                                       |
+| `__tests__/integration/storyCompletion.integration.test.ts`             | Game-completion flow   |                                       |
+| `src/__tests__/services/storyImportService.test.ts`                     | Story import flow      |                                       |
+| `src/__tests__/integration/storyImportFlow.test.tsx`                    | Story import flow      |                                       |
+| `src/__tests__/integration/finalStoryDownloadIntegration.test.ts`       | User-data export       |                                       |
+| `src/__tests__/screens/HomeScreen.test.tsx`                             | Primary screen         | Suite-load fail (vmConfig)            |
+| `src/__tests__/navigation/AppNavigator.test.tsx`                        | Navigation correctness | Suite-load fail (vmConfig)            |
+| `src/__tests__/integration/databaseOperations.test.tsx`                 | Database CRUD          |                                       |
+| `src/__tests__/services/replicateAPI.test.ts`                           | Image generation API   | Core feature                          |
+| `src/__tests__/components/StoryPreviewEdit.test.tsx`                    | Core editing UX        | 37 fails — top-1 by count             |
+
+**TIER 2 — HIGH-VALUE (52 suites) → mixed REPAIR / SKIP**
+
+REPAIR candidates (suites with proven mock-side leverage from US-015c sweeps OR clear single-cause divergence):
+
+| File                                                                     | Notes                                         |
+| ------------------------------------------------------------------------ | --------------------------------------------- |
+| `src/__tests__/components/StoryImageDisplay.test.tsx`                    | US-015c.4 cleared 4/22; 18 residual           |
+| `src/__tests__/components/StorySelectionModal.test.tsx`                  | US-015c.3 cleared 11/24; 13 residual          |
+| `src/__tests__/components/FullScreenImageModal.test.tsx`                 | Image display family                          |
+| `src/__tests__/components/StoryImageDisplaySaveToPhotos.test.tsx`        | Image display family                          |
+| `src/__tests__/components/ImageGeneration.test.tsx`                      | Image gen UI                                  |
+| `src/__tests__/components/ImageGenerationErrorHandling.test.tsx`         | Image gen UI                                  |
+| `src/__tests__/integration/imageGenerationFlow.integration.test.ts`      |                                               |
+| `__tests__/integration/imageDisplay.integration.test.tsx`                |                                               |
+| `__tests__/integration/imageGeneration.integration.test.ts`              |                                               |
+| `src/__tests__/integration/microphoneIntegration.test.tsx`               | Voice input integration                       |
+| `src/__tests__/services/openaiClientModelConfig.test.ts`                 | Model config                                  |
+| `src/__tests__/services/contentQuality.test.ts`                          | Story quality                                 |
+| `src/__tests__/services/educationalOptimizer.test.ts`                    | Grade-level adaptation                        |
+| `src/__tests__/services/educationalOptimizerSimple.test.ts`              | Grade-level adaptation                        |
+| `src/__tests__/services/storyContentExtraction.test.ts`                  |                                               |
+| `src/__tests__/services/contentExtractionSimple.test.ts`                 |                                               |
+| `src/__tests__/services/contentFilterWordBoundaries.test.ts`             | Content safety (could promote to T1)          |
+| `src/__tests__/services/recentElementsService.test.ts`                   |                                               |
+| `src/__tests__/services/recentElementsCaching.test.ts`                   |                                               |
+| `src/__tests__/services/userPreferences.test.ts`                         | UX persistence                                |
+| `src/__tests__/services/diversityScoreStorageService.test.ts`            | US-015c.10 cleared 7/14; 7 residual           |
+| `src/__tests__/services/storyQuestService.test.ts`                       |                                               |
+| `src/__tests__/services/postGenerationStorageService.test.ts`            |                                               |
+| `src/__tests__/services/embeddingGenerationService.test.ts`              |                                               |
+| `src/__tests__/services/predictiveStoryCache.test.ts`                    |                                               |
+| `src/__tests__/services/enhancedArtStyleMapping.test.ts`                 |                                               |
+| `src/__tests__/services/networkMonitor.test.ts`                          |                                               |
+| `src/__tests__/services/enhancedErrorHandling.test.ts`                   |                                               |
+| `src/__tests__/services/errorHandler.test.ts`                            |                                               |
+| `src/__tests__/services/contextualErrorHandling.test.ts`                 |                                               |
+| `src/__tests__/services/skillErrorRecovery.test.ts`                      |                                               |
+| `src/__tests__/integration/enhancedErrorHandlingFlow.test.ts`            |                                               |
+| `src/__tests__/integration/predictiveCacheIntegration.test.ts`           |                                               |
+| `src/__tests__/integration/downloadFlowIntegration.test.ts`              |                                               |
+| `src/__tests__/screens/ImportOptionsScreen.test.tsx`                     | Suite-load fail (vmConfig)                    |
+| `src/__tests__/utils/rememberMeStorage.test.ts`                          | Auth UX adjacency                             |
+| `src/__tests__/services/serviceHealth.test.ts`                           |                                               |
+| `src/__tests__/utils/storyUtils.test.ts`                                 |                                               |
+| `src/__tests__/types/supabaseTypesImport.test.ts`                        | Type contract                                 |
+| `src/__tests__/ui/exitGameWarning.test.tsx`                              | UX safety (data loss prevention)              |
+| `src/__tests__/unit/fontSizeValidation.test.ts`                          | Accessibility (could promote to T1 for COPPA) |
+| `src/__tests__/unit/claudeSkillsConfigValidation.test.ts`                |                                               |
+| `src/__tests__/bugfixes/regression.test.ts`                              | BUG-123 timeout coverage                      |
+| `src/__tests__/integration/comprehensiveValidation.test.ts`              |                                               |
+| `src/__tests__/story/errorHandling.test.ts`                              | US-015c.12 cleared 6/22; 16 residual          |
+| `src/__tests__/story/apiIntegration.test.ts`                             | netinfo path fix landed                       |
+| `src/__tests__/integration/promptValidationFallback.integration.test.ts` |                                               |
+| `src/__tests__/integration/userPreferencesEffectiveness.test.ts`         |                                               |
+| `src/__tests__/integration/qualityAssuranceChecklist.test.ts`            |                                               |
+| `__tests__/services/storyGenerationService.genre.test.ts`                | Genre routing through generation API          |
+| `src/__tests__/components/EnhancedStoryImageDisplay.test.tsx`            | US-015c.5 no-mock-leverage; rewrite candidate |
+| `__tests__/integration/offlineSync.integration.test.ts`                  | Offline flow                                  |
+| `__tests__/integration/retryUpload.integration.test.ts`                  | Upload reliability                            |
+
+**TIER 3 — PERIPHERAL (46 suites) → DELETE-AND-REWRITE candidates (default), SKIP a small subset**
+
+Strong delete candidates — analytics, A/B, claudeSkills monitoring infra, performance benchmarks, accessibility/voice-features matrices that test infrastructure rather than user-visible behavior:
+
+| File                                                                 | Why T3                                          |
+| -------------------------------------------------------------------- | ----------------------------------------------- |
+| `src/__tests__/integration/abTestingIntegration.test.ts`             | A/B telemetry — non-protective                  |
+| `src/__tests__/services/abTesting.test.ts`                           | A/B telemetry                                   |
+| `src/__tests__/integration/advancedSearchIntegration.test.ts`        | Search; may not be active feature               |
+| `src/__tests__/services/advancedSearchService.test.ts`               | Search; may not be active feature               |
+| `src/__tests__/integration/analyticsIntegration.test.ts`             | Analytics                                       |
+| `src/__tests__/services/adaptiveMemoryManagement.test.ts`            | Performance instrumentation                     |
+| `src/__tests__/services/adaptiveQuality.test.ts`                     | Performance instrumentation                     |
+| `src/__tests__/services/batteryOptimization.test.ts`                 | Performance instrumentation                     |
+| `src/__tests__/services/dynamicResourceManager.test.ts`              | Performance instrumentation                     |
+| `src/__tests__/services/deviceConditionAssessment.test.ts`           | Performance instrumentation                     |
+| `src/__tests__/services/performanceDeviceTier.test.ts`               | Performance instrumentation                     |
+| `src/__tests__/services/performanceTuner.test.ts`                    | Performance instrumentation                     |
+| `src/__tests__/services/progressiveEnhancement.test.ts`              | Performance instrumentation                     |
+| `src/__tests__/integration/performanceIntegration.test.ts`           | Performance instrumentation                     |
+| `src/__tests__/integration/claudeQualityIntegration.test.ts`         | Claude Skills infra                             |
+| `src/__tests__/integration/claudeSkillsIntegrationFramework.test.ts` | Claude Skills infra                             |
+| `src/__tests__/integration/claudeSkillsMonitorIntegration.test.ts`   | Claude Skills monitoring                        |
+| `src/__tests__/integration/claudeSkillsSecurityValidation.test.ts`   | Claude Skills validation                        |
+| `src/__tests__/services/claudeSkillsFailureSimulation.test.ts`       | Claude Skills monitoring                        |
+| `src/__tests__/services/claudeSkillsMonitor.test.ts`                 | Claude Skills monitoring                        |
+| `src/__tests__/services/claudeSkillsResourceIntegration.test.ts`     | Claude Skills monitoring                        |
+| `src/__tests__/integration/skillEnhancedServiceIntegration.test.ts`  | Claude Skills wrapper                           |
+| `src/__tests__/services/base/SkillEnhancedService.test.ts`           | Claude Skills wrapper base class                |
+| `src/__tests__/mocks/claudeSkillsMock.test.ts`                       | **A test of a mock** — strong delete signal     |
+| `src/__tests__/acceptance/accessibilityTesting.test.tsx`             | Acceptance scaffolding (heavy harness)          |
+| `src/__tests__/acceptance/errorHandlingScenarios.test.ts`            | Acceptance scaffolding                          |
+| `src/__tests__/acceptance/gradeLevelStyles.test.ts`                  | Acceptance scaffolding                          |
+| `src/__tests__/acceptance/performanceScenarios.test.ts`              | Acceptance scaffolding                          |
+| `src/__tests__/acceptance/userAcceptance.test.tsx`                   | Acceptance scaffolding                          |
+| `src/__tests__/acceptance/userJourneyScenarios.test.ts`              | Acceptance scaffolding                          |
+| `src/__tests__/accessibility/voiceFeaturesAccessibility.test.tsx`    | Voice features matrix (split across 7 files)    |
+| `src/__tests__/errorHandling/voiceFeaturesErrorHandling.test.tsx`    | Voice features matrix                           |
+| `src/__tests__/functional/voiceFeaturesFunctional.test.tsx`          | Voice features matrix                           |
+| `src/__tests__/integration/crossPlatformVoiceFeatures.test.tsx`      | Voice features matrix                           |
+| `src/__tests__/integration/endToEndVoiceFeatures.test.tsx`           | Voice features matrix                           |
+| `src/__tests__/platform/voiceFeaturesPlatform.test.tsx`              | Voice features matrix                           |
+| `src/__tests__/technical/voiceFeaturesTechnical.test.tsx`            | Voice features matrix                           |
+| `src/__tests__/integration/debug_authscreen.test.tsx`                | `debug_` prefix — likely scratch file           |
+| `__tests__/performance/concurrentUploads.performance.test.ts`        | Perf benchmark                                  |
+| `__tests__/performance/databaseQuery.performance.test.ts`            | Perf benchmark                                  |
+| `__tests__/performance/imageUpload.performance.test.ts`              | Perf benchmark                                  |
+| `src/__tests__/privacy/userPreferencesPrivacy.test.ts`               | Boundary case — could promote to T2             |
+| `__tests__/convex/userProfiles.genre.test.ts`                        | Convex internalMutation conflict (US-011 known) |
+| `src/__tests__/services/promptFallbackMethods.test.ts`               | Prompt-fallback infra (verify still active)     |
+| `src/__tests__/services/promptStyleValidation.test.ts`               | Prompt-fallback infra                           |
+
+#### Tier-counts summary
+
+| Tier      |   Count | Default disposition                  | Estimated effort      |
+| --------- | ------: | ------------------------------------ | --------------------- |
+| T1        |      33 | REPAIR all                           | High — invest fully   |
+| T2        |      53 | REPAIR where leverage; SKIP residual | Medium — pragmatic    |
+| T3        |      45 | DELETE-AND-REWRITE; small SKIP       | Low — fast retirement |
+| **Total** | **131** |                                      |                       |
+
+#### Recommended follow-up sub-stories
+
+- **US-015f.1: T1 critical-path repair** — 33 suites. Repair-only, no skips, no deletes. Likely 6–10 PRs grouped by domain (auth, COPPA, RLS, XP, story flow, navigation). **Wall-clock estimate: 2-3 weeks of focused work.** Highest leverage on production-correctness signal.
+- **US-015f.2: T2 high-value triage** — 52 suites. Per-file mock-leverage check first; promote to repair if a single root cause covers 5+ failures, otherwise FR-8 skip with marker. Wall-clock estimate: **1–2 weeks**.
+- **US-015f.3: T3 peripheral retirement** — 46 suites. Default to deletion. Each deleted file gets a one-line PR-description note explaining why retirement was chosen (test-of-a-mock, non-protective infra, perf-only benchmark, etc.). Wall-clock estimate: **2–3 days** (the work is low-cost; the slow part is reviewer confidence on each deletion).
+- **US-015f.4: post-triage validation** — re-run main CI. Confirm: (a) suite count went from 131 to ≤ T2-skip-residual + T3-skipped (target: ~20 max); (b) all T1 suites green; (c) coverage threshold breach assessed independently.
+
+#### Decision points the user needs to weigh in on before US-015f.1 spawns
+
+1. **Is the Tier 1 list correct?** Promote `contentFilterWordBoundaries.test.ts` from T2? Demote `bugfixes/regression.test.ts`? The current cut errs toward broader T1 (legal-mandatory + currency + auth + core game + navigation = 33 suites).
+2. **Acceptable T2-default-skip rate?** If 60–70% of T2 ends up SKIP'd (likely, given how the architectural sweep already mined the cheap repairs), the "moderate effort" estimate holds. Higher repair rate → higher cost.
+3. **T3 deletion authority.** Delete-and-rewrite is destructive. Confirm whether US-015f.3 can land per-file PRs autonomously or whether deletions need a maintainer review per-PR. (Current PRD recommendation: per-PR review for the first 5 deletions to calibrate, then batch.)
+4. **The 5 deferred patterns from US-015c that crossed sub-stories** (architectural-drift cluster, architectural-test-logic-rewrite, architectural-supabaseMock-singleton, US-015c.10.1 service-API drift, US-015c.13.1 storage chain): land these inside US-015f.1 as architectural prerequisites, or split into a separate US-015g shared-infra story?
+
+**Files modified for US-015f: 1 (this PRD only).** No production source, no test files, no CI config. The ticket is the deliverable.
+
+**Verdict: 🗂 PLANNING — awaiting maintainer decision on the four points above.** Once approved, US-015f.1 spawns first (highest-priority tier).
+
+#### US-015f.3 verdict ⏳ CALIBRATION-IN-FLIGHT — 5-file calibration batch shipped on `chore/us-015f-3-t3-deletion-calibration`
+
+**Trigger:** User invoked the calibration phase explicitly: "spawn US-015f.3 with the 5-file calibration list." The PRD's open-question #3 default ("per-PR review for the first 5 deletions to calibrate, then batch") is the operating model — this PR carries 5 deletions for atomic per-commit reviewer evaluation, after which a maintainer decision unlocks batched deletion of the remaining ~40 T3 candidates.
+
+**5 calibration files chosen (most obviously-retire-able from T3):**
+
+| #   | File                                                          | Rationale for "obviously retire-able"                                                |
+| --- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| 1   | `src/__tests__/integration/debug_authscreen.test.tsx`         | `debug_` filename prefix → scratch tooling checked in by accident                    |
+| 2   | `src/__tests__/mocks/claudeSkillsMock.test.ts`                | Test of a mock fixture (anti-pattern); mock itself stays — 8 consumers depend on it  |
+| 3   | `__tests__/performance/concurrentUploads.performance.test.ts` | Jest-as-benchmark anti-pattern; CI-load-dominated signal, US-011 flake bucket        |
+| 4   | `__tests__/performance/databaseQuery.performance.test.ts`     | Same anti-pattern; correctness already covered by `databaseOperations.test.tsx` (T1) |
+| 5   | `__tests__/performance/imageUpload.performance.test.ts`       | Same anti-pattern; correctness covered by `imageDisplay.integration.test.tsx` (T2)   |
+
+**Pre-deletion verification (low-cost cross-checks):**
+
+- ✅ All 5 files exist (file size 97 / 313 / 413 / 294 / 231 lines respectively)
+- ✅ No other file imports any of them: `grep -rE "from\s+['\"][^'\"]*<basename>" --include="*.ts*"` returned 0 matches per file
+- ✅ `claudeSkillsMock.ts` (the implementation, no `.test.`) is consumed by 8 other test files — kept intact; only the test-of-the-mock retired
+- ✅ No snapshot files (no `__snapshots__` directories anywhere in the repo)
+- ✅ Test-file count: 311 → 306 (exact delta of -5, matches expected)
+
+**Commit pattern:**
+
+One branch (`chore/us-015f-3-t3-deletion-calibration`), 7 commits:
+
+1. `docs(US-015f)` — adds the planning ticket itself (this PRD content)
+   2-6. `test(US-015f.3)` — one commit per deletion, each with file-specific rationale (atomic reviewer evaluation)
+2. `docs(US-015f.3)` — this verdict block
+
+**Known follow-up surfaced during calibration:**
+
+`__tests__/performance/README.md` and `__tests__/performance/IMPLEMENTATION_SUMMARY.md` reference the three deleted perf benchmarks. Left unchanged in this PR to keep the 5-file calibration scope tight; called out in the PR description as a doc-cleanup follow-up. The directory now contains only `uiStateUpdate.performance.test.tsx` (passing on main, not in the failing-suite list).
+
+**What "calibration" specifically validates:**
+
+- That the deletion-authority decision (PRD open-question #3) has a working answer: per-PR review of the first 5 lands cleanly → batch the remaining ~40
+- That the per-commit pattern gives reviewers atomic evaluation without inflating PR count
+- That the failing-suite count drops by exactly N (5 here) with no other suites changing status — confirming no hidden cross-imports
+
+**Next step after this PR merges:**
+
+If the calibration PR is approved without churn, US-015f.3 graduates to batch mode: a single follow-up PR retiring the remaining ~40 T3 files (or a small number of grouped PRs split by sub-cluster — voiceFeatures matrix, claudeSkills monitoring infra, perf instrumentation, A/B telemetry, acceptance scaffolding). If the calibration PR surfaces concerns on any of the 5 deletions, the disposition for that file moves to SKIP-with-FR-8-marker instead and we recalibrate before batch.
+
+**Files modified for US-015f.3: 6** (1 PRD + 5 test-file deletions). No production source, no CI config, no shared mock infrastructure.
+
+---
+
 ### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c
 
 **Description:** As a maintainer, I want CI back on its original timeout and coverage configuration so CI matches local-run expectations.
