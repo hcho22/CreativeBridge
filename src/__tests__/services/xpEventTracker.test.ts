@@ -6,6 +6,7 @@
  */
 
 import { xpEventTracker } from '../../services/xpEventTracker';
+import { redactId } from '../../utils/piiRedaction';
 
 // Mock Convex client
 const mockConvexClient = {
@@ -238,7 +239,7 @@ describe('XP Event Tracker Service', () => {
       expect(consoleSpy).toHaveBeenCalledWith(
         '💸 Tracking XP deduction:',
         expect.objectContaining({
-          userId: mockUserId,
+          uid: redactId(mockUserId),
           xpAmount: 1000,
           reason: 'Image generation attempt',
           imageGenerationEventId: 'evt123abc',
@@ -289,7 +290,7 @@ describe('XP Event Tracker Service', () => {
       expect(consoleSpy).toHaveBeenCalledWith(
         '💰 Tracking XP refund:',
         expect.objectContaining({
-          userId: mockUserId,
+          uid: redactId(mockUserId),
           xpAmount: 1000,
           reason: 'API timeout failure',
         }),
@@ -560,7 +561,6 @@ describe('XP Event Tracker Service', () => {
       expect(mockConvexClient.query).toHaveBeenCalledWith(
         'imageGeneration:getUserImageGenerationEvents',
         {
-          clerkUserId: mockUserId,
           limit: 10,
           offset: 0,
         },
