@@ -2515,6 +2515,67 @@ Estimated yield: ~5-10 of the 31 candidates likely meet the safe pattern (rough 
 
 **Lesson:** mass-replacement of `clearAllMocks → resetAllMocks` is NOT a safe automated transformation. The same anti-pattern (test-order pollution from queue-based mocks) can be solved by `resetAllMocks` only when the factory has no default implementations. Future sweeps need per-file factory-shape inspection before bulk apply.
 
+#### US-015f.1.2.sweep-targeted verdict ⚠️ ABANDONED — even per-file factory audit is too weak; sweep approach is dead-end
+
+**Trigger:** US-015f.1.2.sweep-attempt's lesson recommended a "per-file factory audit" before bulk apply. This story executed that approach with rigorous before/after measurement.
+
+**Method:**
+
+1. Identified 31 candidate files (clearAllMocks + Once-suffix mocks, currently failing) — same as the abandoned bulk attempt
+2. Audit heuristic: classify a file as SAFE if `grep -E "jest\.fn\([^)]" file` returns 0 hits (no `jest.fn(implementation)` patterns in the test file)
+3. Audit yielded 17 SAFE / 14 UNSAFE
+4. Applied `clearAllMocks → resetAllMocks` to the 17 SAFE files
+5. Captured before/after inner-test counts via `npx jest --json --outputFile`
+6. Computed delta per-file
+
+**Result: 0 tests improved, 25 tests regressed across 6 files.**
+
+| File                                 |  Before |   After |      Δ pass | Status    |
+| ------------------------------------ | ------: | ------: | ----------: | --------- |
+| `predictiveCacheIntegration.test.ts` |   5 / 7 |   3 / 7 |      **-2** | REGRESSED |
+| `profileCompletion.test.tsx`         |  3 / 12 |  0 / 12 |      **-3** | REGRESSED |
+| `claudeSkillsAuth.test.ts`           | 24 / 30 | 11 / 30 |     **-13** | REGRESSED |
+| `rateLimiter.test.ts`                |  9 / 18 |  7 / 18 |      **-2** | REGRESSED |
+| `rlsPolicy.test.ts`                  |  4 / 18 |  0 / 18 |      **-4** | REGRESSED |
+| `predictiveStoryCache.test.ts`       | 13 / 14 | 12 / 14 |      **-1** | REGRESSED |
+| (11 other files)                     |     var |     var |           0 | UNCHANGED |
+| **Net**                              |         |         | **-25 / 0** |           |
+
+**Why the audit heuristic failed:**
+
+The grep heuristic checks the test file itself for `jest.fn(impl)` patterns, but real test code defers to imported helper modules. Examples that the heuristic missed:
+
+- `auditLogger.test.ts`: factory uses `supabase: jest.requireActual('../mocks/supabaseMock').mockSupabase` — the `mockSupabase` chain inside `supabaseMock.ts` is built from `jest.fn(...)` calls with implementations. `resetAllMocks` clears them all. The test file passes the audit; the imported helper does not.
+- `claudeSkillsAuth.test.ts`: similar pattern via `requireActual`. Lost 13 of 30 tests (43% regression in one file).
+- `rlsPolicy.test.ts`: lost all 4 passing tests, going to 0/18.
+
+To audit properly, the heuristic would need to:
+
+1. Parse `jest.mock()` factory blocks
+2. Resolve the targets of `jest.requireActual('../mocks/...')` calls
+3. Recursively audit those mock helper files for `jest.fn(impl)` patterns
+4. Trace any module-scope mock factories the test file imports
+
+That's effectively a TypeScript AST analysis. The level of effort to build a reliable audit exceeds the leverage even in the optimistic-yield scenario.
+
+**Conclusion: the parallel sweep approach is a dead-end.**
+
+The clearAllMocks pollution pattern is real (US-015f.1.2 confirmed it on xpSystem.test.ts) but **not amplifiable across files via a sweep**. The xpSystem fix worked because that file's mock factories had bare `jest.fn()` with no implementation — a configuration that turns out to be relatively rare.
+
+For future US-015f.1.X work involving clearAllMocks: it's a per-file investigation tool (look for it as one of several possible failure causes), not a sweepable pattern.
+
+**Strategic implication for US-015f.1.{3-8} planning:**
+
+| Approach            | Verdict                                                                                                    |
+| ------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Parallel sweeps     | Confirmed dead-end. Each "shared pattern" turns out to be one-off.                                         |
+| Per-cluster work    | Now the only viable path — one cluster at a time, per-file investigation                                   |
+| Cross-file leverage | Only via shared-mock-infrastructure fixes (e.g., US-015c.architectural-supabaseMock-singleton from PR #59) |
+
+The architectural-sweep approach (PR #59 cleared ~36 failures via 5-pattern collapse) was structurally different — it fixed shared infrastructure used by many files, not a code pattern repeated in many files. That kind of leverage is still valuable; per-test-pattern sweeps are not.
+
+**Files modified for US-015f.1.2.sweep-targeted: 0 test files (all 17 changes reverted) + 1 PRD entry.** Investigation only.
+
 ---
 
 ### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c
