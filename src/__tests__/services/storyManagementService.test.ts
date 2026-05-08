@@ -449,10 +449,14 @@ describe('StoryManagementService', () => {
 
         expect(result.success).toBe(true);
         expect(result.stories).toHaveLength(1);
+        // Convex auth migration: searchUserStories no longer takes clerkUserId
+        // explicitly — the server resolves the user from the auth context
+        // (`ctx.auth.getUserIdentity()`). Same arg-drift pattern as xpEventTracker
+        // fixed in PR #64. Asserting the surviving args confirms the call still
+        // happens with the expected search params.
         expect(mockConvexQuery).toHaveBeenCalledWith(
           'gameSessions:searchUserStories',
           expect.objectContaining({
-            clerkUserId: 'test-user-123',
             searchQuery: 'adventure',
             limit: 20,
           }),
