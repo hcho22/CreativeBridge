@@ -2451,6 +2451,70 @@ US-015f.1.1's claim that the XP cluster shared the PII redaction pattern was **w
 
 **Files modified for US-015f.1.2: 1 test file (`xpSystem.test.ts`, 11/11 passing) + 1 PRD entry.** No production source changes.
 
+#### US-015f.1.2.sweep-attempt verdict ⚠️ ABANDONED — bulk `clearAllMocks → resetAllMocks` replacement is unsafe
+
+**Trigger:** US-015f.1.2 identified `clearAllMocks` pollution as a discrete failure pattern. The natural follow-up was a parallel sweep across all failing files matching the pattern: `jest.clearAllMocks()` + `mockResolvedValueOnce` / `mockRejectedValueOnce` usage. Initial scan found **31 of 87 currently-failing files** (35%) matched both criteria — apparent high leverage.
+
+**The sweep was abandoned without shipping.** Investigation revealed `resetAllMocks` is NOT a strict superset of `clearAllMocks` for files that define mock implementations inside `jest.mock(factory)` blocks.
+
+**Why bulk replacement is unsafe:**
+
+`jest.clearAllMocks()` clears call history (calls, results, instances) but preserves implementations.
+`jest.resetAllMocks()` clears both call history AND implementations.
+
+When a test file's `jest.mock()` factory contains `jest.fn()` with an implementation:
+
+```ts
+jest.mock('../../services/convex', () => ({
+  getConvexClient: jest.fn(() => mockConvexClient),  // ← implementation
+  isConvexReady: jest.fn(() => true),                  // ← implementation
+  api: { ... },
+}));
+```
+
+`resetAllMocks` clears the `() => mockConvexClient` and `() => true` implementations. Subsequent test calls to `getConvexClient()` and `isConvexReady()` return `undefined`, breaking every test that relied on the factory defaults.
+
+**Per-file factory-pattern audit (5 of 31 candidates spot-checked):**
+
+| File                             | Factory pattern                                                                      | Safe to swap? |
+| -------------------------------- | ------------------------------------------------------------------------------------ | ------------- |
+| `auditLogger.test.ts`            | `supabase: jest.requireActual('../mocks/supabaseMock').mockSupabase` (chain mocks)   | ❌ Risky      |
+| `profileCompletion.test.tsx`     | Bare auto-mocks (`jest.mock('../../context/AuthContext')`)                           | ✅ Safe       |
+| `storyManagementService.test.ts` | `getConvexClient: jest.fn(() => mockConvexClient)` (factory implementations)         | ❌ Breaks     |
+| `imageStorageSecurity.test.ts`   | `supabase: mockSupabase` (external reference; chain inside `mockSupabase`)           | ⚠️ Risky      |
+| `StorySelectionModal.test.tsx`   | `getStoryLibrary: (...args) => mockGetStoryLibrary(...args)` (arrow fn, not jest.fn) | ✅ Safe       |
+
+**Conclusion:** the safe-to-swap pattern requires the file's `jest.mock()` factories to either:
+
+- Use bare `jest.fn()` (no implementation), OR
+- Use auto-mocks (`jest.mock(modulePath)` with no factory), OR
+- Use arrow functions/values that aren't `jest.fn()` instances
+
+Files with `jest.fn(() => ...)` in their factories will BREAK under `resetAllMocks` — passing tests will start failing because the factory implementations are gone.
+
+**Why xpSystem.test.ts (US-015f.1.2) was safe:**
+
+```ts
+jest.mock('../../services/supabase', () => ({
+  supabase: { rpc: jest.fn() }, // ← bare jest.fn(), no implementation
+}));
+```
+
+The factory had no implementation; tests set up `mockResolvedValueOnce` per-call. `resetAllMocks` had nothing to clear in the factory.
+
+**Methodology for future targeted sweeps (deferred to US-015f.1.2.sweep-targeted):**
+
+1. For each candidate file, parse the `jest.mock()` factory blocks
+2. Filter to files where every `jest.fn()` is bare (no `() => ...` implementation)
+3. Apply the fix only to those files
+4. Verify each individually — even within the safe subset, file-specific quirks may emerge
+
+Estimated yield: ~5-10 of the 31 candidates likely meet the safe pattern (rough guess — needs the audit). Lower leverage than the initial 31-file estimate suggested, but still potentially worth one focused PR.
+
+**Files modified for US-015f.1.2.sweep-attempt: 0 test files (changes reverted) + 1 PRD entry.** Investigation only; no code shipped.
+
+**Lesson:** mass-replacement of `clearAllMocks → resetAllMocks` is NOT a safe automated transformation. The same anti-pattern (test-order pollution from queue-based mocks) can be solved by `resetAllMocks` only when the factory has no default implementations. Future sweeps need per-file factory-shape inspection before bulk apply.
+
 ---
 
 ### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c
