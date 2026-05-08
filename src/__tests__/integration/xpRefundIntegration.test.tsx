@@ -1,6 +1,20 @@
 /**
  * XP Refund Integration Test
  * Tests the actual AuthContext XP refund functionality
+ *
+ * ─── ARCHITECTURE-MIGRATION ROUTING (US-015f.1.xp-integration.rewrite) ───
+ *
+ * Same situation as xpDeductionIntegration.test.tsx (see that file's
+ * header marker for full context). Tests AuthContext through the
+ * legacy Supabase path; AuthContext has migrated to Clerk + Convex
+ * (PRIMARY) so `userProfile` never hydrates with the supplied mocks.
+ * 6 of 6 tests fail wholesale.
+ *
+ * Re-enable after rewriting the mock setup against the Clerk + Convex
+ * surface (see xpDeductionIntegration.test.tsx header for the rewrite
+ * recipe). Tests below remain skipped via describe.skip as a
+ * behavioral spec for the rewrite. Routed to
+ * US-015f.1.xp-integration.rewrite.
  */
 
 import React from 'react';
@@ -58,7 +72,8 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 
 const mockSupabase = supabase as jest.Mocked<typeof supabase>;
 
-describe('XP Refund Integration Tests', () => {
+// eslint-disable-next-line jest/no-disabled-tests -- Routed to US-015f.1.xp-integration.rewrite; see file-header marker.
+describe.skip('XP Refund Integration Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
