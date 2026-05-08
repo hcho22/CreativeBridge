@@ -19,7 +19,7 @@ describe('XP System - Image Generation Integration', () => {
   const IMAGE_GENERATION_COST = 1000;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
   });
 
   describe('XP Deduction Functionality', () => {
