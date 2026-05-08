@@ -324,8 +324,14 @@ describe('US-006: Regression — Game Ends Only After Both Players Complete Roun
       );
       const homeScreenSource = fs.readFileSync(homeScreenPath, 'utf-8');
 
-      // Verify the round counter display pattern exists
-      expect(homeScreenSource).toContain('Round {currentRound}/{MAX_ROUNDS}');
+      // Verify the round counter display pattern exists. The literal separator
+      // between currentRound and MAX_ROUNDS may be either `/` (compact) or
+      // ` of ` (verbose UI string) — what matters is that the counter uses
+      // the MAX_ROUNDS constant rather than a hardcoded `5`, which is what
+      // prevents the "Round 6/5" regression this test was designed to guard.
+      const counterPattern =
+        /Round\s+\{currentRound\}\s*(?:\/|of)\s*\{MAX_ROUNDS\}/;
+      expect(homeScreenSource).toMatch(counterPattern);
 
       // Verify MAX_ROUNDS is defined as 5
       const maxRoundsPattern = /const\s+MAX_ROUNDS\s*=\s*5/;

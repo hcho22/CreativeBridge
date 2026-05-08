@@ -146,10 +146,17 @@ describe('[US-004] Prevent Input After Game Completion', () => {
     it('submit button is disabled when isGameCompleted is true', () => {
       // Post US-009, the submit button lives in VoiceFirstInputBar.tsx and
       // its disabled prop flows through `submitDisabled`/`typingSubmitDisabled`
-      // which both OR in `props.isGameCompleted`.
-      const disabledPattern = /disabled=\{[\s\S]*?isGameCompleted[\s\S]*?\}/;
-      const match = voiceBarSource.match(disabledPattern);
-      expect(match).not.toBeNull();
+      // which both OR in `props.isGameCompleted`. The disabled state may be
+      // expressed as either an inline JSX prop (`disabled={...isGameCompleted...}`)
+      // OR — post-refactor — as a const declaration that the JSX prop then
+      // references (`const submitDisabled = ... || props.isGameCompleted; ...
+      // <Pressable disabled={submitDisabled} />`).
+      const inlineJsxPattern = /disabled=\{[\s\S]*?isGameCompleted[\s\S]*?\}/;
+      const constDeclPattern =
+        /(submitDisabled|typingSubmitDisabled)\s*=\s*[\s\S]*?isGameCompleted/;
+      const matchesInline = inlineJsxPattern.test(voiceBarSource);
+      const matchesConst = constDeclPattern.test(voiceBarSource);
+      expect(matchesInline || matchesConst).toBe(true);
     });
 
     it('submit button composites isGameCompleted into its disabled state', () => {
