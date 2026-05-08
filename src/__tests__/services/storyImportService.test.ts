@@ -18,15 +18,22 @@ jest.mock('react-native-fs', () => ({
 import RNFS from 'react-native-fs';
 const mockRNFS = RNFS as jest.Mocked<typeof RNFS>;
 
-// Mock supabase - must be before the import
-const mockSupabaseRpc = jest.fn();
+// Mock supabase. The factory must not close over an outer `const` because
+// jest.mock is hoisted ABOVE imports, but const declarations are not. When
+// `StoryImportService`'s import transitively requires `../../services/supabase`,
+// the factory runs while the outer `const mockSupabaseRpc` is still in TDZ —
+// resolving to `undefined` and producing `sb.rpc is not a function` errors.
+// Define the jest.fn inline, then retrieve it via jest.requireMock for the
+// test body to manipulate.
 jest.mock('../../services/supabase', () => ({
   supabase: {
-    rpc: mockSupabaseRpc,
+    rpc: jest.fn(),
   },
 }));
 
 import { StoryImportService } from '../../services/storyImportService';
+const mockSupabaseRpc = jest.requireMock('../../services/supabase').supabase
+  .rpc as jest.Mock;
 
 describe('StoryImportService', () => {
   beforeEach(() => {
