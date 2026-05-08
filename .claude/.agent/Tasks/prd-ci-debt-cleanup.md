@@ -2182,6 +2182,52 @@ Strong delete candidates — analytics, A/B, claudeSkills monitoring infra, perf
 
 **Verdict: 🗂 PLANNING — awaiting maintainer decision on the four points above.** Once approved, US-015f.1 spawns first (highest-priority tier).
 
+#### US-015f.3 verdict ⏳ CALIBRATION-IN-FLIGHT — 5-file calibration batch shipped on `chore/us-015f-3-t3-deletion-calibration`
+
+**Trigger:** User invoked the calibration phase explicitly: "spawn US-015f.3 with the 5-file calibration list." The PRD's open-question #3 default ("per-PR review for the first 5 deletions to calibrate, then batch") is the operating model — this PR carries 5 deletions for atomic per-commit reviewer evaluation, after which a maintainer decision unlocks batched deletion of the remaining ~40 T3 candidates.
+
+**5 calibration files chosen (most obviously-retire-able from T3):**
+
+| #   | File                                                          | Rationale for "obviously retire-able"                                                |
+| --- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| 1   | `src/__tests__/integration/debug_authscreen.test.tsx`         | `debug_` filename prefix → scratch tooling checked in by accident                    |
+| 2   | `src/__tests__/mocks/claudeSkillsMock.test.ts`                | Test of a mock fixture (anti-pattern); mock itself stays — 8 consumers depend on it  |
+| 3   | `__tests__/performance/concurrentUploads.performance.test.ts` | Jest-as-benchmark anti-pattern; CI-load-dominated signal, US-011 flake bucket        |
+| 4   | `__tests__/performance/databaseQuery.performance.test.ts`     | Same anti-pattern; correctness already covered by `databaseOperations.test.tsx` (T1) |
+| 5   | `__tests__/performance/imageUpload.performance.test.ts`       | Same anti-pattern; correctness covered by `imageDisplay.integration.test.tsx` (T2)   |
+
+**Pre-deletion verification (low-cost cross-checks):**
+
+- ✅ All 5 files exist (file size 97 / 313 / 413 / 294 / 231 lines respectively)
+- ✅ No other file imports any of them: `grep -rE "from\s+['\"][^'\"]*<basename>" --include="*.ts*"` returned 0 matches per file
+- ✅ `claudeSkillsMock.ts` (the implementation, no `.test.`) is consumed by 8 other test files — kept intact; only the test-of-the-mock retired
+- ✅ No snapshot files (no `__snapshots__` directories anywhere in the repo)
+- ✅ Test-file count: 311 → 306 (exact delta of -5, matches expected)
+
+**Commit pattern:**
+
+One branch (`chore/us-015f-3-t3-deletion-calibration`), 7 commits:
+
+1. `docs(US-015f)` — adds the planning ticket itself (this PRD content)
+   2-6. `test(US-015f.3)` — one commit per deletion, each with file-specific rationale (atomic reviewer evaluation)
+2. `docs(US-015f.3)` — this verdict block
+
+**Known follow-up surfaced during calibration:**
+
+`__tests__/performance/README.md` and `__tests__/performance/IMPLEMENTATION_SUMMARY.md` reference the three deleted perf benchmarks. Left unchanged in this PR to keep the 5-file calibration scope tight; called out in the PR description as a doc-cleanup follow-up. The directory now contains only `uiStateUpdate.performance.test.tsx` (passing on main, not in the failing-suite list).
+
+**What "calibration" specifically validates:**
+
+- That the deletion-authority decision (PRD open-question #3) has a working answer: per-PR review of the first 5 lands cleanly → batch the remaining ~40
+- That the per-commit pattern gives reviewers atomic evaluation without inflating PR count
+- That the failing-suite count drops by exactly N (5 here) with no other suites changing status — confirming no hidden cross-imports
+
+**Next step after this PR merges:**
+
+If the calibration PR is approved without churn, US-015f.3 graduates to batch mode: a single follow-up PR retiring the remaining ~40 T3 files (or a small number of grouped PRs split by sub-cluster — voiceFeatures matrix, claudeSkills monitoring infra, perf instrumentation, A/B telemetry, acceptance scaffolding). If the calibration PR surfaces concerns on any of the 5 deletions, the disposition for that file moves to SKIP-with-FR-8-marker instead and we recalibrate before batch.
+
+**Files modified for US-015f.3: 6** (1 PRD + 5 test-file deletions). No production source, no CI config, no shared mock infrastructure.
+
 ---
 
 ### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c
