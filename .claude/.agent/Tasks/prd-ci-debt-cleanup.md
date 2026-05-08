@@ -2397,6 +2397,60 @@ The convex-arg-drift sub-pattern is more idiosyncratic (per-method) but shows up
 
 **Strategic implication:** US-015f.1.1's success confirms the planning ticket's "REPAIR" disposition for T1 is correct — the work is mechanical per-test assertion alignment, not deep architectural rework. The "2-3 weeks of focused work" estimate may be conservative if the PII-redaction sub-pattern generalizes as expected; the cluster could land in 1-2 weeks of focused PRs.
 
+#### US-015f.1.2 verdict ⏳ PARTIAL — pattern crystallization corrected; 1 of 5 remaining XP files fixed, 4 routed to sub-stories
+
+**Trigger:** US-015f.1.1's PRD claimed the XP cluster's remaining 5 files "likely share at least the PII redaction sub-pattern." Investigation across all 5 disproved this — the cluster has **four distinct failure patterns**, not one shared pattern.
+
+**Per-file findings (run locally on branch `chore/us-015f-1-2-xp-cluster-remainder`):**
+
+| File                               | Tests passing | Failure pattern                    | Disposition                      |
+| ---------------------------------- | ------------: | ---------------------------------- | -------------------------------- |
+| `xpSystem.test.ts`                 |   **11 / 11** | clearAllMocks pollution            | ✅ **FIXED** in this PR          |
+| `xpSystemIntegration.test.ts`      |       15 / 18 | Real-assertion drift (per-test)    | Route to US-015f.1.2.B           |
+| `xpDeductionIntegration.test.tsx`  |         0 / 5 | AuthContext architectural mock gap | Route to US-015f.1.2.AuthContext |
+| `xpRefundIntegration.test.tsx`     |         0 / 6 | AuthContext architectural mock gap | Route to US-015f.1.2.AuthContext |
+| `xpValidationIntegration.test.tsx` |         2 / 8 | AuthContext architectural mock gap | Route to US-015f.1.2.AuthContext |
+
+**The fix (xpSystem.test.ts):**
+
+```diff
+   beforeEach(() => {
+-    jest.clearAllMocks();
++    jest.resetAllMocks();
+   });
+```
+
+`jest.clearAllMocks()` clears call history but NOT mock implementations. Earlier tests' `mockResolvedValueOnce` / `mockReturnValue` setups persisted across tests, polluting the rejection queue when later tests called `mockRejectedValueOnce`. `jest.resetAllMocks()` clears both, giving each test a clean mock slate.
+
+**Verification:**
+
+```
+Before: Tests: 2 failed, 9 passed, 11 total
+After:  Tests: 11 passed, 11 total
+```
+
+**Pattern correction (replaces US-015f.1.1's overgeneralization):**
+
+US-015f.1.1's claim that the XP cluster shared the PII redaction pattern was **wrong** (N=1 generalization). The actual cluster has heterogeneous failure modes:
+
+1. **PII redaction drift** — affects `xpEventTracker.test.ts` only (the source-level service-test). Fixed in PR #64.
+2. **clearAllMocks pollution** — affects `xpSystem.test.ts` only (1-character fix in this PR). May appear in other unrelated T1/T2 files; worth a grep across the codebase as a parallel sweep.
+3. **Real-assertion drift** — `xpSystemIntegration.test.ts` has 3 inner-test failures persisting in isolation (transaction rollback semantics, network failure handling, retry recovery). Per-test investigation needed; routes to **US-015f.1.2.B**.
+4. **AuthContext architectural mock gap** — 3 integration files (`xpDeductionIntegration`, `xpRefundIntegration`, `xpValidationIntegration`) all import `AuthProvider` + `useAuth` and mock supabase but not Convex. Per CLAUDE.md, OAuth users go through Convex while legacy users go through Supabase — these tests were written for legacy AuthContext only. Routes to **US-015f.1.2.AuthContext** (architectural sub-story; needs Convex mocks added OR rewrite against current AuthContext shape).
+
+**Cumulative XP cluster status (after US-015f.1.1 + US-015f.1.2):**
+
+| Metric                           | Pre-US-015f.1 | After this PR (projected) |
+| -------------------------------- | ------------: | ------------------------: |
+| XP cluster files                 |             6 |                         6 |
+| Files with all-tests-passing     |             0 |                   **2** ✓ |
+| Inner tests passing              |      ~unknown |             40 / 59 (68%) |
+| Failing-suite count contribution |             6 |                         4 |
+
+**Strategic implication:** The "2-3 weeks for T1" estimate stands or grows. xpEventTracker + xpSystem land cheaply (single-pattern fixes), but the AuthContext architectural sub-story (3 files) is genuinely architectural work — not the mechanical alignment US-015f.1.1 claimed was the dominant T1 pattern. The lesson for US-015f.1.{3-8} planning: investigate before estimating; don't extrapolate from N=1.
+
+**Files modified for US-015f.1.2: 1 test file (`xpSystem.test.ts`, 11/11 passing) + 1 PRD entry.** No production source changes.
+
 ---
 
 ### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c
