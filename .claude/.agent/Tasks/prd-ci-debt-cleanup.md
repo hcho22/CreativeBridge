@@ -2625,6 +2625,56 @@ The COPPA cluster's mix (2/3 mechanical, 1/3 real-finding) suggests a **roughly 
 
 **Files modified for US-015f.1.3: 3 test files (2 fixed + 1 regression marker added) + 1 PRD entry.** No production source changes.
 
+#### US-015f.1.7 verdict ✅ COMPLETE — bugfix cluster fully green; calibration counterpoint to COPPA's regression rate
+
+**Trigger:** US-015f.1.7 (bugfix cluster) was the next per-cluster investigation after US-015f.1.3 (COPPA). Two files, single failing test each — same shape as COPPA but a different failure-rate hypothesis.
+
+**Per-file findings (both pass the 4-axis filter cleanly):**
+
+| File                                             | Tests passing (before → after) | Pattern                                | Disposition           |
+| ------------------------------------------------ | ------------------------------ | -------------------------------------- | --------------------- |
+| `US004-inputDisabledAfterCompletion.test.ts`     | 7/8 → **8/8** ✅               | Stale source-grep (extracted boolean)  | Fixed (regex broaden) |
+| `US006-gameEndsAfterBothPlayersComplete.test.ts` | 6/7 → **7/7** ✅               | Stale source-grep (UI text "/" → "of") | Fixed (regex broaden) |
+
+Cluster cumulative: 13 of 15 → **15 of 15** passing. Cluster fully complete.
+
+**The fixes (both same shape — broaden regex to accept multiple equivalent forms):**
+
+- **US004**: source post-US-009 refactor extracted `const submitDisabled = props.isGenerating || props.isGameCompleted` rather than inlining `disabled={isGenerating || isGameCompleted}` in JSX. Test required the inline JSX form. Broadened to accept either inline JSX or const-declaration form.
+- **US006**: source UI text changed `"Round {currentRound}/{MAX_ROUNDS}"` → `"Round {currentRound} of {MAX_ROUNDS}"`. Slash separator replaced with " of " for readability. `MAX_ROUNDS` constant still used (the protective invariant). Test relaxed to accept either separator.
+
+**Calibration counterpoint to US-015f.1.3 (COPPA cluster):**
+
+| Cluster              | Files | Mechanical fixes | Real regressions surfaced | Real-regression rate |
+| -------------------- | ----: | ---------------: | ------------------------: | -------------------: |
+| COPPA (US-015f.1.3)  |     3 |                2 |                     **1** |              **33%** |
+| Bugfix (US-015f.1.7) |     2 |                2 |                         0 |                   0% |
+
+The 0% rate in the bugfix cluster is informative on its own: bugfix coverage tests live closer to runtime behavior ("this specific bug stays fixed"), so when source refactors, the refactor usually preserves the bug fix because the bug fix is load-bearing for active functionality. COPPA tests, by contrast, often protect invariants that aren't load-bearing for any user-visible feature (e.g., "iOS uses on-device speech") — easier to silently regress.
+
+**Strategic implication for remaining T1 clusters:**
+
+| Cluster shape                                 | Expected real-regression rate | Investigation cost                                                    |
+| --------------------------------------------- | ----------------------------: | --------------------------------------------------------------------- |
+| Bugfix / regression coverage (active feature) |                           ~0% | Low — almost always mechanical fix                                    |
+| COPPA / audit / legal-mandatory protections   |                          ~30% | Medium — apply 4-axis filter rigorously                               |
+| Auth / payment / currency (active flow)       |                       ~5-10%? | Low-medium — likely mostly mechanical, but watch for protocol changes |
+| Privacy / RLS / row-level security            |                         ~20%? | Medium — similar shape to COPPA                                       |
+
+These rates are informed-guess from N=2 clusters. Expect them to refine as more clusters complete.
+
+**Pattern: "broaden the regex to accept multiple equivalent surface forms":**
+
+Both bugfix fixes use the same shape. This is preferable to "match the new surface form exactly" because:
+
+- It makes tests resilient to future cosmetic refactors (someone later renames `submitDisabled` → `isSubmitDisabled` → still passes)
+- It makes the protective intent more visible in the test code (the test reads "either of these forms is acceptable, both preserve the invariant")
+- It reduces churn on source-grep tests over the long term
+
+Future US-015f.1.X work on similarly-shaped tests should default to this pattern unless there's a reason the test specifically wants to lock in one form.
+
+**Files modified for US-015f.1.7: 2 test files + 1 PRD entry.** No production source changes.
+
 ---
 
 ### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c
