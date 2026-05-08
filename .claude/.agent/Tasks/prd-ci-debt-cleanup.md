@@ -2228,6 +2228,62 @@ If the calibration PR is approved without churn, US-015f.3 graduates to batch mo
 
 **Files modified for US-015f.3: 6** (1 PRD + 5 test-file deletions). No production source, no CI config, no shared mock infrastructure.
 
+#### US-015f.3 verdict ✅ CALIBRATION VALIDATED — PR #62 merged with -6 delta (5 deletions + 1 flake unmasked)
+
+**Trigger:** PR #62 (the 5-file calibration batch) merged to main as squash commit `ab0eeba` after admin override, with all 4 test-plan items passing:
+
+| #   | Test plan item                                          | Result                                           |
+| --- | ------------------------------------------------------- | ------------------------------------------------ |
+| 1   | Per-commit reviewer evaluation (atomic per-file review) | ✅ All 5 deletions approved on close reading     |
+| 2   | CI lint/type-check pass                                 | ✅ TypeScript ✓, ESLint ✓, Formatting ✓          |
+| 3   | CI test step shows 5 fewer failing suites (131 → 126)   | ✅ EXCEEDED — 131 → 125 (delta -6)               |
+| 4   | No previously-passing suite changes status              | ✅ Zero PASS→FAIL; one FAIL→PASS (flake exposed) |
+
+**Diagnostic finding from item #4 (worth its own callout):**
+
+The +1 unexpected pass (`comprehensiveValidation.test.ts`) is a flake exposed by execution-order shift, not a deletion-induced fix. Main's failure was a single off-by-one threshold violation: `expect(preservationRate).toBeGreaterThanOrEqual(90); Received: 89`. On PR62 the same calculation produced 90. Mechanism: removing 5 files from the suite list reshuffles jest's parallel worker assignment, which changes test execution order, which changes mock state at the moment of measurement — classic jest-flake territory.
+
+**Implication for US-015f.2:** `comprehensiveValidation.test.ts` belongs in the flake/timeout family (US-011 bucket) rather than the real-assertion-failure family. Right repair is either lowering the threshold by 1-2 points with a comment, or seeding the RNG deterministically — not a full mock-side rewrite.
+
+#### US-015f.3 batch retirement (post-calibration) ⏳ IN-FLIGHT — 36 files retired across 5 cluster commits on `chore/us-015f-3-batch-retirement`
+
+**Trigger:** User invoked batch mode after PR #62 merge: "merge PR #62, then spawn batch retirement of the remaining ~40 T3 files." Calibration validated the deletion process; batch graduates from per-file commits to per-cluster commits.
+
+**Scope: 36 of the 40 remaining T3 files.** Four boundary cases held back for separate disposition:
+
+| Held-back file                                         | Why held back (boundary case)                                                 |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| `src/__tests__/privacy/userPreferencesPrivacy.test.ts` | Privacy is COPPA-adjacent; could promote to T1                                |
+| `__tests__/convex/userProfiles.genre.test.ts`          | Convex internalMutation conflict; suite-load fix may be cheaper than deletion |
+| `src/__tests__/services/promptFallbackMethods.test.ts` | If prompt-fallback is real user-protective behavior, T2                       |
+| `src/__tests__/services/promptStyleValidation.test.ts` | Same as above                                                                 |
+
+**5 cluster commits (atomic per-cluster reviewer visibility):**
+
+| Cluster                          |  Files | Reasoning                                                                                                       |
+| -------------------------------- | -----: | --------------------------------------------------------------------------------------------------------------- |
+| 1: voiceFeatures matrix          |      7 | 7-way directory split for one feature → copy-paste-and-tweak pattern; behavior covered by microphoneIntegration |
+| 2: claudeSkills monitoring infra |      9 | Observability layer, not user-protective; mock infrastructure (claudeSkillsMock.ts) kept for 8 consumers        |
+| 3: perf instrumentation services |      9 | Mock-based round-trip checks of tuning logic; production behavior validated by EAS preview + real-device QA     |
+| 4: A/B / search / analytics      |      5 | Pure telemetry; if it breaks, no user feature degrades                                                          |
+| 5: acceptance scaffolding        |      6 | Heavy-harness end-to-end coverage that should live in Detox e2e/, not jsdom acceptance tests                    |
+| **Total**                        | **36** |                                                                                                                 |
+
+**Pre-deletion verification (one bulk pass):**
+
+- ✅ All 36 files exist
+- ✅ Bulk grep across all basenames: `0 cross-imports` (no test file imports any of these)
+- ✅ Test-file count: 306 → 270 (exact delta of -36)
+
+**Expected post-merge CI signal:** failing-suite count drops from main's 125 (post-PR-#62) by ~36, taking the count to ~89 failing suites — assuming all 36 deletions cleanly remove their entries from the failing list with no order-shift surprises.
+
+**Files modified for US-015f.3 (batch): 36 test files deleted, 1 PRD update.** No production source, no CI config, no shared mock infrastructure (claudeSkillsMock.ts kept; voiceFeaturesAccessibilityHelper utilities — none found; performance instrumentation source code — untouched).
+
+**Next step after this PR merges:**
+
+- Boundary cases (the 4 held-back files) need explicit user decision on REPAIR / SKIP / DELETE — fold into US-015f.2 or spawn US-015f.3.1 micro-batch
+- Then US-015f.1 (T1 critical-path repair) becomes the next big workstream
+
 ---
 
 ### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c
