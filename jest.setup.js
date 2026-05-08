@@ -299,6 +299,7 @@ jest.mock('react-native', () => ({
   },
   Platform: {
     OS: 'ios',
+    Version: '15.0',
     select: jest.fn(config => config.ios || config.default),
   },
   PermissionsAndroid: {

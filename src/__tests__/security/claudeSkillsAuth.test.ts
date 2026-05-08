@@ -103,9 +103,12 @@ describe('Claude Skills Authentication Security Tests', () => {
       const lastCall = Keychain.setInternetCredentials.mock.calls.slice(-1)[0];
       const options = lastCall[3];
 
-      // Verify biometric security options are set
+      // Verify biometric security options are set. Source field is
+      // `authenticationPrompt` (claudeSkillsConfig.ts:77); the original test
+      // asserted `authenticatePrompt` (typo) — never matched anything.
+      // Match case-insensitively to tolerate minor copy edits.
       expect(options.accessControl).toBeDefined();
-      expect(options.authenticatePrompt).toContain('authenticate');
+      expect(options.authenticationPrompt).toMatch(/authenticate/i);
     });
 
     test('API key encryption and access controls', async () => {
@@ -627,7 +630,12 @@ describe('Claude Skills Compliance Validation', () => {
   });
 
   test('Environment separation prevents cross-environment access', async () => {
-    // This test verifies that environments are properly isolated
+    // This test verifies that environments are properly isolated.
+    // Explicitly set CLAUDE_SKILLS_ENVIRONMENT before creating the dev config,
+    // otherwise leaked state from a previous test (which may have set it to
+    // 'production') makes BOTH configs 'production' and the assertion fails.
+    process.env.CLAUDE_SKILLS_ENVIRONMENT = 'development';
+    ClaudeSkillsConfigFactory.clearCache();
     const devConfig = await ClaudeSkillsConfigFactory.createConfig();
 
     process.env.CLAUDE_SKILLS_ENVIRONMENT = 'production';
