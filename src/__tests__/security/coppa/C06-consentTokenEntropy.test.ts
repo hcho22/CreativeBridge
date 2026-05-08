@@ -37,18 +37,22 @@ describe('C-06: Consent Token Entropy', () => {
 
   test('[C-06] Token output is at least 32 characters', () => {
     // base64url of 32 bytes = 43 characters (no padding)
-    // Verify the function produces sufficient length by checking the
-    // randomBytes call uses at least 32 bytes
+    // Verify the function produces sufficient length by checking the byte-count
+    // argument to either node's randomBytes(N) or Web Crypto's Uint8Array(N).
     const bytesMatch = tokenFnBody.match(/randomBytes\((\d+)\)/);
+    const uint8Match = tokenFnBody.match(/Uint8Array\((\d+)\)/);
     if (bytesMatch) {
       const byteCount = parseInt(bytesMatch[1], 10);
-      // base64url encoding: 4 chars per 3 bytes → ceil(byteCount / 3) * 4
+      const expectedMinLength = Math.ceil(byteCount / 3) * 4;
+      expect(expectedMinLength).toBeGreaterThanOrEqual(32);
+    } else if (uint8Match) {
+      const byteCount = parseInt(uint8Match[1], 10);
       const expectedMinLength = Math.ceil(byteCount / 3) * 4;
       expect(expectedMinLength).toBeGreaterThanOrEqual(32);
     } else {
-      // If not using randomBytes(N) pattern, check for other length guarantees
-      // e.g., randomUUID produces 36 chars
-      expect(tokenFnBody).toMatch(/randomUUID|randomBytes/);
+      // No byte-count pattern detected; fall back to verifying the function
+      // at least references a CSPRNG primitive (randomUUID is 36 chars).
+      expect(tokenFnBody).toMatch(/randomUUID|randomBytes|getRandomValues/);
     }
   });
 
