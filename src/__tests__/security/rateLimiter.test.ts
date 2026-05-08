@@ -141,10 +141,12 @@ describe('RateLimiter', () => {
     // Properly modeling this chain requires either a Proxy-backed makeChain (PR #58 pattern,
     // applied to a different module) or a per-test rewrite that overrides `.single`.
     // Routed to follow-up sub-story US-015f.1.2.security.ratelimit-chain.
+    // eslint-disable-next-line jest/no-disabled-tests -- Routed to US-015f.1.2.security.ratelimit-chain; chain-mock work pending.
     it.skip('should return current rate limit status', async () => {
       // Chain-mock not yet supported for this path.
     });
 
+    // eslint-disable-next-line jest/no-disabled-tests -- Routed to US-015f.1.2.security.ratelimit-chain; chain-mock work pending.
     it.skip('should handle blocked status correctly', async () => {
       // Chain-mock not yet supported for this path.
     });
@@ -270,6 +272,7 @@ describe('RateLimiter', () => {
     // `undefined` to checkRateLimit, which fell through to an empty config.
     // Skipping — re-add only if API-request rate limiting is added to
     // ActionType; otherwise this entire test is dead code.
+    // eslint-disable-next-line jest/no-disabled-tests -- Aspirational test for an enum value that never existed; re-add only if ActionType.API_REQUEST is added.
     it.skip('should use correct limits for API requests', async () => {
       mockSupabase.rpc.mockResolvedValueOnce({ data: true, error: null });
       // ActionType.API_REQUEST does not exist; restore once added.
@@ -311,6 +314,7 @@ describe('RateLimiter', () => {
   describe('edge cases', () => {
     // Same chain-mock issue as the getRateLimitStatus tests above —
     // routed to follow-up sub-story US-015f.1.2.security.ratelimit-chain.
+    // eslint-disable-next-line jest/no-disabled-tests -- Routed to US-015f.1.2.security.ratelimit-chain; chain-mock work pending.
     it.skip('should handle very large attempt counts', async () => {
       // Chain-mock not yet supported for this path.
     });
