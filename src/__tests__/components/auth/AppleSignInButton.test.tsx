@@ -76,31 +76,33 @@ describe('AppleSignInButton', () => {
 
   describe('Rendering', () => {
     test('renders Apple sign-in button', () => {
-      const { getByText } = render(<AppleSignInButton />);
+      const { getByLabelText } = render(<AppleSignInButton />);
 
-      expect(getByText('Continue with Apple')).toBeTruthy();
+      expect(getByLabelText('Continue with Apple')).toBeTruthy();
     });
 
     test('renders with custom style', () => {
       const customStyle = { marginTop: 20 };
-      const { getByText } = render(<AppleSignInButton style={customStyle} />);
+      const { getByLabelText } = render(
+        <AppleSignInButton style={customStyle} />,
+      );
 
-      expect(getByText('Continue with Apple')).toBeTruthy();
+      expect(getByLabelText('Continue with Apple')).toBeTruthy();
     });
 
     test('renders in disabled state when disabled prop is true', () => {
-      const { getByText } = render(<AppleSignInButton disabled={true} />);
+      const { getByLabelText } = render(<AppleSignInButton disabled={true} />);
 
-      const button = getByText('Continue with Apple').parent;
+      const button = getByLabelText('Continue with Apple');
       expect(button?.props.disabled).toBe(true);
     });
   });
 
   describe('User Interactions', () => {
     test('calls signInWithApple on button press', async () => {
-      const { getByText } = render(<AppleSignInButton />);
+      const { getByLabelText } = render(<AppleSignInButton />);
 
-      fireEvent.press(getByText('Continue with Apple'));
+      fireEvent.press(getByLabelText('Continue with Apple'));
 
       await waitFor(() => {
         expect(mockSignInWithApple).toHaveBeenCalled();
@@ -108,11 +110,11 @@ describe('AppleSignInButton', () => {
     });
 
     test('calls onSignInStart callback when provided', async () => {
-      const { getByText } = render(
+      const { getByLabelText } = render(
         <AppleSignInButton onSignInStart={mockOnSignInStart} />,
       );
 
-      fireEvent.press(getByText('Continue with Apple'));
+      fireEvent.press(getByLabelText('Continue with Apple'));
 
       await waitFor(() => {
         expect(mockOnSignInStart).toHaveBeenCalled();
@@ -120,11 +122,11 @@ describe('AppleSignInButton', () => {
     });
 
     test('calls onSignInComplete callback on success', async () => {
-      const { getByText } = render(
+      const { getByLabelText } = render(
         <AppleSignInButton onSignInComplete={mockOnSignInComplete} />,
       );
 
-      fireEvent.press(getByText('Continue with Apple'));
+      fireEvent.press(getByLabelText('Continue with Apple'));
 
       await waitFor(() => {
         expect(mockOnSignInComplete).toHaveBeenCalled();
@@ -132,9 +134,9 @@ describe('AppleSignInButton', () => {
     });
 
     test('does not initiate OAuth when disabled', async () => {
-      const { getByText } = render(<AppleSignInButton disabled={true} />);
+      const { getByLabelText } = render(<AppleSignInButton disabled={true} />);
 
-      fireEvent.press(getByText('Continue with Apple'));
+      fireEvent.press(getByLabelText('Continue with Apple'));
 
       await waitFor(() => {
         expect(mockSignInWithApple).not.toHaveBeenCalled();
@@ -144,9 +146,9 @@ describe('AppleSignInButton', () => {
 
   describe('Network Checking', () => {
     test('checks network before OAuth initiation', async () => {
-      const { getByText } = render(<AppleSignInButton />);
+      const { getByLabelText } = render(<AppleSignInButton />);
 
-      fireEvent.press(getByText('Continue with Apple'));
+      fireEvent.press(getByLabelText('Continue with Apple'));
 
       await waitFor(() => {
         expect(mockCheckNetworkBeforeOAuth).toHaveBeenCalled();
@@ -164,9 +166,9 @@ describe('AppleSignInButton', () => {
         'No internet connection. Please check your network settings and try again.',
       );
 
-      const { getByText } = render(<AppleSignInButton />);
+      const { getByLabelText } = render(<AppleSignInButton />);
 
-      fireEvent.press(getByText('Continue with Apple'));
+      fireEvent.press(getByLabelText('Continue with Apple'));
 
       await waitFor(() => {
         expect(Alert.alert).toHaveBeenCalledWith(
@@ -191,9 +193,9 @@ describe('AppleSignInButton', () => {
         retryDelay: 2000,
       });
 
-      const { getByText } = render(<AppleSignInButton />);
+      const { getByLabelText } = render(<AppleSignInButton />);
 
-      fireEvent.press(getByText('Continue with Apple'));
+      fireEvent.press(getByLabelText('Continue with Apple'));
 
       await waitFor(() => {
         expect(mockHandleOAuthError).toHaveBeenCalled();
@@ -211,9 +213,9 @@ describe('AppleSignInButton', () => {
         canRetry: false,
       });
 
-      const { getByText } = render(<AppleSignInButton />);
+      const { getByLabelText } = render(<AppleSignInButton />);
 
-      fireEvent.press(getByText('Continue with Apple'));
+      fireEvent.press(getByLabelText('Continue with Apple'));
 
       await waitFor(() => {
         expect(mockHandleOAuthError).toHaveBeenCalled();
@@ -231,9 +233,9 @@ describe('AppleSignInButton', () => {
         userEmail: 'privaterelay@icloud.com',
       });
 
-      const { getByText } = render(<AppleSignInButton />);
+      const { getByLabelText } = render(<AppleSignInButton />);
 
-      fireEvent.press(getByText('Continue with Apple'));
+      fireEvent.press(getByLabelText('Continue with Apple'));
 
       await waitFor(() => {
         expect(mockSignInWithApple).toHaveBeenCalled();
@@ -250,9 +252,9 @@ describe('AppleSignInButton', () => {
 
       mockSignInWithApple.mockReturnValue(slowOAuth as any);
 
-      const { getByText, queryByTestId } = render(<AppleSignInButton />);
+      const { getByLabelText, queryByTestId } = render(<AppleSignInButton />);
 
-      fireEvent.press(getByText('Continue with Apple'));
+      fireEvent.press(getByLabelText('Continue with Apple'));
 
       // Should show loading indicator
       await waitFor(() => {
@@ -271,10 +273,10 @@ describe('AppleSignInButton', () => {
 
       mockSignInWithApple.mockReturnValue(slowOAuth as any);
 
-      const { getByText } = render(<AppleSignInButton />);
-      const button = getByText('Continue with Apple').parent;
+      const { getByLabelText } = render(<AppleSignInButton />);
+      const button = getByLabelText('Continue with Apple');
 
-      fireEvent.press(getByText('Continue with Apple'));
+      fireEvent.press(getByLabelText('Continue with Apple'));
 
       // Button should be disabled during OAuth
       await waitFor(() => {
@@ -289,13 +291,16 @@ describe('AppleSignInButton', () => {
     test('shows success feedback after successful OAuth', async () => {
       mockSignInWithApple.mockResolvedValue({ success: true });
 
-      const { getByText, queryByTestId } = render(<AppleSignInButton />);
+      const { getByLabelText, queryByText } = render(<AppleSignInButton />);
 
-      fireEvent.press(getByText('Continue with Apple'));
+      fireEvent.press(getByLabelText('Continue with Apple'));
 
       await waitFor(() => {
-        // Success indicator should appear briefly
-        expect(queryByTestId('apple-button-success')).toBeTruthy();
+        // Success state renders a visible "Sign-in successful!" message
+        // (per AppleSignInButton.tsx success branch). The original test
+        // queried by `apple-button-success` testID, which the source
+        // doesn't define; use the actual visible feedback text instead.
+        expect(queryByText('Sign-in successful!')).toBeTruthy();
       });
     });
   });
