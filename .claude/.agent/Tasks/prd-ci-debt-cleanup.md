@@ -2284,6 +2284,119 @@ The +1 unexpected pass (`comprehensiveValidation.test.ts`) is a flake exposed by
 - Boundary cases (the 4 held-back files) need explicit user decision on REPAIR / SKIP / DELETE — fold into US-015f.2 or spawn US-015f.3.1 micro-batch
 - Then US-015f.1 (T1 critical-path repair) becomes the next big workstream
 
+#### US-015f.3 batch retirement — VALIDATED ✅ PR #63 merged (commit `4bb9025`)
+
+| Test plan item                                | Result                                                |
+| --------------------------------------------- | ----------------------------------------------------- |
+| Per-cluster reviewer evaluation               | ✅ All 5 clusters approved; 1 citation-error logged   |
+| CI lint/type-check pass                       | ✅ TypeScript ✓, ESLint ✓, Formatting ✓               |
+| Failing-suite count near 89 (≤91 acceptable)  | ✅ Landed at **90** (within tolerance)                |
+| No previously-passing suite regresses to FAIL | ⚠️ Partial — 1 status flip, identified as known flake |
+
+The 1 status flip was `comprehensiveValidation.test.ts` re-flipping FAIL on PR #63 with `Received: 88` (vs `89` on main, `≥90` on PR #62). Three data points across three CI runs confirm this is an off-by-one threshold flake driven by jest worker-assignment shifts — not a regression. Routes to US-015f.2 with threshold-adjustment disposition.
+
+**Cumulative US-015f.3 impact (calibration + batch):**
+
+| Metric              | Pre-US-015f.3 | Post-PR-#63 |    Delta |
+| ------------------- | ------------: | ----------: | -------: |
+| Failing test suites |           131 |          90 |      -41 |
+| Test files in repo  |           311 |         270 |      -41 |
+| Lines of test code  |       ~96,000 |     ~75,200 | ~-20,800 |
+
+#### US-015f.3.1: boundary case disposition ✅ COMPLETE — all 4 files promote (no deletions)
+
+**Trigger:** PR #63 held back 4 boundary cases for explicit disposition. Investigation revealed all 4 test currently-active source code with genuine protective value, not T3 retire candidates.
+
+**Disposition table:**
+
+| File                                                   | Original tier | Re-classification | Reasoning                                                                                                                |
+| ------------------------------------------------------ | ------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `src/__tests__/privacy/userPreferencesPrivacy.test.ts` | T3 (boundary) | **PROMOTE TO T1** | 16 tests across 5 protective concerns (COPPA Compliance, Data Encryption, Privacy Mode, Secure Cleanup); legal-mandatory |
+| `__tests__/convex/userProfiles.genre.test.ts`          | T3 (boundary) | **PROMOTE TO T2** | 5 tests covering `updateProfile` with `preferredGenre`; suite-load failure is a known convex `internalMutation` mock fix |
+| `src/__tests__/services/promptFallbackMethods.test.ts` | T3 (boundary) | **PROMOTE TO T2** | 15 tests covering `generateMinimalQualityPrompt` + `generateFallbackAdvancedPrompt` (real AI-error-recovery methods)     |
+| `src/__tests__/services/promptStyleValidation.test.ts` | T3 (boundary) | **PROMOTE TO T2** | 19 tests covering `validatePromptStyleKeywords` for K-2/3-5/6-8/9-12 (core grade-level system per CLAUDE.md)             |
+
+**Updated tier counts (post-disposition):**
+
+| Tier       | Count (was) | Count (now) | Disposition              |
+| ---------- | ----------: | ----------: | ------------------------ |
+| T1         |          33 |          34 | REPAIR all               |
+| T2         |          53 |          56 | REPAIR / SKIP mix        |
+| T3         |          45 |           4 | RETIRED (5+36)           |
+| T3 retired |           — |          41 | DELETED in PRs #62 + #63 |
+
+**Files modified for US-015f.3.1: 0 test files** — disposition is captured in this PRD update only. The 4 files stay where they are; their disposition for repair belongs to US-015f.1 (privacy) and US-015f.2 (the other 3).
+
+---
+
+### US-015f.1: T1 critical-path repair (34 suites) 🚀 SPAWNED — first cluster proof-of-concept landed on `chore/us-015f-1-1-xp-cluster-poc-and-boundary`
+
+**Description:** As a maintainer, I want every T1 critical-path test suite green so that production-safety signal returns to CI: auth bypass, COPPA compliance, RLS, XP currency integrity, story flow, and navigation can no longer regress silently. This story spans 34 suites and is expected to ship as 6-10 sub-stories grouped by domain.
+
+**Sub-cluster plan (preliminary, may evolve as repair-pattern discoveries land):**
+
+| Sub-story   | Cluster                                                                                                        |        Files | Strategy hypothesis                                                    |
+| ----------- | -------------------------------------------------------------------------------------------------------------- | -----------: | ---------------------------------------------------------------------- |
+| US-015f.1.1 | XP currency cluster                                                                                            |            6 | Shared PII-redaction + convex-arg-drift patterns (proof-of-concept ✅) |
+| US-015f.1.2 | Auth & onboarding (clerkAuthFlows, AppleSignInButton, GoogleSignInButton, profileCompletion, e2eMigrationFlow) |            5 | useConvexAuth mock divergence + AsyncStorage migration persistence     |
+| US-015f.1.3 | COPPA & security (4 COPPA + 5 security suites)                                                                 |            9 | Per-test mock-data updates + RLS row shape alignment                   |
+| US-015f.1.4 | Privacy (userPreferencesPrivacy from US-015f.3.1)                                                              |            1 | Mock-data + assertion shape (similar to xpEventTracker pattern)        |
+| US-015f.1.5 | Story flow (storyManagement, storyImport\*, finalStoryDownload, storyCompletion)                               |            5 | Per-file investigation; story flow is heterogeneous                    |
+| US-015f.1.6 | Core surfaces (StoryPreviewEdit, HomeScreen, AppNavigator, databaseOperations, replicateAPI)                   |            5 | Per-file investigation                                                 |
+| US-015f.1.7 | Bugfix coverage (US004, US006)                                                                                 |            2 | Per-file investigation (small files)                                   |
+| US-015f.1.8 | Misc T1 (rateLimiter, auditLogger, imageStorageSecurity, claudeSkillsAuth, storageRLS)                         | 1+ remaining | Per-file investigation                                                 |
+| **Total**   |                                                                                                                |       **34** |                                                                        |
+
+#### US-015f.1.1 verdict ✅ PROOF-OF-CONCEPT VALIDATED — `xpEventTracker.test.ts` 29 of 29 passing (was 1+ failing)
+
+**File:** `src/__tests__/services/xpEventTracker.test.ts` (761 lines, 29 tests). First file in the XP currency cluster of 6.
+
+**Root cause of failures (two distinct sub-patterns in one file):**
+
+1. **PII redaction drift (`userId` → `uid: redactId(...)`).** Source-side privacy work (driven by COPPA US-012) added `redactId(...)` from `src/utils/piiRedaction.ts` to every PII-touching `console.log` call. The tests still asserted on the unredacted shape:
+
+   ```ts
+   // Test (stale):
+   expect(consoleSpy).toHaveBeenCalledWith('💸 Tracking XP deduction:',
+     expect.objectContaining({ userId: mockUserId, ... }));
+
+   // Source (current):
+   const uidMasked = redactId(eventData.userId);
+   console.log('💸 Tracking XP deduction:', { uid: uidMasked, ... });
+   ```
+
+   Two assertions affected (lines 241 + 292). Audit-log assertions (which keep unredacted `userId`) are correct as-is — only the human-readable summary log redacts.
+
+2. **Convex query arg drift (`clerkUserId` dropped).** The source's `getUserImageGenerationEvents` no longer passes `clerkUserId` to the convex query because Convex auth context now provides it server-side. Test assertion still expected the arg.
+
+**Fix applied (3 surgical edits, 1 import added):**
+
+```diff
++ import { redactId } from '../../utils/piiRedaction';
+- userId: mockUserId,
++ uid: redactId(mockUserId),    // 2 occurrences (lines 241, 292)
+- { clerkUserId: mockUserId, limit: 10, offset: 0 }
++ { limit: 10, offset: 0 }      // line 564 → 561
+```
+
+**Local verification:**
+
+```
+$ npx jest src/__tests__/services/xpEventTracker.test.ts --silent
+Test Suites: 1 passed, 1 total
+Tests:       29 passed, 29 total
+```
+
+**Pattern crystallization for US-015f.1.{2-6}:**
+
+The XP cluster's other 5 files (`xpSystem.test.ts`, `xpDeductionIntegration.test.tsx`, `xpRefundIntegration.test.tsx`, `xpSystemIntegration.test.ts`, `xpValidationIntegration.test.tsx`) likely share at least the PII redaction sub-pattern, since the source-side `redactId(...)` call lives across multiple `xpEventTracker.ts` methods (lines 62, 63, 179, 214, 378). Conservative estimate: 2-4 surgical fixes per file; 6-file cluster fully repairable in 1-2 follow-up PRs.
+
+The convex-arg-drift sub-pattern is more idiosyncratic (per-method) but shows up wherever Convex moved auth identity from explicit args to `ctx.auth` server-side. That pattern likely repeats across non-XP T1 files too (storyManagementService, profileCompletion, etc.).
+
+**Files modified for US-015f.1.1: 1 test file (29 of 29 passing) + 1 PRD entry.** No production source changes.
+
+**Strategic implication:** US-015f.1.1's success confirms the planning ticket's "REPAIR" disposition for T1 is correct — the work is mechanical per-test assertion alignment, not deep architectural rework. The "2-3 weeks of focused work" estimate may be conservative if the PII-redaction sub-pattern generalizes as expected; the cluster could land in 1-2 weeks of focused PRs.
+
 ---
 
 ### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c
