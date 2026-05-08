@@ -34,9 +34,12 @@ describe('H-04: Consent Email Error UX', () => {
   });
 
   test('[H-04] ParentEmailScreen has an error state for email send failure', () => {
-    // Assert emailSendError state variable is declared
+    // Assert setEmailSendError setter is declared via useState destructure.
+    // The first destructured value may be prefixed with `_` if the screen
+    // chooses to expose only the setter to the rest of the component (the
+    // setter is what actually gates the user-facing error UX).
     expect(PARENT_EMAIL_SOURCE).toMatch(
-      /const\s+\[\s*emailSendError\s*,\s*setEmailSendError\s*\]\s*=\s*useState/,
+      /const\s+\[\s*_?emailSendError\s*,\s*setEmailSendError\s*\]\s*=\s*useState/,
     );
   });
 

@@ -2,14 +2,35 @@
  * H-01: Speech Recognition Audio Disclosure Tests
  *
  * Audit finding: Speech recognition audio may be sent to cloud services
- * (Google Cloud Speech on Android via @react-native-voice/voice) without
- * disclosure in the privacy policy.
+ * without disclosure in the privacy policy.
  *
- * iOS uses on-device SFSpeechRecognizer (NativeModules.SpeechRecognizerModule).
- * Android falls back to @react-native-voice/voice which routes through Google.
- *
- * Tests 1-2: Verify iOS on-device preference (already implemented).
- * Test 3: Documents missing privacy policy disclosure (test.failing).
+ * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ * !! REGRESSION DETECTED (US-015f.1.3, 2026-05-08)                    !!
+ * !!                                                                  !!
+ * !! When this audit was originally written, iOS used on-device       !!
+ * !! `SFSpeechRecognizer` via `NativeModules.SpeechRecognizerModule`   !!
+ * !! (covered by `src/services/nativeSpeechRecognizer.ts`, still      !!
+ * !! present in the repo but with ZERO production consumers).         !!
+ * !!                                                                  !!
+ * !! Per the 2026-04-14 architectural decision, `VoiceInput.tsx`     !!
+ * !! was rewritten to use `whisperTranscriptionService`, which        !!
+ * !! sends audio to OpenAI Whisper via the Convex `transcribeAudio`   !!
+ * !! action — i.e., to a cloud service. The H-01 protection (iOS     !!
+ * !! on-device speech recognition) has been silently lost. Test 2    !!
+ * !! correctly fails because of this; do NOT "fix" it by editing the !!
+ * !! assertion to match the new (cloud-based) implementation.        !!
+ * !!                                                                  !!
+ * !! Required action (NOT in scope for US-015f.1.3 mechanical fix):  !!
+ * !!   - Maintainer + legal/COPPA officer must decide whether to:    !!
+ * !!     (a) restore on-device iOS speech recognition (preserves      !!
+ * !!         original H-01 protection), OR                            !!
+ * !!     (b) update privacy policy to disclose cloud-based voice     !!
+ * !!         transcription via OpenAI Whisper (test.failing #3       !!
+ * !!         already tracks this), AND obtain renewed consent.       !!
+ * !!                                                                  !!
+ * !! Until that decision lands, this test stays failing as a real    !!
+ * !! audit signal, NOT as US-015f cleanup work.                      !!
+ * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
  *
  * @implements H-01
  */

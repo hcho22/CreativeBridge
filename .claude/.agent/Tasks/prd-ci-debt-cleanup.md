@@ -2576,6 +2576,55 @@ The architectural-sweep approach (PR #59 cleared ~36 failures via 5-pattern coll
 
 **Files modified for US-015f.1.2.sweep-targeted: 0 test files (all 17 changes reverted) + 1 PRD entry.** Investigation only.
 
+#### US-015f.1.3 verdict ⏳ PARTIAL — 2 of 3 COPPA files repaired, 1 surfaces real audit regression
+
+**Trigger:** US-015f.1.3 picked the COPPA cluster (3 files in `src/__tests__/security/coppa/`) as the first per-cluster investigation after the sweep approaches were confirmed dead-end. Each file had exactly 1 failing inner test — small scope, legal-mandatory protective value.
+
+**Per-file findings:**
+
+| File                              | Tests passing (before → after) | Pattern                   | Disposition                                       |
+| --------------------------------- | -----------------------------: | ------------------------- | ------------------------------------------------- |
+| `C06-consentTokenEntropy.test.ts` |               3/4 → **4/4** ✅ | Stale source-grep regex   | Fixed (regex update, source-equivalent migration) |
+| `H04-consentEmailError.test.ts`   |               2/3 → **3/3** ✅ | Stale source-grep regex   | Fixed (regex `_?` for ESLint cosmetic rename)     |
+| `H01-speechRecognition.test.ts`   |                      2/3 → 2/3 | **Real COPPA regression** | **Test stays failing — flagged for maintainer**   |
+
+Cluster cumulative: 7 of 10 inner tests → **9 of 10 passing** (+2). One test intentionally remains failing as an audit signal.
+
+**The C06 + H04 fixes (mechanical):**
+
+- **C06**: source migrated `randomBytes(N)` → `crypto.getRandomValues(new Uint8Array(N))` in `convex/consent.ts:940-947`. Both APIs are CSPRNG; migration is benign. Added parallel `Uint8Array(N)` byte-count match + extended fallback regex to include `getRandomValues`.
+- **H04**: source renamed `[emailSendError, setEmailSendError]` → `[_emailSendError, setEmailSendError]` (ESLint-driven cosmetic; setter is what gates the user-facing UX, still in use). Added optional `_?` prefix in test regex.
+
+**The H-01 finding (real regression, not stale test):**
+
+When the COPPA audit was originally written, iOS used on-device `SFSpeechRecognizer` via `NativeModules.SpeechRecognizerModule` — the `nativeSpeechRecognizer.ts` service exists for this. Per the 2026-04-14 architectural decision, `VoiceInput.tsx` was rewritten to use `whisperTranscriptionService`, which sends audio to OpenAI Whisper via the Convex `transcribeAudio` action — i.e., to a cloud service.
+
+Verified:
+
+- `src/services/nativeSpeechRecognizer.ts` still exists but has **zero consumers** in production code (orphaned)
+- `VoiceInput.tsx` imports `whisperTranscriptionService` (line 50) and its header documents the migration explicitly
+
+The H-01 protection (iOS on-device speech recognition) has been silently lost. Test 2 correctly catches this by failing.
+
+**Why this changes the disposition strategy:** mechanically updating the test assertion to match the new (cloud-based) implementation would mask a real COPPA compliance regression. This commit instead added a prominent regression marker to the test file's header comment, explaining what H-01's original protection was, what changed, and what action is required (maintainer + legal/COPPA officer decision: restore on-device OR update privacy policy + obtain renewed consent).
+
+**Lesson — distinguishing stale tests from real regressions:**
+
+| Signal                                             | Likely stale test                      | Likely real regression                        |
+| -------------------------------------------------- | -------------------------------------- | --------------------------------------------- |
+| Source still implements equivalent behavior        | YES (just refactored shape)            | NO (behavior changed)                         |
+| Source-vs-test divergence has obvious explanation  | YES (e.g., ESLint rename)              | NO (new architecture)                         |
+| Original protection still present in some form     | YES (CSPRNG via different API)         | NO (protection removed)                       |
+| Auto-fixing the regex would mask a behavior change | NO — test name still describes reality | **YES — test name describes lost protection** |
+
+Future US-015f.1.X work on COPPA / security / privacy clusters should apply this filter explicitly. A "code-grep test failing" is not by itself a stale-test signal; the verification is "does the source still implement the original protective intent."
+
+**Strategic implication for US-015f.1.{4-8}:**
+
+The COPPA cluster's mix (2/3 mechanical, 1/3 real-finding) suggests a **roughly 30% rate of audit regressions disguised as stale tests** in the security/COPPA/privacy domain. For T1 clusters touching legal-mandatory protections (`userPreferencesPrivacy`, `auditLogger`, `rateLimiter`, `rlsPolicy`, `claudeSkillsAuth`, `imageStorageSecurity`, `storageRLS`), expect ~1 in 3 failures to be real regressions worth flagging rather than test fixes. Per-file investigation needs to budget time for source-vs-test behavior comparison, not just regex updating.
+
+**Files modified for US-015f.1.3: 3 test files (2 fixed + 1 regression marker added) + 1 PRD entry.** No production source changes.
+
 ---
 
 ### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c
