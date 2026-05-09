@@ -1,4 +1,15 @@
 // Integration tests for Row Level Security policies
+//
+// US-015f.1.security: Tests target the supabaseMock per-table memoized chain
+// (`tableChains` Map at supabaseMock.ts:10-11). Always pass the table name to
+// `from('<table>')` so override calls and the production-side code resolve
+// to the SAME chain. Bare `from()` resolves to the 'undefined' chain and
+// silently skips overrides — leading to "Record not found" or unexpected
+// pass-throughs from default mock behaviors.
+//
+// Tables (user_profiles, game_sessions, audit_logs, rate_limits, user_devices,
+// active_sessions) remain Supabase-only fallback for legacy users; not migrated
+// to Convex. See src/CLAUDE.md "Database Strategy" section.
 import { mockSupabase } from '../mocks/supabaseMock';
 import {
   createMockUser,
@@ -27,15 +38,19 @@ describe('RLS Policy Tests', () => {
       mockSupabase.__testUtils.setData('user_profiles', 'user-1', profile1);
       mockSupabase.__testUtils.setData('user_profiles', 'user-2', profile2);
 
-      // Mock RLS allowing read access to all profiles
-      mockSupabase.from().select.mockReturnThis();
-      mockSupabase
-        .from()
-        .select()
-        .mockResolvedValueOnce({
-          data: [profile1, profile2],
-          error: null,
-        });
+      // US-015f.1.security: target the memoized 'user_profiles' chain (the
+      // mock now keys per-table via tableChains Map at supabaseMock.ts:10-11);
+      // bare from() resolves to the 'undefined' chain, so overrides miss.
+      // For the leaf-await case (no .eq filter), mock `select` itself rather
+      // than its call result: `await from('t').select('*')` awaits the return
+      // of `select(...)`, so `select.mockResolvedValueOnce` is what shapes the
+      // resolved value. Chaining `.select().mockResolvedValueOnce(...)` would
+      // attach the mock to the chain object (a plain table chain returned by
+      // mockReturnThis), which has no jest mock surface.
+      mockSupabase.from('user_profiles').select.mockResolvedValueOnce({
+        data: [profile1, profile2],
+        error: null,
+      });
 
       const { data, error } = await mockSupabase
         .from('user_profiles')
@@ -54,7 +69,7 @@ describe('RLS Policy Tests', () => {
       mockSupabase.__testUtils.setUser(user);
 
       // Mock successful insert for own profile
-      mockSupabase.from().insert.mockResolvedValueOnce({
+      mockSupabase.from('user_profiles').insert.mockResolvedValueOnce({
         data: profile,
         error: null,
       });
@@ -74,7 +89,7 @@ describe('RLS Policy Tests', () => {
       mockSupabase.__testUtils.setUser(user1);
 
       // Mock RLS violation for inserting other user's profile
-      mockSupabase.from().insert.mockResolvedValueOnce({
+      mockSupabase.from('user_profiles').insert.mockResolvedValueOnce({
         data: null,
         error: {
           message: 'RLS policy violation',
@@ -102,9 +117,9 @@ describe('RLS Policy Tests', () => {
       const updates = { display_name: 'Updated Name' };
 
       // Mock successful update for own profile
-      mockSupabase.from().update.mockReturnThis();
+      mockSupabase.from('user_profiles').update.mockReturnThis();
       mockSupabase
-        .from()
+        .from('user_profiles')
         .update()
         .eq.mockResolvedValueOnce({
           data: { ...profile, ...updates },
@@ -130,9 +145,9 @@ describe('RLS Policy Tests', () => {
       const updates = { display_name: 'Hacked Name' };
 
       // Mock RLS violation for updating other user's profile
-      mockSupabase.from().update.mockReturnThis();
+      mockSupabase.from('user_profiles').update.mockReturnThis();
       mockSupabase
-        .from()
+        .from('user_profiles')
         .update()
         .eq.mockResolvedValueOnce({
           data: null,
@@ -178,9 +193,9 @@ describe('RLS Policy Tests', () => {
       );
 
       // Mock RLS filtering to only return user's own sessions
-      mockSupabase.from().select.mockReturnThis();
+      mockSupabase.from('game_sessions').select.mockReturnThis();
       mockSupabase
-        .from()
+        .from('game_sessions')
         .select()
         .eq.mockResolvedValueOnce({
           data: [user1Session], // Only user 1's session
@@ -202,8 +217,8 @@ describe('RLS Policy Tests', () => {
       mockSupabase.__testUtils.setUser(user1);
 
       // Mock RLS preventing access to other user's sessions
-      mockSupabase.from().select.mockReturnThis();
-      mockSupabase.from().select().eq.mockResolvedValueOnce({
+      mockSupabase.from('game_sessions').select.mockReturnThis();
+      mockSupabase.from('game_sessions').select().eq.mockResolvedValueOnce({
         data: [], // No access to other user's sessions
         error: null,
       });
@@ -223,7 +238,7 @@ describe('RLS Policy Tests', () => {
 
       mockSupabase.__testUtils.setUser(user);
 
-      mockSupabase.from().insert.mockResolvedValueOnce({
+      mockSupabase.from('game_sessions').insert.mockResolvedValueOnce({
         data: gameSession,
         error: null,
       });
@@ -242,7 +257,7 @@ describe('RLS Policy Tests', () => {
 
       mockSupabase.__testUtils.setUser(user1);
 
-      mockSupabase.from().insert.mockResolvedValueOnce({
+      mockSupabase.from('game_sessions').insert.mockResolvedValueOnce({
         data: null,
         error: {
           message: 'RLS policy violation',
@@ -278,9 +293,9 @@ describe('RLS Policy Tests', () => {
         completed_at: new Date().toISOString(),
       };
 
-      mockSupabase.from().update.mockReturnThis();
+      mockSupabase.from('game_sessions').update.mockReturnThis();
       mockSupabase
-        .from()
+        .from('game_sessions')
         .update()
         .eq.mockResolvedValueOnce({
           data: { ...gameSession, ...updates },
@@ -311,9 +326,9 @@ describe('RLS Policy Tests', () => {
       mockSupabase.__testUtils.setUser(user);
       mockSupabase.__testUtils.setData('audit_logs', 'log-1', userAuditLog);
 
-      mockSupabase.from().select.mockReturnThis();
+      mockSupabase.from('audit_logs').select.mockReturnThis();
       mockSupabase
-        .from()
+        .from('audit_logs')
         .select()
         .eq.mockResolvedValueOnce({
           data: [userAuditLog],
@@ -333,8 +348,8 @@ describe('RLS Policy Tests', () => {
       const user1 = createMockUser({ id: 'user-1' });
       mockSupabase.__testUtils.setUser(user1);
 
-      mockSupabase.from().select.mockReturnThis();
-      mockSupabase.from().select().eq.mockResolvedValueOnce({
+      mockSupabase.from('audit_logs').select.mockReturnThis();
+      mockSupabase.from('audit_logs').select().eq.mockResolvedValueOnce({
         data: [], // No access to other user's audit logs
         error: null,
       });
@@ -358,7 +373,7 @@ describe('RLS Policy Tests', () => {
       };
 
       // System context allows insert
-      mockSupabase.from().insert.mockResolvedValueOnce({
+      mockSupabase.from('audit_logs').insert.mockResolvedValueOnce({
         data: { id: 'log-1', ...auditLog },
         error: null,
       });
@@ -386,7 +401,7 @@ describe('RLS Policy Tests', () => {
       mockSupabase.__testUtils.setUser(user);
 
       // Test insert
-      mockSupabase.from().insert.mockResolvedValueOnce({
+      mockSupabase.from('user_devices').insert.mockResolvedValueOnce({
         data: device,
         error: null,
       });
@@ -399,9 +414,9 @@ describe('RLS Policy Tests', () => {
       expect(insertData).toEqual(device);
 
       // Test select
-      mockSupabase.from().select.mockReturnThis();
+      mockSupabase.from('user_devices').select.mockReturnThis();
       mockSupabase
-        .from()
+        .from('user_devices')
         .select()
         .eq.mockResolvedValueOnce({
           data: [device],
@@ -428,7 +443,7 @@ describe('RLS Policy Tests', () => {
       };
 
       // Test insert prevention
-      mockSupabase.from().insert.mockResolvedValueOnce({
+      mockSupabase.from('user_devices').insert.mockResolvedValueOnce({
         data: null,
         error: {
           message: 'RLS policy violation',
@@ -445,8 +460,8 @@ describe('RLS Policy Tests', () => {
       expect(insertData).toBeNull();
 
       // Test select prevention
-      mockSupabase.from().select.mockReturnThis();
-      mockSupabase.from().select().eq.mockResolvedValueOnce({
+      mockSupabase.from('user_devices').select.mockReturnThis();
+      mockSupabase.from('user_devices').select().eq.mockResolvedValueOnce({
         data: [],
         error: null,
       });
@@ -471,7 +486,7 @@ describe('RLS Policy Tests', () => {
       };
 
       // System context allows all operations
-      mockSupabase.from().insert.mockResolvedValueOnce({
+      mockSupabase.from('rate_limits').insert.mockResolvedValueOnce({
         data: { id: 'rate-1', ...rateLimitEntry },
         error: null,
       });
@@ -499,9 +514,9 @@ describe('RLS Policy Tests', () => {
       mockSupabase.__testUtils.setUser(user);
       mockSupabase.__testUtils.setData('active_sessions', 'session-1', session);
 
-      mockSupabase.from().select.mockReturnThis();
+      mockSupabase.from('active_sessions').select.mockReturnThis();
       mockSupabase
-        .from()
+        .from('active_sessions')
         .select()
         .eq.mockResolvedValueOnce({
           data: [session],
@@ -521,8 +536,8 @@ describe('RLS Policy Tests', () => {
       const user1 = createMockUser({ id: 'user-1' });
       mockSupabase.__testUtils.setUser(user1);
 
-      mockSupabase.from().select.mockReturnThis();
-      mockSupabase.from().select().eq.mockResolvedValueOnce({
+      mockSupabase.from('active_sessions').select.mockReturnThis();
+      mockSupabase.from('active_sessions').select().eq.mockResolvedValueOnce({
         data: [], // No access to other user's sessions
         error: null,
       });
