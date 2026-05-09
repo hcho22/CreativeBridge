@@ -3115,6 +3115,50 @@ Cluster's 0/7 mechanical confirms the refinement-density pattern. Real-regressio
 
 ---
 
+#### US-015f.1.api verdict ✅ ROUTING-HEAVY — 4 of 4 API/external suites green; Convex migration drives 3 of 4; zero real regressions
+
+**Trigger:** US-015f.1.api picked the API/external services cluster — 4 files actually failing on main: `openaiClientModelConfig`, `replicateAPI`, `story/apiIntegration`, `story/errorHandling`. ~37 failing test cases.
+
+**Verdict per file:**
+
+| #   | File                    | Outcome         | Skipped    | Routed to                                                                                        |
+| --- | ----------------------- | --------------- | ---------- | ------------------------------------------------------------------------------------------------ |
+| 1   | openaiClientModelConfig | WHOLESALE-ROUTE | 1 skipped  | `api.openai-convex-action-shift`                                                                 |
+| 2   | replicateAPI            | PARTIAL-ROUTE   | 4 skipped  | 4 sub-stories: timeout-optimization / watercolor-base / connection-config / service-architecture |
+| 3   | story/apiIntegration    | WHOLESALE-ROUTE | 17 skipped | `api.storygen-envelope-drift`                                                                    |
+| 4   | story/errorHandling     | WHOLESALE-ROUTE | 24 skipped | `api.errorhandling-convex-migration`                                                             |
+
+**Findings:**
+
+1. **Convex migration is now the dominant remaining driver.** 3 of 4 files in this cluster (#1, #3, #4) trace failures to the Supabase→Convex architecture shift. Combined with PR #76's `databaseops-convex-migration` and `e2eMigrationFlow`, the migration's API-tier consequences are still surfacing across the cleanup.
+2. **Verify-before-routing discipline held for the third consecutive cluster.** Triage flagged three suspicious cases (`createChatCompletion` removal, `<script>` sanitization disappearing, timeout drift) — all three verified against source as deliberate refinements:
+   - `openaiClient.ts:87-102` — internal helper replaced by Convex action wrapper
+   - `storyGenerationService.ts:1197` — sanitization moved upstream to `sanitizePromptInput` at entry (security-review decision; original protection still present)
+   - `imageGeneration.ts:23` — `PRIMARY_API_TIMEOUT = 45000` documented as "optimized"
+3. **Watercolor-base parent grows again.** `replicateAPI`'s "detailed art style" test (#2's line 144) routes to the same `story-ai.artstyle-watercolor-base` parent. Combined footprint now: 5 files / ~67+ tests across PRs #76 + #78 + this candidate.
+4. **0 mechanical-fix rate** — third consecutive cluster at 0%. Confirms the maturation pattern: refinement-driven failures dominate the remaining backlog.
+
+**Calibration update:**
+
+| Cluster                             | Files (this round) | Mechanical | Real regressions |   Rate |
+| ----------------------------------- | -----------------: | ---------: | ---------------: | -----: |
+| Cumulative across 11 prior clusters |                 58 |         23 |                5 |    ~9% |
+| **API/external (US-015f.1.api)**    |              **4** |      **0** |            **0** | **0%** |
+| Cumulative across 12 clusters       |                 62 |         23 |                5 |    ~8% |
+
+**Follow-up sub-stories spawned:**
+
+- **US-015f.1.api.openai-convex-action-shift** — 1 openaiClientModelConfig test: re-author against Convex action wrapper.
+- **US-015f.1.api.replicate-timeout-optimization** — 1 replicateAPI test: update expected timeout 60000 → 45000.
+- **US-015f.1.api.replicate-connection-config** — 1 replicateAPI test: align development-mode connection assertion.
+- **US-015f.1.api.replicate-service-architecture** — 1 replicateAPI test: align ImageGenerationResult.serviceUsed shape.
+- **US-015f.1.api.storygen-envelope-drift** — 17 apiIntegration tests: rewrite envelope-shape expectations against post-Convex-migration contract.
+- **US-015f.1.api.errorhandling-convex-migration** — 24 errorHandling tests: add Convex mock to error-path setup; align fallback envelope, AsyncStorage cleanup, session-management.
+
+**Files modified for US-015f.1.api: 4 test files + 1 PRD entry.** No production source changes.
+
+---
+
 ### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c
 
 **Description:** As a maintainer, I want CI back on its original timeout and coverage configuration so CI matches local-run expectations.
