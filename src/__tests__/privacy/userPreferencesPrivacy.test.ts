@@ -18,6 +18,26 @@ jest.mock('../../utils/logger', () => ({
 
 const mockSecureStorage = secureStorage as jest.Mocked<typeof secureStorage>;
 
+// US-015f.1.compliance.userPreferencesPrivacy: per current source
+// (services/userPreferences.ts:121-126), `initialize()` checks
+// `hasPrivacyConsent()` and routes to `initializeMinimalMode` when consent
+// is not granted — minimal mode never persists interactions or calls
+// `secureStorage.set`. The original tests assumed implicit-consent default
+// and used `mockSecureStorage.get.mockResolvedValue(null)` which now
+// short-circuits into minimal mode, breaking 5 assertions.
+//
+// Source posture is INTACT and STRONGER (privacy gate hardened to opt-in
+// default; PII anonymization at userPreferences.ts:653 strips userInput,
+// userEmail, phoneNumber, userLocation, deviceId, ipAddress, sessionId,
+// maliciousScript, sqlInjection). This is a privacy improvement, not a
+// regression. Update tests to grant consent before initialize.
+const grantPrivacyConsent = () => {
+  mockSecureStorage.get.mockImplementation((key: string) => {
+    if (key === 'privacy_consent') return Promise.resolve(true);
+    return Promise.resolve(null);
+  });
+};
+
 describe('User Preferences Privacy & Compliance', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -27,7 +47,7 @@ describe('User Preferences Privacy & Compliance', () => {
 
   describe('COPPA Compliance', () => {
     test('should not store personally identifiable information', async () => {
-      mockSecureStorage.get.mockResolvedValue(null);
+      grantPrivacyConsent();
       mockSecureStorage.set.mockResolvedValue(undefined);
 
       await userPreferencesService.initialize('Grade3');
@@ -103,7 +123,14 @@ describe('User Preferences Privacy & Compliance', () => {
         updatedAt: Date.now() - 32 * 24 * 60 * 60 * 1000,
       };
 
-      mockSecureStorage.get.mockResolvedValue(oldData);
+      // Per-key mock: grant consent + return seeded oldData for the
+      // personalization key so isDataValid → retention check fires.
+      mockSecureStorage.get.mockImplementation((key: string) => {
+        if (key === 'privacy_consent') return Promise.resolve(true);
+        if (key === 'user_personalization_data')
+          return Promise.resolve(oldData);
+        return Promise.resolve(null);
+      });
       mockSecureStorage.set.mockResolvedValue(undefined);
 
       await userPreferencesService.initialize('Grade3');
@@ -178,7 +205,7 @@ describe('User Preferences Privacy & Compliance', () => {
     });
 
     test('should anonymize context data before storage', async () => {
-      mockSecureStorage.get.mockResolvedValue(null);
+      grantPrivacyConsent();
       mockSecureStorage.set.mockResolvedValue(undefined);
 
       await userPreferencesService.initialize('Grade3');
@@ -239,7 +266,14 @@ describe('User Preferences Privacy & Compliance', () => {
         // Missing other required fields
       };
 
-      mockSecureStorage.get.mockResolvedValue(corruptedData);
+      // Per-key mock: grant consent + return corrupted data so isDataValid
+      // rejects it and triggers fresh-data creation.
+      mockSecureStorage.get.mockImplementation((key: string) => {
+        if (key === 'privacy_consent') return Promise.resolve(true);
+        if (key === 'user_personalization_data')
+          return Promise.resolve(corruptedData);
+        return Promise.resolve(null);
+      });
       mockSecureStorage.set.mockResolvedValue(undefined);
 
       await userPreferencesService.initialize('Grade3');
@@ -267,7 +301,7 @@ describe('User Preferences Privacy & Compliance', () => {
     });
 
     test('should handle malformed interaction data', async () => {
-      mockSecureStorage.get.mockResolvedValue(null);
+      grantPrivacyConsent();
       mockSecureStorage.set.mockResolvedValue(undefined);
 
       await userPreferencesService.initialize('Grade3');
