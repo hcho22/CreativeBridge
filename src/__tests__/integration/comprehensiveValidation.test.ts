@@ -242,7 +242,10 @@ describe('Comprehensive Performance Validation', () => {
     });
 
     test('Content quality exceeds 95% first-try success rate', async () => {
-      const totalTests = 200;
+      // 1000 samples (was 200) keeps the lower tail well above the 95% threshold
+      // given the simulator's 97% mean — variance of √(N·p·q)/N drops ~2.2× and
+      // false-fail probability falls below 0.01%.
+      const totalTests = 1000;
       let successCount = 0;
 
       for (let i = 0; i < totalTests; i++) {
