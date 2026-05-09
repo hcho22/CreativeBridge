@@ -98,6 +98,75 @@ jest.mock('expo-web-browser', () => ({
   dismissBrowser: jest.fn(),
 }));
 
+// US-015f.1.screens: global stubs for native modules whose constructors run
+// at module-init via TurboModules (`getEnforcing`) — without these, any test
+// that transitively imports them (e.g. via HomeScreen, AppNavigator, file
+// pickers) crashes during module loading. These mocks are no-ops; per-test
+// `jest.mock(...)` overrides still take precedence.
+
+jest.mock('react-native-gesture-handler', () => {
+  const View = require('react-native').View;
+  return {
+    GestureHandlerRootView: View,
+    PanGestureHandler: View,
+    TapGestureHandler: View,
+    LongPressGestureHandler: View,
+    State: {},
+    Directions: {},
+    Gesture: {
+      Pan: jest.fn(() => ({ onUpdate: jest.fn(), onEnd: jest.fn() })),
+      Tap: jest.fn(() => ({ onEnd: jest.fn() })),
+    },
+    GestureDetector: View,
+  };
+});
+
+jest.mock('react-native-document-picker', () => ({
+  __esModule: true,
+  default: {
+    pick: jest.fn(),
+    pickSingle: jest.fn(),
+    pickMultiple: jest.fn(),
+  },
+  isInProgress: jest.fn(() => false),
+  isCancel: jest.fn(() => false),
+  types: { allFiles: '*/*', plainText: 'text/plain', images: 'image/*' },
+}));
+
+jest.mock('@react-native-clipboard/clipboard', () => ({
+  __esModule: true,
+  default: {
+    setString: jest.fn(),
+    getString: jest.fn(() => Promise.resolve('')),
+    hasString: jest.fn(() => Promise.resolve(false)),
+  },
+  setString: jest.fn(),
+  getString: jest.fn(() => Promise.resolve('')),
+}));
+
+// US-015f.1.screens: navigation hooks that require a navigator context
+// (useBottomTabBarHeight, useHeaderHeight) throw when components are rendered
+// in isolation. Stub with constants so screen tests can mount without a full
+// nav tree.
+jest.mock('@react-navigation/bottom-tabs', () => ({
+  useBottomTabBarHeight: jest.fn(() => 0),
+  createBottomTabNavigator: jest.fn(() => ({
+    Navigator: ({ children }) => children,
+    Screen: ({ children }) => children,
+  })),
+  BottomTabBarHeightContext: {
+    Provider: ({ children }) => children,
+  },
+}));
+
+jest.mock('@react-navigation/elements', () => {
+  const actual = jest.requireActual('@react-navigation/elements');
+  return {
+    ...actual,
+    useHeaderHeight: jest.fn(() => 0),
+  };
+});
+
 // Mock expo-linking
 jest.mock('expo-linking', () => ({
   openURL: jest.fn(() => Promise.resolve(true)),
