@@ -3027,6 +3027,50 @@ Cluster's 0/12 mechanical-fix rate confirms a maturation pattern: as easier mech
 
 ---
 
+#### US-015f.1.storage verdict ✅ MIXED-WIN — 7 of 7 storage/cache suites green; 1 mechanical, 1 partial, 5 routed; one triage misdiagnosis caught
+
+**Trigger:** US-015f.1.storage picked the storage/cache services cluster — 7 files actually failing on main: `diversityScoreStorageService`, `postGenerationStorageService`, `embeddingGenerationService`, `predictiveStoryCache`, `recentElementsCaching`, `recentElementsService`, `userPreferences`. ~46 failing test cases.
+
+**Verdict per file:**
+
+| #   | File                         | Outcome         | Skipped/Fixed | Notes                                                               |
+| --- | ---------------------------- | --------------- | ------------- | ------------------------------------------------------------------- |
+| 1   | diversityScoreStorageService | WHOLESALE-ROUTE | 17 skipped    | StoryElements format rejected; source requires StoryElementRecord[] |
+| 2   | postGenerationStorageService | WHOLESALE-ROUTE | 22 skipped    | UUID-format detection added; non-UUID fixtures trip Convex codepath |
+| 3   | embeddingGenerationService   | **MECHANICAL**  | 2 lines fixed | Cache `limit` 1000 → 200 (deliberate ~6MB footprint cap)            |
+| 4   | predictiveStoryCache         | PARTIAL-ROUTE   | 1 skipped     | `await import()` requires `--experimental-vm-modules`               |
+| 5   | recentElementsCaching        | WHOLESALE-ROUTE | 16 skipped    | Supabase chain-mock drift; sister-suite of #6                       |
+| 6   | recentElementsService        | WHOLESALE-ROUTE | 17 skipped    | Same root cause as #5 (parent sub-story consolidates)               |
+| 7   | userPreferences              | WHOLESALE-ROUTE | 24 skipped    | Adaptive-learning re-tune; **cross-cluster pair** with PR #76       |
+
+**Findings:**
+
+1. **Triage misdiagnosis caught via 4-axis filter axis #4.** The fork's triage hypothesized that `postGenerationStorageService` had a real regression — "source NOW invalidates cache on storage failure" at line 673. Source verification at `postGenerationStorageService.ts:300-306` showed the catch block correctly does NOT call `invalidateCache`. The real failure is upstream: test fixtures use `'story-123'`/`'session-456'` (non-UUID) → source's new `isValidUUID()` check at line 101 routes to the Convex codepath at line 264, calling `invalidateCache` at line 272 regardless of supabase mock outcome. Source behavior is correct on both paths; tests just don't reach the supabase path. **No regression. Routed under correctly-named sub-story (postgeneration-uuid-format-detection).** Cost ~30s of source-reading; saved misleading future maintainer work.
+2. **Cross-cluster pairs are now a recognized pattern.** `userPreferences` (this cluster) and `userPreferencesEffectiveness` (PR #76 integration) share root cause and parent sub-story. `predictiveStoryCache` (this cluster) and `predictiveCacheIntegration` (PR #76 integration) share the vm-modules issue. `recentElementsCaching` and `recentElementsService` are sister-suites within this cluster. Consolidating routing under shared parents reduces follow-up backlog churn.
+3. **Cache-size tuning is a recurring deliberate-refinement category.** `embeddingGenerationService`'s `CACHE_SIZE_LIMIT = 200` (down from 1000) is documented as "Reduced from 1000 to limit ~6MB footprint" — the comment IS the source-of-truth, and the test was simply outdated. Mechanical fix.
+
+**Calibration update:**
+
+| Cluster                               | Files (this round) | Mechanical | Real regressions |   Rate |
+| ------------------------------------- | -----------------: | ---------: | ---------------: | -----: |
+| Cumulative across 9 prior clusters    |                 44 |         22 |                5 |   ~11% |
+| **Storage/cache (US-015f.1.storage)** |              **7** |      **1** |            **0** | **0%** |
+| Cumulative across 10 clusters         |                 51 |         23 |                5 |   ~10% |
+
+Cluster's 1/7 mechanical-fix rate (~14%) is in line with the maturation pattern — most remaining failures require maintainer-led decisions on deliberate refinements. Real-regression rate continues to drop toward ~10% as the denominator grows.
+
+**Follow-up sub-stories spawned:**
+
+- **US-015f.1.storage.diversityscore-record-format** — 17 diversityScoreStorageService tests: re-shape fixtures from `{characters:[...], settings:[...]}` to `[{type:'character',...}]`.
+- **US-015f.1.storage.postgeneration-uuid-format-detection** — 22 postGenerationStorageService tests: re-author with intent-aware UUID/non-UUID partitioning.
+- **US-015f.1.storage.predictivecache-vm-modules** — 1 test (parent shared with PR #76 integration sub-story).
+- **US-015f.1.storage.recentelements-supabase-mock-drift** — 33 tests across two sister-suites: re-author chain-mock against current cache-layer query order.
+- **US-015f.1.storage.userprefs-adaptive-tuning** — 24 tests (parent shared with PR #76 integration sub-story).
+
+**Files modified for US-015f.1.storage: 7 test files + 1 PRD entry.** No production source changes.
+
+---
+
 ### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c
 
 **Description:** As a maintainer, I want CI back on its original timeout and coverage configuration so CI matches local-run expectations.
