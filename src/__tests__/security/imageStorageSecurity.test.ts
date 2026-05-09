@@ -351,6 +351,7 @@ describe('Security Testing - Image Storage & Persistence', () => {
   // still exist in source (lines 337-353, 569-619) but is gated behind the
   // Convex client. Routing wholesale; the validation work belongs in a
   // Convex-flow rewrite (mock `api.storage.generateUploadUrl` + client.mutation).
+  // eslint-disable-next-line jest/no-disabled-tests
   describe.skip('File Upload Validation', () => {
     it('should reject files larger than 10MB', async () => {
       // Create a mock blob larger than 10MB
@@ -516,6 +517,7 @@ describe('Security Testing - Image Storage & Persistence', () => {
     // model itself has been architecturally eliminated. The 4th test
     // ("should prevent directory traversal in storage paths") is unrelated
     // (mocks-only, no source assertion) and remains active.
+    // eslint-disable-next-line jest/no-disabled-tests
     it.skip('should sanitize user ID to prevent path traversal', () => {
       const maliciousUserId = '../../../etc/passwd';
       const sessionId = 'session-123';
@@ -534,6 +536,7 @@ describe('Security Testing - Image Storage & Persistence', () => {
       expect(publicUrl).toMatch(/\/etcpasswd\/session-123\.png/);
     });
 
+    // eslint-disable-next-line jest/no-disabled-tests
     it.skip('should sanitize session ID to prevent path traversal', () => {
       const userId = 'user-123';
       const maliciousSessionId = '../../../var/www/html/shell.php';
@@ -548,6 +551,7 @@ describe('Security Testing - Image Storage & Persistence', () => {
       expect(publicUrl).toMatch(/user-123\/varwwwhtmlshellphp\.png/);
     });
 
+    // eslint-disable-next-line jest/no-disabled-tests
     it.skip('should prevent null byte injection in file paths', () => {
       const maliciousUserId = 'user-123\x00admin';
       const sessionId = 'session\x00.php';
