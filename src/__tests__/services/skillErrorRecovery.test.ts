@@ -237,6 +237,14 @@ describe('Skill Error Recovery', () => {
     });
 
     test('Timeout errors are properly categorized', async () => {
+      // Reset circuit breaker — prior tests in this file (Retry Mechanisms, Circuit
+      // Breaker Functionality) accumulate failure state on the same skillType/skillId,
+      // which would short-circuit normalizeError and surface SKILL_UNAVAILABLE instead.
+      skillErrorRecovery.resetCircuitBreaker(
+        'ContentPredictionSkill',
+        'skill-123',
+      );
+
       const operation = jest.fn(async () => {
         // Source matches substring 'timeout'/'Timeout' at skillErrorRecovery.ts:286-287; 'timed out' did not match.
         throw new Error('Request timeout');
