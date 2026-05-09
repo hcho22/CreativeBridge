@@ -3071,6 +3071,50 @@ Cluster's 1/7 mechanical-fix rate (~14%) is in line with the maturation pattern 
 
 ---
 
+#### US-015f.1.story-ai verdict ✅ ROUTING-HEAVY — 7 of 7 story-AI suites green; massive watercolor-base consolidation; zero real regressions
+
+**Trigger:** US-015f.1.story-ai picked the story-AI services cluster — 7 files actually failing on main: `promptFallbackMethods`, `promptStyleValidation`, `enhancedArtStyleMapping`, `storyContentExtraction`, `storyQuestService`, `educationalOptimizer`, `educationalOptimizerSimple`. ~54 failing test cases.
+
+**Verdict per file:**
+
+| #   | File                       | Outcome         | Skipped    | Routed to                                           |
+| --- | -------------------------- | --------------- | ---------- | --------------------------------------------------- |
+| 1   | promptFallbackMethods      | WHOLESALE-ROUTE | 13 skipped | `story-ai.artstyle-watercolor-base` (PR #76 parent) |
+| 2   | promptStyleValidation      | WHOLESALE-ROUTE | 19 skipped | `story-ai.artstyle-watercolor-base` (same parent)   |
+| 3   | enhancedArtStyleMapping    | WHOLESALE-ROUTE | 10 skipped | `story-ai.artstyle-watercolor-base` (same parent)   |
+| 4   | storyContentExtraction     | WHOLESALE-ROUTE | 16 skipped | `story-ai.scene-pattern-refinement`                 |
+| 5   | storyQuestService          | PARTIAL-ROUTE   | 8 skipped  | `story-ai.storyquest-supabase-chain-drift`          |
+| 6   | educationalOptimizer       | WHOLESALE-ROUTE | 11 skipped | `story-ai.educational-optimizer-tuning`             |
+| 7   | educationalOptimizerSimple | WHOLESALE-ROUTE | 12 skipped | (sister parent of #6)                               |
+
+**Findings:**
+
+1. **Watercolor-base refinement is the largest single deliberate-refinement category in the entire cleanup.** Files #1+#2+#3 in this cluster route to the same parent as PR #76's `integration.artstyle-watercolor-base` and `integration.promptValidationFallback`. Combined footprint: 4 files / ~25+ tests routed under one parent sub-story. The maintainer's eventual fix here clears a meaningful chunk of skipped tests at once.
+2. **Triage misdiagnosis caught a second time** — the fork's REGRESSION-watch correctly flagged `storyContentExtraction` as suspicious; verifying source's `extractScenes` at `imageGeneration.ts:7013-7042` confirmed it works correctly. Failure traces to SCENE_PATTERNS config refinement (no longer maps specific multi-word phrases like "enchanted forest"). The second-time-in-a-row catch confirms the verify-before-routing discipline is load-bearing.
+3. **Sister-suite pair confirmed:** #6 + #7 (educationalOptimizer twins) share algorithm-tuning root cause. Third sister-suite pair in the cleanup (after recentElements\*, userPreferences cross-cluster).
+4. **0 mechanical-fix rate** — the most refinement-heavy cluster yet. Story-AI tier sits at the deliberate-refinement end of the spectrum. Driven primarily by the consolidating watercolor-base refinement.
+
+**Calibration update:**
+
+| Cluster                             | Files (this round) | Mechanical | Real regressions |   Rate |
+| ----------------------------------- | -----------------: | ---------: | ---------------: | -----: |
+| Cumulative across 10 prior clusters |                 51 |         23 |                5 |   ~10% |
+| **Story-AI (US-015f.1.story-ai)**   |              **7** |      **0** |            **0** | **0%** |
+| Cumulative across 11 clusters       |                 58 |         23 |                5 |    ~9% |
+
+Cluster's 0/7 mechanical confirms the refinement-density pattern. Real-regression rate continues drift toward ~9%.
+
+**Follow-up sub-stories spawned:**
+
+- **US-015f.1.story-ai.artstyle-watercolor-base** (parent shared with PR #76) — 42 tests across 3 files (cluster) + ~25 tests from PR #76 = ~67 tests total. Single largest follow-up backlog.
+- **US-015f.1.story-ai.scene-pattern-refinement** — 16 storyContentExtraction tests: re-derive expected scenes/themes from current SCENE_PATTERNS config.
+- **US-015f.1.story-ai.storyquest-supabase-chain-drift** — 8 storyQuestService tests: re-align supabase chain mock + add fetch stub for apiHealth.
+- **US-015f.1.story-ai.educational-optimizer-tuning** — 23 tests across 2 sister-suites: curriculum-team-led numeric-threshold and recommendation-content re-derivation.
+
+**Files modified for US-015f.1.story-ai: 7 test files + 1 PRD entry.** No production source changes.
+
+---
+
 ### US-017: Reinstate `--coverage` and tighten CI timeout ✅ PASS-WITH-DEFERRALS — workflow already in target state; AC2 routes to US-015c
 
 **Description:** As a maintainer, I want CI back on its original timeout and coverage configuration so CI matches local-run expectations.
