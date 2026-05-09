@@ -219,6 +219,13 @@ export const createMockSupabaseClient = () => {
         bucketChains.clear();
       },
       setUser: (user: any) => {
+        // US-015f.1.security: setUser(null) is the documented sign-out idiom
+        // (see imageStorageSecurity 'should reject uploads when user is not
+        // authenticated'). Without this guard, dereferencing user.id throws.
+        if (user === null || user === undefined) {
+          mockUsers.clear();
+          return;
+        }
         mockUsers.set(user.id, user);
       },
       getUser: (id: string) => mockUsers.get(id),

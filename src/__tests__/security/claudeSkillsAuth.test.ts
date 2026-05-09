@@ -35,11 +35,25 @@ jest.mock('react-native-device-info', () => ({
   getDeviceType: jest.fn().mockResolvedValue('Handset'),
 }));
 
-jest.mock('@react-native-async-storage/async-storage', () => ({
-  setItem: jest.fn().mockResolvedValue(undefined),
-  getItem: jest.fn().mockResolvedValue(null),
-  removeItem: jest.fn().mockResolvedValue(undefined),
-}));
+// US-015f.1.security: stateful AsyncStorage mock so persistence round-trips
+// (createSession/validateSession, enableSkills/forceRefresh) work as intended.
+// The previous static mock returned null for every getItem regardless of prior
+// setItem, which broke any read-after-write test in this file.
+jest.mock('@react-native-async-storage/async-storage', () => {
+  const store = new Map<string, string>();
+  return {
+    setItem: jest.fn((k: string, v: string) => {
+      store.set(k, v);
+      return Promise.resolve();
+    }),
+    getItem: jest.fn((k: string) => Promise.resolve(store.get(k) ?? null)),
+    removeItem: jest.fn((k: string) => {
+      store.delete(k);
+      return Promise.resolve();
+    }),
+    __store: store,
+  };
+});
 
 // Mock environment for consistent testing
 process.env.CLAUDE_SKILLS_ENVIRONMENT = 'development';
@@ -48,6 +62,15 @@ describe('Claude Skills Authentication Security Tests', () => {
   beforeEach(() => {
     // Reset mocks
     jest.clearAllMocks();
+    // US-015f.1.security: re-pin env each test — prior `Environment switching`
+    // tests call `switchEnvironment('production')`, leaking 'production' state
+    // into later describes whose env-default skill list differs.
+    process.env.CLAUDE_SKILLS_ENVIRONMENT = 'development';
+    // Clear stateful AsyncStorage between tests so persisted skill config from
+    // earlier tests (e.g. `Configuration Update Security`) doesn't override
+    // env-default lookups in `getPersistedSkillConfiguration` later.
+    const AsyncStorage = require('@react-native-async-storage/async-storage');
+    AsyncStorage.__store?.clear();
     // Clear configuration cache
     ClaudeSkillsConfigFactory.clearCache();
   });
@@ -192,10 +215,12 @@ describe('Claude Skills Authentication Security Tests', () => {
       const initialConfig = await ClaudeSkillsConfigFactory.createConfig();
       const initialSkills = initialConfig.enabledSkills;
 
-      // Update configuration at runtime
+      // US-015f.1.security: include ContentPredictionSkill so newSkills can't
+      // coincidentally equal initialSkills under any env's defaults.
       const newSkills: SkillType[] = [
         'ResourceOptimizationSkill',
         'ErrorRecoverySkill',
+        'ContentPredictionSkill',
       ];
       const updatedConfig = await ClaudeSkillsConfigFactory.updateConfig({
         enabledSkills: newSkills,
@@ -480,6 +505,9 @@ describe('Claude Skills Authentication Security Tests', () => {
 describe('Claude Skills Configuration Integration Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    process.env.CLAUDE_SKILLS_ENVIRONMENT = 'development';
+    const AsyncStorage = require('@react-native-async-storage/async-storage');
+    AsyncStorage.__store?.clear();
     ClaudeSkillsConfigFactory.clearCache();
   });
 
@@ -526,10 +554,16 @@ describe('Claude Skills Configuration Integration Tests', () => {
       },
     );
 
-    // Trigger configuration change
-    await ClaudeSkillsConfigFactory.updateConfig({
-      enabledSkills: ['ResourceOptimizationSkill'],
-    });
+    // US-015f.1.security: notifications fire from the user-facing manager API
+    // (ClaudeSkillsConfigManager.updateConfiguration), NOT from the lower-level
+    // Factory.updateConfig cache mutator. Source intent is preserved at
+    // services/claudeSkillsConfigManager.ts:372-377.
+    //
+    // Use disableSkills (not enableSkills) because dev env has ALL skills
+    // enabled by default (config/claudeSkillsConfig.ts:528), so enableSkills
+    // short-circuits as a no-op without firing notifications. Disabling a
+    // non-essential skill is a guaranteed change.
+    await ClaudeSkillsConfigManager.disableSkills(['QualityAssessmentSkill']);
 
     // Clean up
     unsubscribe();
@@ -580,6 +614,14 @@ describe('Claude Skills Configuration Integration Tests', () => {
 
 // Compliance and audit tests
 describe('Claude Skills Compliance Validation', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env.CLAUDE_SKILLS_ENVIRONMENT = 'development';
+    const AsyncStorage = require('@react-native-async-storage/async-storage');
+    AsyncStorage.__store?.clear();
+    ClaudeSkillsConfigFactory.clearCache();
+  });
+
   test('No credentials leaked in logs or debugging output', async () => {
     const originalConsoleLog = console.log;
     const logMessages: string[] = [];
