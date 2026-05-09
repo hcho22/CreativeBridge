@@ -112,7 +112,18 @@ describe('US-008: Genre-aware story generation prompts', () => {
       expect(prompt.toLowerCase()).toContain('spooky');
       expect(prompt.toLowerCase()).toContain('silly');
       expect(prompt).not.toMatch(/\bscary\b/i);
-      expect(prompt).not.toMatch(/frightening/i);
+      // US-015f.1.genre: scope the "frightening" check to the genre section
+      // only. The IMPORTANT SAFETY INSTRUCTIONS preamble (added to every
+      // prompt — see storyGenerationService.ts) legitimately contains the
+      // word in a denial context: "Never generate content that is violent,
+      // sexual, frightening, or otherwise inappropriate". That's correct
+      // behavior, not a regression. Slice from "GENRE: Horror" to the next
+      // section header to assert only on the genre-specific guidance.
+      const genreSection = prompt.slice(
+        prompt.indexOf('GENRE: Horror'),
+        prompt.indexOf('Key guidelines'),
+      );
+      expect(genreSection).not.toMatch(/frightening/i);
     });
 
     it('includes Horror guidance with 3-5 age-gating in system prompt', () => {

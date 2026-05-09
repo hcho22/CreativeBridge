@@ -50,10 +50,18 @@ jest.mock('../../convex/auth', () => ({
   getClerkUserId: jest.fn().mockResolvedValue('user_test123'),
 }));
 
-// Mock Convex server to extract handler logic
+// Mock Convex server to extract handler logic.
+// US-015f.1.genre: convex/userProfiles.ts:961 introduced
+// `deleteAllUserDataInternal` via `internalMutation` (privacy/cleanup helper).
+// Without this entry, module load throws "(0, _server.internalMutation) is
+// not a function" before any test can run.
 jest.mock('../../convex/_generated/server', () => ({
   query: jest.fn((config: { handler: Function }) => config),
   mutation: jest.fn((config: { handler: Function }) => config),
+  internalMutation: jest.fn((config: { handler: Function }) => config),
+  internalQuery: jest.fn((config: { handler: Function }) => config),
+  action: jest.fn((config: { handler: Function }) => config),
+  internalAction: jest.fn((config: { handler: Function }) => config),
 }));
 
 // Import after mocks are set up
