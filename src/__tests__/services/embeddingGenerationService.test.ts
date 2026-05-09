@@ -445,7 +445,8 @@ describe('EmbeddingGenerationService', () => {
       expect(stats).toHaveProperty('size');
       expect(stats).toHaveProperty('limit');
       expect(stats.size).toBe(0); // Empty after clearCache
-      expect(stats.limit).toBe(1000);
+      // Cache limit reduced from 1000 → 200 in source (~6MB footprint cap, see CACHE_SIZE_LIMIT comment).
+      expect(stats.limit).toBe(200);
     });
 
     it('should clear cache', async () => {
@@ -502,7 +503,7 @@ describe('EmbeddingGenerationService', () => {
 
       const stats = embeddingGenerationService.getCacheStats();
       expect(stats.size).toBe(3);
-      expect(stats.limit).toBe(1000);
+      expect(stats.limit).toBe(200);
 
       // All should be cached
       expect(global.fetch).toHaveBeenCalledTimes(3);
