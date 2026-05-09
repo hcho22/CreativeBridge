@@ -939,8 +939,15 @@ export class ClaudeSkillsConfigValidator {
       );
     }
 
+    // US-015f.1.misc.config-validation-stale-isvalid: recompute isValid after
+    // env-specific errors are pushed. baseValidation.isValid was frozen at
+    // line 850 (validateConfig return) BEFORE the production checks added
+    // errors; spreading it would surface a misleading isValid:true with a
+    // populated errors[] array. Production configs with non-'enhanced'
+    // encryption now correctly report isValid:false.
     return {
-      ...baseValidation,
+      isValid: baseValidation.errors.length === 0,
+      errors: baseValidation.errors,
       warnings,
     };
   }
