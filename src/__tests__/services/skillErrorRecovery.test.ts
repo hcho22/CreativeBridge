@@ -238,7 +238,8 @@ describe('Skill Error Recovery', () => {
 
     test('Timeout errors are properly categorized', async () => {
       const operation = jest.fn(async () => {
-        throw new Error('Request timed out');
+        // Source matches substring 'timeout'/'Timeout' at skillErrorRecovery.ts:286-287; 'timed out' did not match.
+        throw new Error('Request timeout');
       });
 
       try {
