@@ -33,6 +33,12 @@ This Privacy Policy complies with the Children's Online Privacy Protection Act (
 | Game statistics         | App-generated (XP, streaks, scores)   | Gamification features                                              |
 | Onboarding progress     | App-generated                         | Tracking tutorial completion                                       |
 
+<!-- DRAFT FOR LEGAL REDLINE — H01 audit, see .claude/.agent/Tasks/H01-coppa-audit.md. Subject to legal review; do NOT publish without sign-off. -->
+
+| Voice / audio recording | Microphone (when user taps voice input) — only while actively recording | Transcribing spoken story input into text; audio is not retained after transcription completes |
+
+<!-- END DRAFT -->
+
 ### Information Collected Automatically
 
 | Data Type                     | Purpose                                    |
@@ -46,6 +52,11 @@ This Privacy Policy complies with the Children's Online Privacy Protection Act (
 - We do **not** collect contact lists or address books.
 - We do **not** collect photos or videos from your device (camera/gallery access is for saving generated illustrations only).
 - We do **not** collect persistent device identifiers from children.
+<!-- DRAFT FOR LEGAL REDLINE — H01 audit. The bullets below describe operational guarantees; legal must verify each claim is enforceable before publishing (e.g., OpenAI Whisper retention policy, our DPA terms, what "deleted after transcription" means in practice). -->
+- We do **not** retain voice/audio recordings after transcription. Audio is sent to OpenAI Whisper, transcribed to text, and the audio is not stored on our servers.
+- We do **not** use voice/audio recordings for AI model training. (Per our agreement with OpenAI, transmitted audio is not used to train Whisper or any other model.)
+- We do **not** use voice biometrics to identify or authenticate users.
+<!-- END DRAFT -->
 
 ---
 
@@ -67,13 +78,20 @@ We do **not** use children's personal information for behavioral advertising, pr
 
 We use the following third-party services to operate the App. We have executed Data Processing Agreements (DPAs) with each service to ensure they handle data in compliance with COPPA.
 
-| Service                          | Purpose                                                       | Data Shared                                                        |
-| -------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------ |
-| **Clerk**                        | Authentication (OAuth via Google/Apple)                       | Email, OAuth profile data, authentication tokens                   |
-| **Convex**                       | Primary database and real-time backend                        | User profiles, story content, game statistics, generated images    |
-| **OpenAI** (GPT-4)               | AI-powered story generation                                   | Story content text (PII-scrubbed before transmission)              |
-| **Replicate** (Stable Diffusion) | AI-powered illustration generation                            | Image generation prompts derived from story content (PII-scrubbed) |
-| **Supabase**                     | Legacy database (for migrated accounts), anonymized analytics | Anonymized analytics events                                        |
+| Service            | Purpose                                 | Data Shared                                                     |
+| ------------------ | --------------------------------------- | --------------------------------------------------------------- |
+| **Clerk**          | Authentication (OAuth via Google/Apple) | Email, OAuth profile data, authentication tokens                |
+| **Convex**         | Primary database and real-time backend  | User profiles, story content, game statistics, generated images |
+| **OpenAI** (GPT-4) | AI-powered story generation             | Story content text (PII-scrubbed before transmission)           |
+
+<!-- DRAFT FOR LEGAL REDLINE — H01 audit. Note: voice audio cannot be PII-scrubbed (the speaker's voice is itself biometric data). Legal must confirm DPA with OpenAI covers Whisper specifically and matches the no-training claim above. -->
+
+| **OpenAI** (Whisper) | Cloud-based speech-to-text transcription of voice input | Raw audio recordings (m4a/aac/webm) — sent only while user is actively dictating; not retained after transcription |
+
+<!-- END DRAFT -->
+
+| **Replicate** (Stable Diffusion) | AI-powered illustration generation | Image generation prompts derived from story content (PII-scrubbed) |
+| **Supabase** | Legacy database (for migrated accounts), anonymized analytics | Anonymized analytics events |
 
 **Important:** Story content sent to OpenAI and Replicate is processed through a PII scrubber that removes personal information (names, emails, phone numbers, addresses) before transmission. We have opted out of OpenAI using transmitted data for model training.
 
@@ -122,20 +140,45 @@ We will respond to all parental requests within 48 hours.
 - All external links require a parental gate (age-appropriate verification) before opening.
 - Content is filtered through safety moderation to prevent exposure to inappropriate material.
 
+<!-- DRAFT FOR LEGAL REDLINE — H01 audit. This subsection introduces voice handling specifically for under-13 accounts. Open questions for legal:
+  1. Does the existing VPC ("Email Plus" method) cover voice/audio collection, or does the addition of voice as a new data type require renewed VPC under §312.5?
+  2. For existing under-13 accounts (consented before voice was added): do we need a re-consent flow before they can continue using voice input?
+  3. Should voice input be disabled by default for under-13 and require an opt-in tied to parental consent? (Path C in the audit.)
+  4. Retroactive: if children have already had voice audio captured under the current cloud setup, what's the notification + retention review obligation?
+-->
+
+### Voice and Audio Data (Children Under 13)
+
+When a child under 13 uses voice input:
+
+- The microphone activates **only while the child is actively pressing/holding the voice input button**. We do not background-record.
+- Audio is transmitted over an encrypted connection to OpenAI Whisper for transcription, then converted to text.
+- The audio file is **not retained** by us after transcription completes.
+- Voice/audio data is included as a category in the data types covered by parental consent. _[Legal: confirm whether existing consents cover this addition or require a re-consent flow per §312.5.]_
+- A parent or guardian may withdraw consent for voice input specifically, in which case the child will use text-only input. _[Legal: confirm whether granular per-feature consent withdrawal is required, or whether withdrawing all consent is the only option.]_
+<!-- END DRAFT -->
+
 ---
 
 ## Data Retention
 
 We retain data for the following periods:
 
-| Data Type               | Retention Period                                   |
-| ----------------------- | -------------------------------------------------- |
-| Story sessions          | 1 year after last access                           |
-| Analytics events        | 90 days                                            |
-| Image generation events | 90 days                                            |
-| Migration events        | 30 days                                            |
-| Consent records         | 3 years after account deletion (COPPA requirement) |
-| Deleted account data    | Purged immediately upon deletion                   |
+| Data Type      | Retention Period         |
+| -------------- | ------------------------ |
+| Story sessions | 1 year after last access |
+
+<!-- DRAFT FOR LEGAL REDLINE — H01 audit. "Not retained" claim must match the actual implementation in convex/ai.ts:403 transcribeAudio (today: audio is sent to OpenAI per-request, not persisted to our DB; legal should confirm OpenAI's own retention is acceptable). -->
+
+| Voice / audio recording | Not retained after transcription completes (single-request) |
+
+<!-- END DRAFT -->
+
+| Analytics events | 90 days |
+| Image generation events | 90 days |
+| Migration events | 30 days |
+| Consent records | 3 years after account deletion (COPPA requirement) |
+| Deleted account data | Purged immediately upon deletion |
 
 Automated cleanup processes run daily to enforce these retention periods.
 
