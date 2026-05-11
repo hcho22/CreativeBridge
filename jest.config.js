@@ -44,6 +44,10 @@ module.exports = {
       '<rootDir>/src/__tests__/mocks/reactNativeMocks',
     '^react-native-url-polyfill/auto$': 'identity-obj-proxy',
     '^@env$': '<rootDir>/src/__tests__/__mocks__/@env',
+    // whisper.rn cannot be resolved by Node in test context because its
+    // package.json "exports" field has no "." entry — see the mock file
+    // header for the full explanation.
+    '^whisper\\.rn$': '<rootDir>/src/__tests__/__mocks__/whisper.rn',
   },
   testTimeout: 10000,
   // Recycle a jest worker once it crosses the threshold so the 37-test
