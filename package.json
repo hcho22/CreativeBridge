@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "postinstall": "patch-package",
+    "postinstall": "patch-package && ./scripts/download-whisper-models.sh",
+    "download-whisper-models": "./scripts/download-whisper-models.sh",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "lint": "eslint .",
@@ -98,6 +99,7 @@
     "convex": "^1.31.7",
     "dotenv": "^17.2.3",
     "expo": "~54.0.33",
+    "expo-asset": "~12.0.13",
     "expo-auth-session": "^7.0.10",
     "expo-av": "^16.0.8",
     "expo-blur": "~15.0.8",
@@ -136,6 +138,7 @@
     "react-native-vector-icons": "^10.3.0",
     "react-native-worklets": "^0.5.1",
     "replicate": "^1.2.0",
+    "whisper.rn": "0.5.5",
     "yup": "^1.7.1"
   },
   "devDependencies": {

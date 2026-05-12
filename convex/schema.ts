@@ -230,6 +230,18 @@ export default defineSchema({
     preferredGradeLevel: gradeLevelValidator,
     speechEnabled: v.boolean(),
     preferredGenre: v.optional(genreValidator),
+    // US-009: opt-in cloud transcription for 9-12 users. Stored as a
+    // nested object (rather than a flat field) so future per-user
+    // preferences can join the same bag without another schema migration.
+    // The policy helper in src/utils/transcriptionEnginePolicy.ts ignores
+    // this value for under-13 grade bands regardless of what is stored.
+    preferences: v.optional(
+      v.object({
+        transcriptionEngine: v.optional(
+          v.union(v.literal('on-device'), v.literal('cloud')),
+        ),
+      }),
+    ),
 
     // COPPA Compliance (US-001, US-002)
     ageGroup: v.optional(ageGroupValidator),
@@ -562,4 +574,28 @@ export default defineSchema({
     .index('by_child', ['childUserId'])
     .index('by_parent', ['parentEmail'])
     .index('by_token', ['consentToken']),
+
+  /**
+   * Consent Events Table (US-010)
+   *
+   * Lightweight audit log for in-app consent grants and revocations.
+   * Distinct from `consentRecords` (which carries the heavyweight COPPA VPC
+   * fields — parent email, tokens, expiry, renewal lifecycle). This table
+   * is shaped as an immutable append-only event log: every grant *and*
+   * revocation is a new row, so the audit trail is the row history rather
+   * than mutable state on a single record.
+   *
+   * Determining "is the user currently consented to X?" means querying for
+   * the most recent row with `clerkUserId = X` and `consentType = Y` and
+   * reading its `action`. No row → never consented.
+   *
+   * @index by_clerk_user - All events for a given user (most recent first)
+   */
+  consentEvents: defineTable({
+    clerkUserId: v.string(), // Clerk ID of the user granting/revoking
+    consentType: v.union(v.literal('cloudTranscription')),
+    action: v.union(v.literal('granted'), v.literal('revoked')),
+    timestamp: v.number(), // epoch ms
+    policyVersion: v.string(), // privacy policy version at consent time
+  }).index('by_clerk_user', ['clerkUserId']),
 });

@@ -70,6 +70,11 @@ export const convertConvexProfileToLegacy = (
   preferred_grade_level: convexProfile.preferredGradeLevel as GradeLevel,
   speech_enabled: convexProfile.speechEnabled,
   preferred_genre: convexProfile.preferredGenre as StoryGenre | undefined,
+  preferences: convexProfile.preferences
+    ? {
+        transcription_engine: convexProfile.preferences.transcriptionEngine,
+      }
+    : undefined,
   avatar_url: convexProfile.avatarUrl,
   bio: convexProfile.bio,
   age_group: convexProfile.ageGroup as AgeGroup | undefined,
@@ -681,6 +686,9 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
           preferredGenre?: StoryGenre | null;
           avatarUrl?: string;
           bio?: string;
+          preferences?: {
+            transcriptionEngine?: 'on-device' | 'cloud';
+          };
         } = {};
 
         if (profile.username !== undefined)
@@ -696,6 +704,11 @@ const AuthProviderWithClerk: React.FC<AuthProviderProps> = ({ children }) => {
         if (profile.avatar_url !== undefined)
           convexUpdates.avatarUrl = profile.avatar_url;
         if (profile.bio !== undefined) convexUpdates.bio = profile.bio;
+        if (profile.preferences !== undefined) {
+          convexUpdates.preferences = {
+            transcriptionEngine: profile.preferences.transcription_engine,
+          };
+        }
 
         // Update in Convex
         console.log('📝 [Convex] Updating profile');

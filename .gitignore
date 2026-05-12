@@ -91,3 +91,9 @@ ios/Pods/
 
 # Expo — generated web bundle output (other .expo/ files are intentionally tracked)
 .expo/web/
+
+# Whisper GGML model binaries — downloaded via scripts/download-whisper-models.sh
+# at install time (postinstall hook). Excluded from git to keep clone size small;
+# rebuild a fresh clone's state with `npm install` (which triggers the download)
+# or `npm run download-whisper-models`.
+assets/models/*.bin

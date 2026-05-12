@@ -76,6 +76,11 @@ export interface UserProfile {
   preferred_grade_level: GradeLevel;
   speech_enabled: boolean;
   preferred_genre?: StoryGenre;
+  // US-009: nested preference bag. Snake_case here matches the legacy
+  // `UserProfile` convention; AuthContext maps to/from camelCase Convex.
+  preferences?: {
+    transcription_engine?: 'on-device' | 'cloud';
+  };
 
   // Profile Data (optional)
   avatar_url?: string;

@@ -21,6 +21,13 @@ import {
   InkButton,
 } from '../components/common/storybook';
 import { theme } from '../constants/theme';
+import {
+  UNDER_13_GRADES,
+  type TranscriptionEngine,
+} from '../utils/transcriptionEnginePolicy';
+import { useMutation, useQuery } from 'convex/react';
+import { api } from '../../convex/_generated/api';
+import { CloudTranscriptionDisclosureModal } from '../components/common/CloudTranscriptionDisclosureModal';
 
 type SettingsScreenNavigationProp = StackNavigationProp<
   SettingsStackParamList,
@@ -100,6 +107,40 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
   // Onboarding progress modal state (US-018)
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
 
+  // US-009: cloud transcription opt-in for 9-12 users. Default 'on-device'
+  // matches the policy helper's fail-safe default — users start private.
+  const [transcriptionEngine, setTranscriptionEngine] =
+    useState<TranscriptionEngine>(
+      userProfile?.preferences?.transcription_engine ?? 'on-device',
+    );
+
+  // US-010: disclosure modal state. The local boolean is the source of
+  // truth for "is the modal showing right now?". Whether it *should* show
+  // when the user taps 'Cloud' depends on `latestCloudConsent` below.
+  const [showCloudDisclosure, setShowCloudDisclosure] = useState(false);
+
+  // US-010: most recent cloud-transcription consent event for this user.
+  // `undefined` = query is still loading; `null` = no event yet (never
+  // consented); object = the latest grant or revoke. We need a modal
+  // unless the latest event is an explicit grant — see `needsDisclosure`
+  // below. Note: this Convex query only fires for authenticated users;
+  // unauthenticated callers fall through the `useQuery` skip path.
+  const latestCloudConsent = useQuery(
+    api.consent.getLatestCloudTranscriptionConsent,
+  );
+  const logCloudConsent = useMutation(api.consent.logCloudTranscriptionConsent);
+  const hasGrantedCloudConsent = latestCloudConsent?.action === 'granted';
+
+  // US-009 visibility gate: the toggle is hidden unless the user has a
+  // *known* 9-12 grade. Mirrors the AC: hidden for K-2/3-5/6-8/undefined.
+  // We deliberately re-use UNDER_13_GRADES from the policy helper rather
+  // than duplicate the literal list — single source of truth means a
+  // future grade-band change (e.g., adding "5-7") flows through every
+  // call site at once.
+  const showTranscriptionToggle =
+    userProfile?.preferred_grade_level !== undefined &&
+    !UNDER_13_GRADES.includes(userProfile.preferred_grade_level);
+
   const handleSpeechToggle = async (value: boolean) => {
     setSpeechEnabled(value);
 
@@ -154,6 +195,89 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
         (userProfile?.preferred_grade_level as GradeLevel) || 'K-2',
       ); // Revert on error
     }
+  };
+
+  // US-010 helper: persist the preference and revert local state on error.
+  // Used by both the consented cloud-toggle path and the revoke path.
+  const persistTranscriptionEngine = async (
+    next: TranscriptionEngine,
+    previous: TranscriptionEngine,
+  ) => {
+    setTranscriptionEngine(next);
+    try {
+      const result = await updateProfile({
+        preferences: { transcription_engine: next },
+      });
+      if (result.error) {
+        Alert.alert('Update Failed', result.error);
+        setTranscriptionEngine(previous);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error('Transcription engine update error:', error);
+      Alert.alert('Error', 'Failed to update transcription preference');
+      setTranscriptionEngine(previous);
+      return false;
+    }
+  };
+
+  const handleTranscriptionEngineChange = async (next: TranscriptionEngine) => {
+    const previous = transcriptionEngine;
+    if (next === previous) return;
+
+    if (next === 'cloud') {
+      // US-010: gate the first transition behind the disclosure modal.
+      // If the user has previously granted (and not since revoked), skip
+      // the modal — "consent persists until revoked."
+      if (!hasGrantedCloudConsent) {
+        // Do NOT optimistically flip the UI to 'cloud' yet. The toggle
+        // visually stays on 'on-device' while the modal is open, so a
+        // Cancel is a true no-op rather than a flicker.
+        setShowCloudDisclosure(true);
+        return;
+      }
+      await persistTranscriptionEngine(next, previous);
+      return;
+    }
+
+    // next === 'on-device': revoke path. No modal, but log the
+    // revocation for the audit trail per US-010 AC #5.
+    const ok = await persistTranscriptionEngine(next, previous);
+    if (!ok) return;
+    try {
+      await logCloudConsent({ action: 'revoked' });
+    } catch (logError) {
+      // The user is now on-device (their intent is honored) but we
+      // failed to write the audit row. Log to console and move on —
+      // rolling back the preference because the audit log failed would
+      // be worse UX than a missing log entry.
+      console.error('Failed to log cloud transcription revocation:', logError);
+    }
+  };
+
+  const handleCloudDisclosureAgree = async () => {
+    setShowCloudDisclosure(false);
+
+    // Log-first ordering: write the consent event before persisting the
+    // 'cloud' preference. If the log write fails we abort and never set
+    // the preference to 'cloud', so we can't end up in a state where the
+    // user is routed to cloud transcription without an audit row.
+    try {
+      await logCloudConsent({ action: 'granted' });
+    } catch (logError) {
+      console.error('Failed to log cloud transcription consent:', logError);
+      Alert.alert('Error', 'Could not record your consent. Please try again.');
+      return;
+    }
+
+    await persistTranscriptionEngine('cloud', 'on-device');
+  };
+
+  const handleCloudDisclosureCancel = () => {
+    // No preference change happened, so just close the modal. The
+    // segmented control was never advanced to 'cloud'.
+    setShowCloudDisclosure(false);
   };
 
   const handleLogout = async () => {
@@ -275,6 +399,81 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
           </View>
         </View>
 
+        {/* US-009: Voice transcription quality (9-12 only) */}
+        {showTranscriptionToggle && (
+          <View style={styles.section}>
+            {renderSectionTitle('🎙️', 'Voice transcription quality')}
+            <View style={styles.transcriptionGrid}>
+              <TouchableOpacity
+                style={[
+                  styles.transcriptionOption,
+                  transcriptionEngine === 'on-device' &&
+                    styles.transcriptionOptionSelected,
+                ]}
+                onPress={() => handleTranscriptionEngineChange('on-device')}
+                activeOpacity={0.85}
+                accessibilityRole="radio"
+                accessibilityState={{
+                  selected: transcriptionEngine === 'on-device',
+                }}
+                accessibilityLabel="On-device transcription"
+              >
+                <Text
+                  style={[
+                    styles.transcriptionOptionLabel,
+                    transcriptionEngine === 'on-device' &&
+                      styles.transcriptionOptionLabelSelected,
+                  ]}
+                >
+                  On-device
+                </Text>
+                <Text
+                  style={[
+                    styles.transcriptionOptionSub,
+                    transcriptionEngine === 'on-device' &&
+                      styles.transcriptionOptionSubSelected,
+                  ]}
+                >
+                  Default · more private
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.transcriptionOption,
+                  transcriptionEngine === 'cloud' &&
+                    styles.transcriptionOptionSelected,
+                ]}
+                onPress={() => handleTranscriptionEngineChange('cloud')}
+                activeOpacity={0.85}
+                accessibilityRole="radio"
+                accessibilityState={{
+                  selected: transcriptionEngine === 'cloud',
+                }}
+                accessibilityLabel="Cloud transcription"
+              >
+                <Text
+                  style={[
+                    styles.transcriptionOptionLabel,
+                    transcriptionEngine === 'cloud' &&
+                      styles.transcriptionOptionLabelSelected,
+                  ]}
+                >
+                  Cloud
+                </Text>
+                <Text
+                  style={[
+                    styles.transcriptionOptionSub,
+                    transcriptionEngine === 'cloud' &&
+                      styles.transcriptionOptionSubSelected,
+                  ]}
+                >
+                  Higher quality · audio sent to OpenAI
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Quests / Onboarding */}
         <View style={styles.section}>
           {renderSectionTitle('🚀', 'Quests')}
@@ -388,6 +587,13 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
 
       {/* US-009: Parental Gate for external links */}
       {parentalGateModal}
+
+      {/* US-010: cloud transcription disclosure */}
+      <CloudTranscriptionDisclosureModal
+        visible={showCloudDisclosure}
+        onCancel={handleCloudDisclosureCancel}
+        onAgree={handleCloudDisclosureAgree}
+      />
     </View>
   );
 };
@@ -491,6 +697,44 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   gradeSubSelected: {
+    color: theme.colors.paper.cream,
+    opacity: 0.9,
+  },
+
+  // US-009: Voice transcription quality (segmented choice)
+  transcriptionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  transcriptionOption: {
+    width: '47.5%',
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: theme.colors.paper.card,
+    borderWidth: 1.5,
+    borderColor: theme.colors.paper.edge,
+  },
+  transcriptionOptionSelected: {
+    backgroundColor: theme.colors.accents.foxglove,
+    borderColor: theme.colors.accents.foxglove,
+    ...theme.shadows.sm,
+  },
+  transcriptionOptionLabel: {
+    fontFamily: theme.typography.fontFamily.serifBold,
+    fontSize: 17,
+    color: theme.colors.ink.base,
+  },
+  transcriptionOptionLabelSelected: {
+    color: theme.colors.paper.cream,
+  },
+  transcriptionOptionSub: {
+    fontFamily: theme.typography.fontFamily.uiRegular,
+    fontSize: 12,
+    color: theme.colors.ink.faint,
+    marginTop: 4,
+  },
+  transcriptionOptionSubSelected: {
     color: theme.colors.paper.cream,
     opacity: 0.9,
   },
