@@ -47,6 +47,7 @@ import {
   Easing,
   Image,
   Keyboard,
+  Platform,
   ScrollView,
   View,
   Text,
@@ -68,6 +69,8 @@ import {
   VoiceInput,
   type VoiceInputHandle,
 } from '@/components/common/VoiceInput';
+import type { GradeLevel } from '@/types';
+import type { TranscriptionEngine } from '@/utils/transcriptionEnginePolicy';
 import { textToSpeechService } from '../../services/textToSpeechIsolated';
 
 // ============================================================================
@@ -138,6 +141,24 @@ export interface VoiceFirstInputBarProps {
 
   /** Affects the keyboard-mode placeholder copy ("Start your story..." vs "Continue the story..."). */
   isUserStarting: boolean;
+
+  /**
+   * Canonical user grade for COPPA transcription routing (US-007).
+   * Forwarded to the embedded `VoiceInput` which calls
+   * `getTranscriptionEngine()` to decide between on-device and cloud
+   * Whisper. `undefined` defaults to on-device (fail-safe). HomeScreen
+   * passes `userProfile.preferred_grade_level` here.
+   */
+  gradeLevel?: GradeLevel;
+
+  /**
+   * User preferences subset relevant to transcription routing (US-007).
+   * Only `transcriptionEngine` is read; it's only meaningful for `9-12`
+   * users (US-009 Settings toggle). `undefined` defaults to on-device.
+   */
+  transcriptionPreferences?: {
+    transcriptionEngine?: TranscriptionEngine;
+  };
 }
 
 // ============================================================================
@@ -883,62 +904,71 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
         </View>
 
         {/* Speak — CENTER, PRIMARY (visibly larger) */}
-        <View style={styles.buttonColumn}>
-          {/*
+        {/* US-011: voice input is iOS-only today. We render the entire
+            Speak column (button + embedded VoiceInput driver) on iOS
+            only — on Android the user sees Listen + Keyboard with the
+            Speak slot absent. Without this gate the user would tap a
+            Speak button that calls into a null VoiceInput, the exact
+            "broken button" failure mode US-011's user story is trying
+            to avoid. iOS behavior is unchanged: same column, same
+            buttons, same styles. */}
+        {Platform.OS === 'ios' && (
+          <View style={styles.buttonColumn}>
+            {/*
             Wrap Speak in a relative container so we can absolutely-position
             (a) the US-004 pulsing ring UNDER the TouchableOpacity and
             (b) the embedded VoiceInput that drives real recording. The
             ring uses `pointerEvents="none"` so taps still land on Speak.
           */}
-          <View style={styles.speakWrap}>
-            {isSpeakActive && (
-              <Animated.View
-                pointerEvents="none"
+            <View style={styles.speakWrap}>
+              {isSpeakActive && (
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    styles.speakPulse,
+                    {
+                      transform: [{ scale: pulseScale }],
+                      opacity: pulseOpacity,
+                    },
+                  ]}
+                />
+              )}
+              <TouchableOpacity
+                // US-015 (2026-04-15): testID migrates to `continue-story-button`
+                // during reviewing-transcript so existing E2E / integration tests
+                // that target "whatever button commits the turn" keep resolving
+                // (see US-017 note in the PRD). Retains `voice-speak-button` in
+                // every other mode so idle / listening / typing tests are
+                // unaffected.
+                testID={centerTestID}
                 style={[
-                  styles.speakPulse,
-                  {
-                    transform: [{ scale: pulseScale }],
-                    opacity: pulseOpacity,
-                  },
+                  styles.primaryButton,
+                  isSpeakActive && styles.activePrimaryButton,
+                  // US-006 fix: solid foxglove + 30% opacity from
+                  // `disabledButton` was reading as a peachy-tan, easy to
+                  // mistake for "still active." Swap in a desaturated
+                  // ink-faint surface during the listening+transcribing
+                  // window so the disabled state is unambiguous.
+                  isSpeakActive && isTranscribing && styles.transcribingButton,
+                  speakDisabled && styles.disabledButton,
                 ]}
-              />
-            )}
-            <TouchableOpacity
-              // US-015 (2026-04-15): testID migrates to `continue-story-button`
-              // during reviewing-transcript so existing E2E / integration tests
-              // that target "whatever button commits the turn" keep resolving
-              // (see US-017 note in the PRD). Retains `voice-speak-button` in
-              // every other mode so idle / listening / typing tests are
-              // unaffected.
-              testID={centerTestID}
-              style={[
-                styles.primaryButton,
-                isSpeakActive && styles.activePrimaryButton,
-                // US-006 fix: solid foxglove + 30% opacity from
-                // `disabledButton` was reading as a peachy-tan, easy to
-                // mistake for "still active." Swap in a desaturated
-                // ink-faint surface during the listening+transcribing
-                // window so the disabled state is unambiguous.
-                isSpeakActive && isTranscribing && styles.transcribingButton,
-                speakDisabled && styles.disabledButton,
-              ]}
-              onPress={handleSpeakPress}
-              disabled={speakDisabled}
-              accessibilityRole="button"
-              // US-015: a11y copy is mode-aware. Idle/playing-tts keeps the
-              // US-008 "Speak your contribution" / "Primary input. Double tap
-              // to start voice recording." phrasing; listening and
-              // reviewing-transcript flip to Submit-facing copy since the
-              // button's meaning is "commit this."
-              accessibilityLabel={centerAccessibilityLabel}
-              accessibilityHint={centerAccessibilityHint}
-              accessibilityState={{
-                disabled: speakDisabled,
-                selected: isSpeakActive,
-                busy: props.isGenerating,
-              }}
-            >
-              {/*
+                onPress={handleSpeakPress}
+                disabled={speakDisabled}
+                accessibilityRole="button"
+                // US-015: a11y copy is mode-aware. Idle/playing-tts keeps the
+                // US-008 "Speak your contribution" / "Primary input. Double tap
+                // to start voice recording." phrasing; listening and
+                // reviewing-transcript flip to Submit-facing copy since the
+                // button's meaning is "commit this."
+                accessibilityLabel={centerAccessibilityLabel}
+                accessibilityHint={centerAccessibilityHint}
+                accessibilityState={{
+                  disabled: speakDisabled,
+                  selected: isSpeakActive,
+                  busy: props.isGenerating,
+                }}
+              >
+                {/*
                 Icon precedence:
                   1. Spinner during isGenerating (post-submit AI generation —
                      no user-recoverable stop action, so loading state is
@@ -954,47 +984,47 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
                      Whisper is in flight — a "can't stop this now" hint.
                   4. mic icon in every other mode.
               */}
-              {props.isGenerating ? (
-                <ActivityIndicator
-                  size="large"
-                  color={theme.colors.paper.cream}
-                  accessibilityLabel="Generating response"
-                />
-              ) : centerShowsArrow ? (
-                <MaterialIcons
-                  name="arrow-upward"
-                  size={40}
-                  color={theme.colors.paper.cream}
-                />
-              ) : centerShowsStop && isTranscribing ? (
-                // US-006 fix: spinner instead of stop glyph during the
-                // Whisper round-trip so the user sees clear "processing"
-                // feedback. Mirrors the isGenerating spinner pattern.
-                <ActivityIndicator
-                  size="large"
-                  color={theme.colors.paper.cream}
-                  accessibilityLabel="Transcribing your speech"
-                />
-              ) : centerShowsStop ? (
-                <MaterialIcons
-                  name="stop"
-                  size={40}
-                  color={theme.colors.paper.cream}
-                />
-              ) : (
-                // US-002 (polish round 2): idle Speak leg renders the
-                // watercolor mic raster from src/assets/storybook/. The
-                // pulsing ring, stop, arrow-upward, and ActivityIndicator
-                // states are state-aware action verbs and stay as
-                // MaterialIcons / spinners above this branch.
-                <Image
-                  source={require('../../assets/storybook/mic.png')}
-                  style={styles.voiceDockGlyphPrimary}
-                  resizeMode="contain"
-                />
-              )}
-            </TouchableOpacity>
-            {/*
+                {props.isGenerating ? (
+                  <ActivityIndicator
+                    size="large"
+                    color={theme.colors.paper.cream}
+                    accessibilityLabel="Generating response"
+                  />
+                ) : centerShowsArrow ? (
+                  <MaterialIcons
+                    name="arrow-upward"
+                    size={40}
+                    color={theme.colors.paper.cream}
+                  />
+                ) : centerShowsStop && isTranscribing ? (
+                  // US-006 fix: spinner instead of stop glyph during the
+                  // Whisper round-trip so the user sees clear "processing"
+                  // feedback. Mirrors the isGenerating spinner pattern.
+                  <ActivityIndicator
+                    size="large"
+                    color={theme.colors.paper.cream}
+                    accessibilityLabel="Transcribing your speech"
+                  />
+                ) : centerShowsStop ? (
+                  <MaterialIcons
+                    name="stop"
+                    size={40}
+                    color={theme.colors.paper.cream}
+                  />
+                ) : (
+                  // US-002 (polish round 2): idle Speak leg renders the
+                  // watercolor mic raster from src/assets/storybook/. The
+                  // pulsing ring, stop, arrow-upward, and ActivityIndicator
+                  // states are state-aware action verbs and stay as
+                  // MaterialIcons / spinners above this branch.
+                  <Image
+                    source={require('../../assets/storybook/mic.png')}
+                    style={styles.voiceDockGlyphPrimary}
+                    resizeMode="contain"
+                  />
+                )}
+              </TouchableOpacity>
+              {/*
               US-004: mount the embedded VoiceInput only while listening.
               `autoStart` makes recording begin as soon as permissions and
               `isEnabled` are true — so a single Speak tap is enough. We
@@ -1002,36 +1032,45 @@ const VoiceFirstInputBar: React.FC<VoiceFirstInputBarProps> = props => {
               its TouchableOpacity doesn't compete with the Speak visual
               above; users interact with Speak, not with this mount.
             */}
-            {isSpeakActive && (
-              <View style={styles.hiddenVoiceInput} pointerEvents="none">
-                <VoiceInput
-                  // US-015: `ref` exposes `VoiceInput.finalize()` so the
-                  // center ↑ handler can stop recording immediately.
-                  // `onHasSpokenChange` drives the pre-speech guard on the
-                  // button (disabled until the first speech-level metering
-                  // frame arrives from the recorder).
-                  ref={voiceInputRef}
-                  isEnabled
-                  autoStart
-                  onSpeechResult={handleEmbeddedSpeechResult}
-                  onError={handleEmbeddedVoiceError}
-                  onProcessingStateChange={setIsTranscribing}
-                  onPartialResult={setLivePartial}
-                  onHasSpokenChange={setHasSpoken}
-                />
-              </View>
-            )}
+              {isSpeakActive && (
+                <View style={styles.hiddenVoiceInput} pointerEvents="none">
+                  <VoiceInput
+                    // US-015: `ref` exposes `VoiceInput.finalize()` so the
+                    // center ↑ handler can stop recording immediately.
+                    // `onHasSpokenChange` drives the pre-speech guard on the
+                    // button. US-007 shifted its semantics: it now fires
+                    // `true` immediately after a successful start (push-to-
+                    // talk = user commitment = guard satisfied) rather than
+                    // waiting for a metering threshold — there's no metering
+                    // in the new on-device path.
+                    ref={voiceInputRef}
+                    isEnabled
+                    autoStart
+                    onSpeechResult={handleEmbeddedSpeechResult}
+                    onError={handleEmbeddedVoiceError}
+                    onProcessingStateChange={setIsTranscribing}
+                    // US-007: `onPartialResult` removed per PRD Non-Goals.
+                    // Whisper transcribes full buffers in one shot; the
+                    // partial card below gracefully degrades to its
+                    // "Listening…" / "Transcribing…" fallback copy.
+                    onHasSpokenChange={setHasSpoken}
+                    gradeLevel={props.gradeLevel}
+                    preferences={props.transcriptionPreferences}
+                  />
+                </View>
+              )}
+            </View>
+            <Text style={styles.primaryLabel}>
+              {centerShowsArrow
+                ? 'Upload'
+                : centerShowsStop
+                ? isTranscribing
+                  ? 'Transcribing…'
+                  : 'Stop'
+                : 'Speak'}
+            </Text>
           </View>
-          <Text style={styles.primaryLabel}>
-            {centerShowsArrow
-              ? 'Upload'
-              : centerShowsStop
-              ? isTranscribing
-                ? 'Transcribing…'
-                : 'Stop'
-              : 'Speak'}
-          </Text>
-        </View>
+        )}
 
         {/* Keyboard — RIGHT, secondary */}
         <View style={styles.buttonColumn}>

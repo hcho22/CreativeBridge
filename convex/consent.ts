@@ -1325,3 +1325,68 @@ export const exportChildData = query({
     };
   },
 });
+
+// ============================================================================
+// CLOUD TRANSCRIPTION CONSENT (US-010)
+// ============================================================================
+
+/**
+ * Log a cloud transcription consent event (grant or revoke) for the
+ * authenticated user.
+ *
+ * Writes an append-only row to `consentEvents`. The most recent row for a
+ * given `(clerkUserId, consentType)` pair determines the current consent
+ * state — `action: 'granted'` means consented, `action: 'revoked'` or no
+ * rows means not consented.
+ *
+ * The policy version is stamped server-side from CURRENT_PRIVACY_POLICY_VERSION
+ * so a client can never claim consent to a version it didn't actually see.
+ *
+ * @param action - 'granted' (user agreed) or 'revoked' (user toggled off)
+ * @returns The new event's _id
+ */
+export const logCloudTranscriptionConsent = mutation({
+  args: {
+    action: v.union(v.literal('granted'), v.literal('revoked')),
+  },
+  handler: async (ctx, args) => {
+    const clerkUserId = await getClerkUserId(ctx);
+
+    const eventId = await ctx.db.insert('consentEvents', {
+      clerkUserId,
+      consentType: 'cloudTranscription',
+      action: args.action,
+      timestamp: Date.now(),
+      policyVersion: CURRENT_PRIVACY_POLICY_VERSION,
+    });
+
+    return { eventId };
+  },
+});
+
+/**
+ * Get the most recent cloud-transcription consent event for the current
+ * user. Returns `null` if the user has no consent history yet (which the
+ * frontend treats as "needs disclosure modal").
+ *
+ * @returns Latest event or null
+ */
+export const getLatestCloudTranscriptionConsent = query({
+  args: {},
+  handler: async ctx => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return null;
+    }
+    const clerkUserId = identity.subject;
+
+    const latest = await ctx.db
+      .query('consentEvents')
+      .withIndex('by_clerk_user', q => q.eq('clerkUserId', clerkUserId))
+      .filter(q => q.eq(q.field('consentType'), 'cloudTranscription'))
+      .order('desc')
+      .first();
+
+    return latest;
+  },
+});

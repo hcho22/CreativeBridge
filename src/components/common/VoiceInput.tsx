@@ -1,30 +1,64 @@
 /**
- * VoiceInput — Whisper-backed voice recognition for the voice-first input
- * bar (US-013).
+ * VoiceInput — push-to-talk driver for the on-device Whisper pipeline
+ * (US-007).
  *
- * **History**: previously wrapped `@react-native-voice/voice` /
- * `SFSpeechRecognizer` with a 2000+-line state machine that tried to work
- * around iOS's aggressive "search-mode" VAD auto-finalization by restarting
- * the recognizer mid-sentence. That approach leaked audio across
- * `AVAudioSession` transitions and couldn't capture sentences longer than
- * ~1–2s reliably (the user's log showed "In the twinkling expanse of the
- * Cosmic Carnival" truncating to "In Lots of"). Per the 2026-04-14 decision,
- * we replaced that stack with `whisperTranscriptionService`: the mic records
- * to a temp file via `expo-av`, silence-auto-finalize triggers upload to
- * OpenAI Whisper through the Convex `transcribeAudio` action, and the
- * server-returned transcript fires `onSpeechResult`. No more partial
- * accumulation, no restart loop, no stale-echo guards.
+ * **History.** This component has been rewritten twice.
  *
- * **Tradeoff**: no live partial transcripts. The consumer sees a brief
- * `processing` state (~1–3s Whisper round-trip) before the transcript
- * lands. The host (`VoiceFirstInputBar`) can swap its pulsing ring to a
- * spinner via the `onProcessingStateChange` prop.
+ *   - v1 (legacy): wrapped `@react-native-voice/voice` / `SFSpeechRecognizer`
+ *     with a 2000+-line state machine fighting iOS's aggressive VAD
+ *     finalization. Couldn't capture sentences longer than ~1–2s reliably.
+ *   - v2 (2026-04-14): replaced the recognizer with cloud Whisper via
+ *     `whisperTranscriptionService` — recorded to a temp file, uploaded to
+ *     OpenAI Whisper. Solved the truncation problem but created the H01
+ *     COPPA exposure: under-13 voice was leaving the device.
+ *   - v3 (this file, 2026-05-11, US-007): push-to-talk + engine routing.
+ *     Under-13 users go through the on-device pipeline
+ *     (`audioCaptureService` → `onDeviceTranscriptionService`). 13+ users
+ *     who opt into cloud go through the legacy `whisperTranscriptionService`.
+ *     Silence-based VAD finalization is removed entirely — the user (or
+ *     the parent via the imperative `finalize()` handle) decides when to
+ *     stop.
  *
- * **Silence detection**: expo-av emits metering (dB) updates every 100ms.
- * We auto-finalize when the audio has been below `SILENCE_DB_THRESHOLD`
- * for `silenceTimeout` ms *after* we've seen at least one speech-level
- * reading (prevents finalize-before-speech when the mic is still warming
- * up on iOS).
+ * **Architecture (v3).** This component is a *hidden driver*. The
+ * user-visible UI (the large mic button, pulse animation, "I'm listening…"
+ * label) is owned by the parent (`VoiceFirstInputBar.tsx`), which mounts
+ * VoiceInput off-screen with `pointerEvents="none"` and `autoStart`.
+ * VoiceInput's job is to:
+ *
+ *   1. Resolve the transcription engine at `startListening()` time via
+ *      `getTranscriptionEngine()` and **pin it for the duration of this
+ *      recording session**. Re-evaluating at stop time could route audio
+ *      captured for one pipeline through the other (16 kHz mono PCM vs.
+ *      44.1 kHz AAC — they're not interchangeable).
+ *   2. Drive the appropriate recording backend (`audioCaptureService` for
+ *      on-device, `whisperTranscriptionService` for cloud).
+ *   3. On `finalize()` (called by the parent via `ref.current?.finalize()`
+ *      when the user taps the stop button), stop recording, run the audio
+ *      through the pinned engine, and fire `onSpeechResult(text)`.
+ *
+ * **What changed from v2.**
+ *   - No more silence-VAD timer / metering callbacks. Push-to-talk means
+ *     the user (not a heuristic) decides when to stop.
+ *   - No more `onPartialResult` — per the PRD Non-Goals, Whisper transcribes
+ *     full buffers in one shot. Parent code that consumed partials degrades
+ *     gracefully (its placeholder copy falls back to "Listening…" /
+ *     "Transcribing…").
+ *   - `onHasSpokenChange` is preserved but with shifted semantics: it fires
+ *     `true` immediately after a successful `start()` rather than when
+ *     metering crosses a speech threshold. In push-to-talk the user's
+ *     explicit tap IS the commitment signal, so the gate's original purpose
+ *     (preventing empty-audio uploads) is functionally satisfied — and for
+ *     the on-device path, an "empty" recording is cheap (no network, no
+ *     third-party PII exposure) and surfaces naturally as an empty
+ *     transcript the parent can handle.
+ *   - New props `gradeLevel` and `preferences` feed the engine policy.
+ *
+ * **Why route inside VoiceInput rather than have the parent resolve.** Two
+ * reasons: (1) keeps the parent's contract identical to v2 except for two
+ * new informational props — no parent-side routing logic to test/maintain;
+ * (2) ensures `getTranscriptionEngine()` is the ONE place routing decisions
+ * happen (FR-2 single-source-of-truth), and putting that call inside the
+ * driver makes its single use-site obvious in code review.
  */
 
 import React, {
@@ -41,13 +75,23 @@ import {
   Alert,
   AppState,
   Linking,
+  Modal,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '../../constants/theme';
+import { audioCaptureService } from '../../services/audioCaptureService';
+import { onDeviceTranscriptionService } from '../../services/onDeviceTranscriptionService';
 import { whisperTranscriptionService } from '../../services/whisperTranscriptionService';
+import type { GradeLevel } from '../../types';
+import {
+  getTranscriptionEngine,
+  type TranscriptionEngine,
+} from '../../utils/transcriptionEnginePolicy';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -57,7 +101,7 @@ interface VoiceInputProps {
   onSpeechResult: (text: string) => void;
   isEnabled: boolean;
   onError?: (error: string) => void;
-  /** ISO-639-1 language hint for Whisper ("en", "es"). Improves accuracy. */
+  /** ISO-639-1 language hint ("en", "es"). Used by the cloud branch. */
   language?: string;
   style?: object;
   buttonText?: {
@@ -65,60 +109,62 @@ interface VoiceInputProps {
     listening: string;
     processing: string;
   };
-  /** Silence duration in ms before auto-finalize (default 2000ms). */
-  silenceTimeout?: number;
   /**
-   * When true, begins recording automatically on mount (used by the
-   * voice-first input bar which mounts VoiceInput only while in `listening`
-   * mode — the user's Speak tap already committed to recording).
+   * When true, begins recording automatically on mount. Used by
+   * `VoiceFirstInputBar` which mounts VoiceInput only while the user is
+   * actively in the "listening" state.
    */
   autoStart?: boolean;
   /**
-   * Fired when the component moves into/out of the `processing` state
-   * (Whisper round-trip). The host can swap its visual feedback from a
-   * "listening" pulse to a "transcribing" spinner.
+   * Fires when the component enters/leaves `processing` (transcription
+   * round-trip). The parent swaps its visual feedback from a "listening"
+   * pulse to a "transcribing" spinner.
    */
   onProcessingStateChange?: (isProcessing: boolean) => void;
   /**
-   * Live-partial transcripts emitted while the user is still speaking.
-   * Best-effort stream from `@react-native-voice/voice` running in parallel
-   * with the Whisper recording — lets the host show text as it's being
-   * spoken rather than waiting the full Whisper round-trip. The final
-   * transcript (passed to `onSpeechResult`) still comes from Whisper and
-   * may differ from the last partial. See the 2026-04-15 real-time
-   * partials change in `whisperTranscriptionService.ts`.
-   */
-  onPartialResult?: (text: string) => void;
-  /**
-   * Fired whenever the "user has spoken at least once this session" flag
-   * changes: `true` the first time a metering sample crosses
-   * `SILENCE_DB_THRESHOLD` after recording starts, `false` when a new
-   * recording begins (reset). The voice-first bar uses this as a pre-speech
-   * guard — the center ↑ button stays disabled until the mic has actually
-   * caught speech, so a too-eager tap can't ship an empty audio clip to
-   * Whisper. Added by US-015 (2026-04-15).
+   * Fires `false` when a fresh recording begins, `true` immediately after
+   * recording is successfully started. The parent uses this to gate its
+   * stop button (disabled until VoiceInput confirms the recording is
+   * live). Semantics shifted from v2 — see file-level docstring.
    */
   onHasSpokenChange?: (hasSpoken: boolean) => void;
+  /**
+   * Canonical user grade for COPPA routing. The parent passes
+   * `userProfile.preferredGradeLevel` here; VoiceInput maps it onto
+   * `getTranscriptionEngine`'s `gradeLevel` parameter. `undefined`
+   * defaults to on-device (fail-safe).
+   */
+  gradeLevel?: GradeLevel;
+  /**
+   * Fires during the last `COUNTDOWN_WINDOW_MS` (10s) before the
+   * auto-stop prompt opens — once per second with `secondsRemaining`
+   * counting 10..1. Fires `null` when the countdown ends (modal opens,
+   * recording finalizes, or recording is cancelled). The parent
+   * decides where to render the countdown (next to the recording
+   * pulse, in the live-partial card, etc.). VoiceInput itself is a
+   * hidden driver and doesn't paint countdown UI. (US-008)
+   */
+  onCountdownChange?: (secondsRemaining: number | null) => void;
+  /**
+   * User preferences subset relevant to transcription routing. Only
+   * `transcriptionEngine` is read. Forwarded straight into
+   * `getTranscriptionEngine`.
+   */
+  preferences?: {
+    transcriptionEngine?: TranscriptionEngine;
+  };
 }
 
 /**
- * Imperative handle exposed via `ref`. Lets the parent
- * (`VoiceFirstInputBar`) stop recording immediately when the user taps the
- * center ↑ button — bypassing the 2000ms silence-detection window.
- *
- * Added by US-014 (2026-04-15). See PRD note on why an imperative handle
- * is preferable to a "triggerFinalize" prop: props require the parent to
- * bounce boolean state after each call; an imperative verb matches the
- * way `TextInput.focus()` works and keeps the bar's reducer free of
- * bookkeeping actions.
+ * Imperative handle exposed via `ref`. Lets the parent stop recording
+ * immediately (push-to-talk: user taps the "I'm done" button).
  */
 export interface VoiceInputHandle {
   /**
-   * Stop recording and hand the audio to Whisper. Idempotent:
-   *  - Safe to call while already finalizing (existing `isFinalizingRef`
-   *    guard inside `finalize` absorbs the second call).
-   *  - Safe to call before any recording started — a no-op that returns
-   *    without throwing. Matches US-014 AC #5.
+   * Stop recording and transcribe. Idempotent:
+   *  - Safe to call multiple times — concurrent calls are absorbed.
+   *  - Safe to call before recording started — a no-op that returns
+   *    without throwing (preserves US-014 AC #5).
    */
   finalize: () => Promise<void>;
 }
@@ -126,23 +172,55 @@ export interface VoiceInputHandle {
 type VoiceState = 'idle' | 'listening' | 'processing' | 'error';
 
 // ---------------------------------------------------------------------------
-// Silence detection tuning
+// US-008 — Auto-stop prompt tuning
 // ---------------------------------------------------------------------------
+//
+// Two independent timers govern long recordings:
+//
+//   1. **Soft prompt** at `PROMPT_AT_MS` (60s). Opens the "Are you still
+//      telling your story?" modal. The user picks "Yes, keep going" (which
+//      reschedules another 60s) or "I'm done" (which finalizes). If they
+//      pick nothing within `PROMPT_AUTO_DISMISS_MS` (10s), the modal
+//      defaults to "I'm done" — protects against the K-2 student who set
+//      the device down and walked away.
+//
+//   2. **Hard ceiling** at `HARD_CEILING_MS` (5 min) from the original
+//      `start()` — finalizes regardless of modal state. Independent of
+//      the soft prompt; "Keep going" does NOT reset it. Defends against a
+//      runaway "Keep going" loop and is the architectural backstop on
+//      battery / disk usage for a forgotten recording.
+//
+// During `COUNTDOWN_WINDOW_MS` (last 10s) before the soft prompt, the
+// component fires `onCountdownChange(secondsRemaining)` once per second.
+// The parent renders the countdown — VoiceInput is a hidden driver so we
+// don't paint countdown UI ourselves. `onCountdownChange(null)` fires
+// when the countdown ends (either modal opens or recording finalizes).
+//
+// Recording is NOT literally paused while the modal is up. The PRD's
+// "capture is paused" is a UX claim, not a technical one: pausing
+// `audioCaptureService` / `whisperTranscriptionService` mid-stream would
+// require new APIs on both services (neither supports pause/resume),
+// and Whisper handles the extra ≤10s of "modal-open" audio fine. "Keep
+// going" therefore just reschedules the next prompt 60s from the press.
 
-/**
- * Metering threshold (dB) above which we consider the user to be speaking.
- * Expo metering returns negative dBFS: -160 ≈ digital silence, -50 ≈ room
- * tone, -40 ≈ quiet speech, -25 ≈ conversational volume. We chose -40 so
- * K-2 kids' quieter voices still count as speech.
- */
-const SILENCE_DB_THRESHOLD = -40;
+const PROMPT_AT_MS = 60_000;
+const PROMPT_AUTO_DISMISS_MS = 10_000;
+const COUNTDOWN_WINDOW_MS = 10_000;
+const HARD_CEILING_MS = 300_000;
 
-/**
- * Grace period after start before silence detection engages. Protects
- * against the mic's "warm-up" window where iOS reports -160 dB for the
- * first ~150ms even though the user is already speaking.
- */
-const START_GRACE_MS = 400;
+// US-011 one-time-banner persistence. Tracked at the device level (not the
+// user level) because the message is about the platform's capabilities, not
+// the user's preference. The flag is set after the alert is acknowledged so
+// subsequent mounts skip it silently.
+const ANDROID_COMING_SOON_SEEN_KEY =
+  '@CreativeBridge:androidVoiceComingSoonSeen';
+
+// US-011: voice input is iOS-only today (whisper.rn's Android binary is not
+// bundled per AC #3). Each call site reads `Platform.OS` inline rather than
+// capturing it in a module-level constant so tests can override it via the
+// existing override-restore pattern without resetting the module cache. The
+// same `iOS-only` rule gates: (a) the visible button render, (b) the
+// autoStart effect, and (c) the imperative handle's finalize().
 
 // ---------------------------------------------------------------------------
 // Component
@@ -162,22 +240,26 @@ const VoiceInput = React.memo(
           listening: '🔴 Recording...',
           processing: '⏳ Transcribing...',
         },
-        silenceTimeout = 2000,
         autoStart = false,
         onProcessingStateChange,
-        onPartialResult,
         onHasSpokenChange,
+        gradeLevel,
+        preferences,
+        onCountdownChange,
       },
       ref,
     ) => {
       const [voiceState, setVoiceState] = useState<VoiceState>('idle');
+      // US-008: show/hide the "Are you still telling your story?" modal.
+      const [showAutoStopPrompt, setShowAutoStopPrompt] = useState(false);
 
-      // Keep latest prop callbacks accessible from effects without re-running them.
+      // Latest-callback refs so effects don't re-run when the parent's
+      // callback identity changes.
       const onSpeechResultRef = useRef(onSpeechResult);
       const onErrorRef = useRef(onError);
       const onProcessingStateChangeRef = useRef(onProcessingStateChange);
-      const onPartialResultRef = useRef(onPartialResult);
       const onHasSpokenChangeRef = useRef(onHasSpokenChange);
+      const onCountdownChangeRef = useRef(onCountdownChange);
       useEffect(() => {
         onSpeechResultRef.current = onSpeechResult;
       }, [onSpeechResult]);
@@ -188,131 +270,285 @@ const VoiceInput = React.memo(
         onProcessingStateChangeRef.current = onProcessingStateChange;
       }, [onProcessingStateChange]);
       useEffect(() => {
-        onPartialResultRef.current = onPartialResult;
-      }, [onPartialResult]);
-      useEffect(() => {
         onHasSpokenChangeRef.current = onHasSpokenChange;
       }, [onHasSpokenChange]);
+      useEffect(() => {
+        onCountdownChangeRef.current = onCountdownChange;
+      }, [onCountdownChange]);
 
-      // --- Silence-detection refs (updated by metering callbacks) -----------
-      // Timestamp of the last metering reading that exceeded the speech
-      // threshold. The silence timer compares against this to decide whether
-      // to finalize.
-      const lastSpeechAtRef = useRef<number>(0);
-      // Whether we've seen at least one speech-level sample since start.
-      // Prevents the silence timer from firing before the user even speaks.
-      const hasSpokenRef = useRef<boolean>(false);
-      // Wall-clock moment recording began — used for START_GRACE_MS guard.
-      const recordingStartedAtRef = useRef<number>(0);
-      // Polling timer that checks for silence at ~200ms cadence; simpler than
-      // arming/disarming timeouts on every metering reading.
-      const silenceCheckTimerRef = useRef<ReturnType<
+      // Pinned engine for the active recording session. Set at start,
+      // cleared at idle/error.
+      const activeEngineRef = useRef<TranscriptionEngine | null>(null);
+
+      // Idempotency for finalize — both the parent's ref.current.finalize()
+      // call and the in-component tap handler can race; the latch absorbs
+      // the second caller.
+      const isFinalizingRef = useRef<boolean>(false);
+      const isMountedRef = useRef<boolean>(true);
+
+      // -------------------------------------------------------------------
+      // US-008 auto-stop timer scaffolding
+      // -------------------------------------------------------------------
+      // Four orchestrated timers:
+      //   - promptTimer: fires at +60s into the current "leg" of recording
+      //     (resets on every "Keep going").
+      //   - hardCeilingTimer: fires at +5min from the ORIGINAL start
+      //     (does NOT reset on "Keep going" — architectural backstop).
+      //   - countdownStartTimer: fires at +50s, opens the 1Hz countdown
+      //     interval below.
+      //   - countdownIntervalRef: fires every 1s during the last 10s,
+      //     emits 10..1 to `onCountdownChange`.
+      //   - promptAutoDismissTimer: fires 10s after the modal opens,
+      //     auto-selects "I'm done" (for the walk-away case).
+      const promptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+      const hardCeilingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+        null,
+      );
+      const countdownStartTimerRef = useRef<ReturnType<
+        typeof setTimeout
+      > | null>(null);
+      const countdownIntervalRef = useRef<ReturnType<
         typeof setInterval
       > | null>(null);
+      const promptAutoDismissTimerRef = useRef<ReturnType<
+        typeof setTimeout
+      > | null>(null);
 
-      const isMountedRef = useRef<boolean>(true);
-      // Latches once we begin finalizing so overlapping triggers (tap + silence
-      // racing, or metering callbacks arriving after stop) don't double-submit.
-      const isFinalizingRef = useRef<boolean>(false);
-
-      // -------------------------------------------------------------------
-      // Lifecycle helpers
-      // -------------------------------------------------------------------
-
-      const clearSilenceChecker = useCallback(() => {
-        if (silenceCheckTimerRef.current) {
-          clearInterval(silenceCheckTimerRef.current);
-          silenceCheckTimerRef.current = null;
+      // Clears every auto-stop timer/interval. Called from finalize, cancel,
+      // unmount, and "I'm done". Intentionally does NOT touch the modal
+      // visibility — callers control that explicitly.
+      const clearAutoStopTimers = useCallback(() => {
+        if (promptTimerRef.current) {
+          clearTimeout(promptTimerRef.current);
+          promptTimerRef.current = null;
+        }
+        if (hardCeilingTimerRef.current) {
+          clearTimeout(hardCeilingTimerRef.current);
+          hardCeilingTimerRef.current = null;
+        }
+        if (countdownStartTimerRef.current) {
+          clearTimeout(countdownStartTimerRef.current);
+          countdownStartTimerRef.current = null;
+        }
+        if (countdownIntervalRef.current) {
+          clearInterval(countdownIntervalRef.current);
+          countdownIntervalRef.current = null;
+        }
+        if (promptAutoDismissTimerRef.current) {
+          clearTimeout(promptAutoDismissTimerRef.current);
+          promptAutoDismissTimerRef.current = null;
         }
       }, []);
 
-      /**
-       * Metering callback: Whisper service invokes this every ~100ms while
-       * recording. We just update the timestamps — the actual silence check
-       * runs on an interval so a single quiet frame doesn't race the decision.
-       */
-      const handleMetering = useCallback((meteringDb: number) => {
-        if (meteringDb > SILENCE_DB_THRESHOLD) {
-          lastSpeechAtRef.current = Date.now();
-          // Fire the pre-speech callback exactly once per recording session —
-          // the first time the mic hears speech-level audio. The bar uses
-          // this to flip its center ↑ button from disabled to enabled. See
-          // US-015 AC #4. Guarded on the ref so re-entering this callback
-          // for every subsequent speech frame doesn't re-fire the callback
-          // (cheap, but the host shouldn't see spurious state churn).
-          if (!hasSpokenRef.current) {
-            hasSpokenRef.current = true;
-            onHasSpokenChangeRef.current?.(true);
+      // -------------------------------------------------------------------
+      // Engine-aware recording helpers
+      // -------------------------------------------------------------------
+      // Each helper consults the pinned engine and dispatches to the
+      // appropriate service. Kept as plain function expressions (not
+      // useCallback) because they're only called from already-memoized
+      // handlers and a per-render allocation here is negligible.
+
+      const isRecordingForEngine = (
+        engine: TranscriptionEngine | null,
+      ): boolean => {
+        if (engine === 'on-device') return audioCaptureService.isRecording();
+        if (engine === 'cloud')
+          return whisperTranscriptionService.isRecording();
+        return false;
+      };
+
+      const cancelForEngine = async (
+        engine: TranscriptionEngine | null,
+      ): Promise<void> => {
+        try {
+          if (engine === 'on-device') {
+            await audioCaptureService.cancel();
+          } else if (engine === 'cloud') {
+            await whisperTranscriptionService.cancel();
           }
+        } catch {
+          // Cancellation is best-effort — the services already swallow
+          // their own sub-errors.
         }
-      }, []);
+      };
 
-      /**
-       * Stop recording + transcribe + fire result. Idempotent: safe to call
-       * from both the silence-checker and the user's tap-to-stop path.
-       */
+      // -------------------------------------------------------------------
+      // Finalize: stop recording + transcribe + fire result.
+      // -------------------------------------------------------------------
+      // Idempotent. Pinned engine determines which backend to invoke.
+
       const finalize = useCallback(async () => {
         if (isFinalizingRef.current) return;
         isFinalizingRef.current = true;
-        clearSilenceChecker();
+        // US-008: any auto-stop timers in flight must NOT fire after
+        // finalize starts. Also dismiss the prompt modal if visible so
+        // the user doesn't see a stale dialog over the processing UI.
+        clearAutoStopTimers();
+        onCountdownChangeRef.current?.(null);
+        setShowAutoStopPrompt(false);
 
         if (!isMountedRef.current) return;
         setVoiceState('processing');
         onProcessingStateChangeRef.current?.(true);
 
+        const engine = activeEngineRef.current;
+
         try {
-          const transcript =
-            await whisperTranscriptionService.stopAndTranscribe(
-              // Strip region suffix: Whisper wants ISO-639-1 two-letter code.
+          let text = '';
+          if (engine === 'cloud') {
+            // Legacy cloud path — service owns its own recording state.
+            text = await whisperTranscriptionService.stopAndTranscribe(
+              // Whisper API wants ISO-639-1 two-letter code; strip region.
               language.split('-')[0],
             );
+          } else {
+            // On-device path (also the fail-safe when engine is null —
+            // shouldn't happen but if finalize() somehow runs without
+            // a pinned engine, the conservative choice is on-device).
+            const { uri } = await audioCaptureService.stop();
+            const result = await onDeviceTranscriptionService.transcribe(uri);
+            text = result.text;
+          }
+
           if (!isMountedRef.current) return;
-          onSpeechResultRef.current(transcript);
+          activeEngineRef.current = null;
+          onSpeechResultRef.current(text);
           setVoiceState('idle');
           onProcessingStateChangeRef.current?.(false);
         } catch (err) {
           console.error('[VoiceInput] Transcription failed:', err);
+          activeEngineRef.current = null;
           if (!isMountedRef.current) return;
           onProcessingStateChangeRef.current?.(false);
           const message = (err as Error).message ?? 'Transcription failed';
           onErrorRef.current?.(message);
           setVoiceState('error');
-          // Auto-reset after a beat so the next Speak tap is clean.
+          // Auto-reset so the next Speak tap is clean.
           setTimeout(() => {
             if (isMountedRef.current) setVoiceState('idle');
           }, 2000);
         }
-      }, [clearSilenceChecker, language]);
+      }, [language, clearAutoStopTimers]);
 
       // -------------------------------------------------------------------
-      // Imperative handle (US-014)
+      // US-008 — leg scheduling
       // -------------------------------------------------------------------
-      //
-      // Expose `finalize` to the parent so `VoiceFirstInputBar` can stop
-      // recording on demand when the user taps the center ↑ button —
-      // bypassing the 2000ms silence-detection window.
-      //
-      // Why this lives AFTER the `finalize` useCallback: the handle closes
-      // over the memoized callback; installing before it exists would mean
-      // referencing `finalize` before the `const` binding is initialized.
-      //
-      // Why we wrap the call (rather than just exposing `finalize` raw):
-      // AC #5 requires the handle to no-op when no recording is in flight.
-      // The underlying `finalize` is also called from the silence-check
-      // timer's defensive "service stopped us" branch, which is allowed to
-      // run with `isRecording() === false`. Keeping the guard at the
-      // handle boundary confines the new behavior to explicit caller
-      // intent and preserves the silence-check path unchanged.
+      // Schedules the soft prompt + countdown for ONE leg of recording.
+      // A "leg" is the span between a fresh start (or a "Keep going" tap)
+      // and the next prompt. Each leg gets its own 60s prompt timer and a
+      // 50s countdown-start timer. The hard-ceiling timer is scheduled
+      // separately by startListening and reused across legs.
+
+      // Order matters here: openAutoStopPrompt is referenced by
+      // scheduleAutoStopLeg's setTimeout, and React's useCallback deps
+      // are linted to enforce closure freshness. Declaring
+      // openAutoStopPrompt first keeps scheduleAutoStopLeg's dep array
+      // honest.
+
+      const openAutoStopPrompt = useCallback(() => {
+        // Countdown is over — null it out so the parent's UI can revert.
+        if (countdownIntervalRef.current) {
+          clearInterval(countdownIntervalRef.current);
+          countdownIntervalRef.current = null;
+        }
+        onCountdownChangeRef.current?.(null);
+
+        setShowAutoStopPrompt(true);
+
+        // Walk-away guard: if the user doesn't respond within
+        // PROMPT_AUTO_DISMISS_MS, default to "I'm done".
+        promptAutoDismissTimerRef.current = setTimeout(() => {
+          if (!isMountedRef.current || isFinalizingRef.current) return;
+          setShowAutoStopPrompt(false);
+          finalize();
+        }, PROMPT_AUTO_DISMISS_MS);
+      }, [finalize]);
+
+      const scheduleAutoStopLeg = useCallback(() => {
+        // Defensive: clear any pre-existing leg timers (e.g., re-entry on
+        // "Keep going"). Hard-ceiling timer stays untouched — see
+        // architectural backstop note in the constants header.
+        if (promptTimerRef.current) {
+          clearTimeout(promptTimerRef.current);
+          promptTimerRef.current = null;
+        }
+        if (countdownStartTimerRef.current) {
+          clearTimeout(countdownStartTimerRef.current);
+          countdownStartTimerRef.current = null;
+        }
+        if (countdownIntervalRef.current) {
+          clearInterval(countdownIntervalRef.current);
+          countdownIntervalRef.current = null;
+        }
+
+        // Open the 1Hz countdown at PROMPT_AT_MS − COUNTDOWN_WINDOW_MS.
+        countdownStartTimerRef.current = setTimeout(() => {
+          if (!isMountedRef.current || isFinalizingRef.current) return;
+          let remaining = Math.floor(COUNTDOWN_WINDOW_MS / 1000); // 10
+          onCountdownChangeRef.current?.(remaining);
+          countdownIntervalRef.current = setInterval(() => {
+            remaining -= 1;
+            if (remaining <= 0) {
+              // Don't fire 0 — the prompt timer takes over at this moment
+              // and will emit null via openAutoStopPrompt.
+              if (countdownIntervalRef.current) {
+                clearInterval(countdownIntervalRef.current);
+                countdownIntervalRef.current = null;
+              }
+              return;
+            }
+            onCountdownChangeRef.current?.(remaining);
+          }, 1000);
+        }, PROMPT_AT_MS - COUNTDOWN_WINDOW_MS);
+
+        // Open the prompt at PROMPT_AT_MS.
+        promptTimerRef.current = setTimeout(() => {
+          if (!isMountedRef.current || isFinalizingRef.current) return;
+          openAutoStopPrompt();
+        }, PROMPT_AT_MS);
+      }, [openAutoStopPrompt]);
+
+      const handleKeepGoing = useCallback(() => {
+        // Clear the modal + its auto-dismiss timer, then start a fresh
+        // leg. Hard-ceiling timer is untouched — see PRD: "Keep going"
+        // does NOT reset the 5-minute cap.
+        setShowAutoStopPrompt(false);
+        if (promptAutoDismissTimerRef.current) {
+          clearTimeout(promptAutoDismissTimerRef.current);
+          promptAutoDismissTimerRef.current = null;
+        }
+        scheduleAutoStopLeg();
+      }, [scheduleAutoStopLeg]);
+
+      const handleImDone = useCallback(() => {
+        setShowAutoStopPrompt(false);
+        if (promptAutoDismissTimerRef.current) {
+          clearTimeout(promptAutoDismissTimerRef.current);
+          promptAutoDismissTimerRef.current = null;
+        }
+        finalize();
+      }, [finalize]);
+
+      // -------------------------------------------------------------------
+      // Imperative handle (US-014, preserved)
+      // -------------------------------------------------------------------
+      // No-ops cleanly when no recording is in flight — matches AC #5 of
+      // the original US-014 plus the explicit AC in US-007 to "preserve
+      // the finalize() handle or migrate to an equivalent."
+
       useImperativeHandle(
         ref,
         () => ({
           finalize: async () => {
-            // If we're not recording and haven't already started finalizing,
-            // nothing to do. Matches AC #5.
-            if (
-              !whisperTranscriptionService.isRecording() &&
-              !isFinalizingRef.current
-            ) {
+            // US-011: on Android there is no recording in flight (we
+            // skipped autoStart), so the call is a structural no-op.
+            // We still register the handle so `voiceInputRef.current?.
+            // finalize()` doesn't blow up at the parent's call site.
+            if (Platform.OS !== 'ios') {
+              return;
+            }
+            const engine = activeEngineRef.current;
+            if (!isRecordingForEngine(engine) && !isFinalizingRef.current) {
               return;
             }
             await finalize();
@@ -321,34 +557,31 @@ const VoiceInput = React.memo(
         [finalize],
       );
 
-      /**
-       * Main start path: request permission, kick off recording, install the
-       * silence checker. All error paths route through the caller's
-       * `onError` so the bar can surface a user-facing message.
-       */
+      // -------------------------------------------------------------------
+      // Start: pin engine → start the right service → enter listening
+      // -------------------------------------------------------------------
+
       const startListening = useCallback(async () => {
-        if (whisperTranscriptionService.isRecording()) {
-          // Already recording (double-invocation guard) — nothing to do.
+        // Resolve engine and pin for the duration of this session.
+        const engine = getTranscriptionEngine({ gradeLevel, preferences });
+
+        if (isRecordingForEngine(engine)) {
+          // Double-invocation guard. Shouldn't happen with push-to-talk
+          // but defends against re-mount races.
           return;
         }
+        activeEngineRef.current = engine;
         isFinalizingRef.current = false;
-        hasSpokenRef.current = false;
-        // Notify the parent that the pre-speech guard should re-arm. Fires on
-        // every fresh recording — including the Redo path (US-016) where the
-        // same VoiceInput instance remounts and has to start from a
-        // hasSpoken=false state again. See US-015 AC #4.
-        onHasSpokenChangeRef.current?.(false);
-        lastSpeechAtRef.current = Date.now();
-        recordingStartedAtRef.current = Date.now();
 
-        // iOS refuses to activate AVAudioSession while the app is in the
-        // background or inactive (iPad Split View / Slide Over transitions,
-        // notification banners, incoming call UI). expo-av throws
-        // "This experience is currently in the background" before even
-        // reaching the native AVAudioSession.setActive() call. Wait for
-        // the active state before attempting, with one retry for the TOCTOU
-        // race where the app slips into inactive between our check and the
-        // actual iOS call inside prepareToRecordAsync.
+        // Reset the parent's pre-speech guard. Fires once on every fresh
+        // recording — including the Redo path where VoiceInput remounts.
+        onHasSpokenChangeRef.current?.(false);
+
+        // iOS refuses to activate AVAudioSession while the app is
+        // background/inactive. Wait for foreground with one retry to
+        // handle the TOCTOU race where the app slips inactive between
+        // our check and the native call. (Carried over from v2 because
+        // it's a real iOS constraint, not a VAD artifact.)
         const waitForForeground = (): Promise<void> => {
           if (AppState.currentState === 'active') return Promise.resolve();
           return new Promise<void>(resolve => {
@@ -358,8 +591,6 @@ const VoiceInput = React.memo(
                 resolve();
               }
             });
-            // Don't block indefinitely — fall through after 5s and let the
-            // normal error path handle it.
             setTimeout(() => {
               sub.remove();
               resolve();
@@ -371,39 +602,15 @@ const VoiceInput = React.memo(
         for (let attempt = 0; attempt < 2; attempt++) {
           await waitForForeground();
           try {
-            // Pass the partial-result callback through the ref wrapper so the
-            // service always sees the latest handler even if the host swaps it
-            // mid-recording. The service only reads this once at startRecording
-            // time, so a stable closure over the ref is what we want.
-            await whisperTranscriptionService.startRecording(
-              handleMetering,
-              onPartialResultRef.current
-                ? (text: string) => {
-                    onPartialResultRef.current?.(text);
-                    // Treat partial-transcript arrival as proof of speech.
-                    // SFSpeechRecognizer (live partials, via @react-native-
-                    // voice/voice) and expo-av (metering) are independent
-                    // audio pipelines; on iPad they can contend such that
-                    // partials stream in but metering never crosses
-                    // SILENCE_DB_THRESHOLD. Without this fallback,
-                    // `hasSpoken` stays false → the Stop button stays
-                    // disabled (see VoiceFirstInputBar's `speakDisabled`
-                    // gate) and the silence-detector won't fire either —
-                    // softlocking the user. If SFSpeechRecognizer
-                    // transcribed words, the user has by definition spoken.
-                    if (!hasSpokenRef.current && text?.trim()) {
-                      hasSpokenRef.current = true;
-                      onHasSpokenChangeRef.current?.(true);
-                    }
-                  }
-                : undefined,
-            );
+            if (engine === 'on-device') {
+              await audioCaptureService.start();
+            } else {
+              await whisperTranscriptionService.startRecording();
+            }
             startErr = null;
             break;
           } catch (err) {
             startErr = err as Error;
-            // Transient background error on first attempt — retry after
-            // waiting for foreground again (handles the TOCTOU race).
             if (attempt === 0 && startErr.message?.includes('background')) {
               console.warn(
                 '[VoiceInput] App backgrounded during recording setup, retrying...',
@@ -416,9 +623,13 @@ const VoiceInput = React.memo(
 
         if (startErr) {
           console.error('[VoiceInput] Failed to start recording:', startErr);
+          activeEngineRef.current = null;
           const message = startErr.message ?? 'Failed to start recording';
           onErrorRef.current?.(message);
-          if (startErr.message?.includes('permission')) {
+          if (
+            startErr.message?.toLowerCase().includes('permission') ||
+            (startErr as { code?: string }).code === 'permission_denied'
+          ) {
             Alert.alert(
               'Microphone Permission Required',
               'Microphone permission is required for voice input. You can enable it in your device settings. Typing is still available.',
@@ -445,41 +656,32 @@ const VoiceInput = React.memo(
         }
 
         if (!isMountedRef.current) {
-          // Unmounted while awaiting startRecording — bail cleanly.
-          whisperTranscriptionService.cancel().catch(() => {});
+          // Unmounted while awaiting start — bail cleanly so we don't
+          // leave a dangling AVAudioSession.
+          cancelForEngine(engine);
           return;
         }
 
         setVoiceState('listening');
 
-        // Silence-watch interval: fires every 200ms, decides whether to
-        // finalize. This is cheaper than reacting to every metering frame,
-        // and the 200ms granularity is well below human perceptual latency.
-        silenceCheckTimerRef.current = setInterval(() => {
-          if (!isMountedRef.current || isFinalizingRef.current) {
-            clearSilenceChecker();
-            return;
-          }
-          const now = Date.now();
-          // Still inside the start-grace window: don't finalize yet.
-          if (now - recordingStartedAtRef.current < START_GRACE_MS) return;
-          // User hasn't spoken yet — wait (but don't extend beyond the
-          // service's MAX_RECORDING_MS cap, which stops the recording on its
-          // own if hit). We still want finalize to run at that point, so
-          // check the service's isRecording() flag.
-          if (!whisperTranscriptionService.isRecording()) {
-            // Safety timer inside the service stopped us; transcribe what
-            // we have.
-            finalize();
-            return;
-          }
-          if (!hasSpokenRef.current) return;
-          const silenceMs = now - lastSpeechAtRef.current;
-          if (silenceMs >= silenceTimeout) {
-            finalize();
-          }
-        }, 200);
-      }, [clearSilenceChecker, finalize, handleMetering, silenceTimeout]);
+        // Push-to-talk equivalent of v2's "metering threshold crossed":
+        // the user's explicit Speak tap IS the commitment signal. Fire
+        // hasSpoken=true so the parent's "I'm done" button enables
+        // immediately rather than waiting for a metering callback that
+        // no longer exists in the push-to-talk flow.
+        onHasSpokenChangeRef.current?.(true);
+
+        // US-008: install the auto-stop timers. The hard ceiling is
+        // anchored to THIS start() — "Keep going" presses won't reset
+        // it. The first leg's prompt timer + countdown are scheduled
+        // via scheduleAutoStopLeg.
+        hardCeilingTimerRef.current = setTimeout(() => {
+          if (!isMountedRef.current || isFinalizingRef.current) return;
+          setShowAutoStopPrompt(false);
+          finalize();
+        }, HARD_CEILING_MS);
+        scheduleAutoStopLeg();
+      }, [gradeLevel, preferences, finalize, scheduleAutoStopLeg]);
 
       // -------------------------------------------------------------------
       // Mount / unmount
@@ -489,34 +691,75 @@ const VoiceInput = React.memo(
         isMountedRef.current = true;
         return () => {
           isMountedRef.current = false;
-          clearSilenceChecker();
-          // If the user unmounts mid-recording (e.g. tapped Speak to cancel),
-          // discard the audio — don't upload the aborted clip.
-          if (whisperTranscriptionService.isRecording()) {
-            whisperTranscriptionService.cancel().catch(() => {});
+          // US-008: tear down auto-stop timers so they can't fire after
+          // unmount and call setState on an unmounted component.
+          clearAutoStopTimers();
+          // If the user unmounts mid-recording, discard whatever's
+          // captured. The on-device path's audioCaptureService also has
+          // its own AppState 'background' cancel guard, but unmount can
+          // happen on foreground transitions too (route change, parent
+          // re-render), so we cancel explicitly here.
+          const engine = activeEngineRef.current;
+          if (isRecordingForEngine(engine)) {
+            cancelForEngine(engine);
           }
+          activeEngineRef.current = null;
         };
-      }, [clearSilenceChecker]);
+      }, [clearAutoStopTimers]);
 
-      // autoStart: when the host mounts us with autoStart=true (voice-first
-      // input bar), begin recording immediately rather than waiting for the
-      // user to tap this (hidden) button.
+      // autoStart: when the parent mounts us with autoStart=true, begin
+      // recording immediately rather than waiting for the user to tap
+      // this (hidden) button.
       useEffect(() => {
+        // US-011: never auto-start on Android. The recording services
+        // (audioCaptureService / whisperTranscriptionService) have no
+        // Android binary today and would fail in a hard-to-diagnose way.
+        if (Platform.OS !== 'ios') return;
         if (!autoStart || !isEnabled) return;
         if (voiceState !== 'idle') return;
-        // Announce for VoiceOver so the user knows the mic is live even
-        // though the visual feedback (pulse ring) is owned by the bar.
         AccessibilityInfo.announceForAccessibility('Listening. Speak now.');
         startListening();
-        // We intentionally DON'T put startListening in deps — its identity
-        // can churn on callback re-binding and we only want one auto-start
-        // per mount. The bar unmounts/remounts us for every listening
-        // session, so scoping to mount is correct.
+        // Intentional: startListening's identity can churn; we want one
+        // auto-start per mount, not per re-render. The parent
+        // unmounts/remounts us for every listening session.
         // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [autoStart, isEnabled]);
 
+      // US-011: on Android, show a one-time alert explaining that voice
+      // input is coming soon. AsyncStorage flag prevents repeat displays.
+      // The effect runs only once on mount; if it fires before the flag
+      // read resolves the user sees the alert (which is the desired
+      // first-mount behavior anyway).
+      useEffect(() => {
+        if (Platform.OS === 'ios') return;
+        let cancelled = false;
+        AsyncStorage.getItem(ANDROID_COMING_SOON_SEEN_KEY)
+          .then(seen => {
+            if (cancelled || seen) return;
+            Alert.alert(
+              'Voice input',
+              'Voice input is coming soon to Android. Type your story for now.',
+            );
+            // Set asynchronously; failure here just means the user might
+            // see the alert once more on next mount — a benign worst case.
+            AsyncStorage.setItem(ANDROID_COMING_SOON_SEEN_KEY, '1').catch(
+              () => {},
+            );
+          })
+          .catch(() => {
+            // Read failure: don't show the alert. Better to under-notify
+            // than to spam on every mount because of a storage error.
+          });
+        return () => {
+          cancelled = true;
+        };
+      }, []);
+
       // -------------------------------------------------------------------
-      // Interaction handlers
+      // Interaction handlers (for the standalone, visible button — kept
+      // for completeness even though the parent uses VoiceInput as a
+      // hidden driver. A future caller that wants the button visible
+      // gets a working tap-to-record / tap-to-stop UX for free.)
       // -------------------------------------------------------------------
 
       const handlePress = useCallback(async () => {
@@ -532,12 +775,11 @@ const VoiceInput = React.memo(
             await startListening();
             break;
           case 'listening':
-            // Tap-to-stop: user is done talking. Same path as silence
-            // auto-finalize.
+            // Push-to-talk stop: user explicitly ends recording.
             await finalize();
             break;
           case 'processing':
-            // Ignore taps during upload.
+            // Ignore taps during transcription round-trip.
             break;
           case 'error':
             setVoiceState('idle');
@@ -546,7 +788,7 @@ const VoiceInput = React.memo(
       }, [isEnabled, voiceState, startListening, finalize]);
 
       // -------------------------------------------------------------------
-      // Button text + styles
+      // Button presentation
       // -------------------------------------------------------------------
 
       const buttonTextValue = useMemo(() => {
@@ -575,55 +817,138 @@ const VoiceInput = React.memo(
         }
       }, [voiceState, isEnabled, style]);
 
+      // US-011: no visible UI on Android. All the hooks above ran (so
+      // hook order is stable across platforms and the imperative handle
+      // is registered as a no-op for the parent), but nothing renders.
+      // Combined with the autoStart guard above and the imperative
+      // no-op, this collapses VoiceInput to a fully inert component on
+      // Android — satisfying the "voice/mic button is not rendered" AC.
+      if (Platform.OS !== 'ios') {
+        return null;
+      }
+
       return (
-        <TouchableOpacity
-          testID="mic-button"
-          style={buttonStyle}
-          onPress={handlePress}
-          disabled={voiceState === 'processing' || !isEnabled}
-          accessibilityRole="button"
-          accessibilityLabel={
-            !isEnabled
-              ? 'Voice input button, disabled'
-              : voiceState === 'listening'
-              ? 'Voice input, recording'
-              : voiceState === 'processing'
-              ? 'Voice input, transcribing'
-              : voiceState === 'error'
-              ? 'Voice input, error occurred'
-              : 'Voice input button'
-          }
-          accessibilityHint={
-            !isEnabled
-              ? 'Voice input is disabled. You can type your story contribution instead.'
-              : voiceState === 'listening'
-              ? 'Tap to stop recording and transcribe'
-              : voiceState === 'processing'
-              ? 'Transcribing your speech, please wait'
-              : voiceState === 'error'
-              ? 'An error occurred. Tap to try again or type your input.'
-              : 'Tap to start voice recording. Speak your contribution, then stop talking or tap again to finish.'
-          }
-          accessibilityState={{
-            disabled: !isEnabled || voiceState === 'processing',
-            selected: voiceState === 'listening',
-            busy: voiceState === 'processing',
-          }}
-          accessibilityLiveRegion="polite"
-        >
-          <View style={styles.buttonContent}>
-            {voiceState === 'processing' && (
-              <ActivityIndicator
-                size="small"
-                color={theme.colors.surface}
-                style={styles.loadingIcon}
-              />
+        <>
+          <TouchableOpacity
+            testID="mic-button"
+            style={buttonStyle}
+            onPress={handlePress}
+            disabled={voiceState === 'processing' || !isEnabled}
+            accessibilityRole="button"
+            accessibilityLabel={
+              !isEnabled
+                ? 'Voice input button, disabled'
+                : voiceState === 'listening'
+                ? 'Voice input, recording'
+                : voiceState === 'processing'
+                ? 'Voice input, transcribing'
+                : voiceState === 'error'
+                ? 'Voice input, error occurred'
+                : 'Voice input button'
+            }
+            accessibilityHint={
+              !isEnabled
+                ? 'Voice input is disabled. You can type your story contribution instead.'
+                : voiceState === 'listening'
+                ? 'Tap to stop recording and transcribe'
+                : voiceState === 'processing'
+                ? 'Transcribing your speech, please wait'
+                : voiceState === 'error'
+                ? 'An error occurred. Tap to try again or type your input.'
+                : 'Tap to start voice recording. Speak your story, then tap again to finish.'
+            }
+            accessibilityState={{
+              disabled: !isEnabled || voiceState === 'processing',
+              selected: voiceState === 'listening',
+              busy: voiceState === 'processing',
+            }}
+            accessibilityLiveRegion="polite"
+          >
+            <View style={styles.buttonContent}>
+              {voiceState === 'processing' && (
+                <ActivityIndicator
+                  size="small"
+                  color={theme.colors.surface}
+                  style={styles.loadingIcon}
+                />
+              )}
+              <Text style={styles.voiceButtonText} numberOfLines={1}>
+                {String(buttonTextValue || buttonText.idle || '🎤')}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          {/*
+          US-008 — "Are you still telling your story?" prompt.
+
+          Rendered as a React Native Modal so it escapes the
+          `pointerEvents="none"` ancestor that VoiceFirstInputBar wraps
+          us in (Modal renders into a separate native window — the
+          ancestor's pointer settings don't reach it). This is what
+          makes the hidden-driver pattern work alongside an interactive
+          modal that needs to receive taps.
+
+          K-2 reading level for copy. Two buttons matching the PRD's
+          named branches. No `onRequestClose` (Android back-button) —
+          if the user dismisses via system gesture, we treat that as
+          "I'm done" so the recording doesn't run indefinitely.
+        */}
+          <Modal
+            visible={showAutoStopPrompt}
+            animationType="fade"
+            transparent
+            onRequestClose={handleImDone}
+            accessibilityViewIsModal
+            statusBarTranslucent
+          >
+            {/*
+            Children gated on `showAutoStopPrompt` so test queries
+            (which traverse the React tree and don't see the native
+            Modal `visible` attribute) only locate the inner nodes
+            while the prompt is actually visible. Also avoids
+            rendering work when the modal is closed.
+          */}
+            {showAutoStopPrompt && (
+              <View style={styles.autoStopBackdrop}>
+                <View
+                  style={styles.autoStopCard}
+                  testID="auto-stop-prompt"
+                  accessibilityLiveRegion="polite"
+                >
+                  <Text style={styles.autoStopTitle}>
+                    Are you still telling your story?
+                  </Text>
+                  <View style={styles.autoStopButtons}>
+                    <TouchableOpacity
+                      testID="auto-stop-keep-going"
+                      style={[styles.autoStopButton, styles.autoStopKeepGoing]}
+                      onPress={handleKeepGoing}
+                      accessibilityRole="button"
+                      accessibilityLabel="Yes, keep going"
+                      accessibilityHint="Continue recording your story for another minute"
+                    >
+                      <Text style={styles.autoStopButtonText}>
+                        Yes, keep going
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      testID="auto-stop-im-done"
+                      style={[styles.autoStopButton, styles.autoStopImDone]}
+                      onPress={handleImDone}
+                      accessibilityRole="button"
+                      accessibilityLabel="I'm done"
+                      accessibilityHint="Stop recording and finish your story"
+                    >
+                      <Text style={styles.autoStopButtonText}>
+                        I&apos;m done
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
             )}
-            <Text style={styles.voiceButtonText} numberOfLines={1}>
-              {String(buttonTextValue || buttonText.idle || '🎤')}
-            </Text>
-          </View>
-        </TouchableOpacity>
+          </Modal>
+        </>
       );
     },
   ),
@@ -639,9 +964,9 @@ export { VoiceInput };
 export default VoiceInput;
 
 // ---------------------------------------------------------------------------
-// Styles — kept intentionally minimal; the voice-first bar renders the
-// visible UI (pulse ring, spinner swap, labels). This component is almost
-// always mounted hidden and exists to drive recording + transcription.
+// Styles — kept intentionally minimal. The voice-first bar renders the
+// visible UI (large mic button, pulse animation, "I'm listening…" label).
+// VoiceInput is almost always mounted hidden behind the bar.
 // ---------------------------------------------------------------------------
 
 const styles = StyleSheet.create({
@@ -673,5 +998,53 @@ const styles = StyleSheet.create({
   },
   loadingIcon: {
     marginRight: theme.spacing.xs,
+  },
+  // US-008 — auto-stop prompt modal. Kept simple per AC ("uses existing
+  // app modal patterns, no custom dialog"). Two-button column layout
+  // matches the project's other prompt-style modals (e.g., permission
+  // gates) without pulling in animation/confetti like CelebrationModal.
+  autoStopBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing.lg,
+  },
+  autoStopCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 12,
+    padding: theme.spacing.lg,
+    width: '100%',
+    maxWidth: 360,
+  },
+  autoStopTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: theme.colors.text,
+    textAlign: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  autoStopButtons: {
+    flexDirection: 'column',
+    gap: theme.spacing.sm,
+  },
+  autoStopButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  autoStopKeepGoing: {
+    backgroundColor: theme.colors.primary,
+  },
+  autoStopImDone: {
+    backgroundColor: theme.colors.secondary,
+  },
+  autoStopButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

@@ -17,6 +17,11 @@ config.resolver = {
     ...config.resolver.extraNodeModules,
     'react-dom': path.resolve(__dirname, 'react-dom-stub.js'),
   },
+  // Register .bin as an asset extension so require()'d Whisper GGML model
+  // files are picked up by Metro and bundled into the iOS .app. Without this,
+  // require('../../assets/models/ggml-tiny.en.bin') resolves as a module
+  // (and fails) instead of as an asset.
+  assetExts: [...(config.resolver.assetExts ?? []), 'bin'],
 };
 
 module.exports = config;

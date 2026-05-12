@@ -36,14 +36,18 @@ describe('C-05: Privacy policy completeness', () => {
     expect(todoPlaceholders).toBeNull();
   });
 
-  test.failing(
-    '[C-05] Effective date is a real date, not a placeholder',
-    () => {
-      // The first 10 lines should contain the effective date without [INSERT
-      const headerLines = policySource.split('\n').slice(0, 10).join('\n');
-      expect(headerLines).not.toMatch(/\[INSERT/);
-    },
-  );
+  // US-012 (2026-05-11): the Effective Date / Last Updated fields were
+  // bumped to a real date (2026-05-11) as part of the voice-processing
+  // disclosure update. Test converted from .failing to passing per the
+  // file's docstring directive.
+  test('[C-05] Effective date is a real date, not a placeholder', () => {
+    // The first 10 lines should contain the effective date without [INSERT.
+    // We deliberately scope to the header so the body's INSERT placeholders
+    // (contact email / mailing address — still tracked by the other
+    // `test.failing` assertions in this file) don't false-positive here.
+    const headerLines = policySource.split('\n').slice(0, 10).join('\n');
+    expect(headerLines).not.toMatch(/\[INSERT/);
+  });
 
   test.failing(
     '[C-05] Contact email is populated with a real email address',

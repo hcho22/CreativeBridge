@@ -1,0 +1,1 @@
+# Whisper GGML models are downloaded into this folder by scripts/download-whisper-models.sh (postinstall). *.bin files are gitignored. This .gitkeep ensures the empty folder exists so Metro's require() resolution succeeds before the first download.

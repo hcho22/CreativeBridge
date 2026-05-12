@@ -1,8 +1,16 @@
 # CreativeBridge Privacy Policy
 
-**Effective Date:** [INSERT DATE]
-**Last Updated:** [INSERT DATE]
-**Version:** 1.0
+**Effective Date:** 2026-05-11
+**Last Updated:** 2026-05-11
+**Version:** 1.1
+
+> **What changed in version 1.1 (2026-05-11):** Added a "Voice and Audio Data"
+> subsection disclosing on-device voice transcription for users under 13 and
+> the conditional opt-in cloud transcription (OpenAI Whisper) available to
+> users in grades 9–12. Added an OpenAI Whisper row to the Third-Party
+> Services table marked as applying only to consented 13+ users. Added a
+> voice/audio retention row to the Data Retention table. No changes to the
+> processing of any other data type.
 
 ---
 
@@ -24,14 +32,15 @@ This Privacy Policy complies with the Children's Online Privacy Protection Act (
 
 ### Information Collected from All Users
 
-| Data Type               | How Collected                         | Purpose                                                            |
-| ----------------------- | ------------------------------------- | ------------------------------------------------------------------ |
-| Email address           | Sign-up (OAuth or email registration) | Account creation, authentication, communication                    |
-| Display name / username | User input during profile creation    | In-app identification                                              |
-| Grade level preference  | User selection                        | Personalizing story content, vocabulary, art style, and difficulty |
-| Story content           | User-authored text                    | AI-assisted story continuation and image generation                |
-| Game statistics         | App-generated (XP, streaks, scores)   | Gamification features                                              |
-| Onboarding progress     | App-generated                         | Tracking tutorial completion                                       |
+| Data Type                    | How Collected                                                                                                                                                                        | Purpose                                                            |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| Email address                | Sign-up (OAuth or email registration)                                                                                                                                                | Account creation, authentication, communication                    |
+| Display name / username      | User input during profile creation                                                                                                                                                   | In-app identification                                              |
+| Grade level preference       | User selection                                                                                                                                                                       | Personalizing story content, vocabulary, art style, and difficulty |
+| Story content                | User-authored text                                                                                                                                                                   | AI-assisted story continuation and image generation                |
+| Game statistics              | App-generated (XP, streaks, scores)                                                                                                                                                  | Gamification features                                              |
+| Onboarding progress          | App-generated                                                                                                                                                                        | Tracking tutorial completion                                       |
+| Voice recordings (transient) | Microphone input while user is dictating story text. **Processed in real time and not retained** — see the "Voice and Audio Data" section below for the under-13 vs 13+ distinction. | Transcribing dictated speech into story text                       |
 
 ### Information Collected Automatically
 
@@ -46,6 +55,58 @@ This Privacy Policy complies with the Children's Online Privacy Protection Act (
 - We do **not** collect contact lists or address books.
 - We do **not** collect photos or videos from your device (camera/gallery access is for saving generated illustrations only).
 - We do **not** collect persistent device identifiers from children.
+- We do **not** retain voice recordings. Audio is processed in real time during dictation and discarded immediately after transcription completes — see the "Voice and Audio Data" section below for the technical detail.
+
+---
+
+## Voice and Audio Data
+
+The App offers an optional voice-to-text feature so users can dictate story
+content instead of typing. How voice data is processed depends on the user's
+grade level.
+
+### For users under 13 (grades K-2, 3-5, and 6-8)
+
+Voice transcription is performed **entirely on-device**. Audio recordings are
+**not transmitted off-device, retained, or shared with any third party** at
+any time. The transcription model (an on-device speech recognizer) runs
+locally on the user's iPhone or iPad. The microphone is active only while
+the user is actively dictating, and the captured audio is converted to text
+in memory and discarded as soon as transcription completes.
+
+This applies to all users in grades K-2, 3-5, and 6-8 without exception.
+There is no setting, A/B test, feature flag, or admin override that can
+cause an under-13 user's voice data to be sent to a third party.
+
+### For users 13 and older (grade 9-12)
+
+Users in grade 9-12 may **optionally** enable a higher-quality cloud
+transcription service in Settings → "Voice transcription quality". The
+default is on-device; cloud is opt-in only. The first time a user enables
+cloud transcription, the App displays a disclosure modal explaining:
+
+- **What is sent:** Audio recordings of what the user says while dictating.
+- **Where it goes:** OpenAI's Whisper speech-to-text API, governed by our
+  Data Processing Agreement with OpenAI.
+- **What is retained by CreativeBridge:** Only the transcribed text becomes
+  part of the user's story. The audio recording is not stored by
+  CreativeBridge after transcription completes.
+- **What is retained by OpenAI:** Per our DPA, OpenAI does not use
+  transmitted audio for model training and retains transmitted data only
+  long enough to provide the transcription response (zero data retention
+  for API calls under the DPA's terms).
+
+Consent is logged to an internal `consentEvents` audit table at the moment
+the user agrees, including a timestamp and the policy version. The user can
+revoke consent at any time by switching the setting back to "On-device";
+revocation is also logged. Voice transcription remains functional after
+revocation — it simply reverts to the on-device path.
+
+### Platform availability
+
+Voice input is currently iOS-only. On Android, the voice/microphone button
+is not rendered; users must type their story content. No voice or audio
+data is collected on Android.
 
 ---
 
@@ -67,13 +128,14 @@ We do **not** use children's personal information for behavioral advertising, pr
 
 We use the following third-party services to operate the App. We have executed Data Processing Agreements (DPAs) with each service to ensure they handle data in compliance with COPPA.
 
-| Service                          | Purpose                                                       | Data Shared                                                        |
-| -------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------ |
-| **Clerk**                        | Authentication (OAuth via Google/Apple)                       | Email, OAuth profile data, authentication tokens                   |
-| **Convex**                       | Primary database and real-time backend                        | User profiles, story content, game statistics, generated images    |
-| **OpenAI** (GPT-4)               | AI-powered story generation                                   | Story content text (PII-scrubbed before transmission)              |
-| **Replicate** (Stable Diffusion) | AI-powered illustration generation                            | Image generation prompts derived from story content (PII-scrubbed) |
-| **Supabase**                     | Legacy database (for migrated accounts), anonymized analytics | Anonymized analytics events                                        |
+| Service                             | Purpose                                                       | Data Shared                                                                                                                                                                            | Applies To                                                                                    |
+| ----------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| **Clerk**                           | Authentication (OAuth via Google/Apple)                       | Email, OAuth profile data, authentication tokens                                                                                                                                       | All users                                                                                     |
+| **Convex**                          | Primary database and real-time backend                        | User profiles, story content, game statistics, generated images                                                                                                                        | All users                                                                                     |
+| **OpenAI** (GPT-4)                  | AI-powered story generation                                   | Story content text (PII-scrubbed before transmission)                                                                                                                                  | All users                                                                                     |
+| **OpenAI Whisper** (speech-to-text) | Cloud transcription of dictated voice input                   | Audio recordings of dictated speech. Audio is not retained by CreativeBridge after transcription; OpenAI retains under zero-retention DPA terms only for the duration of the API call. | **Only users in grade 9-12 who have explicitly opted in via Settings.** Never under-13 users. |
+| **Replicate** (Stable Diffusion)    | AI-powered illustration generation                            | Image generation prompts derived from story content (PII-scrubbed)                                                                                                                     | All users                                                                                     |
+| **Supabase**                        | Legacy database (for migrated accounts), anonymized analytics | Anonymized analytics events                                                                                                                                                            | Legacy migrated accounts                                                                      |
 
 **Important:** Story content sent to OpenAI and Replicate is processed through a PII scrubber that removes personal information (names, emails, phone numbers, addresses) before transmission. We have opted out of OpenAI using transmitted data for model training.
 
@@ -128,14 +190,17 @@ We will respond to all parental requests within 48 hours.
 
 We retain data for the following periods:
 
-| Data Type               | Retention Period                                   |
-| ----------------------- | -------------------------------------------------- |
-| Story sessions          | 1 year after last access                           |
-| Analytics events        | 90 days                                            |
-| Image generation events | 90 days                                            |
-| Migration events        | 30 days                                            |
-| Consent records         | 3 years after account deletion (COPPA requirement) |
-| Deleted account data    | Purged immediately upon deletion                   |
+| Data Type                   | Retention Period                                                                                                                                                                                                                                                        |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Story sessions              | 1 year after last access                                                                                                                                                                                                                                                |
+| Analytics events            | 90 days                                                                                                                                                                                                                                                                 |
+| Image generation events     | 90 days                                                                                                                                                                                                                                                                 |
+| Migration events            | 30 days                                                                                                                                                                                                                                                                 |
+| Consent records (COPPA VPC) | 3 years after account deletion (COPPA requirement)                                                                                                                                                                                                                      |
+| Consent events (in-app)     | Retained for the life of the account as part of the audit trail (e.g., cloud transcription grants and revocations). Deleted with the account.                                                                                                                           |
+| Voice recordings (audio)    | **Not retained.** Audio is processed in real time during dictation. On-device transcription discards audio in memory immediately. Cloud transcription (13+ opt-in only) is governed by OpenAI's zero-retention DPA terms — CreativeBridge stores no audio at any point. |
+| Voice transcripts (text)    | Stored as part of the story content the user authored. Same retention as Story sessions above (1 year after last access).                                                                                                                                               |
+| Deleted account data        | Purged immediately upon deletion                                                                                                                                                                                                                                        |
 
 Automated cleanup processes run daily to enforce these retention periods.
 

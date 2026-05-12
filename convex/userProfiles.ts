@@ -218,6 +218,14 @@ export const updateProfile = mutation({
       preferredGenre: v.optional(v.union(genreValidator, v.null())),
       avatarUrl: v.optional(v.string()),
       bio: v.optional(v.string()),
+      // US-009: cloud transcription opt-in for 9-12 users.
+      preferences: v.optional(
+        v.object({
+          transcriptionEngine: v.optional(
+            v.union(v.literal('on-device'), v.literal('cloud')),
+          ),
+        }),
+      ),
     }),
   },
   handler: async (ctx, args) => {
@@ -270,6 +278,17 @@ export const updateProfile = mutation({
     if (args.updates.avatarUrl !== undefined)
       updateFields.avatarUrl = args.updates.avatarUrl;
     if (args.updates.bio !== undefined) updateFields.bio = args.updates.bio;
+
+    // US-009: merge `preferences` rather than overwrite, so callers can
+    // update a single nested key (e.g., `transcriptionEngine`) without
+    // having to read-modify-write the whole object. Important once we add
+    // more nested preferences down the road.
+    if (args.updates.preferences !== undefined) {
+      updateFields.preferences = {
+        ...(profile.preferences ?? {}),
+        ...args.updates.preferences,
+      };
+    }
 
     await ctx.db.patch(profile._id, updateFields);
 

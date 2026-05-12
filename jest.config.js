@@ -48,6 +48,10 @@ module.exports = {
     // package.json "exports" field has no "." entry — see the mock file
     // header for the full explanation.
     '^whisper\\.rn$': '<rootDir>/src/__tests__/__mocks__/whisper.rn',
+    // Binary asset imports (Whisper GGML model files) are picked up by
+    // Metro as numeric asset IDs at runtime; in Jest there is no Metro,
+    // so stub them to a number that Asset.fromModule mocks can accept.
+    '\\.bin$': '<rootDir>/src/__tests__/__mocks__/binaryAsset.js',
   },
   testTimeout: 10000,
   // Recycle a jest worker once it crosses the threshold so the 37-test

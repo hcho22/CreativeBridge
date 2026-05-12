@@ -85,3 +85,36 @@ export const serviceName = new ServiceName();
 This isn't a `whisper.rn` defect; it's a property of the underlying `whisper.cpp` models, which are trained on 16kHz mono PCM. When the consumer hands it 44.1kHz audio, the library reads the file header literally and processes only what it interprets as the first ~1 second.
 
 The `audioCaptureService` (added in US-004 of the on-device voice transcription PRD) enforces the correct config; do not change the recording settings without updating the regression test in `src/__tests__/services/audioCaptureService.test.ts`. Reference: https://github.com/mybigday/whisper.rn/issues/299.
+
+### Bundled Whisper model (`assets/models/ggml-tiny.en-q5_1.bin`)
+
+The on-device transcription pipeline (US-002) bundles a Whisper GGML model into the iOS app so transcription works offline from first launch. Three coupled pieces of infrastructure make this work; if any one is removed, the others break silently.
+
+1. **Variant choice:** `ggml-tiny.en-q5_1.bin` (32 MB, 5-bit quantized) is bundled instead of full-precision `ggml-tiny.en.bin` (78 MB). The quantized variant satisfies the PRD's ≤45 MB bundle-delta budget. Quality difference is <1% WER on whisper.cpp benchmarks for typical K-2 indoor speech.
+2. **Source of truth — download script:** `scripts/download-whisper-models.sh` fetches the model from huggingface (`https://huggingface.co/ggerganov/whisper.cpp`) into `assets/models/`. It's idempotent (byte-count check skips re-downloads) and chained into `package.json`'s `postinstall` after `patch-package`, so `npm install` on a fresh clone yields a buildable state. The `.bin` itself is gitignored — see `.gitignore` `assets/models/*.bin` entry. Bypass the download with `SKIP_WHISPER_MODEL_DOWNLOAD=1 npm install` if you're offline.
+3. **Bundle inclusion:** `metro.config.js` registers `bin` as an asset extension, so `require('../../assets/models/ggml-tiny.en-q5_1.bin')` in `whisperModelService.ts` produces a Metro asset ID. `expo-asset`'s `Asset.fromModule(id).downloadAsync()` then resolves it to a `file://` URI inside the iOS app bundle that `whisper.rn`'s `initWhisper({ filePath })` can read. Without the `.bin` assetExts entry, Metro tries to resolve the file as a JS module and the build fails.
+
+**To swap models** (e.g., to bundle `base.en-q5_1` instead, or to add a second variant): update the entry in `scripts/download-whisper-models.sh`, change the `require()` path in `whisperModelService.ts`, and update the matching expected-size constant in the script. The Jest test `whisperBundledModel.test.ts` mocks `expo-asset` and `whisper.rn`, so it is unaffected by which model file is on disk.
+
+**Release-build verification (per PRD US-002):** `npx expo run:ios --configuration Release` must succeed and the model must load on a real device. Issue [whisper.rn #286](https://github.com/mybigday/whisper.rn/issues/286) sometimes manifests as a release-build-only model load failure that doesn't reproduce in dev builds; the release-build smoke test is the only guard against shipping a broken bundled model.
+
+### Lazy-downloaded base model (`whisperModelDownloader`)
+
+The bundled `tiny.en-q5_1` is always available; the base model is an optional quality upgrade fetched only when conditions are right (US-003). The downloader (`src/services/whisperModelDownloader.ts`) follows a small, deliberate state machine:
+
+1. **Existence probe.** `isBaseModelDownloaded()` checks for `ggml-base.en-q5_1.bin` (59,721,011 bytes) at `${documentDirectory}ggml-base.en-q5_1.bin`. Wrong size → treat as absent and re-download (defends against truncated downloads from prior runs).
+2. **Network gate.** Only proceeds on Wi-Fi (`NetInfo.fetch()` → `type === 'wifi'` AND `isConnected`). Cellular and offline return `null` (a no-op, not an error — `tiny` remains the active model).
+3. **Retry with backoff.** Up to 3 attempts with 1s/2s/4s exponential backoff. After the third failure, throws `WhisperModelDownloadError`.
+4. **Size verification.** Post-download, re-checks file size and deletes + retries on mismatch.
+
+**Where it slots in:** `whisperModelService.getContext()` checks `isBaseModelDownloaded()` at load time and prefers base when present. There is **no in-place upgrade** of a loaded context — if base lands while tiny is loaded, the change takes effect on the next `release()` + `getContext()` cycle (typically next app launch, or after explicit cleanup). The downloader does not call back into the model service; the coupling is one-way (`whisperModelService` imports `whisperModelDownloader`, never the reverse).
+
+**Why `expo-file-system/legacy`:** the legacy API's `createDownloadResumable` exposes a progress callback the new SDK 54 `File.downloadFileAsync` API does not. We use the legacy API only for this download path; everywhere else, prefer the new `File`/`Directory`/`Paths` API.
+
+**Why documents/ over cache/:** the model is 60 MB of fetched data that we don't want iOS evicting under storage pressure. `cache/` would be wiped by the OS; `documents/` persists until app uninstall (and gets included in iCloud backup — accepted trade-off).
+
+**Observable progress:** `whisperModelDownloader.onProgress(cb)` lets a future "downloading base model…" UI subscribe. The progress UI is not implemented yet (Open Question Q1 in the PRD); the API is wired so the UI can be added without touching the downloader.
+
+### `whisper.rn` TypeScript module shim (`src/types/whisper.rn.d.ts`)
+
+For the same `exports`-field reason that breaks runtime resolution under `react-native.config.js`, TypeScript's `moduleResolution: "bundler"` cannot resolve the bare module specifier `whisper.rn`. We ship a hand-written declaration shim at `src/types/whisper.rn.d.ts` that declares only the surface this codebase uses (`initWhisper`, `WhisperContext`, etc.). Extend the shim when adopting more of the whisper.rn API; delete the file when the upstream package adds a `.` entry to its `exports` field.

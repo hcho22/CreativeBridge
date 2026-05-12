@@ -3478,6 +3478,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                   onSubmit={handleContinueStory}
                   isGenerating={loadingState.isGenerating}
                   isGameCompleted={isGameCompleted}
+                  // US-007: COPPA routing for the embedded VoiceInput.
+                  // Pass the canonical user grade so under-13 users are
+                  // forced to the on-device transcription pipeline.
+                  // US-009: pipe the Settings toggle's value through; the
+                  // policy helper ignores it for under-13 grades, so this
+                  // only takes effect for 9-12 users.
+                  gradeLevel={
+                    userProfile?.preferred_grade_level as GradeLevel | undefined
+                  }
+                  transcriptionPreferences={{
+                    transcriptionEngine:
+                      userProfile?.preferences?.transcription_engine,
+                  }}
                 />
               </AdaptiveGlassBackground>
             </Animated.View>
