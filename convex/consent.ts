@@ -37,7 +37,7 @@ import { requireAuth, getClerkUserId } from './auth';
 const CONSENT_TOKEN_EXPIRY_MS = 48 * 60 * 60 * 1000;
 
 /** Current privacy policy version — increment when policy changes */
-const CURRENT_PRIVACY_POLICY_VERSION = '1.0.0';
+const CURRENT_PRIVACY_POLICY_VERSION = '1.1';
 
 /** 11 months in milliseconds — time to send renewal reminder */
 const RENEWAL_REMINDER_MS = 11 * 30 * 24 * 60 * 60 * 1000; // ~11 months

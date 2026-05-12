@@ -9,9 +9,10 @@
  * @implements US-001: Remove Hardcoded Credentials and Move AI Server-Side
  */
 
-import { action } from './_generated/server';
+import { action, internalQuery } from './_generated/server';
 import { v } from 'convex/values';
-import { requireAuth } from './auth';
+import { internal } from './_generated/api';
+import { requireAuth, getClerkUserId } from './auth';
 
 // ---------------------------------------------------------------------------
 // PII Scrubbing
@@ -382,6 +383,36 @@ export const moderateContent = action({
 });
 
 /**
+ * Server-side under-13 grade bands for the FR-2 transcription guard.
+ *
+ * Mirrors `UNDER_13_GRADES` in `src/utils/transcriptionEnginePolicy.ts`. The
+ * two constants are deliberately decoupled — client routing lives in the app
+ * bundle and server enforcement lives here — but they MUST agree. If the
+ * client list ever changes, change this in the same commit.
+ */
+const UNDER_13_GRADE_BANDS = ['K-2', '3-5', '6-8'] as const;
+
+/**
+ * Look up the authenticated user's grade band and age group for the
+ * `transcribeAudio` FR-2 guard. Internal because the client has no
+ * business calling this directly — it exists so the action can read DB
+ * state (actions can't use `ctx.db`).
+ */
+export const getTranscriptionAuthorization = internalQuery({
+  args: { clerkUserId: v.string() },
+  handler: async (ctx, args) => {
+    const profile = await ctx.db
+      .query('userProfiles')
+      .withIndex('by_clerk_user_id', q => q.eq('clerkUserId', args.clerkUserId))
+      .first();
+    return {
+      preferredGradeLevel: profile?.preferredGradeLevel ?? null,
+      ageGroup: profile?.ageGroup ?? null,
+    };
+  },
+});
+
+/**
  * Transcribe an audio recording via OpenAI Whisper.
  *
  * Replaces on-device speech recognition (`@react-native-voice/voice`) for the
@@ -392,6 +423,16 @@ export const moderateContent = action({
  * Keeps the OpenAI API key server-side per US-001 / COPPA C03. The returned
  * transcript is passed through `scrubPII` before returning to the client so
  * the downstream story pipeline never sees child PII in memory on-device.
+ *
+ * **FR-2 server-side guard.** Rejects the call with an authorization error
+ * if the authenticated user is in an under-13 grade band (`K-2`, `3-5`,
+ * `6-8`) or has `ageGroup === 'under_13'`. The client-side policy helper
+ * (`src/utils/transcriptionEnginePolicy.ts`) already routes under-13 users
+ * to on-device transcription, but that guard lives in the app bundle and a
+ * compromised or modified client could call this action directly. This
+ * check makes the privacy-policy.md claim — "no setting, A/B test, feature
+ * flag, or admin override can cause an under-13 user's voice data to be
+ * sent to a third party" — true at every layer, not just at the client.
  *
  * @param audioBase64 Base64-encoded audio content (m4a/aac from iOS,
  *   opus/webm on Android via expo-av HIGH_QUALITY preset). Size cap ~25MB
@@ -407,7 +448,25 @@ export const transcribeAudio = action({
     language: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<string> => {
-    await requireAuth(ctx);
+    const clerkUserId = await getClerkUserId(ctx);
+
+    // FR-2 server-side guard — reject before any audio bytes leave Convex.
+    const authz = await ctx.runQuery(
+      internal.ai.getTranscriptionAuthorization,
+      { clerkUserId },
+    );
+    const inUnder13Band =
+      authz.preferredGradeLevel != null &&
+      (UNDER_13_GRADE_BANDS as readonly string[]).includes(
+        authz.preferredGradeLevel,
+      );
+    const ageGroupedUnder13 = authz.ageGroup === 'under_13';
+    if (inUnder13Band || ageGroupedUnder13) {
+      throw new Error(
+        'Cloud transcription is not available for users under 13. ' +
+          'Voice input must use on-device transcription.',
+      );
+    }
 
     // Decode base64 → Uint8Array → Blob for multipart upload.
     // atob is available in the Convex Node runtime.

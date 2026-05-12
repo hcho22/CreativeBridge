@@ -48,6 +48,10 @@ module.exports = {
     // package.json "exports" field has no "." entry — see the mock file
     // header for the full explanation.
     '^whisper\\.rn$': '<rootDir>/src/__tests__/__mocks__/whisper.rn',
+    // expo-asset's native module "ExpoAsset" is unavailable in Jest;
+    // whisperModelService transitively imports it via VoiceInput, so
+    // any test that touches VoiceInput needs this stub to load.
+    '^expo-asset$': '<rootDir>/src/__tests__/__mocks__/expo-asset',
     // Binary asset imports (Whisper GGML model files) are picked up by
     // Metro as numeric asset IDs at runtime; in Jest there is no Metro,
     // so stub them to a number that Asset.fromModule mocks can accept.

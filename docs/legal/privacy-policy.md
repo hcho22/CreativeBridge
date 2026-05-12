@@ -22,9 +22,11 @@ This Privacy Policy complies with the Children's Online Privacy Protection Act (
 
 **Operator Contact Information:**
 
-- Name: [INSERT OPERATOR NAME]
-- Email: [INSERT CONTACT EMAIL]
-- Address: [INSERT MAILING ADDRESS]
+- Name: Hyung Cho
+- Email: hcho22@gmail.com
+- Phone: 6265945942
+
+For postal correspondence, please email hcho22@gmail.com and we will provide an address upon request.
 
 ---
 
@@ -91,10 +93,10 @@ cloud transcription, the App displays a disclosure modal explaining:
 - **What is retained by CreativeBridge:** Only the transcribed text becomes
   part of the user's story. The audio recording is not stored by
   CreativeBridge after transcription completes.
-- **What is retained by OpenAI:** Per our DPA, OpenAI does not use
-  transmitted audio for model training and retains transmitted data only
-  long enough to provide the transcription response (zero data retention
-  for API calls under the DPA's terms).
+- **What is retained by OpenAI:** Under our Zero Data Retention DPA
+  addendum with OpenAI, transmitted audio is processed in memory to
+  generate the transcription, is not used for model training, and is not
+  retained, logged, or persisted by OpenAI.
 
 Consent is logged to an internal `consentEvents` audit table at the moment
 the user agrees, including a timestamp and the policy version. The user can
@@ -128,14 +130,14 @@ We do **not** use children's personal information for behavioral advertising, pr
 
 We use the following third-party services to operate the App. We have executed Data Processing Agreements (DPAs) with each service to ensure they handle data in compliance with COPPA.
 
-| Service                             | Purpose                                                       | Data Shared                                                                                                                                                                            | Applies To                                                                                    |
-| ----------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| **Clerk**                           | Authentication (OAuth via Google/Apple)                       | Email, OAuth profile data, authentication tokens                                                                                                                                       | All users                                                                                     |
-| **Convex**                          | Primary database and real-time backend                        | User profiles, story content, game statistics, generated images                                                                                                                        | All users                                                                                     |
-| **OpenAI** (GPT-4)                  | AI-powered story generation                                   | Story content text (PII-scrubbed before transmission)                                                                                                                                  | All users                                                                                     |
-| **OpenAI Whisper** (speech-to-text) | Cloud transcription of dictated voice input                   | Audio recordings of dictated speech. Audio is not retained by CreativeBridge after transcription; OpenAI retains under zero-retention DPA terms only for the duration of the API call. | **Only users in grade 9-12 who have explicitly opted in via Settings.** Never under-13 users. |
-| **Replicate** (Stable Diffusion)    | AI-powered illustration generation                            | Image generation prompts derived from story content (PII-scrubbed)                                                                                                                     | All users                                                                                     |
-| **Supabase**                        | Legacy database (for migrated accounts), anonymized analytics | Anonymized analytics events                                                                                                                                                            | Legacy migrated accounts                                                                      |
+| Service                             | Purpose                                                       | Data Shared                                                                                                                                                                                                                    | Applies To                                                                                    |
+| ----------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| **Clerk**                           | Authentication (OAuth via Google/Apple)                       | Email, OAuth profile data, authentication tokens                                                                                                                                                                               | All users                                                                                     |
+| **Convex**                          | Primary database and real-time backend                        | User profiles, story content, game statistics, generated images                                                                                                                                                                | All users                                                                                     |
+| **OpenAI** (GPT-4)                  | AI-powered story generation                                   | Story content text (PII-scrubbed before transmission)                                                                                                                                                                          | All users                                                                                     |
+| **OpenAI Whisper** (speech-to-text) | Cloud transcription of dictated voice input                   | Audio recordings of dictated speech. Audio is not retained by CreativeBridge after transcription; OpenAI processes the audio in memory only and does not retain, log, or persist it, per our Zero Data Retention DPA addendum. | **Only users in grade 9-12 who have explicitly opted in via Settings.** Never under-13 users. |
+| **Replicate** (Stable Diffusion)    | AI-powered illustration generation                            | Image generation prompts derived from story content (PII-scrubbed)                                                                                                                                                             | All users                                                                                     |
+| **Supabase**                        | Legacy database (for migrated accounts), anonymized analytics | Anonymized analytics events                                                                                                                                                                                                    | Legacy migrated accounts                                                                      |
 
 **Important:** Story content sent to OpenAI and Replicate is processed through a PII scrubber that removes personal information (names, emails, phone numbers, addresses) before transmission. We have opted out of OpenAI using transmitted data for model training.
 
@@ -174,7 +176,7 @@ Parents and guardians of children under 13 have the right to:
 To exercise these rights, parents may:
 
 - Use the Parental Dashboard within the App (accessible via a parental gate)
-- Contact us at [INSERT CONTACT EMAIL]
+- Contact us at hcho22@gmail.com
 
 We will respond to all parental requests within 48 hours.
 
@@ -219,7 +221,7 @@ Users (or parents of children under 13) can request complete account and data de
 
 ### Parent-Initiated Deletion
 
-Parents may also request deletion by contacting us at [INSERT CONTACT EMAIL]. We will fulfill deletion requests within 48 hours.
+Parents may also request deletion by contacting us at hcho22@gmail.com. We will fulfill deletion requests within 48 hours.
 
 Deletion is irreversible. A confirmation step is required before proceeding.
 
@@ -254,8 +256,8 @@ The current version of this Privacy Policy is always available within the App an
 
 If you have questions about this Privacy Policy, our data practices, or wish to exercise your parental rights under COPPA, please contact us:
 
-- **Email:** [INSERT CONTACT EMAIL]
-- **Mailing Address:** [INSERT MAILING ADDRESS]
+- **Email:** hcho22@gmail.com
+- **Phone:** 6265945942
 
 ---
 
