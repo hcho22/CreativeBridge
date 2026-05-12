@@ -1,6 +1,7 @@
 {
   "name": "CreativeBridge",
   "displayName": "CreativeBridge",
+  "version": "0.0.5",
   "icon": "./assets/icon.png",
   "extra": {
     "eas": {
